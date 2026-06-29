@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Recurrsive Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# This file configures how Recurrsive analyzes your project.
+# Place it at: .recurrsive/config.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Project Info ─────────────────────────────────────────────────────────────
+project:
+  name: my-project
+  repository: https://github.com/your-org/my-project
+  description: A brief description of your project
+
+# ── Knowledge Graph Backend ──────────────────────────────────────────────────
+# Options: 'sqlite' (local, zero-config) or 'postgresql_age' (production)
+graph:
+  provider: sqlite
+  sqlite:
+    path: .recurrsive/graph.db
+  # For production PostgreSQL + Apache AGE:
+  # provider: postgresql_age
+  # postgresql:
+  #   connection_string: postgresql://user:pass@host:5432/recurrsive
+
+# ── Analyzers ────────────────────────────────────────────────────────────────
+# Enable or disable individual analyzers
+analyzers:
+  enabled:
+    - architecture
+    - ai
+    - performance
+    - cost
+    - reliability
+    - security
+    - data
+    - docs
+    - ux
+    - product
+  # Disable specific analyzer rules:
+  # disabled_rules:
+  #   - architecture:circular-dependencies
+  #   - security:hardcoded-secrets
+
+# ── Reasoning Engine ─────────────────────────────────────────────────────────
+# Requires an LLM API key. Without it, Recurrsive runs analyzers only.
+reasoning:
+  enabled: false  # Set to true to enable multi-agent reasoning
+  provider: openai
+  model: gpt-4o
+  # Set API key via environment variable:
+  # api_key: ${OPENAI_API_KEY}
+  #
+  # For other providers:
+  # provider: anthropic
+  # model: claude-sonnet-4-20250514
+  # base_url: https://api.anthropic.com/v1
+  #
+  # For local models:
+  # provider: ollama
+  # model: llama3
+  # base_url: http://localhost:11434/v1
+
+  # Debate configuration:
+  debate:
+    max_rounds: 3
+    min_consensus: 0.7
+
+# ── Data Governance ──────────────────────────────────────────────────────────
+# Control what data is collected and how sensitive information is handled
+governance:
+  pii_detection: true
+  masked_fields:
+    - password
+    - secret
+    - token
+    - api_key
+    - private_key
+    - access_token
+    - refresh_token
+  excluded_patterns:
+    - '**/node_modules/**'
+    - '**/dist/**'
+    - '**/.git/**'
+    - '**/vendor/**'
+    - '**/__pycache__/**'
+    - '**/venv/**'
+    - '**/.venv/**'
+    - '**/coverage/**'
+    - '**/.env'
+    - '**/.env.*'
+  audit_log: true
+
+# ── Collection ───────────────────────────────────────────────────────────────
+collectors:
+  git:
+    max_file_size_kb: 512
+    max_git_log_entries: 500
+    include_file_content: true
+  docs:
+    scan_adrs: true
+    scan_rfcs: true
+    scan_api_contracts: true
+
+# ── Output ───────────────────────────────────────────────────────────────────
+output:
+  format: markdown  # markdown, json, sarif, html
+  directory: .recurrsive/reports
+  # SARIF output for CI/CD integration:
+  # format: sarif
+  # sarif_file: .recurrsive/results.sarif
+
+# ── Policy ───────────────────────────────────────────────────────────────────
+# Governance policies for automated opportunity approval/rejection
+policy:
+  enabled: true
+  # Load custom policies from:
+  # custom_directory: .recurrsive/policies
+  builtin:
+    security_baseline: true
+    change_management: true
+    cost_governance: true
+    compliance: true
+    quality_gates: true

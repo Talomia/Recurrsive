@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Recurrsive Development Override — Docker Compose
+#
+# Extends docker-compose.yml with development-friendly settings:
+#   - Volume mounts for live source code (hot reload)
+#   - Node.js debug port exposed
+#   - Relaxed restart policy
+#   - Development environment variables
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.dev.yml \
+#                  up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL (dev overrides) ─────────────────────────────────────────────
+  postgres:
+    # Keep data ephemeral in dev — comment out if you want persistence
+    # volumes: []
+    ports:
+      - "5432:5432"
+
+  # ── Recurrsive API Server (dev overrides) ──────────────────────────────────
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: builder
+    container_name: recurrsive-server-dev
+    environment:
+      DATABASE_URL: postgresql://recurrsive:recurrsive@postgres:5432/recurrsive
+      GRAPH_PROVIDER: postgresql_age
+      PORT: "3000"
+      NODE_ENV: development
+      # Enable Node.js inspector for remote debugging
+      NODE_OPTIONS: "--inspect=0.0.0.0:9229"
+      # LLM configuration
+      RECURRSIVE_LLM_PROVIDER: ${RECURRSIVE_LLM_PROVIDER:-openai}
+      RECURRSIVE_LLM_MODEL: ${RECURRSIVE_LLM_MODEL:-gpt-4.1-mini}
+      RECURRSIVE_LLM_API_KEY: ${RECURRSIVE_LLM_API_KEY:-}
+    volumes:
+      # Mount source directories for live editing
+      - ../packages/core/src:/app/packages/core/src:ro
+      - ../packages/graph/src:/app/packages/graph/src:ro
+      - ../packages/collectors/src:/app/packages/collectors/src:ro
+      - ../packages/parsers/src:/app/packages/parsers/src:ro
+      - ../packages/analyzers/src:/app/packages/analyzers/src:ro
+      - ../packages/reasoning/src:/app/packages/reasoning/src:ro
+      - ../packages/opportunities/src:/app/packages/opportunities/src:ro
+      - ../packages/policy/src:/app/packages/policy/src:ro
+      - ../packages/presentation/src:/app/packages/presentation/src:ro
+      - ../apps/server/src:/app/apps/server/src:ro
+      # Mount tsconfigs for tsc --watch
+      - ../tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ../apps/server/tsconfig.json:/app/apps/server/tsconfig.json:ro
+    ports:
+      - "3000:3000"
+      # Node.js debug port
+      - "9229:9229"
+    # In dev, use tsc --watch + nodemon-like approach
+    # Override command to rebuild and run in watch mode
+    command: >
+      sh -c "
+        pnpm exec turbo build --filter=@recurrsive/server... &&
+        node apps/server/dist/bin.js
+      "
+    restart: "no"

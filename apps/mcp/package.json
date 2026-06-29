@@ -1,0 +1,36 @@
+{
+  "name": "@recurrsive/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Recurrsive - exposes analysis to AI assistants",
+  "type": "module",
+  "bin": {
+    "recurrsive-mcp": "./dist/bin.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/bin.js",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@recurrsive/core": "workspace:*",
+    "@recurrsive/graph": "workspace:*",
+    "@recurrsive/collectors": "workspace:*",
+    "@recurrsive/parsers": "workspace:*",
+    "@recurrsive/analyzers": "workspace:*",
+    "@recurrsive/reasoning": "workspace:*",
+    "@recurrsive/opportunities": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

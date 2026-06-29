@@ -1,0 +1,38 @@
+{
+  "name": "@recurrsive/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Recurrsive CLI - The Evolution Runtime for AI Software",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "recurrsive": "./dist/bin.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/bin.js",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@recurrsive/core": "workspace:*",
+    "@recurrsive/graph": "workspace:*",
+    "@recurrsive/collectors": "workspace:*",
+    "@recurrsive/parsers": "workspace:*",
+    "@recurrsive/analyzers": "workspace:*",
+    "@recurrsive/reasoning": "workspace:*",
+    "@recurrsive/opportunities": "workspace:*",
+    "@recurrsive/policy": "workspace:*",
+    "@recurrsive/presentation": "workspace:*",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

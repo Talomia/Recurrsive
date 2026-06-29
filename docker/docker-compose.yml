@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Recurrsive Full Stack — Docker Compose
+#
+# Services:
+#   postgres — Apache AGE graph database (PostgreSQL + Cypher)
+#   server   — Recurrsive REST + WebSocket API
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml up --build
+#   docker compose -f docker/docker-compose.yml down -v
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL + Apache AGE ────────────────────────────────────────────────
+  postgres:
+    image: apache/age:latest
+    container_name: recurrsive-postgres
+    environment:
+      POSTGRES_USER: recurrsive
+      POSTGRES_PASSWORD: recurrsive
+      POSTGRES_DB: recurrsive
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recurrsive"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Recurrsive API Server ──────────────────────────────────────────────────
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: recurrsive-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://recurrsive:recurrsive@postgres:5432/recurrsive
+      GRAPH_PROVIDER: postgresql_age
+      PORT: "3000"
+      NODE_ENV: production
+      # LLM configuration (optional — set in .env or override)
+      RECURRSIVE_LLM_PROVIDER: ${RECURRSIVE_LLM_PROVIDER:-openai}
+      RECURRSIVE_LLM_MODEL: ${RECURRSIVE_LLM_MODEL:-gpt-4.1-mini}
+      RECURRSIVE_LLM_API_KEY: ${RECURRSIVE_LLM_API_KEY:-}
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local

@@ -1,0 +1,35 @@
+{
+  "name": "@recurrsive/server",
+  "version": "0.1.0",
+  "description": "Recurrsive API server - REST + GraphQL",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/bin.js",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@recurrsive/core": "workspace:*",
+    "@recurrsive/graph": "workspace:*",
+    "@recurrsive/collectors": "workspace:*",
+    "@recurrsive/parsers": "workspace:*",
+    "@recurrsive/analyzers": "workspace:*",
+    "@recurrsive/reasoning": "workspace:*",
+    "@recurrsive/opportunities": "workspace:*",
+    "@recurrsive/policy": "workspace:*",
+    "@recurrsive/presentation": "workspace:*",
+    "fastify": "^5.0.0",
+    "@fastify/cors": "^10.0.0",
+    "@fastify/websocket": "^11.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
