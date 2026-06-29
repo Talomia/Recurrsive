@@ -95,7 +95,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
         status: '/api/v1/analysis/status',
         history: '/api/v1/analysis/history',
         opportunities: '/api/v1/opportunities',
-        ws: 'ws://localhost:3000/ws',
+        ws: `${request.protocol === 'https' ? 'wss' : 'ws'}://${request.hostname}:${(request.server.addresses()[0]?.port ?? 3000)}/ws`,
       },
     });
   });
@@ -122,7 +122,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
     const history = state.getAnalysisHistory();
 
     return reply.status(200).send({
-      data: history.reverse(),
+      data: [...history].reverse(),
       total: history.length,
     });
   });

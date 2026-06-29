@@ -40,7 +40,7 @@ Recurrsive is a **Software Evolution Platform** that continuously analyzes your 
 | 🔍 **Evidence Collection** | Git repos, docs, ADRs, API contracts with PII detection & governance |
 | 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 40 relationship types |
 | 🔬 **10 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product |
-| 🤖 **Multi-Agent Reasoning** | 8 specialist AI agents debate and rank improvement opportunities |
+| 🤖 **Multi-Agent Reasoning** | 12 specialist AI agents debate and rank improvement opportunities |
 | 📊 **Opportunity Management** | Prioritized roadmap with SARIF export, validation plans, rollback plans |
 | 🛡️ **Policy Engine** | Governance rules with recursive descent expression evaluation |
 | 🔌 **MCP Server** | Expose analysis to Claude, Cursor, Copilot, and other AI assistants |
@@ -94,6 +94,12 @@ recurrsive graph --stats
 
 # View evolution timeline
 recurrsive timeline
+
+# Generate reports
+recurrsive report --format html
+
+# Manage configuration
+recurrsive config --list
 ```
 
 ### MCP Server (for AI Assistants)
@@ -114,12 +120,17 @@ Add to your MCP configuration:
 }
 ```
 
-**Available MCP tools:**
+**Available MCP tools (10):**
 - `analyze_project` — Run the full analysis pipeline
 - `get_opportunities` — Get prioritized improvement opportunities
 - `get_opportunity_detail` — Deep dive into a specific opportunity
 - `query_graph` — Query the knowledge graph
 - `get_health_score` — Get system health score and maturity
+- `inspect_entity` — Inspect a specific entity in the knowledge graph
+- `inspect_relationships` — List relationships for an entity
+- `inspect_analyzers` — List available analyzers and their rules
+- `inspect_policies` — List active policies and evaluation results
+- `inspect_findings` — Browse raw analysis findings
 
 ### Docker
 
@@ -168,7 +179,7 @@ Recurrsive is organized as a 5-layer stack:
 │  Opportunities  ·  Policy  ·  Presentation       │
 ├─────────────────────────────────────────────────┤
 │                  REASONING                        │
-│  8 Specialists  ·  Debate  ·  Judge  ·  Memory   │
+│  12 Specialists  ·  Debate  ·  Judge  ·  Memory  │
 ├─────────────────────────────────────────────────┤
 │                  KNOWLEDGE                        │
 │  Graph Engine  ·  Analyzers  ·  Parsers          │
@@ -193,8 +204,8 @@ recurrsive/
 │   ├── policy/         # Policy engine + 5 built-in policies
 │   └── presentation/   # Reports + notifications + terminal
 ├── apps/
-│   ├── cli/            # Commander.js CLI — 6 commands
-│   ├── mcp/            # MCP server — 5 tools, 4 resources, 3 prompts
+│   ├── cli/            # Commander.js CLI — 8 commands
+│   ├── mcp/            # MCP server — 10 tools, 4 resources, 6 prompts
 │   └── server/         # Fastify REST + WebSocket API
 ├── docker/             # Dockerfile + docker-compose
 ├── docs/
@@ -245,7 +256,7 @@ Multi-language code analysis:
 
 ### `@recurrsive/reasoning`
 Multi-agent reasoning engine:
-- **8 Specialist Agents** with cognitive frameworks and detailed system prompts
+- **12 Specialist Agents** with cognitive frameworks and detailed system prompts
 - **Debate Protocol** with challenge/defend cycles and dual consensus detection
 - **Synthesizer** — Transforms hypotheses into structured opportunities
 - **Judge** — Weighted multi-factor scoring

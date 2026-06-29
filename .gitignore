@@ -3,7 +3,9 @@ node_modules/
 
 # Build output
 dist/
+.next/
 *.tsbuildinfo
+*.wasm
 
 # Turborepo
 .turbo/
@@ -26,6 +28,7 @@ Thumbs.db
 
 # Testing
 coverage/
+.vitest/
 
 # Logs
 *.log

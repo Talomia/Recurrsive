@@ -2,8 +2,9 @@
 # Recurrsive Full Stack — Docker Compose
 #
 # Services:
-#   postgres — Apache AGE graph database (PostgreSQL + Cypher)
-#   server   — Recurrsive REST + WebSocket API
+#   postgres   — Apache AGE graph database (PostgreSQL + Cypher)
+#   server     — Recurrsive REST + WebSocket API
+#   dashboard  — Recurrsive Dashboard (Next.js)
 #
 # Usage:
 #   docker compose -f docker/docker-compose.yml up --build
@@ -50,6 +51,22 @@ services:
       RECURRSIVE_LLM_API_KEY: ${RECURRSIVE_LLM_API_KEY:-}
     ports:
       - "3000:3000"
+    restart: unless-stopped
+
+  # ── Recurrsive Dashboard ───────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: recurrsive-dashboard
+    depends_on:
+      - server
+    environment:
+      NEXT_PUBLIC_API_URL: http://server:3000
+      PORT: "3100"
+      NODE_ENV: production
+    ports:
+      - "3100:3100"
     restart: unless-stopped
 
 volumes:

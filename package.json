@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/recurrsive/recurrsive"
+    "url": "https://github.com/Talomia/Recurrsive"
   },
   "engines": {
     "node": ">=20.0.0",

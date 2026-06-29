@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Analysis & Reasoning
 - **`@recurrsive/analyzers`** — 10 built-in analyzers (Architecture, AI, Performance, Cost, Reliability, Security, Data, Documentation, UX, Product) with 66+ analysis rules
-- **`@recurrsive/reasoning`** — Multi-agent reasoning engine with 8 specialist agents, debate protocol, synthesizer, judge, and file-based memory store
+- **`@recurrsive/reasoning`** — Multi-agent reasoning engine with 12 specialist agents, debate protocol, synthesizer, judge, and file-based memory store
 - **`@recurrsive/opportunities`** — Complete opportunity lifecycle management with SARIF v2.1.0 export, markdown reports, and roadmap generation
 
 #### Governance & Output
@@ -25,8 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`@recurrsive/presentation`** — Markdown and HTML report generation, console and webhook notifications, terminal formatter with progress bars
 
 #### Applications
-- **`apps/cli`** — Commander.js CLI with 6 commands: `init`, `analyze`, `opportunities`, `graph`, `timeline`, `health`
-- **`apps/mcp`** — MCP server with 5 tools, 4 resources, and 3 prompts for AI assistant integration
+- **`apps/cli`** — Commander.js CLI with 8 commands: `init`, `analyze`, `opportunities`, `graph`, `timeline`, `health`, `report`, `config`
+- **`apps/mcp`** — MCP server with 10 tools, 4 resources, and 6 prompts for AI assistant integration
 - **`apps/server`** — Fastify REST API with 16 endpoints plus WebSocket for real-time analysis updates
 
 #### Infrastructure
@@ -35,3 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI pipeline (typecheck, test, build, Docker)
 - Comprehensive documentation (PRD: 2,096 lines, Architecture: 2,304 lines)
 - 1,095+ unit tests across all packages
+
+### Changed
+
+- **`@recurrsive/reasoning`** — Added 4 new specialist agents (Anthropic Adapter, Evolution Strategist, Integration Analyst, Dependency Auditor) bringing total to 12
+- **`apps/cli`** — Added `report` and `config` commands (8 commands total)
+- **`apps/mcp`** — Added 5 inspect tools (`inspect_entity`, `inspect_relationships`, `inspect_analyzers`, `inspect_policies`, `inspect_findings`) and 3 assessment prompts (10 tools, 6 prompts total)
+- **`apps/server`** — Added REST endpoints for findings and reports
+- **`@recurrsive/reasoning`** — Added Anthropic adapter for Claude model support

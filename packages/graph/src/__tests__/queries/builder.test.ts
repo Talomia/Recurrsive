@@ -57,12 +57,15 @@ describe('Query Builders', () => {
   // ── findCircularDeps ──────────────────────────────────────────────────
 
   describe('findCircularDeps', () => {
-    it('generates SQL query that detects cycles', () => {
-      const { sql } = findCircularDeps(testId, 'sql');
-      expect(sql).toContain('WITH RECURSIVE dep_walk');
+    it('generates SQL query that detects cycles scoped to repo', () => {
+      const { sql, params } = findCircularDeps(testId, 'sql');
+      expect(sql).toContain('WITH RECURSIVE ancestry');
+      expect(sql).toContain('dep_walk');
       expect(sql).toContain('is_cycle');
       expect(sql).toContain("'depends_on', 'imports'");
       expect(sql).toContain('WHERE dw.is_cycle = 1');
+      expect(sql).toContain('IN (SELECT eid FROM ancestry)');
+      expect(params).toContain(testId);
     });
 
     it('generates Cypher query for cycles', () => {

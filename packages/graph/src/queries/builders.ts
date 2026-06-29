@@ -237,15 +237,23 @@ export function findCircularDeps(
     };
   }
 
-  // SQLite: find cycles via recursive CTE with path tracking
+  // SQLite: find cycles via recursive CTE with path tracking, scoped to repo
   return {
     sql: `
-WITH RECURSIVE dep_walk(start_id, current_id, depth, path, is_cycle) AS (
+WITH RECURSIVE ancestry(eid) AS (
+  SELECT ?
+  UNION ALL
+  SELECT rc.target_id
+  FROM ancestry a
+  JOIN relationships rc ON rc.source_id = a.eid AND rc.type = 'contains'
+),
+dep_walk(start_id, current_id, depth, path, is_cycle) AS (
   SELECT r.source_id, r.target_id, 1,
          r.source_id || ',' || r.target_id,
          CASE WHEN r.source_id = r.target_id THEN 1 ELSE 0 END
   FROM relationships r
   WHERE r.type IN ('depends_on', 'imports')
+    AND r.source_id IN (SELECT eid FROM ancestry)
   UNION ALL
   SELECT dw.start_id, r.target_id, dw.depth + 1,
          dw.path || ',' || r.target_id,
@@ -261,7 +269,7 @@ SELECT DISTINCT dw.path, dw.depth
 FROM dep_walk dw
 WHERE dw.is_cycle = 1
 ORDER BY dw.depth;`.trim(),
-    params: [],
+    params: [repoId],
   };
 }
 
