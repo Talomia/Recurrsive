@@ -12,3 +12,5 @@ export { registerOpportunitiesCommand } from './opportunities.js';
 export { registerGraphCommand } from './graph.js';
 export { registerTimelineCommand } from './timeline.js';
 export { registerHealthCommand } from './health.js';
+export { registerReportCommand } from './report.js';
+export { registerConfigCommand } from './config.js';

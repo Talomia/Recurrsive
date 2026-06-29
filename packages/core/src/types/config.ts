@@ -41,6 +41,10 @@ export const RecurrsiveConfigSchema = z.object({
       base_url: z.string().optional(),
       /** Maximum debate rounds. */
       max_debate_rounds: z.number().default(3),
+      /** Minimum average confidence for consensus (0–1). */
+      min_consensus_score: z.number().min(0).max(1).default(0.6),
+      /** Which specialist roles participate (empty = all). */
+      specialists: z.array(z.string()).default([]),
       /** Sampling temperature. */
       temperature: z.number().default(0.3),
     })

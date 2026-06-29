@@ -10,6 +10,8 @@
  * - `graph` — Explore the knowledge graph
  * - `timeline` — Show evolution over time
  * - `health` — Show project health score
+ * - `report` — Generate reports from analysis results
+ * - `config` — View, validate, and inspect configuration
  *
  * @packageDocumentation
  */
@@ -22,6 +24,8 @@ import {
   registerGraphCommand,
   registerTimelineCommand,
   registerHealthCommand,
+  registerReportCommand,
+  registerConfigCommand,
 } from './commands/index.js';
 
 /**
@@ -52,6 +56,8 @@ export function createProgram(): Command {
   registerGraphCommand(program);
   registerTimelineCommand(program);
   registerHealthCommand(program);
+  registerReportCommand(program);
+  registerConfigCommand(program);
 
   return program;
 }

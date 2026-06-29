@@ -13,6 +13,8 @@ import { registerOpportunityRoutes } from './opportunities.js';
 import { registerAnalysisRoutes } from './analysis.js';
 import { registerGraphRoutes } from './graph.js';
 import { registerTimelineRoutes } from './timeline.js';
+import { registerFindingsRoutes } from './findings.js';
+import { registerReportRoutes } from './reports.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -24,6 +26,8 @@ import { registerTimelineRoutes } from './timeline.js';
  * - `/api/v1/analyze`, `/api/v1/analysis/*` — Analysis management
  * - `/api/v1/graph/*` — Knowledge graph queries
  * - `/api/v1/timeline/*` — Evolution timeline and trends
+ * - `/api/v1/findings/*` — Findings query and detail
+ * - `/api/v1/reports/*` — Report generation (markdown, HTML, SARIF, JSON)
  *
  * @param app - The Fastify application instance.
  */
@@ -33,4 +37,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerAnalysisRoutes(app);
   await registerGraphRoutes(app);
   await registerTimelineRoutes(app);
+  await registerFindingsRoutes(app);
+  await registerReportRoutes(app);
 }

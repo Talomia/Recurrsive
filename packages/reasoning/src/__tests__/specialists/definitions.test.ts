@@ -1,7 +1,7 @@
 /**
  * Tests for specialist agent definitions.
  *
- * Verifies that all 8 specialists instantiate correctly, have unique
+ * Verifies that all 12 specialists instantiate correctly, have unique
  * identities, and carry non-empty cognitive frameworks and system prompts.
  */
 
@@ -15,10 +15,14 @@ import {
   ProductManager,
   ReliabilityEngineer,
   DeveloperExperienceEngineer,
+  UXResearcher,
+  AccessibilityExpert,
+  PrivacyEngineer,
+  ComplianceEngineer,
 } from '../../specialists/definitions.js';
 import { createDefaultSpecialists } from '../../specialists/index.js';
 
-// All 8 specialist classes
+// All 12 specialist classes
 const specialistClasses = [
   ArchitectureEngineer,
   PerformanceEngineer,
@@ -28,22 +32,26 @@ const specialistClasses = [
   ProductManager,
   ReliabilityEngineer,
   DeveloperExperienceEngineer,
+  UXResearcher,
+  AccessibilityExpert,
+  PrivacyEngineer,
+  ComplianceEngineer,
 ] as const;
 
 describe('Specialist Definitions', () => {
   // ── Instantiation ──────────────────────────────────────────────────────
 
   describe('instantiation', () => {
-    it('all 8 specialist classes instantiate without error', () => {
+    it('all 12 specialist classes instantiate without error', () => {
       for (const SpecialistClass of specialistClasses) {
         const instance = new SpecialistClass();
         expect(instance).toBeDefined();
       }
     });
 
-    it('createDefaultSpecialists() returns exactly 8 specialists', () => {
+    it('createDefaultSpecialists() returns exactly 12 specialists', () => {
       const specialists = createDefaultSpecialists();
-      expect(specialists).toHaveLength(8);
+      expect(specialists).toHaveLength(12);
     });
   });
 
@@ -74,6 +82,7 @@ describe('Specialist Definitions', () => {
         'performance_engineer',
         'cost_optimizer',
         'privacy_engineer',
+        'compliance_engineer',
         'documentation_engineer',
         'release_manager',
         'sre',
@@ -189,6 +198,30 @@ describe('Specialist Definitions', () => {
       const s = new DeveloperExperienceEngineer();
       expect(s.role).toBe('devops_engineer');
       expect(s.name).toBe('Developer Experience Engineer');
+    });
+
+    it('UXResearcher has role ux_researcher', () => {
+      const s = new UXResearcher();
+      expect(s.role).toBe('ux_researcher');
+      expect(s.name).toBe('UX Researcher');
+    });
+
+    it('AccessibilityExpert has role accessibility_expert', () => {
+      const s = new AccessibilityExpert();
+      expect(s.role).toBe('accessibility_expert');
+      expect(s.name).toBe('Accessibility Expert');
+    });
+
+    it('PrivacyEngineer has role privacy_engineer', () => {
+      const s = new PrivacyEngineer();
+      expect(s.role).toBe('privacy_engineer');
+      expect(s.name).toBe('Privacy Engineer');
+    });
+
+    it('ComplianceEngineer has role compliance_engineer', () => {
+      const s = new ComplianceEngineer();
+      expect(s.role).toBe('compliance_engineer');
+      expect(s.name).toBe('Compliance Engineer');
     });
   });
 

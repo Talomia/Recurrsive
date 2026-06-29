@@ -160,9 +160,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 5 tools', () => {
+    it('registers exactly 10 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(5);
+      expect(mockTool).toHaveBeenCalledTimes(10);
     });
 
     it('registers "analyze_project" tool', () => {
@@ -300,9 +300,9 @@ describe('MCP Server', () => {
   // ── Prompt Registration ────────────────────────────────────────────────
 
   describe('prompt registration', () => {
-    it('registers exactly 3 prompts', () => {
+    it('registers exactly 6 prompts', () => {
       createServer();
-      expect(mockPrompt).toHaveBeenCalledTimes(3);
+      expect(mockPrompt).toHaveBeenCalledTimes(6);
     });
 
     it('registers "interpret_health_report" prompt', () => {

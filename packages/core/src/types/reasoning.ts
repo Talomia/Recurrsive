@@ -25,6 +25,7 @@ export const SpecialistRoleSchema = z.enum([
   'performance_engineer',
   'cost_optimizer',
   'privacy_engineer',
+  'compliance_engineer',
   'documentation_engineer',
   'release_manager',
   'sre',

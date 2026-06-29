@@ -15,6 +15,10 @@ export {
   ProductManager,
   ReliabilityEngineer,
   DeveloperExperienceEngineer,
+  UXResearcher,
+  AccessibilityExpert,
+  PrivacyEngineer,
+  ComplianceEngineer,
 } from './definitions.js';
 
 import type { Specialist } from './base.js';
@@ -27,10 +31,14 @@ import {
   ProductManager,
   ReliabilityEngineer,
   DeveloperExperienceEngineer,
+  UXResearcher,
+  AccessibilityExpert,
+  PrivacyEngineer,
+  ComplianceEngineer,
 } from './definitions.js';
 
 /**
- * Create the default set of all eight specialist agents.
+ * Create the default set of all twelve specialist agents.
  *
  * @returns Array of all specialist instances.
  */
@@ -44,5 +52,9 @@ export function createDefaultSpecialists(): Specialist[] {
     new ProductManager(),
     new ReliabilityEngineer(),
     new DeveloperExperienceEngineer(),
+    new UXResearcher(),
+    new AccessibilityExpert(),
+    new PrivacyEngineer(),
+    new ComplianceEngineer(),
   ];
 }

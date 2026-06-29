@@ -8,6 +8,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerPromptTemplates } from './templates.js';
+import { registerAssessmentPrompts } from './assessments.js';
 
 /**
  * Register all MCP prompts with the server.
@@ -16,4 +17,5 @@ import { registerPromptTemplates } from './templates.js';
  */
 export function registerPrompts(server: McpServer): void {
   registerPromptTemplates(server);
+  registerAssessmentPrompts(server);
 }
