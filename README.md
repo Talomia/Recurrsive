@@ -4,10 +4,10 @@
 
 **The Evolution Runtime for AI Software**
 
-Continuously understand, evaluate, simulate, and evolve software systems.
+Continuously understand, evaluate, and evolve software systems.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5+-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-9+-orange.svg)](https://pnpm.io/)
 
@@ -15,13 +15,21 @@ Continuously understand, evaluate, simulate, and evolve software systems.
 
 ---
 
+## The Problem
+
+Engineering teams building AI-powered software face a unique challenge: their systems are **living organisms**, not static codebases. Models drift. Prompts degrade. Agent workflows break silently. Costs spike overnight. Architecture accumulates debt in dimensions no linter can detect.
+
+Today's tools address fragments of this problem:
+- **Code assistants** (Copilot, Cursor) help write code but don't understand the system
+- **Observability tools** (Datadog, Sentry) see production but don't reason about architecture  
+- **Static analyzers** (SonarQube, ESLint) catch syntax issues but miss AI-specific risks
+- **Architecture review boards** are periodic, manual, and don't scale
+
+No single tool continuously understands the entire system and tells you what to improve next.
+
 ## What is Recurrsive?
 
-Recurrsive is not another code reviewer, static analyzer, or observability platform.
-
-It is a **Software Evolution Platform** that continuously analyzes your entire software system — source code, architecture, prompts, agents, MCP servers, tools, workflows, infrastructure, costs, UX, latency, reliability, security, evaluations, databases, APIs, documentation, and production telemetry — and produces an **evolving roadmap** of the highest-value improvements.
-
-Think of it as:
+Recurrsive is a **Software Evolution Platform** that continuously analyzes your entire software system — source code, architecture, prompts, agents, tools, workflows, infrastructure, costs, reliability, security, databases, APIs, and documentation — and produces a **prioritized roadmap** of the highest-value improvements.
 
 > **GitHub Copilot × Datadog × Architecture Review Board** — unified into an autonomous system that never sleeps.
 
@@ -29,14 +37,14 @@ Think of it as:
 
 | Capability | Description |
 |---|---|
-| 🔍 **Evidence Collection** | Git repos, docs, ADRs, API contracts, runtime metrics |
-| 🧠 **Knowledge Graph** | Living digital twin of your entire system |
+| 🔍 **Evidence Collection** | Git repos, docs, ADRs, API contracts with PII detection & governance |
+| 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 40 relationship types |
 | 🔬 **10 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product |
 | 🤖 **Multi-Agent Reasoning** | 8 specialist AI agents debate and rank improvement opportunities |
 | 📊 **Opportunity Management** | Prioritized roadmap with SARIF export, validation plans, rollback plans |
 | 🛡️ **Policy Engine** | Governance rules with recursive descent expression evaluation |
 | 🔌 **MCP Server** | Expose analysis to Claude, Cursor, Copilot, and other AI assistants |
-| 📡 **REST + WebSocket API** | Real-time analysis with 16 REST endpoints |
+| 📡 **REST + WebSocket API** | Real-time analysis with live progress streaming |
 | 🐳 **Docker Ready** | Multi-stage Dockerfile with Apache AGE PostgreSQL |
 
 ---
@@ -52,8 +60,8 @@ Think of it as:
 
 ```bash
 # Clone
-git clone https://github.com/recurrsive/recurrsive.git
-cd recurrsive
+git clone https://github.com/Talomia/Recurrsive.git
+cd Recurrsive
 
 # Install dependencies
 pnpm install
@@ -120,7 +128,7 @@ Add to your MCP configuration:
 cd docker
 docker-compose up -d
 
-# Development mode (with hot reload)
+# Development mode
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
@@ -175,23 +183,23 @@ Recurrsive is organized as a 5-layer stack:
 ```
 recurrsive/
 ├── packages/
-│   ├── core/           # Type system, schemas, utilities (20 files)
-│   ├── graph/          # Dual-backend knowledge graph — AGE + SQLite (9 files)
-│   ├── collectors/     # Data ingestion with governance (10 files)
-│   ├── parsers/        # Tree-sitter + AI pattern detection (12 files)
-│   ├── analyzers/      # 10 built-in analyzers (26 files)
-│   ├── reasoning/      # Multi-agent debate engine (16 files)
-│   ├── opportunities/  # Lifecycle + SARIF export (6 files)
-│   ├── policy/         # Policy engine + 5 built-in policies (4 files)
-│   └── presentation/   # Reports + notifications + terminal (10 files)
+│   ├── core/           # Type system, schemas, utilities
+│   ├── graph/          # Dual-backend knowledge graph — AGE + SQLite
+│   ├── collectors/     # Data ingestion with privacy governance
+│   ├── parsers/        # Tree-sitter + AI pattern detection
+│   ├── analyzers/      # 10 built-in analyzers, 66+ rules
+│   ├── reasoning/      # Multi-agent debate engine
+│   ├── opportunities/  # Lifecycle + SARIF export
+│   ├── policy/         # Policy engine + 5 built-in policies
+│   └── presentation/   # Reports + notifications + terminal
 ├── apps/
-│   ├── cli/            # Commander.js CLI — 6 commands (13 files)
-│   ├── mcp/            # MCP server — 5 tools, 4 resources, 3 prompts (10 files)
-│   └── server/         # Fastify REST + WebSocket API (11 files)
+│   ├── cli/            # Commander.js CLI — 6 commands
+│   ├── mcp/            # MCP server — 5 tools, 4 resources, 3 prompts
+│   └── server/         # Fastify REST + WebSocket API
 ├── docker/             # Dockerfile + docker-compose
 ├── docs/
-│   ├── PRD.md          # Product Requirements (2,096 lines)
-│   └── ARCHITECTURE.md # Technical Architecture (2,304 lines)
+│   ├── PRD.md          # Product Requirements
+│   └── ARCHITECTURE.md # Technical Architecture
 └── turbo.json          # Turborepo build orchestration
 ```
 
@@ -268,10 +276,12 @@ Reports and output formatting:
 
 ## Configuration
 
-Create `.recurrsive/config.yaml` in your project root (or run `recurrsive init`):
+Create `recurrsive.config.yaml` in your project root (or run `recurrsive init`):
 
 ```yaml
 # Recurrsive Configuration
+version: "1"
+
 project:
   name: my-project
   repository: https://github.com/org/my-project
@@ -279,29 +289,20 @@ project:
 # Knowledge graph backend
 graph:
   provider: sqlite  # or 'postgresql_age'
-  sqlite:
-    path: .recurrsive/graph.db
+  connection_string: .recurrsive/graph.db  # only needed for custom path
 
-# Analyzers to enable
+# Analyzers
 analyzers:
-  enabled:
-    - architecture
-    - ai
-    - performance
-    - cost
-    - reliability
-    - security
-    - data
-    - docs
-    - ux
-    - product
+  enabled: ["*"]  # glob patterns — '*' enables all
+  disabled: []    # glob patterns to exclude
 
 # LLM configuration (for reasoning engine)
 reasoning:
-  enabled: true
   provider: openai
-  model: gpt-4o
-  api_key: ${OPENAI_API_KEY}  # or set OPENAI_API_KEY env var
+  model: gpt-4.1-mini  # or gpt-4o, claude-sonnet-4-20250514, ollama/llama3, etc.
+  # api_key: ${OPENAI_API_KEY}  # or set RECURRSIVE_LLM_API_KEY env var
+  max_debate_rounds: 3
+  temperature: 0.3
 
 # Data governance
 governance:
@@ -311,9 +312,14 @@ governance:
     - secret
     - token
   excluded_patterns:
-    - '**/node_modules/**'
-    - '**/dist/**'
-    - '**/.git/**'
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/.git/**"
+
+# Output
+output:
+  format: markdown  # json, markdown, sarif, html
+  directory: .recurrsive
 ```
 
 ---
@@ -322,12 +328,16 @@ governance:
 
 | Document | Description |
 |----------|-------------|
-| [Product Requirements](docs/PRD.md) | Complete PRD (2,096 lines) — vision, strategy, capabilities, phases |
-| [Architecture Guide](docs/ARCHITECTURE.md) | Technical architecture (2,304 lines) — 5-layer stack, data model, deployment |
+| [Product Requirements](docs/PRD.md) | Vision, strategy, capabilities, and roadmap |
+| [Architecture Guide](docs/ARCHITECTURE.md) | Technical architecture, data model, and deployment |
+| [Contributing Guide](CONTRIBUTING.md) | Development setup, style guide, and PR process |
+| [Changelog](CHANGELOG.md) | Version history and release notes |
 
 ---
 
 ## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
 
 ```bash
 # Development

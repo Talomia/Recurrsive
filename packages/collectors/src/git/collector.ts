@@ -182,7 +182,7 @@ export class GitCollector implements Collector {
       if (!stat.isDirectory()) {
         errors.push(`'${this.rootPath}' is not a directory`);
       }
-    } catch {
+    } catch (err: unknown) {
       errors.push(`Directory '${this.rootPath}' does not exist or is not accessible`);
     }
 
@@ -193,7 +193,7 @@ export class GitCollector implements Collector {
         if (!isRepo) {
           errors.push(`'${this.rootPath}' is not a git repository`);
         }
-      } catch {
+      } catch (err: unknown) {
         errors.push(`Unable to verify git repository at '${this.rootPath}'`);
       }
     }
@@ -305,7 +305,7 @@ export class GitCollector implements Collector {
       let entries: import('node:fs').Dirent[];
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
-      } catch {
+      } catch (err: unknown) {
         // Permission denied or other access error — skip silently
         return;
       }
@@ -352,7 +352,7 @@ export class GitCollector implements Collector {
               extension: ext,
               sizeBytes: stat.size,
             });
-          } catch {
+          } catch (err: unknown) {
             // Stat failed — skip the file
           }
         }
@@ -379,7 +379,7 @@ export class GitCollector implements Collector {
     try {
       const content = await fs.readFile(gitignorePath, 'utf-8');
       ig.add(content);
-    } catch {
+    } catch (err: unknown) {
       // No .gitignore — that's fine
     }
 
@@ -399,7 +399,7 @@ export class GitCollector implements Collector {
     let logResult: LogResult<DefaultLogFields>;
     try {
       logResult = await this.git.log({ maxCount: MAX_GIT_LOG_ENTRIES });
-    } catch {
+    } catch (err: unknown) {
       // Not a git repo or git is not available
       return [];
     }

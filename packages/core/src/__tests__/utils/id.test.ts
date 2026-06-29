@@ -89,12 +89,12 @@ describe('qualifiedName', () => {
     );
   });
 
-  it('preserves empty string segments', () => {
-    expect(qualifiedName('a', '', 'c')).toBe('a::c');
+  it('filters out empty string segments', () => {
+    expect(qualifiedName('a', '', 'c')).toBe('a:c');
   });
 
   it('throws when called with no segments', () => {
-    expect(() => qualifiedName()).toThrow('qualifiedName requires at least one segment');
+    expect(() => qualifiedName()).toThrow('qualifiedName requires at least one non-empty segment');
   });
 
   it('throws an Error instance when no segments provided', () => {

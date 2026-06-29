@@ -10,6 +10,7 @@
  * @packageDocumentation
  */
 
+import * as path from 'node:path';
 import { createGraphClient, type ExtendedGraphClient } from '@recurrsive/graph';
 import { OpportunityManager } from '@recurrsive/opportunities';
 import { AnalyzerRegistry, AnalyzerRunner, createDefaultAnalyzers } from '@recurrsive/analyzers';
@@ -85,7 +86,7 @@ export class ServerState {
     this.opportunityManager = new OpportunityManager();
 
     this.projectInfo = {
-      name: projectPath.split('/').pop() ?? 'unknown',
+      name: path.basename(projectPath) || 'unknown',
       root_path: projectPath,
       languages: [],
       frameworks: [],
@@ -154,7 +155,7 @@ export class ServerState {
       graph: this.graphClient!,
       config: {
         enabled: true,
-        severity_threshold: 'info',
+        severity_threshold: 'info' as const,
         custom: {},
       },
       history: {

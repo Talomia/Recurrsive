@@ -13,6 +13,12 @@
 /** Supported query dialects. */
 export type QueryDialect = 'cypher' | 'sql';
 
+/** A parameterized query: SQL/Cypher string with bind parameters. */
+export interface ParameterizedQuery {
+  sql: string;
+  params: unknown[];
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -40,36 +46,41 @@ function wrapAge(cypher: string, returnColumns = 'result agtype'): string {
  * @param functionId - UUID of the starting function entity.
  * @param maxDepth - Maximum traversal depth (default `5`).
  * @param dialect - Target dialect.
- * @returns Query string.
+ * @returns Parameterized query object.
  */
 export function findCallChain(
   functionId: string,
   maxDepth: number = 5,
   dialect: QueryDialect = 'cypher',
-): string {
+): ParameterizedQuery {
   if (dialect === 'cypher') {
-    return wrapAge(
-      `MATCH path = (f:function {id: '${functionId}'})-[:calls*1..${maxDepth}]->(target) RETURN path`,
-      'path agtype',
-    );
+    return {
+      sql: wrapAge(
+        `MATCH path = (f:function {id: $1})-[:calls*1..${maxDepth}]->(target) RETURN path`,
+        'path agtype',
+      ),
+      params: [functionId],
+    };
   }
 
   // SQLite: recursive CTE following calls relationships
-  return `
+  return {
+    sql: `
 WITH RECURSIVE call_chain(entity_id, depth, path) AS (
-  SELECT '${functionId}', 0, '${functionId}'
+  SELECT ?, 0, ?
   UNION ALL
   SELECT r.target_id, cc.depth + 1, cc.path || ',' || r.target_id
   FROM call_chain cc
   JOIN relationships r ON r.source_id = cc.entity_id AND r.type = 'calls'
-  WHERE cc.depth < ${maxDepth}
+  WHERE cc.depth < ?
     AND INSTR(cc.path, r.target_id) = 0
 )
 SELECT DISTINCT e.*
 FROM call_chain cc
 JOIN entities e ON e.id = cc.entity_id
-ORDER BY cc.depth;
-  `.trim();
+ORDER BY cc.depth;`.trim(),
+    params: [functionId, functionId, maxDepth],
+  };
 }
 
 /**
@@ -78,22 +89,26 @@ ORDER BY cc.depth;
  *
  * @param entityId - UUID of the root entity.
  * @param dialect - Target dialect.
- * @returns Query string.
+ * @returns Parameterized query object.
  */
 export function findDependencyTree(
   entityId: string,
   dialect: QueryDialect = 'cypher',
-): string {
+): ParameterizedQuery {
   if (dialect === 'cypher') {
-    return wrapAge(
-      `MATCH path = (root {id: '${entityId}'})-[:depends_on|imports|references*]->(dep) RETURN path`,
-      'path agtype',
-    );
+    return {
+      sql: wrapAge(
+        `MATCH path = (root {id: $1})-[:depends_on|imports|references*]->(dep) RETURN path`,
+        'path agtype',
+      ),
+      params: [entityId],
+    };
   }
 
-  return `
+  return {
+    sql: `
 WITH RECURSIVE dep_tree(entity_id, depth, path) AS (
-  SELECT '${entityId}', 0, '${entityId}'
+  SELECT ?, 0, ?
   UNION ALL
   SELECT r.target_id, dt.depth + 1, dt.path || ',' || r.target_id
   FROM dep_tree dt
@@ -105,8 +120,9 @@ WITH RECURSIVE dep_tree(entity_id, depth, path) AS (
 SELECT DISTINCT e.*
 FROM dep_tree dt
 JOIN entities e ON e.id = dt.entity_id
-ORDER BY dt.depth;
-  `.trim();
+ORDER BY dt.depth;`.trim(),
+    params: [entityId, entityId],
+  };
 }
 
 /**
@@ -116,30 +132,35 @@ ORDER BY dt.depth;
  *
  * @param agentId - UUID of the agent entity.
  * @param dialect - Target dialect.
- * @returns Query string.
+ * @returns Parameterized query object.
  */
 export function findAIWorkflow(
   agentId: string,
   dialect: QueryDialect = 'cypher',
-): string {
+): ParameterizedQuery {
   if (dialect === 'cypher') {
-    return wrapAge(
-      `MATCH (a:agent {id: '${agentId}'})-[r:uses_model|uses_tool|has_prompt|invokes_agent|retrieves_from|embeds_with|evaluates_with]->(target) RETURN a, r, target`,
-      'agent agtype, rel agtype, target agtype',
-    );
+    return {
+      sql: wrapAge(
+        `MATCH (a:agent {id: $1})-[r:uses_model|uses_tool|has_prompt|invokes_agent|retrieves_from|embeds_with|evaluates_with]->(target) RETURN a, r, target`,
+        'agent agtype, rel agtype, target agtype',
+      ),
+      params: [agentId],
+    };
   }
 
-  return `
+  return {
+    sql: `
 SELECT e.*, r.type AS rel_type, r.id AS rel_id, r.properties AS rel_properties,
        t.id AS target_id, t.type AS target_type, t.name AS target_name,
        t.qualified_name AS target_qualified_name, t.properties AS target_properties
 FROM entities e
 JOIN relationships r ON r.source_id = e.id
 JOIN entities t ON t.id = r.target_id
-WHERE e.id = '${agentId}'
+WHERE e.id = ?
   AND r.type IN ('uses_model', 'uses_tool', 'has_prompt', 'invokes_agent',
-                 'retrieves_from', 'embeds_with', 'evaluates_with');
-  `.trim();
+                 'retrieves_from', 'embeds_with', 'evaluates_with');`.trim(),
+    params: [agentId],
+  };
 }
 
 /**
@@ -148,20 +169,24 @@ WHERE e.id = '${agentId}'
  *
  * @param repoId - UUID of the repository entity.
  * @param dialect - Target dialect.
- * @returns Query string.
+ * @returns Parameterized query object.
  */
 export function findDeadCode(
   repoId: string,
   dialect: QueryDialect = 'cypher',
-): string {
+): ParameterizedQuery {
   if (dialect === 'cypher') {
-    return wrapAge(
-      `MATCH (repo:repository {id: '${repoId}'})-[:contains*]->(f:function) WHERE NOT EXISTS { MATCH ()-[:calls]->(f) } RETURN f`,
-      'f agtype',
-    );
+    return {
+      sql: wrapAge(
+        `MATCH (repo:repository {id: $1})-[:contains*]->(f:function) WHERE NOT EXISTS { MATCH ()-[:calls]->(f) } RETURN f`,
+        'f agtype',
+      ),
+      params: [repoId],
+    };
   }
 
-  return `
+  return {
+    sql: `
 WITH repo_functions AS (
   SELECT e.id
   FROM entities e
@@ -170,7 +195,7 @@ WITH repo_functions AS (
   WHERE e.type = 'function'
     AND EXISTS (
       WITH RECURSIVE ancestry(eid) AS (
-        SELECT '${repoId}'
+        SELECT ?
         UNION ALL
         SELECT rc.target_id
         FROM ancestry a
@@ -185,8 +210,9 @@ JOIN repo_functions rf ON rf.id = e.id
 WHERE NOT EXISTS (
   SELECT 1 FROM relationships r
   WHERE r.target_id = e.id AND r.type = 'calls'
-);
-  `.trim();
+);`.trim(),
+    params: [repoId],
+  };
 }
 
 /**
@@ -195,21 +221,25 @@ WHERE NOT EXISTS (
  *
  * @param repoId - UUID of the repository entity.
  * @param dialect - Target dialect.
- * @returns Query string.
+ * @returns Parameterized query object.
  */
 export function findCircularDeps(
   repoId: string,
   dialect: QueryDialect = 'cypher',
-): string {
+): ParameterizedQuery {
   if (dialect === 'cypher') {
-    return wrapAge(
-      `MATCH path = (a)-[:depends_on|imports*2..10]->(a) WHERE EXISTS { MATCH (repo:repository {id: '${repoId}'})-[:contains*]->(a) } RETURN path`,
-      'path agtype',
-    );
+    return {
+      sql: wrapAge(
+        `MATCH path = (a)-[:depends_on|imports*2..10]->(a) WHERE EXISTS { MATCH (repo:repository {id: $1})-[:contains*]->(a) } RETURN path`,
+        'path agtype',
+      ),
+      params: [repoId],
+    };
   }
 
   // SQLite: find cycles via recursive CTE with path tracking
-  return `
+  return {
+    sql: `
 WITH RECURSIVE dep_walk(start_id, current_id, depth, path, is_cycle) AS (
   SELECT r.source_id, r.target_id, 1,
          r.source_id || ',' || r.target_id,
@@ -225,14 +255,14 @@ WITH RECURSIVE dep_walk(start_id, current_id, depth, path, is_cycle) AS (
     AND r.type IN ('depends_on', 'imports')
   WHERE dw.depth < 10
     AND dw.is_cycle = 0
-    AND INSTR(dw.path, r.target_id) = 0
-        OR r.target_id = dw.start_id
+    AND (INSTR(dw.path, r.target_id) = 0 OR r.target_id = dw.start_id)
 )
 SELECT DISTINCT dw.path, dw.depth
 FROM dep_walk dw
 WHERE dw.is_cycle = 1
-ORDER BY dw.depth;
-  `.trim();
+ORDER BY dw.depth;`.trim(),
+    params: [],
+  };
 }
 
 /**
@@ -240,28 +270,33 @@ ORDER BY dw.depth;
  *
  * @param agentId - UUID of the agent entity.
  * @param dialect - Target dialect.
- * @returns Query string.
+ * @returns Parameterized query object.
  */
 export function findAllPromptsForAgent(
   agentId: string,
   dialect: QueryDialect = 'cypher',
-): string {
+): ParameterizedQuery {
   if (dialect === 'cypher') {
-    return wrapAge(
-      `MATCH (a:agent {id: '${agentId}'})-[:has_prompt]->(p:prompt) RETURN p`,
-      'p agtype',
-    );
+    return {
+      sql: wrapAge(
+        `MATCH (a:agent {id: $1})-[:has_prompt]->(p:prompt) RETURN p`,
+        'p agtype',
+      ),
+      params: [agentId],
+    };
   }
 
-  return `
+  return {
+    sql: `
 SELECT p.*
 FROM entities p
 JOIN relationships r ON r.target_id = p.id
-WHERE r.source_id = '${agentId}'
+WHERE r.source_id = ?
   AND r.type = 'has_prompt'
   AND p.type = 'prompt'
-ORDER BY p.name;
-  `.trim();
+ORDER BY p.name;`.trim(),
+    params: [agentId],
+  };
 }
 
 /**
@@ -269,19 +304,23 @@ ORDER BY p.name;
  * agents or functions use which models.
  *
  * @param dialect - Target dialect.
- * @returns Query string.
+ * @returns Parameterized query object.
  */
 export function findModelUsage(
   dialect: QueryDialect = 'cypher',
-): string {
+): ParameterizedQuery {
   if (dialect === 'cypher') {
-    return wrapAge(
-      `MATCH (consumer)-[:uses_model]->(m:model) RETURN consumer, m`,
-      'consumer agtype, model agtype',
-    );
+    return {
+      sql: wrapAge(
+        `MATCH (consumer)-[:uses_model]->(m:model) RETURN consumer, m`,
+        'consumer agtype, model agtype',
+      ),
+      params: [],
+    };
   }
 
-  return `
+  return {
+    sql: `
 SELECT c.id AS consumer_id, c.type AS consumer_type, c.name AS consumer_name,
        m.id AS model_id, m.name AS model_name, m.properties AS model_properties,
        r.properties AS usage_properties
@@ -290,8 +329,9 @@ JOIN entities c ON c.id = r.source_id
 JOIN entities m ON m.id = r.target_id
 WHERE r.type = 'uses_model'
   AND m.type = 'model'
-ORDER BY m.name, c.name;
-  `.trim();
+ORDER BY m.name, c.name;`.trim(),
+    params: [],
+  };
 }
 
 /**
@@ -301,30 +341,44 @@ ORDER BY m.name, c.name;
  * @param pattern - Search pattern (uses `LIKE`/`CONTAINS` semantics).
  * @param entityType - Optional entity type filter.
  * @param dialect - Target dialect.
- * @returns Query string.
+ * @returns Parameterized query object.
  */
 export function findEntitiesByPattern(
   pattern: string,
   entityType?: string,
   dialect: QueryDialect = 'cypher',
-): string {
-  // Escape single-quotes in the pattern for SQL safety
-  const safePattern = pattern.replace(/'/g, "''");
-
+): ParameterizedQuery {
   if (dialect === 'cypher') {
     const typeFilter = entityType ? `:${entityType}` : '';
-    return wrapAge(
-      `MATCH (n${typeFilter}) WHERE n.name =~ '.*${safePattern}.*' OR n.qualified_name =~ '.*${safePattern}.*' RETURN n`,
-      'n agtype',
-    );
+    return {
+      sql: wrapAge(
+        `MATCH (n${typeFilter}) WHERE n.name =~ $1 OR n.qualified_name =~ $1 RETURN n`,
+        'n agtype',
+      ),
+      params: [`.*${pattern}.*`],
+    };
   }
 
-  const typeClause = entityType ? `AND e.type = '${entityType}'` : '';
-  return `
+  const likePattern = `%${pattern}%`;
+
+  if (entityType) {
+    return {
+      sql: `
 SELECT e.*
 FROM entities e
-WHERE (e.name LIKE '%${safePattern}%' OR e.qualified_name LIKE '%${safePattern}%')
-  ${typeClause}
-ORDER BY e.name;
-  `.trim();
+WHERE (e.name LIKE ? OR e.qualified_name LIKE ?)
+  AND e.type = ?
+ORDER BY e.name;`.trim(),
+      params: [likePattern, likePattern, entityType],
+    };
+  }
+
+  return {
+    sql: `
+SELECT e.*
+FROM entities e
+WHERE (e.name LIKE ? OR e.qualified_name LIKE ?)
+ORDER BY e.name;`.trim(),
+    params: [likePattern, likePattern],
+  };
 }

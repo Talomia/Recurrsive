@@ -16,4 +16,5 @@ export {
   findModelUsage,
   findEntitiesByPattern,
   type QueryDialect,
+  type ParameterizedQuery,
 } from './builders.js';

@@ -14,8 +14,8 @@ Thank you for your interest in contributing to Recurrsive! This guide will help 
 
 ```bash
 # Clone the repository
-git clone https://github.com/recurrsive/recurrsive.git
-cd recurrsive
+git clone https://github.com/Talomia/Recurrsive.git
+cd Recurrsive
 
 # Install dependencies
 pnpm install
@@ -73,7 +73,12 @@ recurrsive/
 Packages follow a strict dependency hierarchy:
 
 ```
-core → graph → collectors → parsers → analyzers → reasoning → opportunities → policy → presentation
+core ─┬─→ graph ─┬─→ collectors → parsers
+      │          └─→ analyzers
+      ├─→ reasoning (depends on: core, graph)
+      ├─→ opportunities (depends on: core)
+      ├─→ policy (depends on: core)
+      └─→ presentation (depends on: core, opportunities)
 ```
 
 When modifying a package, ensure you don't introduce circular dependencies.
@@ -124,10 +129,10 @@ pnpm test
 cd packages/core && pnpm test
 
 # Watch mode
-cd packages/core && pnpm test -- --watch
+cd packages/core && npx vitest --watch
 
 # With coverage
-cd packages/core && pnpm test -- --coverage
+cd packages/core && npx vitest --coverage
 ```
 
 ## Pull Request Process

@@ -128,9 +128,9 @@ describe('durationMs', () => {
     expect(durationMs(ts, ts)).toBe(0);
   });
 
-  it('returns a negative number when end is before start', () => {
+  it('clamps to zero when end is before start', () => {
     const ms = durationMs('2024-01-15T10:00:00.000Z', '2024-01-15T09:00:00.000Z');
-    expect(ms).toBeLessThan(0);
+    expect(ms).toBe(0);
   });
 
   it('defaults end to now when omitted', () => {

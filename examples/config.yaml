@@ -1,123 +1,138 @@
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
 # Recurrsive Configuration
-# ─────────────────────────────────────────────────────────────────────────────
-# This file configures how Recurrsive analyzes your project.
-# Place it at: .recurrsive/config.yaml
-# ─────────────────────────────────────────────────────────────────────────────
+#
+# Place this file at your project root as one of:
+#   recurrsive.config.yaml
+#   recurrsive.config.json
+#   recurrsive.config.yml
+#   .recurrsiverc.yaml
+#   .recurrsiverc.json
+#
+# All fields have sensible defaults — you only need to set what you
+# want to override.
+# ──────────────────────────────────────────────────────────────────────────────
 
-# ── Project Info ─────────────────────────────────────────────────────────────
+# Schema version — always "1" for now.
+version: "1"
+
+# ── Project Metadata ────────────────────────────────────────────────────────
 project:
   name: my-project
-  repository: https://github.com/your-org/my-project
-  description: A brief description of your project
+  description: "A description of your project"
+  repository: https://github.com/org/my-project
 
-# ── Knowledge Graph Backend ──────────────────────────────────────────────────
-# Options: 'sqlite' (local, zero-config) or 'postgresql_age' (production)
+# ── Knowledge Graph ─────────────────────────────────────────────────────────
+# Storage backend for the digital twin.
+#
+# provider: "sqlite" (default, zero-config) or "postgresql_age" (production)
+# connection_string: provider-specific connection target
+#   - SQLite:  file path (e.g., ".recurrsive/graph.db" or ":memory:")
+#   - AGE:     PostgreSQL URL (e.g., "postgresql://user:pass@host:5432/db")
 graph:
   provider: sqlite
-  sqlite:
-    path: .recurrsive/graph.db
-  # For production PostgreSQL + Apache AGE:
-  # provider: postgresql_age
-  # postgresql:
-  #   connection_string: postgresql://user:pass@host:5432/recurrsive
+  # connection_string: .recurrsive/graph.db  # optional — SQLite uses :memory: by default
 
-# ── Analyzers ────────────────────────────────────────────────────────────────
-# Enable or disable individual analyzers
-analyzers:
-  enabled:
-    - architecture
-    - ai
-    - performance
-    - cost
-    - reliability
-    - security
-    - data
-    - docs
-    - ux
-    - product
-  # Disable specific analyzer rules:
-  # disabled_rules:
-  #   - architecture:circular-dependencies
-  #   - security:hardcoded-secrets
-
-# ── Reasoning Engine ─────────────────────────────────────────────────────────
-# Requires an LLM API key. Without it, Recurrsive runs analyzers only.
+# ── Reasoning Engine ────────────────────────────────────────────────────────
+# Multi-agent debate engine powered by an LLM.
+# Remove this entire section to skip reasoning and get raw analyzer output.
 reasoning:
-  enabled: false  # Set to true to enable multi-agent reasoning
+  # LLM provider — "openai", "anthropic", "ollama", "azure_openai"
   provider: openai
-  model: gpt-4o
-  # Set API key via environment variable:
-  # api_key: ${OPENAI_API_KEY}
-  #
-  # For other providers:
-  # provider: anthropic
-  # model: claude-sonnet-4-20250514
-  # base_url: https://api.anthropic.com/v1
-  #
-  # For local models:
-  # provider: ollama
-  # model: llama3
-  # base_url: http://localhost:11434/v1
 
-  # Debate configuration:
-  debate:
-    max_rounds: 3
-    min_consensus: 0.7
+  # Model identifier
+  model: gpt-4.1-mini   # fast & cost-effective default
 
-# ── Data Governance ──────────────────────────────────────────────────────────
-# Control what data is collected and how sensitive information is handled
+  # API key — prefer the RECURRSIVE_LLM_API_KEY environment variable instead
+  # api_key: sk-your-api-key-here
+
+  # Custom base URL (for proxies, Azure, self-hosted models)
+  # base_url: https://your-proxy.example.com/v1
+
+  # Maximum debate rounds before forced consensus
+  max_debate_rounds: 3
+
+  # Sampling temperature (0.0 = deterministic, 1.0 = creative)
+  temperature: 0.3
+
+# ── Collectors ──────────────────────────────────────────────────────────────
+# Array of data sources to ingest into the knowledge graph.
+# Each collector has a type, enabled flag, and type-specific config.
+collectors:
+  - type: git
+    enabled: true
+    config:
+      # Maximum number of git commits to analyze for history
+      max_commits: 500
+      # Include file content (increases accuracy but uses more memory)
+      include_content: false
+
+  - type: docs
+    enabled: true
+    config:
+      # Documentation root directory (relative to project root)
+      docs_dir: docs
+
+# ── Analyzers ───────────────────────────────────────────────────────────────
+# Control which analyzers run and their individual configuration.
+analyzers:
+  # Glob patterns of analyzer IDs to enable ("*" = all)
+  enabled:
+    - "*"
+
+  # Glob patterns of analyzer IDs to disable (takes precedence over enabled)
+  disabled: []
+    # - "ux"      # example: skip UX analyzer
+    # - "product"  # example: skip product analyzer
+
+  # Per-analyzer config overrides keyed by analyzer ID
+  config: {}
+    # architecture:
+    #   max_circular_depth: 5
+    # security:
+    #   ignore_test_files: true
+
+# ── Data Governance ─────────────────────────────────────────────────────────
+# Privacy-preserving controls for data collection and output.
 governance:
+  # Enable automatic PII detection (emails, SSNs, API keys, IPs, JWTs)
   pii_detection: true
+
+  # Property keys to mask (redact) in output
   masked_fields:
     - password
     - secret
     - token
     - api_key
     - private_key
-    - access_token
-    - refresh_token
+    - credentials
+
+  # Glob patterns of files/directories to exclude from collection
   excluded_patterns:
-    - '**/node_modules/**'
-    - '**/dist/**'
-    - '**/.git/**'
-    - '**/vendor/**'
-    - '**/__pycache__/**'
-    - '**/venv/**'
-    - '**/.venv/**'
-    - '**/coverage/**'
-    - '**/.env'
-    - '**/.env.*'
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/.git/**"
+    - "**/.env*"
+
+  # Write an audit log of all data access operations
   audit_log: true
 
-# ── Collection ───────────────────────────────────────────────────────────────
-collectors:
-  git:
-    max_file_size_kb: 512
-    max_git_log_entries: 500
-    include_file_content: true
-  docs:
-    scan_adrs: true
-    scan_rfcs: true
-    scan_api_contracts: true
+  # Maximum data retention in days
+  retention_days: 90
 
-# ── Output ───────────────────────────────────────────────────────────────────
+# ── Policies ────────────────────────────────────────────────────────────────
+# Paths to custom policy definition files.
+# Built-in policies (security baseline, change management, cost governance,
+# compliance, quality gates) are always active.
+policies: []
+  # - ./policies/custom-security.yaml
+  # - ./policies/team-standards.yaml
+
+# ── Output ──────────────────────────────────────────────────────────────────
+# Where and how Recurrsive writes results.
 output:
-  format: markdown  # markdown, json, sarif, html
-  directory: .recurrsive/reports
-  # SARIF output for CI/CD integration:
-  # format: sarif
-  # sarif_file: .recurrsive/results.sarif
+  # Report format: "json", "markdown", "sarif", "html"
+  format: markdown
 
-# ── Policy ───────────────────────────────────────────────────────────────────
-# Governance policies for automated opportunity approval/rejection
-policy:
-  enabled: true
-  # Load custom policies from:
-  # custom_directory: .recurrsive/policies
-  builtin:
-    security_baseline: true
-    change_management: true
-    cost_governance: true
-    compliance: true
-    quality_gates: true
+  # Output directory (relative to project root)
+  directory: .recurrsive

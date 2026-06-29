@@ -102,7 +102,7 @@ async function parseConfigFile(filePath: string): Promise<unknown> {
 
   try {
     return JSON.parse(raw) as unknown;
-  } catch {
+  } catch { // expected
     // If .yaml/.yml, attempt a simplistic key:value parse
     if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
       throw new ConfigError(
@@ -235,7 +235,7 @@ function inferProjectName(dir: string): string {
       if (typeof pkg['name'] === 'string') {
         return pkg['name'];
       }
-    } catch {
+    } catch { // expected
       // Fall through to directory name
     }
   }

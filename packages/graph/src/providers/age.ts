@@ -121,7 +121,7 @@ function parseAgtype(raw: unknown): unknown {
 
   try {
     return JSON.parse(cleaned);
-  } catch {
+  } catch { // ignore AGE parse errors
     // If it's not valid JSON, return the raw string
     return cleaned;
   }

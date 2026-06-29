@@ -189,7 +189,7 @@ export class ReasoningEngine {
 
     logger.info(
       `Ranking complete. Top opportunity: ` +
-      `"${ranked[0]?.title ?? 'none'}" (score: ${rankings[0]?.final_score.toFixed(3) ?? 'N/A'})`,
+      `"${ranked[0]?.title ?? 'none'}" (score: ${rankings[0]?.final_score?.toFixed(3) ?? 'N/A'})`,
     );
 
     return {

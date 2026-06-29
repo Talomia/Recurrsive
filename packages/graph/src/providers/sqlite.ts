@@ -201,6 +201,12 @@ export class SqliteGraphClient implements ExtendedGraphClient {
 
       if (filter && Object.keys(filter).length > 0) {
         for (const [key, value] of Object.entries(filter)) {
+          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+            throw new GraphError(
+              `Invalid filter key "${key}": must match /^[a-zA-Z_][a-zA-Z0-9_]*$/`,
+              'INVALID_ARGUMENT',
+            );
+          }
           sql += ` AND json_extract(properties, '$.${key}') = ?`;
           params.push(typeof value === 'string' ? value : JSON.stringify(value));
         }
@@ -277,14 +283,17 @@ export class SqliteGraphClient implements ExtendedGraphClient {
     try {
       const db = this.getDb();
 
+      // Convert named params map to positional array for binding
+      const bindParams = _params ? Object.values(_params) : [];
+
       // Detect if it's a read (SELECT) or write statement
       const trimmed = sqlQuery.trim().toUpperCase();
       if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH')) {
-        return db.prepare(sqlQuery).all() as unknown[];
+        return db.prepare(sqlQuery).all(...bindParams) as unknown[];
       }
 
       // For mutations, run and return info
-      const result = db.prepare(sqlQuery).run();
+      const result = db.prepare(sqlQuery).run(...bindParams);
       return [{ changes: result.changes, lastInsertRowid: result.lastInsertRowid }];
     } catch (error) {
       throw new GraphError(

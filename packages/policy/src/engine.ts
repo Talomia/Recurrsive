@@ -59,7 +59,9 @@ const ACTION_SEVERITY: Record<PolicyAction, number> = {
  * @returns A context object for the evaluator
  */
 function opportunityToContext(opp: Opportunity): EvaluationContext {
-  return opp as unknown as EvaluationContext;
+  // Spread into a plain Record so the evaluator can access all fields
+  // via dotted paths without unsafe double-casting.
+  return { ...opp } as EvaluationContext;
 }
 
 // ---------------------------------------------------------------------------

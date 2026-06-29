@@ -311,7 +311,7 @@ export class OpenAIAdapter implements LLMAdapter {
         if (parsed.error?.message) {
           errorMessage = `LLM API error: ${parsed.error.message}`;
         }
-      } catch {
+      } catch { // fallback to raw
         if (errorBody) {
           errorMessage = `LLM API error (HTTP ${response.status}): ${errorBody.slice(0, 500)}`;
         }

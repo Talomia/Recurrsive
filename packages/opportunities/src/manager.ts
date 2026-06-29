@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import { randomUUID } from 'node:crypto';
+import { generateId } from '@recurrsive/core';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type {
@@ -75,7 +75,7 @@ export class OpportunityManager {
     const now = new Date().toISOString();
     const opp: Opportunity = {
       ...data,
-      id: randomUUID(),
+      id: generateId(),
       created_at: now,
       updated_at: now,
     };

@@ -1,10 +1,21 @@
 {
   "name": "@recurrsive/analyzers",
   "version": "0.1.0",
+  "private": true,
   "description": "Analysis plugins for the Recurrsive evolution engine",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -17,7 +28,7 @@
     "@recurrsive/core": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
+    "typescript": "^5.7.0",
     "vitest": "^2.0.0"
   }
 }

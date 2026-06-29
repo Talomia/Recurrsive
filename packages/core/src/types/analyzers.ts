@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { Finding } from './findings.js';
 import type { Entity, EntityType } from './entities.js';
 import type { Relationship } from './relationships.js';
-import type { OpportunityCategory } from './opportunities.js';
+import type { OpportunityCategory, Severity } from './opportunities.js';
+import { OpportunityCategorySchema } from './opportunities.js';
 
 // ---------------------------------------------------------------------------
 // Graph Client Interface
@@ -103,7 +104,7 @@ export interface AnalyzerConfig {
   /** Whether this analyzer is enabled. */
   enabled: boolean;
   /** Minimum severity threshold for findings to be emitted. */
-  severity_threshold: string;
+  severity_threshold: Severity;
   /** Arbitrary analyzer-specific configuration. */
   custom: Record<string, unknown>;
 }
@@ -213,7 +214,7 @@ export const AnalyzerMetadataSchema = z.object({
   /** SemVer version string. */
   version: z.string(),
   /** Categories this analyzer covers. */
-  categories: z.array(z.string()),
+  categories: z.array(OpportunityCategorySchema),
   /** Optional JSON-Schema describing the analyzer's configuration. */
   config_schema: z.record(z.unknown()).optional(),
 });

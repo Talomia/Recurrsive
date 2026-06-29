@@ -25,30 +25,32 @@ describe('Query Builders', () => {
 
   describe('findDependencyTree', () => {
     it('generates SQL query for SQLite dialect', () => {
-      const query = findDependencyTree(testId, 'sql');
-      expect(query).toContain('WITH RECURSIVE dep_tree');
-      expect(query).toContain(testId);
-      expect(query).toContain("'depends_on', 'imports', 'references'");
-      expect(query).toContain('JOIN entities e ON e.id = dt.entity_id');
+      const { sql, params } = findDependencyTree(testId, 'sql');
+      expect(sql).toContain('WITH RECURSIVE dep_tree');
+      expect(sql).not.toContain(testId);
+      expect(params).toContain(testId);
+      expect(sql).toContain("'depends_on', 'imports', 'references'");
+      expect(sql).toContain('JOIN entities e ON e.id = dt.entity_id');
     });
 
     it('generates Cypher query for cypher dialect', () => {
-      const query = findDependencyTree(testId, 'cypher');
-      expect(query).toContain("cypher('recurrsive'");
-      expect(query).toContain('depends_on|imports|references');
-      expect(query).toContain(testId);
+      const { sql, params } = findDependencyTree(testId, 'cypher');
+      expect(sql).toContain("cypher('recurrsive'");
+      expect(sql).toContain('depends_on|imports|references');
+      expect(sql).not.toContain(testId);
+      expect(params).toContain(testId);
     });
 
     it('defaults to cypher dialect', () => {
-      const query = findDependencyTree(testId);
-      expect(query).toContain("cypher('recurrsive'");
+      const { sql } = findDependencyTree(testId);
+      expect(sql).toContain("cypher('recurrsive'");
     });
 
     it('produces valid SQL that references expected tables', () => {
-      const query = findDependencyTree(testId, 'sql');
-      expect(query).toContain('relationships');
-      expect(query).toContain('entities');
-      expect(query).toContain('ORDER BY dt.depth');
+      const { sql } = findDependencyTree(testId, 'sql');
+      expect(sql).toContain('relationships');
+      expect(sql).toContain('entities');
+      expect(sql).toContain('ORDER BY dt.depth');
     });
   });
 
@@ -56,23 +58,29 @@ describe('Query Builders', () => {
 
   describe('findCircularDeps', () => {
     it('generates SQL query that detects cycles', () => {
-      const query = findCircularDeps(testId, 'sql');
-      expect(query).toContain('WITH RECURSIVE dep_walk');
-      expect(query).toContain('is_cycle');
-      expect(query).toContain("'depends_on', 'imports'");
-      expect(query).toContain('WHERE dw.is_cycle = 1');
+      const { sql } = findCircularDeps(testId, 'sql');
+      expect(sql).toContain('WITH RECURSIVE dep_walk');
+      expect(sql).toContain('is_cycle');
+      expect(sql).toContain("'depends_on', 'imports'");
+      expect(sql).toContain('WHERE dw.is_cycle = 1');
     });
 
     it('generates Cypher query for cycles', () => {
-      const query = findCircularDeps(testId, 'cypher');
-      expect(query).toContain("cypher('recurrsive'");
-      expect(query).toContain('depends_on|imports');
-      expect(query).toContain(testId);
+      const { sql, params } = findCircularDeps(testId, 'cypher');
+      expect(sql).toContain("cypher('recurrsive'");
+      expect(sql).toContain('depends_on|imports');
+      expect(params).toContain(testId);
     });
 
     it('limits recursive depth to 10 in SQL', () => {
-      const query = findCircularDeps(testId, 'sql');
-      expect(query).toContain('dw.depth < 10');
+      const { sql } = findCircularDeps(testId, 'sql');
+      expect(sql).toContain('dw.depth < 10');
+    });
+
+    it('uses correct operator precedence for cycle detection', () => {
+      const { sql } = findCircularDeps(testId, 'sql');
+      // The OR condition must be grouped with parentheses
+      expect(sql).toContain('AND (INSTR(dw.path, r.target_id) = 0 OR r.target_id = dw.start_id)');
     });
   });
 
@@ -80,26 +88,28 @@ describe('Query Builders', () => {
 
   describe('findDeadCode', () => {
     it('generates SQL query finding unreferenced functions', () => {
-      const query = findDeadCode(testId, 'sql');
-      expect(query).toContain('repo_functions');
-      expect(query).toContain("type = 'function'");
-      expect(query).toContain("r.type = 'calls'");
-      expect(query).toContain('NOT EXISTS');
-      expect(query).toContain(testId);
+      const { sql, params } = findDeadCode(testId, 'sql');
+      expect(sql).toContain('repo_functions');
+      expect(sql).toContain("type = 'function'");
+      expect(sql).toContain("r.type = 'calls'");
+      expect(sql).toContain('NOT EXISTS');
+      expect(sql).not.toContain(testId);
+      expect(params).toContain(testId);
     });
 
     it('generates Cypher query for dead code', () => {
-      const query = findDeadCode(testId, 'cypher');
-      expect(query).toContain("cypher('recurrsive'");
-      expect(query).toContain('NOT EXISTS');
-      expect(query).toContain(':function');
-      expect(query).toContain(':calls');
+      const { sql, params } = findDeadCode(testId, 'cypher');
+      expect(sql).toContain("cypher('recurrsive'");
+      expect(sql).toContain('NOT EXISTS');
+      expect(sql).toContain(':function');
+      expect(sql).toContain(':calls');
+      expect(params).toContain(testId);
     });
 
     it('uses recursive CTE for ancestry traversal in SQL', () => {
-      const query = findDeadCode(testId, 'sql');
-      expect(query).toContain('WITH RECURSIVE ancestry');
-      expect(query).toContain("type = 'contains'");
+      const { sql } = findDeadCode(testId, 'sql');
+      expect(sql).toContain('WITH RECURSIVE ancestry');
+      expect(sql).toContain("type = 'contains'");
     });
   });
 
@@ -107,38 +117,42 @@ describe('Query Builders', () => {
 
   describe('findEntitiesByPattern', () => {
     it('generates SQL query with LIKE pattern matching', () => {
-      const query = findEntitiesByPattern('handleRequest', undefined, 'sql');
-      expect(query).toContain("LIKE '%handleRequest%'");
-      expect(query).toContain('e.name');
-      expect(query).toContain('e.qualified_name');
-      expect(query).toContain('ORDER BY e.name');
+      const { sql, params } = findEntitiesByPattern('handleRequest', undefined, 'sql');
+      expect(sql).toContain('LIKE ?');
+      expect(params).toContain('%handleRequest%');
+      expect(sql).toContain('e.name');
+      expect(sql).toContain('e.qualified_name');
+      expect(sql).toContain('ORDER BY e.name');
     });
 
     it('generates Cypher query with regex matching', () => {
-      const query = findEntitiesByPattern('handleRequest', undefined, 'cypher');
-      expect(query).toContain("cypher('recurrsive'");
-      expect(query).toContain('handleRequest');
-      expect(query).toContain('=~');
+      const { sql, params } = findEntitiesByPattern('handleRequest', undefined, 'cypher');
+      expect(sql).toContain("cypher('recurrsive'");
+      expect(sql).toContain('=~');
+      expect(params).toContain('.*handleRequest.*');
     });
 
     it('includes entity type filter when provided', () => {
-      const query = findEntitiesByPattern('handler', 'function', 'sql');
-      expect(query).toContain("e.type = 'function'");
+      const { sql, params } = findEntitiesByPattern('handler', 'function', 'sql');
+      expect(sql).toContain('e.type = ?');
+      expect(params).toContain('function');
     });
 
     it('omits entity type filter when not provided', () => {
-      const query = findEntitiesByPattern('handler', undefined, 'sql');
-      expect(query).not.toContain('e.type =');
+      const { sql } = findEntitiesByPattern('handler', undefined, 'sql');
+      expect(sql).not.toContain('e.type =');
     });
 
-    it('escapes single quotes in patterns', () => {
-      const query = findEntitiesByPattern("it's", undefined, 'sql');
-      expect(query).toContain("it''s");
+    it('does not interpolate patterns into SQL', () => {
+      const { sql, params } = findEntitiesByPattern("it's", undefined, 'sql');
+      // Pattern should be in params, not in the SQL string
+      expect(params).toContain("%it's%");
+      expect(sql).not.toContain("it's");
     });
 
     it('applies entity type filter in Cypher dialect', () => {
-      const query = findEntitiesByPattern('handler', 'function', 'cypher');
-      expect(query).toContain(':function');
+      const { sql } = findEntitiesByPattern('handler', 'function', 'cypher');
+      expect(sql).toContain(':function');
     });
   });
 
@@ -146,22 +160,25 @@ describe('Query Builders', () => {
 
   describe('findCallChain', () => {
     it('generates SQL recursive CTE for call chain', () => {
-      const query = findCallChain(testId, 5, 'sql');
-      expect(query).toContain('WITH RECURSIVE call_chain');
-      expect(query).toContain(testId);
-      expect(query).toContain("r.type = 'calls'");
-      expect(query).toContain('cc.depth < 5');
+      const { sql, params } = findCallChain(testId, 5, 'sql');
+      expect(sql).toContain('WITH RECURSIVE call_chain');
+      expect(sql).not.toContain(testId);
+      expect(params).toContain(testId);
+      expect(sql).toContain("r.type = 'calls'");
+      expect(sql).toContain('cc.depth < ?');
+      expect(params).toContain(5);
     });
 
     it('generates Cypher query for call chain', () => {
-      const query = findCallChain(testId, 3, 'cypher');
-      expect(query).toContain("cypher('recurrsive'");
-      expect(query).toContain(':calls*1..3');
+      const { sql, params } = findCallChain(testId, 3, 'cypher');
+      expect(sql).toContain("cypher('recurrsive'");
+      expect(sql).toContain(':calls*1..3');
+      expect(params).toContain(testId);
     });
 
     it('uses default maxDepth of 5', () => {
-      const query = findCallChain(testId, undefined, 'sql');
-      expect(query).toContain('cc.depth < 5');
+      const { sql, params } = findCallChain(testId, undefined, 'sql');
+      expect(params).toContain(5);
     });
   });
 
@@ -169,18 +186,20 @@ describe('Query Builders', () => {
 
   describe('findAIWorkflow', () => {
     it('generates SQL query joining agent relationships', () => {
-      const query = findAIWorkflow(testId, 'sql');
-      expect(query).toContain(testId);
-      expect(query).toContain("'uses_model'");
-      expect(query).toContain("'uses_tool'");
-      expect(query).toContain("'has_prompt'");
-      expect(query).toContain("'invokes_agent'");
+      const { sql, params } = findAIWorkflow(testId, 'sql');
+      expect(sql).not.toContain(testId);
+      expect(params).toContain(testId);
+      expect(sql).toContain("'uses_model'");
+      expect(sql).toContain("'uses_tool'");
+      expect(sql).toContain("'has_prompt'");
+      expect(sql).toContain("'invokes_agent'");
     });
 
     it('generates Cypher query for AI workflow', () => {
-      const query = findAIWorkflow(testId, 'cypher');
-      expect(query).toContain("cypher('recurrsive'");
-      expect(query).toContain('uses_model|uses_tool|has_prompt|invokes_agent');
+      const { sql, params } = findAIWorkflow(testId, 'cypher');
+      expect(sql).toContain("cypher('recurrsive'");
+      expect(sql).toContain('uses_model|uses_tool|has_prompt|invokes_agent');
+      expect(params).toContain(testId);
     });
   });
 
@@ -188,18 +207,19 @@ describe('Query Builders', () => {
 
   describe('findAllPromptsForAgent', () => {
     it('generates SQL query for agent prompts', () => {
-      const query = findAllPromptsForAgent(testId, 'sql');
-      expect(query).toContain(testId);
-      expect(query).toContain("r.type = 'has_prompt'");
-      expect(query).toContain("p.type = 'prompt'");
-      expect(query).toContain('ORDER BY p.name');
+      const { sql, params } = findAllPromptsForAgent(testId, 'sql');
+      expect(sql).not.toContain(testId);
+      expect(params).toContain(testId);
+      expect(sql).toContain("r.type = 'has_prompt'");
+      expect(sql).toContain("p.type = 'prompt'");
+      expect(sql).toContain('ORDER BY p.name');
     });
 
     it('generates Cypher query for agent prompts', () => {
-      const query = findAllPromptsForAgent(testId, 'cypher');
-      expect(query).toContain(':agent');
-      expect(query).toContain(':has_prompt');
-      expect(query).toContain(':prompt');
+      const { sql } = findAllPromptsForAgent(testId, 'cypher');
+      expect(sql).toContain(':agent');
+      expect(sql).toContain(':has_prompt');
+      expect(sql).toContain(':prompt');
     });
   });
 
@@ -207,16 +227,16 @@ describe('Query Builders', () => {
 
   describe('findModelUsage', () => {
     it('generates SQL query for model usage', () => {
-      const query = findModelUsage('sql');
-      expect(query).toContain("r.type = 'uses_model'");
-      expect(query).toContain("m.type = 'model'");
-      expect(query).toContain('ORDER BY m.name, c.name');
+      const { sql } = findModelUsage('sql');
+      expect(sql).toContain("r.type = 'uses_model'");
+      expect(sql).toContain("m.type = 'model'");
+      expect(sql).toContain('ORDER BY m.name, c.name');
     });
 
     it('generates Cypher query for model usage', () => {
-      const query = findModelUsage('cypher');
-      expect(query).toContain(':uses_model');
-      expect(query).toContain(':model');
+      const { sql } = findModelUsage('cypher');
+      expect(sql).toContain(':uses_model');
+      expect(sql).toContain(':model');
     });
   });
 });

@@ -78,7 +78,8 @@ export function fromISO(iso: string): Date {
 export function durationMs(start: string, end?: string): number {
   const startDate = fromISO(start);
   const endDate = end ? fromISO(end) : new Date();
-  return endDate.getTime() - startDate.getTime();
+  const duration = endDate.getTime() - startDate.getTime();
+  return Math.max(0, duration);
 }
 
 /**
@@ -94,8 +95,9 @@ export function durationMs(start: string, end?: string): number {
  * ```
  */
 export function formatDuration(ms: number): string {
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`;
+  const abs = Math.max(0, Math.round(ms));
+  if (abs < 1000) {
+    return `${abs}ms`;
   }
 
   const seconds = Math.floor(ms / 1000);

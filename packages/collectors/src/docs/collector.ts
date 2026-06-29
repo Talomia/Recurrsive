@@ -226,7 +226,7 @@ export class DocumentationCollector implements Collector {
       if (!stat.isDirectory()) {
         errors.push(`'${this.rootPath}' is not a directory`);
       }
-    } catch {
+    } catch (err: unknown) {
       errors.push(`Directory '${this.rootPath}' does not exist or is not accessible`);
     }
 
@@ -382,7 +382,7 @@ export class DocumentationCollector implements Collector {
     let entries: import('node:fs').Dirent[];
     try {
       entries = await fs.readdir(dirPath, { withFileTypes: true });
-    } catch {
+    } catch (err: unknown) {
       return results;
     }
 
@@ -406,8 +406,8 @@ export class DocumentationCollector implements Collector {
             category: 'readme',
             entityType: 'document',
           });
-        } catch {
-          // Skip inaccessible files
+        } catch (err: unknown) {
+          logger.debug(`Skipping inaccessible file: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
     }
@@ -434,8 +434,8 @@ export class DocumentationCollector implements Collector {
     let entries: import('node:fs').Dirent[];
     try {
       entries = await fs.readdir(absoluteDir, { withFileTypes: true });
-    } catch {
-      // Directory doesn't exist — that's expected
+    } catch (err: unknown) {
+      logger.debug(`Directory not found (expected): ${err instanceof Error ? err.message : String(err)}`);
       return results;
     }
 
@@ -462,7 +462,7 @@ export class DocumentationCollector implements Collector {
           category,
           entityType,
         });
-      } catch {
+      } catch (err: unknown) {
         // Skip
       }
     }
@@ -487,7 +487,7 @@ export class DocumentationCollector implements Collector {
       let entries: import('node:fs').Dirent[];
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
-      } catch {
+      } catch (err: unknown) {
         return;
       }
 
@@ -512,7 +512,7 @@ export class DocumentationCollector implements Collector {
               category: 'api_contract',
               entityType: 'api_contract',
             });
-          } catch {
+          } catch (err: unknown) {
             // Skip
           }
         }
@@ -552,7 +552,7 @@ export class DocumentationCollector implements Collector {
         if (this.governance.pii_detection) {
           content = this.governanceFilter.sanitizeText(content);
         }
-      } catch {
+      } catch (err: unknown) {
         // Failed to read — use default description
       }
     }

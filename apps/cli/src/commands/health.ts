@@ -65,7 +65,7 @@ async function loadLatestSnapshot(
         latestTime = time;
         latest = snapshot;
       }
-    } catch {
+    } catch { // expected
       // Skip malformed
     }
   }
@@ -156,7 +156,7 @@ export function registerHealthCommand(program: Command): void {
         try {
           await manager.load(oppsPath);
           opportunities = manager.list();
-        } catch {
+        } catch { // expected
           // Ignore
         }
       }
@@ -182,7 +182,7 @@ export function registerHealthCommand(program: Command): void {
           entityCount = stats.totalEntities;
           await client.dispose();
         }
-      } catch {
+      } catch { // expected
         // Ignore — graph may not exist yet
       }
 

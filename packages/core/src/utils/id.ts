@@ -46,8 +46,9 @@ export function isValidId(id: string): boolean {
  * ```
  */
 export function qualifiedName(...segments: string[]): string {
-  if (segments.length === 0) {
-    throw new Error('qualifiedName requires at least one segment');
+  const filtered = segments.filter((s) => s.length > 0);
+  if (filtered.length === 0) {
+    throw new Error('qualifiedName requires at least one non-empty segment');
   }
-  return segments.join(':');
+  return filtered.join(':');
 }

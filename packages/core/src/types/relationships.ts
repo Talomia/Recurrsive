@@ -53,6 +53,11 @@ export const RelationTypeSchema = z.enum([
   'conflicts_with',
   'enables',
   'blocks',
+  // Testing & validation relationships
+  'tests',
+  'validates',
+  'authenticates',
+  'rate_limits',
 ]);
 
 /** Discriminated union of all relationship type string literals. */

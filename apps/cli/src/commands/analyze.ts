@@ -81,7 +81,7 @@ function buildAnalysisContext(
     graph,
     config: {
       enabled: true,
-      severity_threshold: 'info',
+      severity_threshold: 'info' as const,
       custom: {},
     },
     history: {
