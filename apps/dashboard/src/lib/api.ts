@@ -72,19 +72,24 @@ export interface SystemNode {
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
 
+/** Deterministic pseudo-random — prevents SSR/client hydration mismatches. */
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function generateTimeline(): TimelinePoint[] {
   const points: TimelinePoint[] = [];
-  const now = new Date();
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const noise = () => Math.random() * 6 - 3;
+    const day = 29 - i;
+    const noise = (s: number) => seededRandom(i * 137 + s) * 6 - 3;
+    const monthDay = `${String(6).padStart(2, "0")}/${String(day + 1).padStart(2, "0")}`;
     points.push({
-      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      healthScore: Math.round(78 + (29 - i) * 0.4 + noise()),
-      quality: Math.round(82 + (29 - i) * 0.3 + noise()),
-      reliability: Math.round(91 + (29 - i) * 0.15 + noise()),
-      performance: Math.round(73 + (29 - i) * 0.35 + noise()),
+      date: monthDay,
+      healthScore: Math.round(78 + day * 0.4 + noise(0)),
+      quality: Math.round(82 + day * 0.3 + noise(1)),
+      reliability: Math.round(91 + day * 0.15 + noise(2)),
+      performance: Math.round(73 + day * 0.35 + noise(3)),
     });
   }
   return points;
@@ -92,7 +97,7 @@ function generateTimeline(): TimelinePoint[] {
 
 function miniSparkline(base: number, count = 14, volatility = 5): { value: number }[] {
   return Array.from({ length: count }, (_, i) => ({
-    value: Math.round(base + Math.sin(i * 0.7) * volatility + (Math.random() - 0.5) * volatility),
+    value: Math.round(base + Math.sin(i * 0.7) * volatility + (seededRandom(i * 31 + base) - 0.5) * volatility),
   }));
 }
 

@@ -42,7 +42,7 @@ function getMetricBarColor(label: string, value: number): string {
 }
 
 export default function OpportunitiesPage() {
-  const opportunities = getMockOpportunities();
+  const opportunities = useMemo(() => getMockOpportunities(), []);
   const [selectedId, setSelectedId] = useState(opportunities[0]?.id ?? "");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
@@ -58,7 +58,21 @@ export default function OpportunitiesPage() {
     );
   }, [opportunities, search]);
 
-  const selected = opportunities.find((o) => o.id === selectedId) ?? opportunities[0];
+  const selected = filtered.find((o) => o.id === selectedId) ?? filtered[0];
+
+  if (!selected) {
+    return (
+      <div className="flex flex-col h-screen">
+        <Header
+          title="Opportunities"
+          subtitle="AI-discovered improvement opportunities across your codebase"
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-text-muted text-lg">No opportunities found</p>
+        </div>
+      </div>
+    );
+  }
 
   const metrics = [
     { label: "Impact", value: selected.impact, icon: TrendingUp },
@@ -81,12 +95,13 @@ export default function OpportunitiesPage() {
           {/* Search + filter */}
           <div className="p-4 border-b border-border space-y-3">
             <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 border border-white/5 focus-within:border-accent-blue/40 transition-colors">
-              <Search className="h-4 w-4 text-text-muted shrink-0" />
+              <Search className="h-4 w-4 text-text-muted shrink-0" aria-hidden="true" />
               <input
-                type="text"
+                type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search opportunities…"
+                aria-label="Search opportunities"
                 className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
               />
             </div>

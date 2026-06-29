@@ -1,11 +1,32 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/sidebar";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "Recurrsive Dashboard — Software Evolution Platform",
   description:
     "AI-powered software evolution insights, opportunities, and system health monitoring.",
+  metadataBase: new URL("https://recurrsive.dev"),
+  openGraph: {
+    title: "Recurrsive Dashboard",
+    description:
+      "AI-powered software evolution insights and system health monitoring.",
+    type: "website",
+    siteName: "Recurrsive",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0f1a",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -14,23 +35,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="bg-base text-text-primary">
+    <html lang="en" className={`dark ${inter.variable}`}>
+      <body className="bg-base text-text-primary font-sans">
+        <a href="#main-content" className="skip-nav">
+          Skip to main content
+        </a>
         <div className="flex min-h-screen">
           <Sidebar />
-          <main className="flex-1 min-w-0 overflow-y-auto">
+          <main id="main-content" className="flex-1 min-w-0 overflow-y-auto">
             {children}
           </main>
         </div>

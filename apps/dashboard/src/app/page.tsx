@@ -56,8 +56,8 @@ export default async function OverviewPage() {
                 </span>
               </p>
               <div className="mt-1 flex items-center gap-1">
-                <span className="text-xs font-semibold text-green-400">
-                  +{health.healthTrend}%
+                <span className={`text-xs font-semibold ${health.healthTrend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {health.healthTrend >= 0 ? '+' : ''}{health.healthTrend}%
                 </span>
                 <span className="text-xs text-text-muted">vs last 30d</span>
               </div>
@@ -141,17 +141,18 @@ export default async function OverviewPage() {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {perfMetrics.map((metric, i) => {
-              const Icon = PERF_ICONS[i];
+              const Icon = PERF_ICONS[i] ?? Activity;
+              const iconColor = PERF_COLORS[i] ?? "#94a3b8";
               return (
                 <MetricCard
                   key={metric.label}
-                  icon={<Icon className="h-4 w-4" style={{ color: PERF_COLORS[i] }} />}
+                  icon={<Icon className="h-4 w-4" style={{ color: iconColor }} />}
                   label={metric.label}
                   value={metric.value}
                   suffix={metric.unit}
                   trend={metric.trend}
                 >
-                  <TrendChart data={metric.data} color={PERF_COLORS[i]} height={36} />
+                  <TrendChart data={metric.data} color={iconColor} height={36} />
                 </MetricCard>
               );
             })}

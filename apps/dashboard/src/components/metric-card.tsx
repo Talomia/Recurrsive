@@ -23,9 +23,10 @@ export default function MetricCard({
   children,
   className,
 }: MetricCardProps) {
-  const isPositive = trend !== undefined && trend >= 0;
-  const trendColor = trend === undefined
-    ? ""
+  const isPositive = trend !== undefined && trend > 0;
+  const isNeutral = trend !== undefined && trend === 0;
+  const trendColor = trend === undefined || isNeutral
+    ? "text-text-muted"
     : isPositive
       ? "text-green-400"
       : "text-red-400";

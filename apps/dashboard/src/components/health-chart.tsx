@@ -94,7 +94,7 @@ export default function HealthChart({ data }: HealthChartProps) {
             interval="preserveStartEnd"
           />
           <YAxis
-            domain={[50, 100]}
+            domain={["dataMin - 5", 100]}
             tick={{ fontSize: 11, fill: "#64748b" }}
             tickLine={false}
             axisLine={false}
