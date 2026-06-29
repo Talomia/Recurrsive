@@ -52,7 +52,7 @@ const INSIGHTS = [
 export default function InsightsPage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header title="Insights" subtitle="AI-powered analysis of your software evolution" />
+      <Header title="Insights" subtitle="Evidence-backed intelligence from your engineering knowledge graph" />
       <div className="flex-1 p-6 space-y-6">
         {/* Hero */}
         <div className="glass-card p-6 flex items-center gap-4">

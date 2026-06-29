@@ -2,9 +2,9 @@
 
 # Recurrsive
 
-**The Evolution Runtime for AI Software**
+**Engineering Intelligence Platform**
 
-Continuously understand, evaluate, and evolve software systems.
+Understand your entire software system. Make better engineering decisions.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7+-blue.svg)](https://www.typescriptlang.org/)
@@ -17,21 +17,25 @@ Continuously understand, evaluate, and evolve software systems.
 
 ## The Problem
 
-Engineering teams building AI-powered software face a unique challenge: their systems are **living organisms**, not static codebases. Models drift. Prompts degrade. Agent workflows break silently. Costs spike overnight. Architecture accumulates debt in dimensions no linter can detect.
+Engineering leaders make hundreds of decisions: what to build, what to fix, where to invest. These decisions are based on incomplete information scattered across repositories, observability dashboards, incident retrospectives, AI traces, cost reports, and architecture diagrams.
 
-Today's tools address fragments of this problem:
+Today's tools answer narrow questions:
 - **Code assistants** (Copilot, Cursor) help write code but don't understand the system
-- **Observability tools** (Datadog, Sentry) see production but don't reason about architecture  
-- **Static analyzers** (SonarQube, ESLint) catch syntax issues but miss AI-specific risks
-- **Architecture review boards** are periodic, manual, and don't scale
+- **Observability tools** (Datadog, Sentry) see production but don't reason about architecture
+- **Static analyzers** (SonarQube, ESLint) catch syntax issues but miss systemic risks
+- **AI evaluators** (Langfuse, Arize) track prompts but don't connect to business outcomes
 
-No single tool continuously understands the entire system and tells you what to improve next.
+No single tool answers: **"What are the highest-value improvements across my entire system?"**
 
 ## What is Recurrsive?
 
-Recurrsive is a **Software Evolution Platform** that continuously analyzes your entire software system — source code, architecture, prompts, agents, tools, workflows, infrastructure, costs, reliability, security, databases, APIs, and documentation — and produces a **prioritized roadmap** of the highest-value improvements.
+Recurrsive is an **Engineering Intelligence Platform** that continuously builds a knowledge graph of your entire software system — source code, architecture, AI components, infrastructure, costs, reliability, security, and documentation — and produces **evidence-backed recommendations** ranked by expected business impact.
 
-> **GitHub Copilot × Datadog × Architecture Review Board** — unified into an autonomous system that never sleeps.
+Instead of telling you *"latency increased,"* Recurrsive tells you:
+
+> *"Fixing these four issues will improve checkout conversion by an estimated 2.1%, reduce cloud spend by $380K/year, and require approximately three engineering weeks."*
+
+That is **Decision Confidence** — the core value Recurrsive delivers.
 
 ### Key Capabilities
 
@@ -41,7 +45,7 @@ Recurrsive is a **Software Evolution Platform** that continuously analyzes your 
 | 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 40 relationship types |
 | 🔬 **10 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product |
 | 🤖 **Multi-Agent Reasoning** | 12 specialist AI agents debate and rank improvement opportunities |
-| 📊 **Opportunity Management** | Prioritized roadmap with SARIF export, validation plans, rollback plans |
+| 📊 **Opportunity Management** | Prioritized roadmap with evidence, validation plans, rollback plans |
 | 🛡️ **Policy Engine** | Governance rules with recursive descent expression evaluation |
 | 🔌 **MCP Server** | Expose analysis to Claude, Cursor, Copilot, and other AI assistants |
 | 📡 **REST + WebSocket API** | Real-time analysis with live progress streaming |
@@ -168,24 +172,24 @@ wscat -c ws://localhost:3000/ws
 
 ## Architecture
 
-Recurrsive is organized as a 5-layer stack:
+Recurrsive follows a four-phase pipeline — **Collect → Understand → Reason → Evolve** — where the LLM is never the source of truth. It reasons only over structured evidence in the knowledge graph.
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                  EXECUTION                       │
-│         CLI  ·  MCP Server  ·  REST API          │
+│              EVOLVE (Presentation)               │
+│     CLI  ·  MCP Server  ·  REST API  ·  Dashboard│
 ├─────────────────────────────────────────────────┤
-│                  EVOLUTION                        │
-│  Opportunities  ·  Policy  ·  Presentation       │
-├─────────────────────────────────────────────────┤
-│                  REASONING                        │
+│                   REASON                         │
 │  12 Specialists  ·  Debate  ·  Judge  ·  Memory  │
+│  Opportunities  ·  Policy  ·  Experiments        │
 ├─────────────────────────────────────────────────┤
-│                  KNOWLEDGE                        │
-│  Graph Engine  ·  Analyzers  ·  Parsers          │
+│                 UNDERSTAND                        │
+│  Graph Engine  ·  10 Analyzers  ·  66+ Rules     │
+│  Parsers  ·  AI Pattern Detection                │
 ├─────────────────────────────────────────────────┤
-│                   REALITY                         │
+│                   COLLECT                         │
 │  Collectors  ·  Git  ·  Docs  ·  Telemetry       │
+│  Knowledge Graph  (43 entities, 40 relationships)│
 └─────────────────────────────────────────────────┘
 ```
 
@@ -206,11 +210,14 @@ recurrsive/
 ├── apps/
 │   ├── cli/            # Commander.js CLI — 8 commands
 │   ├── mcp/            # MCP server — 10 tools, 4 resources, 6 prompts
-│   └── server/         # Fastify REST + WebSocket API
+│   ├── server/         # Fastify REST + WebSocket API
+│   └── dashboard/      # Next.js dashboard — 6 pages
 ├── docker/             # Dockerfile + docker-compose
 ├── docs/
 │   ├── PRD.md          # Product Requirements
-│   └── ARCHITECTURE.md # Technical Architecture
+│   ├── ARCHITECTURE.md # Technical Architecture
+│   ├── STRATEGY.md     # Product Strategy & Business Model
+│   └── ROADMAP.md      # Phased Roadmap
 └── turbo.json          # Turborepo build orchestration
 ```
 
@@ -339,9 +346,12 @@ output:
 
 | Document | Description |
 |----------|-------------|
-| [Product Requirements](docs/PRD.md) | Vision, strategy, capabilities, and roadmap |
+| [Product Strategy](docs/STRATEGY.md) | Positioning, business model, go-to-market, and feasibility |
+| [Product Roadmap](docs/ROADMAP.md) | Phased roadmap with current status |
+| [Product Requirements](docs/PRD.md) | Vision, capabilities, and detailed specifications |
 | [Architecture Guide](docs/ARCHITECTURE.md) | Technical architecture, data model, and deployment |
-| [Contributing Guide](CONTRIBUTING.md) | Development setup, style guide, and PR process |
+| [API Reference](docs/API.md) | REST, WebSocket, and MCP endpoints |
+| [Development Guide](docs/DEVELOPMENT.md) | Setup, testing, and contribution workflow |
 | [Changelog](CHANGELOG.md) | Version history and release notes |
 
 ---

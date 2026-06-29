@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Evolution Overview", icon: LayoutDashboard },
+  { href: "/", label: "Intelligence Overview", icon: LayoutDashboard },
   { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
   { href: "/insights", label: "Insights", icon: Sparkles },
   { href: "/system-map", label: "System Map", icon: Network },
@@ -79,7 +79,7 @@ export default function Sidebar() {
                 Recurrsive
               </h2>
               <p className="text-[10px] text-text-muted leading-tight">
-                Software Evolution Platform
+                Engineering Intelligence
               </p>
             </div>
           )}

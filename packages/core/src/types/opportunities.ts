@@ -166,6 +166,8 @@ export const RiskAssessmentSchema = z.object({
   description: z.string(),
   /** Concrete mitigation steps. */
   mitigations: z.array(z.string()),
+  /** Estimated cost or consequence of taking no action (the "interest rate" of inaction). */
+  cost_of_inaction: z.string().optional(),
 });
 
 /** Inferred TypeScript type for {@link RiskAssessmentSchema}. */
@@ -340,6 +342,10 @@ export const OpportunitySchema = z.object({
   status: OpportunityStatusSchema,
   /** Human- or agent-authored reason for acceptance/rejection. */
   decision_reason: z.string().optional(),
+  /** Assumptions made during analysis — critical for trust and explainability. */
+  assumptions: z.array(z.string()).optional(),
+  /** Free-form tags for filtering and grouping. */
+  tags: z.array(z.string()).optional(),
   /** Measured impact after implementation (filled post-validation). */
   actual_impact: ImpactSchema.optional(),
   /** ISO-8601 creation timestamp. */

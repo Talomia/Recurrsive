@@ -35,8 +35,8 @@ export default async function OverviewPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header
-        title="Evolution Overview"
-        subtitle="Real-time health monitoring and evolution insights"
+        title="Intelligence Overview"
+        subtitle="Evidence-backed system health, recommendations, and engineering intelligence"
       />
 
       <div className="flex-1 p-6 space-y-6 stagger-children">

@@ -10,14 +10,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Recurrsive Dashboard — Software Evolution Platform",
+  title: "Recurrsive — Engineering Intelligence Platform",
   description:
-    "AI-powered software evolution insights, opportunities, and system health monitoring.",
+    "Evidence-backed engineering intelligence. Understand your system, make better decisions.",
   metadataBase: new URL("https://recurrsive.dev"),
   openGraph: {
     title: "Recurrsive Dashboard",
     description:
-      "AI-powered software evolution insights and system health monitoring.",
+      "Engineering intelligence — evidence-backed recommendations for your entire system.",
     type: "website",
     siteName: "Recurrsive",
   },
