@@ -562,26 +562,36 @@ export interface CredentialRef {
 
 /**
  * The Collector interface that all collectors must implement.
+ *
+ * Lifecycle:
+ * 1. `initialize` — configure credentials, validate connectivity.
+ * 2. `validate` — verify the collector can reach its data source.
+ * 3. `collect` — perform the actual data collection.
+ * 4. `dispose` — release resources.
  */
 export interface Collector {
-  /** Unique collector identifier */
-  readonly id: string;
-  readonly version: string;
+  /** Unique identifier (e.g. `'code.typescript'`). */
+  id: string;
+  /** Human-readable name. */
+  name: string;
+  /** One-line description. */
+  description: string;
+  /** Domain this collector operates in. */
+  type: CollectorType;
+  /** SemVer version string. */
+  version: string;
 
-  /** Returns the Zod schema for validating collector-specific options */
-  getConfigSchema(): z.ZodType;
-
-  /** Called once on startup. Acquire connections, validate credentials. */
+  /** Initialize the collector with its configuration. */
   initialize(config: CollectorConfig): Promise<void>;
 
-  /** Perform the collection. Yield artifacts as they become available. */
-  collect(context: CollectorContext): AsyncIterable<CollectedArtifact>;
+  /** Perform the data collection. */
+  collect(): Promise<CollectorResult>;
 
-  /** Called on shutdown. Release resources. */
-  destroy(): Promise<void>;
+  /** Validate connectivity and configuration. */
+  validate(): Promise<{ valid: boolean; errors: string[] }>;
 
-  /** Health check — returns true if the collector can reach its source. */
-  healthCheck(): Promise<boolean>;
+  /** Release any held resources (connections, file handles, etc.). */
+  dispose(): Promise<void>;
 }
 ```
 
@@ -593,15 +603,15 @@ stateDiagram-v2
     Registered --> Initializing: config validated
     Initializing --> Ready: initialize() success
     Initializing --> Error: initialize() failure
-    Ready --> Collecting: schedule triggers
-    Collecting --> Normalizing: raw data received
-    Normalizing --> Emitting: CollectedArtifact ready
-    Emitting --> Ready: yield complete
+    Ready --> Validating: validate()
+    Validating --> Collecting: validation passed
+    Validating --> Error: validation failed
+    Collecting --> Ready: collect() complete
     Collecting --> Error: collect() failure
     Error --> Ready: retry succeeds
     Error --> Disabled: max retries exceeded
-    Ready --> Destroying: shutdown signal
-    Destroying --> [*]: destroy() complete
+    Ready --> Disposing: shutdown signal
+    Disposing --> [*]: dispose() complete
 ```
 
 ### 3.3 Collector Registry and Discovery
@@ -620,6 +630,8 @@ Collectors are registered via a `CollectorRegistry` singleton:
 | `periodic` | BullMQ repeatable job | `collectorQueue.add(collectorId, {}, { repeat: { pattern: cronExpression } })` |
 | `webhook` | Fastify route → BullMQ job | Registers `POST /webhooks/collectors/:collectorId` |
 | `file-watcher` | chokidar → debounced BullMQ job | Watches configured glob patterns with debounce |
+
+> **Note**: BullMQ integration is planned for Phase 2. The current implementation uses direct async execution.
 
 ### 3.5 Error Handling and Retry
 
@@ -779,8 +791,8 @@ export interface Finding {
   analyzerId: string;
   /** Finding category */
   category: string;
-  /** Severity: info | warning | error | critical */
-  severity: 'info' | 'warning' | 'error' | 'critical';
+  /** Severity: info | low | medium | high | critical */
+  severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
   /** Human-readable title */
   title: string;
   /** Detailed description with evidence */
@@ -804,65 +816,39 @@ export interface Finding {
 }
 
 export interface AnalysisContext {
-  /** Query the knowledge graph with Cypher */
-  query<T = unknown>(cypher: string, params?: Record<string, unknown>): Promise<T[]>;
-  /** Get a specific entity by qualified name */
-  getEntity(qualifiedName: string): Promise<BaseEntity | null>;
-  /** Get neighbors of an entity */
-  getNeighbors(qualifiedName: string, edgeType?: string, direction?: 'in' | 'out' | 'both'): Promise<BaseEntity[]>;
-  /** Traverse the graph with a path expression */
-  traverse(startNode: string, pattern: string, maxDepth?: number): Promise<unknown[]>;
-  /** Access analyzer configuration */
-  config: Record<string, unknown>;
-  /** Access historical findings for trend analysis */
-  getHistory(analyzerId: string, options?: { since?: string; limit?: number }): Promise<Finding[]>;
-  /** Emit a finding */
-  emit(finding: Omit<Finding, 'id' | 'analyzerId' | 'detectedAt'>): void;
-  /** Logger scoped to this analyzer */
-  logger: Logger;
-  /** Abort signal for cancellation */
-  signal: AbortSignal;
+  /** Read-only knowledge graph client. */
+  graph: GraphClient;
+  /** Analyzer-specific configuration. */
+  config: AnalyzerConfig;
+  /** Historical analysis data. */
+  history: AnalysisHistory;
+  /** Project-level metadata. */
+  project: ProjectInfo;
+  /** Emit a finding from within the analysis lifecycle. */
+  emit: (finding: Finding) => void;
 }
 
 export interface Analyzer {
-  /** Unique analyzer identifier */
-  readonly id: string;
-  /** Semantic version */
-  readonly version: string;
-  /** Human-readable name */
-  readonly name: string;
-  /** Description of what this analyzer detects */
-  readonly description: string;
-  /** Category for grouping */
-  readonly category: AnalyzerCategory;
+  /** Unique identifier (e.g. `'security.dependency-audit'`). */
+  id: string;
+  /** Human-readable name. */
+  name: string;
+  /** One-line description of what this analyzer checks. */
+  description: string;
+  /** SemVer version string. */
+  version: string;
+  /** Categories this analyzer can produce findings for. */
+  categories: OpportunityCategory[];
 
-  /** Zod schema for analyzer-specific configuration */
-  getConfigSchema(): z.ZodType;
+  /** One-time initialization hook. */
+  initialize(ctx: AnalysisContext): Promise<void>;
 
-  /** Called once before analysis begins. Load resources, warm caches. */
-  initialize(config: Record<string, unknown>): Promise<void>;
+  /** Main analysis pass. Returns findings discovered during this pass. */
+  analyze(ctx: AnalysisContext): Promise<Finding[]>;
 
-  /** Run the analysis. Emit findings via context.emit(). */
-  analyze(context: AnalysisContext): Promise<void>;
-
-  /** Called once after analysis completes. Aggregate, summarize. */
-  finalize(context: AnalysisContext): Promise<void>;
-
-  /** Release resources. */
-  destroy(): Promise<void>;
+  /** Finalization hook for summary-level findings. */
+  finalize(ctx: AnalysisContext): Promise<Finding[]>;
 }
-
-export type AnalyzerCategory =
-  | 'architecture'
-  | 'ai'
-  | 'performance'
-  | 'cost'
-  | 'reliability'
-  | 'security'
-  | 'ux'
-  | 'product'
-  | 'data'
-  | 'documentation';
 ```
 
 ### 5.2 Analyzer Lifecycle
@@ -909,20 +895,16 @@ const CostAnalyzerConfigSchema = z.object({
 
 | ID | Category | What It Detects |
 |---|---|---|
-| `arch-complexity` | Architecture | Cyclomatic complexity, coupling, cohesion, layering violations |
-| `arch-dependencies` | Architecture | Circular dependencies, version conflicts, license issues |
-| `ai-prompt-quality` | AI | Prompt injection risks, missing guardrails, version drift, template sprawl |
-| `ai-model-usage` | AI | Redundant models, unoptimized context windows, missing fallbacks |
-| `ai-agent-health` | AI | Tool coverage, error rates, hallucination patterns, loop detection |
-| `ai-mcp-analysis` | AI | Unused tools, schema mismatches, server connectivity, capability gaps |
-| `perf-bottleneck` | Performance | Hot paths, N+1 queries, missing caching, synchronous blocking |
-| `cost-optimization` | Cost | Over-provisioned infra, expensive model calls, idle resources |
-| `rel-resilience` | Reliability | Missing error handling, single points of failure, no retries, no circuit breakers |
-| `sec-vulnerability` | Security | Dependency vulnerabilities, exposed secrets, injection surfaces, RBAC gaps |
-| `ux-api-consistency` | UX | Inconsistent API patterns, missing docs, breaking changes, pagination issues |
-| `prod-feature-health` | Product | Stale feature flags, experiment conclusions, unused features |
-| `data-quality` | Data | Schema drift, missing validations, unindexed queries, orphaned tables |
-| `doc-coverage` | Documentation | Undocumented exports, stale README, missing API docs, changelog gaps |
+| `architecture.structural` | Architecture | Circular dependencies, god modules, coupling, cohesion, layering violations |
+| `ai.quality` | AI | Prompt injection risks, missing guardrails, version drift, output quality |
+| `performance.general` | Performance | Hot paths, N+1 queries, missing caching, synchronous blocking |
+| `cost.optimization` | Cost | Over-provisioned infra, expensive model calls, idle resources |
+| `reliability.resilience` | Reliability | Missing error handling, single points of failure, no retries, no circuit breakers |
+| `security.vulnerabilities` | Security | Dependency vulnerabilities, exposed secrets, injection surfaces, RBAC gaps |
+| `data.schema-quality` | Data | Schema drift, missing validations, unindexed queries, orphaned tables |
+| `docs.completeness` | Documentation | Undocumented exports, stale README, missing API docs, changelog gaps |
+| `ux.quality` | UX | Inconsistent API patterns, missing docs, breaking changes, pagination issues |
+| `product.health` | Product | Stale feature flags, experiment conclusions, unused features |
 
 ---
 
@@ -937,13 +919,26 @@ graph TB
     subgraph ReasoningEngine["Reasoning Engine"]
         SUP[Supervisor Agent]
         
-        subgraph Specialists["Specialist Agents"]
-            ARCH[Architecture<br/>Specialist]
-            AI_S[AI Engineering<br/>Specialist]
-            PERF[Performance<br/>Specialist]
-            COST[Cost<br/>Specialist]
-            SEC[Security<br/>Specialist]
-            PROD[Product<br/>Specialist]
+        subgraph Specialists["19 Specialist Agents"]
+            ARCH[Architecture<br/>Engineer]
+            PERF[Performance<br/>Engineer]
+            SEC[Security<br/>Engineer]
+            COST[Cost<br/>Optimizer]
+            AIQ[AI Quality<br/>Engineer]
+            PM[Product<br/>Manager]
+            SRE[Reliability<br/>Engineer]
+            DX[Developer Experience<br/>Engineer]
+            UXR[UX<br/>Researcher]
+            A11Y[Accessibility<br/>Expert]
+            PRIV[Privacy<br/>Engineer]
+            COMP[Compliance<br/>Engineer]
+            BE[Backend<br/>Engineer]
+            FE[Frontend<br/>Engineer]
+            MLE[ML<br/>Engineer]
+            PE[Prompt<br/>Engineer]
+            DBE[Database<br/>Engineer]
+            DOC[Documentation<br/>Engineer]
+            RM[Release<br/>Manager]
         end
         
         subgraph DebateArena["Debate Arena"]
@@ -1005,12 +1000,25 @@ Each specialist agent is a prompted LLM invocation with a cognitive framework:
 
 | Specialist | Cognitive Framework | Focus |
 |---|---|---|
-| Architecture | **C4 Model** thinking — Context, Container, Component, Code | Structural integrity, modularity, layering, evolution paths |
-| AI Engineering | **MLOps Maturity Model** — ad-hoc → managed → optimized | Prompt engineering, model selection, agent design, evaluation |
-| Performance | **USE Method** — Utilization, Saturation, Errors | Latency, throughput, resource efficiency, bottleneck identification |
-| Cost | **FinOps Framework** — Inform, Optimize, Operate | Unit economics, waste elimination, right-sizing, reservation strategy |
-| Security | **STRIDE** — Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation | Threat surfaces, vulnerability prioritization, compliance gaps |
-| Product | **RICE** — Reach, Impact, Confidence, Effort | Feature value, user impact, adoption risk, technical debt trade-offs |
+| Architecture Engineer | Coupling, cohesion, dependency graphs, fitness functions | Structural integrity, modularity, layering, evolution paths |
+| Performance Engineer | **USE Method** — Utilization, Saturation, Errors; Amdahl's Law | Latency, throughput, resource efficiency, bottleneck identification |
+| Security Engineer | **STRIDE/DREAD** — Threat modeling, defense-in-depth | Attack surfaces, vulnerability prioritization, compliance gaps |
+| Cost Optimizer | ROI, TCO, compound interest of tech debt | Unit economics, waste elimination, right-sizing, reservation strategy |
+| AI Quality Engineer | Prompt robustness, output quality, hallucination detection | Prompt design, model evaluation, regression testing, safety |
+| Product Manager | **RICE** — Reach, Impact, Confidence, Effort | Feature value, user impact, adoption risk, strategic alignment |
+| Reliability Engineer | FMEA, SLO-based reasoning, error budgets | SLOs, failure modes, redundancy, chaos engineering |
+| Developer Experience Engineer | Cognitive load analysis, dev loop optimization | Build times, onboarding, API ergonomics, toolchain |
+| UX Researcher | Usability heuristics, user journey analysis | Interaction patterns, information architecture, cognitive load |
+| Accessibility Expert | **WCAG 2.2** guidelines, assistive tech testing | Keyboard navigation, screen readers, color contrast, touch targets |
+| Privacy Engineer | Data flow analysis, consent management | GDPR/CCPA, data minimization, pseudonymization, subject rights |
+| Compliance Engineer | Control framework mapping, audit trail verification | SOC 2, ISO 27001, HIPAA, change management, incident response |
+| Backend Engineer | Request lifecycle tracing, data integrity analysis | API design, query efficiency, concurrency, error handling |
+| Frontend Engineer | Component tree audit, rendering analysis | Core Web Vitals, state management, bundle optimization, a11y |
+| ML Engineer | Data lineage, experiment reproducibility | Data pipelines, model serving, drift detection, MLOps |
+| Prompt Engineer | Prompt structure audit, reliability measurement | Template management, output validation, cost optimization |
+| Database Engineer | Schema fitness, query plan analysis | Indexing, constraints, transactions, migrations, partitioning |
+| Documentation Engineer | Coverage audit, accuracy testing, freshness checks | API docs, onboarding, changelog, discoverability |
+| Release Manager | Readiness assessment, change risk scoring | Deployment strategies, rollback, CI/CD, version management |
 
 ### 6.4 Debate Protocol
 

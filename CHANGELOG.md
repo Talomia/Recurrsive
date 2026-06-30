@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-06-30
+
+### Added
+
+#### New Collectors
+- **Environment Collector** — Docker, Docker Compose, and Kubernetes infrastructure discovery. Parses Dockerfiles (base images, multi-stage, ports), Compose files (services, dependencies, networks), and K8s manifests (deployments, configmaps, replicas).
+- **CI/CD Collector** — GitHub Actions workflow and GitLab CI pipeline discovery. Parses workflow triggers, jobs, steps, and job dependency chains (`needs`).
+
+#### Testing
+- **Server API integration tests** — 19 new route tests covering analysis status, timeline, findings, reports, opportunities, and CORS endpoints (36 total).
+- **Environment Collector tests** — Dockerfile, Docker Compose, Kubernetes manifest parsing, validation, and metadata (7 tests).
+- **CI/CD Collector tests** — GitHub Actions parsing, GitLab CI detection, validation, and metadata (7 tests).
+
+### Fixed
+- Dashboard API client: corrected analysis status endpoint path (`/api/v1/analysis/status` not `/api/v1/analyze`) and added proper response unwrapping from `data` wrapper.
+- Server route tests: fixed endpoint paths, response shapes, and pre-initialization status codes to match actual behavior.
+- **ARCHITECTURE.md reconciliation** — Fixed 8 discrepancies between documentation and code:
+  - Collector interface: actual `collect() → Promise<CollectorResult>` not `AsyncIterable<CollectedArtifact>`
+  - Severity levels: 5-level (`info|low|medium|high|critical`) not 4-level
+  - Analyzer interface: `categories: OpportunityCategory[]` not `category: AnalyzerCategory`
+  - Specialist count: 19 not 12
+  - Built-in analyzers: 10 not 14
+  - BullMQ: marked as Phase 2 (current impl uses direct async)
+
 ## [0.1.0] - 2026-06-29
 
 ### Added
@@ -39,6 +63,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **`@recurrsive/reasoning`** — Added 4 new specialist agents (Anthropic Adapter, Evolution Strategist, Integration Analyst, Dependency Auditor) bringing total to 12
+- **`@recurrsive/reasoning`** — Added 7 final specialist agents (Backend, Frontend, ML, Prompt, Database, Documentation, Release Manager) completing all 19 SpecialistRoleSchema roles
+- **`apps/dashboard`** — Connected all 6 pages to live server API (was 100% mock data)
+  - Rewrote API client with correct paths (`/api/v1/health-score`, `/api/v1/timeline/trends`, etc.)
+  - Added response transformers for server→dashboard shape conversion
+  - System Map: now uses graph stats API with entity type topology
+  - Reports: functional download links to `/api/v1/reports/:format` (4 formats)
+  - Insights: data-driven insights from findings summary API
+  - Opportunities: client-side API fetch on mount with mock fallback
+  - Settings: functional React state management with localStorage persistence
 - **`apps/cli`** — Added `report` and `config` commands (8 commands total)
 - **`apps/mcp`** — Added 5 intelligence tools (`list_findings`, `get_entity`, `trace_dependency`, `explain_entity`, `analyze_impact`) and 3 assessment prompts (10 tools, 6 prompts total)
 - **`apps/server`** — Added REST endpoints for findings and reports

@@ -47,3 +47,11 @@ export {
 // ─── Documentation Collector ─────────────────────────────────────────────────
 
 export { DocumentationCollector } from './docs/index.js';
+
+// ─── Environment Collector ───────────────────────────────────────────────────
+
+export { EnvironmentCollector } from './environment/index.js';
+
+// ─── CI/CD Collector ─────────────────────────────────────────────────────────
+
+export { CICDCollector } from './cicd/index.js';

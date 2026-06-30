@@ -673,7 +673,7 @@ export function getReportUrl(format: string): string {
 // ─── Analysis ────────────────────────────────────────────────────────────────
 
 /**
- * Get analysis status from `GET /api/v1/analyze`.
+ * Get analysis status from `GET /api/v1/analysis/status`.
  */
 export async function getAnalysisStatus(): Promise<{
   phase: string;
@@ -683,12 +683,34 @@ export async function getAnalysisStatus(): Promise<{
   completedAt: string | null;
   error: string | null;
 }> {
-  return apiFetch("/api/v1/analyze", {
-    phase: "idle",
-    progress: 0,
-    message: "No analysis running",
-    startedAt: null,
-    completedAt: null,
-    error: null,
-  });
+  try {
+    const raw = await apiFetch<{
+      data: {
+        phase: string;
+        progress: number;
+        message: string;
+        startedAt: string | null;
+        completedAt: string | null;
+        error: string | null;
+      };
+    } | null>("/api/v1/analysis/status", null);
+
+    return raw?.data ?? {
+      phase: "idle",
+      progress: 0,
+      message: "No analysis running",
+      startedAt: null,
+      completedAt: null,
+      error: null,
+    };
+  } catch {
+    return {
+      phase: "idle",
+      progress: 0,
+      message: "No analysis running",
+      startedAt: null,
+      completedAt: null,
+      error: null,
+    };
+  }
 }
