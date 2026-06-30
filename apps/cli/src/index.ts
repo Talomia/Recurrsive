@@ -19,6 +19,7 @@
  * - `notifications` — Manage notification channels
  * - `batch` — Run batch analysis on multiple projects
  * - `audit` — View and search the audit trail
+ * - `analytics` — View analytics summaries and categories
  *
  * @packageDocumentation
  */
@@ -41,6 +42,7 @@ import {
 import { registerNotificationsCommand } from './commands/notifications.js';
 import { registerBatchCommand } from './commands/batch.js';
 import { registerAuditCommand } from './commands/audit.js';
+import { registerAnalyticsCommand } from './commands/analytics.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -79,6 +81,7 @@ export function createProgram(): Command {
   registerNotificationsCommand(program);
   registerBatchCommand(program);
   registerAuditCommand(program);
+  registerAnalyticsCommand(program);
 
   return program;
 }

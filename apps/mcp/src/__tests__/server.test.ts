@@ -3,7 +3,7 @@
  *
  * Tests cover:
  * - Server has correct name and version
- * - All 20 tools are registered
+ * - All 22 tools are registered
  * - All 7 resources are registered
  * - All 12 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
@@ -176,9 +176,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 20 tools', () => {
+    it('registers exactly 22 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(20);
+      expect(mockTool).toHaveBeenCalledTimes(22);
     });
 
     it('registers "analyze_project" tool', () => {
@@ -341,13 +341,29 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('get_batch_status');
     });
 
-    it('all 20 tool names are unique', () => {
+    it('registers "list_experiments" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('list_experiments');
+    });
+
+    it('registers "create_experiment" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('create_experiment');
+    });
+
+    it('all 22 tool names are unique', () => {
       createServer();
       const toolNames = mockTool.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(toolNames);
-      expect(uniqueNames.size).toBe(20);
+      expect(uniqueNames.size).toBe(22);
     });
 
     it('each tool has a description string as second argument', () => {

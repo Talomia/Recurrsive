@@ -1085,3 +1085,119 @@ describe('Batch endpoints', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Audit Routes
+// ---------------------------------------------------------------------------
+
+describe('Audit Routes', () => {
+  it('GET /api/v1/audit returns audit events', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/audit' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(typeof body.total).toBe('number');
+  });
+
+  it('GET /api/v1/audit respects limit param', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/audit?limit=3' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.data.length).toBeLessThanOrEqual(3);
+  });
+
+  it('GET /api/v1/audit filters by type param', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/audit?type=analysis' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.data.length).toBeGreaterThan(0);
+    for (const event of body.data) {
+      expect(event.type).toBe('analysis');
+    }
+  });
+
+  it('POST /api/v1/audit creates new event', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/audit',
+      payload: {
+        type: 'config',
+        action: 'updated',
+        target: 'test-target',
+        details: 'test detail',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('id');
+    expect(body.data.type).toBe('config');
+    expect(body.data.action).toBe('updated');
+    expect(body.data.target).toBe('test-target');
+    expect(body.data.details).toBe('test detail');
+  });
+
+  it('POST /api/v1/audit validates required fields', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/audit',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid request');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Analytics Routes
+// ---------------------------------------------------------------------------
+
+describe('Analytics Routes', () => {
+  it('GET /api/v1/analytics/summary returns summary', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/summary' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('analysis_runs');
+    expect(body).toHaveProperty('total_findings');
+    expect(body).toHaveProperty('findings_resolved');
+    expect(body).toHaveProperty('resolution_rate');
+    expect(body).toHaveProperty('avg_health_score');
+    expect(body).toHaveProperty('trends');
+  });
+
+  it('GET /api/v1/analytics/summary has correct shape', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/summary' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(Array.isArray(body.trends)).toBe(true);
+    expect(body.trends.length).toBeGreaterThan(0);
+    const trend = body.trends[0];
+    expect(trend).toHaveProperty('date');
+    expect(trend).toHaveProperty('findings');
+    expect(trend).toHaveProperty('resolved');
+    expect(trend).toHaveProperty('health');
+  });
+
+  it('GET /api/v1/analytics/top-categories returns categories', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/top-categories' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('categories');
+    expect(Array.isArray(body.categories)).toBe(true);
+    expect(body.categories.length).toBeGreaterThan(0);
+  });
+
+  it('GET /api/v1/analytics/top-categories each has name/count/percentage', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/top-categories' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    const cat = body.categories[0];
+    expect(typeof cat.name).toBe('string');
+    expect(typeof cat.count).toBe('number');
+    expect(typeof cat.percentage).toBe('number');
+  });
+});
+
