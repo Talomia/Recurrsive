@@ -6,7 +6,7 @@
  * Orchestrates the entire Recurrsive analysis workflow:
  * 1. Load config
  * 2. Create graph client
- * 3. Run git + docs collectors
+ * 3. Run git + docs + environment + ci/cd + database collectors
  * 4. Run parsing pipeline
  * 5. Populate knowledge graph
  * 6. Run all enabled analyzers
@@ -25,7 +25,7 @@ import type { Command } from 'commander';
 import type { Finding, Opportunity, Entity, Relationship } from '@recurrsive/core';
 import { formatDuration } from '@recurrsive/core';
 import { createGraphClient, type ExtendedGraphClient } from '@recurrsive/graph';
-import { GitCollector, DocumentationCollector } from '@recurrsive/collectors';
+import { GitCollector, DocumentationCollector, EnvironmentCollector, CICDCollector, DatabaseCollector } from '@recurrsive/collectors';
 import { ParsingPipeline } from '@recurrsive/parsers';
 import {
   AnalyzerRegistry,
@@ -178,7 +178,7 @@ export function registerAnalyzeCommand(program: Command): void {
       ) => {
         const startTime = Date.now();
         const projectPath = resolve(pathArg);
-        const totalSteps = opts.reasoning ? 10 : 8;
+        const totalSteps = opts.reasoning ? 13 : 11;
 
         banner();
 
@@ -271,8 +271,68 @@ export function registerAnalyzeCommand(program: Command): void {
             `Collected ${bold(String(docsResult.entities.length))} documentation entities`,
           );
 
-          // ── Step 5: Run parsing pipeline ───────────────────────────
-          step(5, totalSteps, 'Parsing source code...');
+          // ── Step 5: Run environment collector ────────────────────
+          step(5, totalSteps, 'Collecting infrastructure data...');
+          const envSpinner = new Spinner('Scanning Docker, Compose, K8s files...').start();
+
+          const envCollector = new EnvironmentCollector(projectRoot);
+          await envCollector.initialize({
+            governance: {
+              masked_fields: config.governance.masked_fields,
+              excluded_patterns: config.governance.excluded_patterns,
+              pii_detection: config.governance.pii_detection,
+              audit_log: config.governance.audit_log,
+              retention_days: config.governance.retention_days,
+            },
+            custom: {},
+          });
+          const envResult = await envCollector.collect();
+          envSpinner.succeed(
+            `Collected ${bold(String(envResult.entities.length))} infrastructure entities`,
+          );
+
+          // ── Step 6: Run CI/CD collector ──────────────────────────
+          step(6, totalSteps, 'Collecting CI/CD pipelines...');
+          const ciSpinner = new Spinner('Scanning GitHub Actions, GitLab CI...').start();
+
+          const cicdCollector = new CICDCollector(projectRoot);
+          await cicdCollector.initialize({
+            governance: {
+              masked_fields: config.governance.masked_fields,
+              excluded_patterns: config.governance.excluded_patterns,
+              pii_detection: config.governance.pii_detection,
+              audit_log: config.governance.audit_log,
+              retention_days: config.governance.retention_days,
+            },
+            custom: {},
+          });
+          const cicdResult = await cicdCollector.collect();
+          ciSpinner.succeed(
+            `Collected ${bold(String(cicdResult.entities.length))} CI/CD entities`,
+          );
+
+          // ── Step 7: Run database collector ───────────────────────
+          step(7, totalSteps, 'Collecting database schemas...');
+          const dbSpinner = new Spinner('Scanning SQL, Prisma, Drizzle schemas...').start();
+
+          const dbCollector = new DatabaseCollector(projectRoot);
+          await dbCollector.initialize({
+            governance: {
+              masked_fields: config.governance.masked_fields,
+              excluded_patterns: config.governance.excluded_patterns,
+              pii_detection: config.governance.pii_detection,
+              audit_log: config.governance.audit_log,
+              retention_days: config.governance.retention_days,
+            },
+            custom: {},
+          });
+          const dbResult = await dbCollector.collect();
+          dbSpinner.succeed(
+            `Collected ${bold(String(dbResult.entities.length))} database entities`,
+          );
+
+          // ── Step 8: Run parsing pipeline ─────────────────────────
+          step(8, totalSteps, 'Parsing source code...');
           const parseSpinner = new Spinner('Extracting entities and AI patterns...').start();
 
           // Detect languages from collected data
@@ -304,14 +364,24 @@ export function registerAnalyzeCommand(program: Command): void {
               `${bold(String(parseEntities.length))} code entities`,
           );
 
-          // ── Step 6: Populate knowledge graph ───────────────────────
-          step(6, totalSteps, 'Populating knowledge graph...');
+          // ── Step 9: Populate knowledge graph ───────────────────────
+          step(9, totalSteps, 'Populating knowledge graph...');
           const graphSpinner = new Spinner('Ingesting entities and relationships...').start();
 
-          const allEntities = [...gitResult.entities, ...docsResult.entities, ...parseEntities];
+          const allEntities = [
+            ...gitResult.entities,
+            ...docsResult.entities,
+            ...envResult.entities,
+            ...cicdResult.entities,
+            ...dbResult.entities,
+            ...parseEntities,
+          ];
           const allRelationships = [
             ...gitResult.relationships,
             ...docsResult.relationships,
+            ...envResult.relationships,
+            ...cicdResult.relationships,
+            ...dbResult.relationships,
             ...parseRelationships,
           ];
 
@@ -329,8 +399,8 @@ export function registerAnalyzeCommand(program: Command): void {
               `${bold(String(allRelationships.length))} relationships`,
           );
 
-          // ── Step 7: Run analyzers ──────────────────────────────────
-          step(7, totalSteps, 'Running analyzers...');
+          // ── Step 10: Run analyzers ──────────────────────────────────
+          step(10, totalSteps, 'Running analyzers...');
           const analyzerSpinner = new Spinner('Analyzing knowledge graph...').start();
 
           // Detect AI providers and frameworks for analysis context
@@ -600,6 +670,9 @@ export function registerAnalyzeCommand(program: Command): void {
           // Cleanup
           await gitCollector.dispose();
           await docsCollector.dispose();
+          await envCollector.dispose();
+          await cicdCollector.dispose();
+          await dbCollector.dispose();
           await graphClient.dispose();
 
           success(

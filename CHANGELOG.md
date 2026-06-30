@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Core Platform
 - **`@recurrsive/core`** — Foundation type system with 43 entity types, 43 relationship types, Zod schemas, structured logger, and 7 error classes
 - **`@recurrsive/graph`** — Dual-backend knowledge graph engine (PostgreSQL + Apache AGE for production, SQLite for local use) with 8 query builders
-- **`@recurrsive/collectors`** — Data collection framework with Git and Documentation collectors, PII detection, field masking, and governance audit logging
+- **`@recurrsive/collectors`** — Data collection framework with 5 collectors (Git, Documentation, Environment, CI/CD, Database), PII detection, field masking, and governance audit logging
 - **`@recurrsive/parsers`** — Multi-language code analysis with Tree-sitter support, TypeScript and Python extractors, and AI Pattern Detector (13 pattern types)
 
 #### Analysis & Reasoning

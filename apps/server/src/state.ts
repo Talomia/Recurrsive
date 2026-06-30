@@ -15,7 +15,8 @@ import { createGraphClient, type ExtendedGraphClient } from '@recurrsive/graph';
 import { OpportunityManager } from '@recurrsive/opportunities';
 import { AnalyzerRegistry, AnalyzerRunner, createDefaultAnalyzers } from '@recurrsive/analyzers';
 import { ReasoningEngine } from '@recurrsive/reasoning';
-import { GitCollector } from '@recurrsive/collectors';
+import { GitCollector, DocumentationCollector, EnvironmentCollector, CICDCollector, DatabaseCollector } from '@recurrsive/collectors';
+import { ParsingPipeline } from '@recurrsive/parsers';
 import type {
   Finding,
   Opportunity,
@@ -27,6 +28,7 @@ import type {
   ConsensusResult,
 } from '@recurrsive/core';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
+import { readFile } from 'node:fs/promises';
 
 const logger = createLogger({ context: { component: 'server:state' } });
 
@@ -295,7 +297,7 @@ export class ServerState {
 
       this.updateStatus(
         'collecting',
-        30,
+        12,
         `Collected ${collectorResult.entities.length} entities and ${collectorResult.relationships.length} relationships`,
       );
 
@@ -304,8 +306,162 @@ export class ServerState {
         `${collectorResult.relationships.length} relationships`,
       );
 
-      // ── Step 2: Analyze ──────────────────────────────────────────────────
-      this.updateStatus('analyzing', 40, 'Running analyzers…');
+      // ── Step 1b: Documentation collector ─────────────────────────────
+      this.updateStatus('collecting', 15, 'Running documentation collector…');
+      const docsCollector = new DocumentationCollector(this.projectPath!);
+      await docsCollector.initialize({
+        governance: {
+          masked_fields: [],
+          excluded_patterns: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+          pii_detection: false,
+          audit_log: false,
+          retention_days: 90,
+        },
+        custom: {},
+      });
+      const docsResult = await docsCollector.collect();
+      for (const entity of docsResult.entities) {
+        await this.graphClient!.upsertEntity(entity);
+      }
+      for (const rel of docsResult.relationships) {
+        await this.graphClient!.upsertRelationship(rel);
+      }
+      logger.info(`Documentation: ${docsResult.entities.length} entities`);
+
+      // ── Step 1c: Environment collector ───────────────────────────────
+      this.updateStatus('collecting', 18, 'Running environment collector…');
+      const envCollector = new EnvironmentCollector(this.projectPath!);
+      await envCollector.initialize({
+        governance: {
+          masked_fields: [],
+          excluded_patterns: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+          pii_detection: false,
+          audit_log: false,
+          retention_days: 90,
+        },
+        custom: {},
+      });
+      const envResult = await envCollector.collect();
+      for (const entity of envResult.entities) {
+        await this.graphClient!.upsertEntity(entity);
+      }
+      for (const rel of envResult.relationships) {
+        await this.graphClient!.upsertRelationship(rel);
+      }
+      logger.info(`Environment: ${envResult.entities.length} entities`);
+
+      // ── Step 1d: CI/CD collector ────────────────────────────────────
+      this.updateStatus('collecting', 21, 'Running CI/CD collector…');
+      const cicdCollector = new CICDCollector(this.projectPath!);
+      await cicdCollector.initialize({
+        governance: {
+          masked_fields: [],
+          excluded_patterns: [],
+          pii_detection: false,
+          audit_log: false,
+          retention_days: 90,
+        },
+        custom: {},
+      });
+      const cicdResult = await cicdCollector.collect();
+      for (const entity of cicdResult.entities) {
+        await this.graphClient!.upsertEntity(entity);
+      }
+      for (const rel of cicdResult.relationships) {
+        await this.graphClient!.upsertRelationship(rel);
+      }
+      logger.info(`CI/CD: ${cicdResult.entities.length} entities`);
+
+      // ── Step 1e: Database collector ──────────────────────────────────
+      this.updateStatus('collecting', 24, 'Running database collector…');
+      const dbCollector = new DatabaseCollector(this.projectPath!);
+      await dbCollector.initialize({
+        governance: {
+          masked_fields: [],
+          excluded_patterns: [],
+          pii_detection: false,
+          audit_log: false,
+          retention_days: 90,
+        },
+        custom: {},
+      });
+      const dbResult = await dbCollector.collect();
+      for (const entity of dbResult.entities) {
+        await this.graphClient!.upsertEntity(entity);
+      }
+      for (const rel of dbResult.relationships) {
+        await this.graphClient!.upsertRelationship(rel);
+      }
+      logger.info(`Database: ${dbResult.entities.length} entities`);
+
+      // ── Step 2: Parse source code ──────────────────────────────────────
+      this.updateStatus('collecting', 28, 'Parsing source code…');
+
+      const detectedLanguages = new Set<string>();
+      for (const entity of collectorResult.entities) {
+        if (entity.type === 'file') {
+          const lang = entity.properties['language'];
+          if (typeof lang === 'string' && lang !== 'unknown') {
+            detectedLanguages.add(lang);
+          }
+        }
+      }
+
+      const parsingPipeline = new ParsingPipeline();
+      await parsingPipeline.initialize([...detectedLanguages]);
+
+      // Read source files from file entities
+      const sourceFiles: Array<{ path: string; content: string; language: string }> = [];
+      const fileEntities = collectorResult.entities.filter(
+        (e) => e.type === 'file' && e.properties['is_source'] === true,
+      );
+      for (const entity of fileEntities) {
+        const filePath = entity.properties['absolute_path'];
+        if (typeof filePath !== 'string') continue;
+        const language = entity.properties['language'];
+        if (typeof language !== 'string') continue;
+        try {
+          const content = await readFile(filePath, 'utf-8');
+          const relativePath = filePath.startsWith(this.projectPath!)
+            ? filePath.slice(this.projectPath!.length + 1)
+            : filePath;
+          sourceFiles.push({ path: relativePath, content, language });
+        } catch {
+          // Skip unreadable files
+        }
+      }
+
+      if (sourceFiles.length > 0) {
+        const parseResult = await parsingPipeline.parseProject(sourceFiles);
+        for (const entity of parseResult.entities) {
+          await this.graphClient!.upsertEntity(entity);
+        }
+        for (const rel of parseResult.relationships) {
+          await this.graphClient!.upsertRelationship(rel);
+        }
+        logger.info(`Parsed ${sourceFiles.length} files → ${parseResult.entities.length} code entities`);
+      }
+
+      // ── Enrich project info ────────────────────────────────────────────
+      const aiProviders: string[] = [];
+      const detectedFrameworks: string[] = [];
+      for (const entity of collectorResult.entities) {
+        if (entity.type === 'repository') {
+          const providers = entity.properties['ai_providers'];
+          if (Array.isArray(providers)) aiProviders.push(...(providers as string[]));
+          const fws = entity.properties['frameworks'];
+          if (Array.isArray(fws)) detectedFrameworks.push(...(fws as string[]));
+        }
+      }
+      this.projectInfo = {
+        ...this.projectInfo!,
+        languages: [...detectedLanguages],
+        frameworks: detectedFrameworks,
+        ai_providers: aiProviders,
+      };
+
+      // ── Step 3: Analyze ──────────────────────────────────────────────────
+      this.updateStatus('analyzing', 35, 'Running analyzers…');
 
       const defaultAnalyzers = createDefaultAnalyzers();
       const registry = new AnalyzerRegistry();
@@ -367,12 +523,12 @@ export class ServerState {
         `${analysisResult.analyzers_failed.length} failed)`,
       );
 
-      // ── Step 3: Reason (optional) ────────────────────────────────────────
+      // ── Step 4: Reason (optional) ────────────────────────────────────────
       let consensus: ConsensusResult | null = null;
       let opportunities: Opportunity[] = [];
 
       if (includeReasoning && analysisResult.findings.length > 0) {
-        this.updateStatus('reasoning', 75, 'Running reasoning engine…');
+        this.updateStatus('reasoning', 70, 'Running reasoning engine…');
 
         try {
           const reasoningConfig = {
@@ -385,6 +541,7 @@ export class ServerState {
               'architecture_engineer' as const,
               'security_engineer' as const,
               'performance_engineer' as const,
+              'cost_optimizer' as const,
             ],
             temperature: 0.3,
           };
@@ -443,6 +600,13 @@ export class ServerState {
           opportunityCount: cache.opportunities.length,
         },
       });
+
+      // ── Dispose collectors ─────────────────────────────────────────────
+      await collector.dispose();
+      await docsCollector.dispose();
+      await envCollector.dispose();
+      await cicdCollector.dispose();
+      await dbCollector.dispose();
 
       return cache;
     } catch (err) {

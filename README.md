@@ -245,6 +245,9 @@ Dual-backend knowledge graph with a unified `GraphClient` interface:
 Pluggable data collection with built-in **PII detection**, field masking, and audit logging:
 - **Git Collector** — 20+ language detection, framework recognition, AI provider detection
 - **Documentation Collector** — READMEs, ADRs, RFCs, API contracts
+- **Environment Collector** — Docker, Docker Compose, Kubernetes infrastructure topology
+- **CI/CD Collector** — GitHub Actions workflows, GitLab CI pipelines
+- **Database Collector** — SQL schemas, Prisma models, Drizzle ORM definitions
 
 ### `@recurrsive/parsers`
 Multi-language code analysis:

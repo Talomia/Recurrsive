@@ -15,7 +15,7 @@ import { createGraphClient, type ExtendedGraphClient } from '@recurrsive/graph';
 import { OpportunityManager } from '@recurrsive/opportunities';
 import { AnalyzerRegistry, AnalyzerRunner, createDefaultAnalyzers } from '@recurrsive/analyzers';
 import { ReasoningEngine } from '@recurrsive/reasoning';
-import { GitCollector } from '@recurrsive/collectors';
+import { GitCollector, DocumentationCollector, EnvironmentCollector, CICDCollector, DatabaseCollector } from '@recurrsive/collectors';
 import type {
   Finding,
   Opportunity,
@@ -139,9 +139,75 @@ export class ServerState {
     }
 
     logger.info(
-      `Collected ${collectorResult.entities.length} entities and ` +
+      `Git: ${collectorResult.entities.length} entities, ` +
       `${collectorResult.relationships.length} relationships`,
     );
+
+    // ── Step 1b: Documentation collector ──────────────────────────────
+    const governanceConfig = {
+      governance: {
+        masked_fields: [] as string[],
+        excluded_patterns: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+        pii_detection: false,
+        audit_log: false,
+        retention_days: 90,
+      },
+      custom: {},
+    };
+
+    const docsCollector = new DocumentationCollector(this.projectPath!);
+    await docsCollector.initialize(governanceConfig);
+    const docsResult = await docsCollector.collect();
+    for (const entity of docsResult.entities) await this.graphClient!.upsertEntity(entity);
+    for (const rel of docsResult.relationships) await this.graphClient!.upsertRelationship(rel);
+    logger.info(`Documentation: ${docsResult.entities.length} entities`);
+
+    // ── Step 1c: Environment collector ────────────────────────────────
+    const envCollector = new EnvironmentCollector(this.projectPath!);
+    await envCollector.initialize(governanceConfig);
+    const envResult = await envCollector.collect();
+    for (const entity of envResult.entities) await this.graphClient!.upsertEntity(entity);
+    for (const rel of envResult.relationships) await this.graphClient!.upsertRelationship(rel);
+    logger.info(`Environment: ${envResult.entities.length} entities`);
+
+    // ── Step 1d: CI/CD collector ──────────────────────────────────────
+    const cicdCollector = new CICDCollector(this.projectPath!);
+    await cicdCollector.initialize(governanceConfig);
+    const cicdResult = await cicdCollector.collect();
+    for (const entity of cicdResult.entities) await this.graphClient!.upsertEntity(entity);
+    for (const rel of cicdResult.relationships) await this.graphClient!.upsertRelationship(rel);
+    logger.info(`CI/CD: ${cicdResult.entities.length} entities`);
+
+    // ── Step 1e: Database collector ───────────────────────────────────
+    const dbCollector = new DatabaseCollector(this.projectPath!);
+    await dbCollector.initialize(governanceConfig);
+    const dbResult = await dbCollector.collect();
+    for (const entity of dbResult.entities) await this.graphClient!.upsertEntity(entity);
+    for (const rel of dbResult.relationships) await this.graphClient!.upsertRelationship(rel);
+    logger.info(`Database: ${dbResult.entities.length} entities`);
+
+    // ── Enrich project info ───────────────────────────────────────────
+    const detectedLanguages: string[] = [];
+    const detectedFrameworks: string[] = [];
+    const detectedAIProviders: string[] = [];
+    for (const entity of collectorResult.entities) {
+      if (entity.type === 'file') {
+        const lang = entity.properties['language'];
+        if (typeof lang === 'string' && lang !== 'unknown') detectedLanguages.push(lang);
+      }
+      if (entity.type === 'repository') {
+        const fws = entity.properties['frameworks'];
+        if (Array.isArray(fws)) detectedFrameworks.push(...(fws as string[]));
+        const providers = entity.properties['ai_providers'];
+        if (Array.isArray(providers)) detectedAIProviders.push(...(providers as string[]));
+      }
+    }
+    this.projectInfo = {
+      ...this.projectInfo!,
+      languages: [...new Set(detectedLanguages)],
+      frameworks: detectedFrameworks,
+      ai_providers: detectedAIProviders,
+    };
 
     // ── Step 2: Analyze ──────────────────────────────────────────────────
     const defaultAnalyzers = createDefaultAnalyzers();

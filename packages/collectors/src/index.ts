@@ -10,6 +10,9 @@
  *   detects project types / frameworks / AI providers
  * - **Documentation collector**: {@link DocumentationCollector} — discovers READMEs,
  *   ADRs, RFCs, API contracts
+ * - **Environment collector**: {@link EnvironmentCollector} — Docker, Compose, K8s
+ * - **CI/CD collector**: {@link CICDCollector} — GitHub Actions, GitLab CI
+ * - **Database collector**: {@link DatabaseCollector} — SQL, Prisma, Drizzle schemas
  *
  * @packageDocumentation
  */
