@@ -20,6 +20,7 @@
  * - `batch` — Run batch analysis on multiple projects
  * - `audit` — View and search the audit trail
  * - `analytics` — View analytics summaries and categories
+ * - `experiments` — Manage analysis experiments
  *
  * @packageDocumentation
  */
@@ -43,6 +44,7 @@ import { registerNotificationsCommand } from './commands/notifications.js';
 import { registerBatchCommand } from './commands/batch.js';
 import { registerAuditCommand } from './commands/audit.js';
 import { registerAnalyticsCommand } from './commands/analytics.js';
+import { registerExperimentsCommand } from './commands/experiments.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -82,6 +84,7 @@ export function createProgram(): Command {
   registerBatchCommand(program);
   registerAuditCommand(program);
   registerAnalyticsCommand(program);
+  registerExperimentsCommand(program);
 
   return program;
 }

@@ -132,6 +132,29 @@ Base URL: `http://localhost:3000`
 | `PATCH` | `/api/v1/config` | Update runtime config (in-memory) |
 | `GET` | `/api/v1/config/features` | List available features and enabled status |
 
+### Audit Trail
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/audit` | List audit events (query: `?limit=&type=`) |
+| `POST` | `/api/v1/audit` | Record a new audit event |
+
+### Analytics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/analytics/summary` | Analysis trends (12-week), health score |
+| `GET` | `/api/v1/analytics/top-categories` | Finding categories with counts |
+
+### Experiments
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/experiments` | List experiments (query: `?status=`) |
+| `POST` | `/api/v1/experiments` | Create new experiment |
+| `GET` | `/api/v1/experiments/:id` | Get experiment details |
+| `PUT` | `/api/v1/experiments/:id/status` | Update experiment status |
+
 ---
 
 ## WebSocket API
@@ -168,7 +191,7 @@ Connect to `ws://localhost:3000/ws` for real-time events.
 
 The MCP server exposes Recurrsive as an AI tool provider compatible with the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-### Tools (18)
+### Tools (22+)
 
 | Tool | Description |
 |------|-------------|
@@ -190,8 +213,12 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `list_webhooks` | List registered webhook integrations |
 | `register_webhook` | Register a new webhook for events |
 | `manage_webhook` | Update, test, or delete a webhook |
+| `start_batch_analysis` | Start batch analysis across multiple projects |
+| `get_batch_status` | Check status of a running batch analysis |
+| `list_experiments` | List engineering experiments |
+| `create_experiment` | Create a new engineering experiment |
 
-### Prompts (9)
+### Prompts (12)
 
 | Prompt | Description |
 |--------|-------------|
@@ -204,8 +231,11 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `policy_compliance_report` | Generate compliance report against policies |
 | `snapshot_comparison` | Compare snapshots for architectural drift |
 | `risk_assessment` | Comprehensive project risk assessment |
+| `configure_notifications` | Guide setting up notification channels |
+| `batch_analysis_plan` | Plan a batch analysis strategy |
+| `audit_review` | Review audit trail events and identify patterns |
 
-### Resources (4)
+### Resources (7)
 
 | Resource | URI | Description |
 |----------|-----|-------------|
@@ -213,10 +243,13 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | Top Opportunities | `recurrsive://opportunities/top` | Top 10 opportunities |
 | Graph Summary | `recurrsive://graph/summary` | Knowledge graph statistics |
 | Intelligence Snapshot | `recurrsive://timeline/latest` | Latest intelligence snapshot |
+| Active Policies | `recurrsive://policies/active` | Currently active policy rules |
+| Webhook Status | `recurrsive://webhooks/status` | Webhook integration status |
+| Analytics Summary | `recurrsive://analytics/summary` | Analysis trends summary |
 
 ---
 
-## CLI Commands (12)
+## CLI Commands (17+)
 
 ```bash
 recurrsive init            # Initialize a project for analysis
@@ -231,6 +264,11 @@ recurrsive search          # Full-text search across the knowledge graph
 recurrsive snapshot        # Export/import graph snapshots
 recurrsive policy          # Policy compliance checks
 recurrsive webhooks        # Manage webhook integrations
+recurrsive notifications   # Manage notification channels
+recurrsive batch           # Run batch analysis across projects
+recurrsive audit           # View and search audit trail
+recurrsive analytics       # View analysis trends and categories
+recurrsive experiments     # Manage A/B testing experiments
 ```
 
 ### Global Flags
@@ -246,8 +284,16 @@ recurrsive webhooks        # Manage webhook integrations
 
 ## Authentication
 
-> **Note:** Authentication is not yet implemented. The API server currently runs without auth. This is planned for a future release.
+The API server supports optional API key authentication via the `X-API-Key` header. Configure with the `RECURRSIVE_API_KEY` environment variable. Health endpoints are excluded from auth.
 
 ## Rate Limiting
 
-> **Note:** Rate limiting is not yet implemented. All endpoints are currently unthrottled.
+All API endpoints are rate-limited using a token-bucket algorithm. Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. Exceeding the limit returns HTTP 429.
+
+## Middleware
+
+| Middleware | Description |
+|-----------|-------------|
+| Rate Limiter | Token-bucket rate limiting with configurable window |
+| Request Logger | Circular buffer logging (last 500 requests) |
+| API Key Auth | Header-based auth with path exclusions |

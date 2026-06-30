@@ -10,6 +10,8 @@
  * 2. Webhook lifecycle (6 tests)
  * 3. Batch lifecycle (3 tests)
  * 4. Config + Notifications (5 tests)
+ * 5. Experiment lifecycle (5 tests)
+ * 6. Audit + Analytics (5 tests)
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -483,3 +485,157 @@ describe('Flow: Config + Notifications (config → features → channels → tes
     }
   });
 });
+
+// ===========================================================================
+// Flow 5: Experiment Lifecycle
+// ===========================================================================
+
+describe('Flow: Experiment lifecycle (create → get → update → verify)', () => {
+  let experimentId: string;
+
+  it('21. POST /api/v1/experiments creates a new experiment', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/experiments',
+      payload: {
+        name: 'Integration Test Experiment',
+        description: 'End-to-end lifecycle test',
+        hypothesis: 'Integration tests catch bugs earlier',
+        variants: [
+          { name: 'Control', config: { feature: false } },
+          { name: 'Treatment', config: { feature: true } },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('id');
+    expect(body.data.name).toBe('Integration Test Experiment');
+    expect(body.data.status).toBe('pending');
+    experimentId = body.data.id;
+  });
+
+  it('22. GET /api/v1/experiments lists experiments including the new one', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/experiments' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(Array.isArray(body.data)).toBe(true);
+    const found = body.data.find((e: { id: string }) => e.id === experimentId);
+    expect(found).toBeDefined();
+    expect(found.name).toBe('Integration Test Experiment');
+  });
+
+  it('23. GET /api/v1/experiments/:id returns experiment details', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/v1/experiments/${experimentId}` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(body.data.id).toBe(experimentId);
+    expect(body.data).toHaveProperty('hypothesis');
+    expect(body.data).toHaveProperty('variants');
+    expect(body.data.variants).toHaveLength(2);
+  });
+
+  it('24. PUT /api/v1/experiments/:id/status starts the experiment', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/experiments/${experimentId}/status`,
+      payload: { status: 'running' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.status).toBe('running');
+    expect(body.data.started_at).not.toBeNull();
+    expect(body.data.completed_at).toBeNull();
+  });
+
+  it('25. PUT /api/v1/experiments/:id/status completes the experiment', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/experiments/${experimentId}/status`,
+      payload: {
+        status: 'completed',
+        conclusion: 'Integration test experiment concluded successfully.',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.status).toBe('completed');
+    expect(body.data.completed_at).not.toBeNull();
+    expect(body.data.conclusion).toBe('Integration test experiment concluded successfully.');
+  });
+});
+
+// ===========================================================================
+// Flow 6: Audit + Analytics
+// ===========================================================================
+
+describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
+  it('26. GET /api/v1/audit returns existing audit events', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/audit' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.total).toBeGreaterThan(0);
+  });
+
+  it('27. POST /api/v1/audit creates a new audit event', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/audit',
+      payload: {
+        type: 'config',
+        action: 'created',
+        target: 'integration-suite',
+        details: 'Integration test audit event',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('id');
+    expect(body.data.type).toBe('config');
+    expect(body.data.action).toBe('created');
+  });
+
+  it('28. GET /api/v1/audit verifies new event appears', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/audit' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    const found = body.data.find(
+      (e: { target: string; details: string }) =>
+        e.target === 'integration-suite' && e.details === 'Integration test audit event',
+    );
+    expect(found).toBeDefined();
+    expect(found.target).toBe('integration-suite');
+  });
+
+  it('29. GET /api/v1/analytics/summary returns trend data', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/summary' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('analysis_runs');
+    expect(body).toHaveProperty('total_findings');
+    expect(body).toHaveProperty('trends');
+    expect(Array.isArray(body.trends)).toBe(true);
+    expect(body.trends.length).toBeGreaterThan(0);
+  });
+
+  it('30. GET /api/v1/analytics/top-categories returns category breakdown', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/top-categories' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('categories');
+    expect(Array.isArray(body.categories)).toBe(true);
+    expect(body.categories.length).toBeGreaterThan(0);
+    const cat = body.categories[0];
+    expect(cat).toHaveProperty('name');
+    expect(cat).toHaveProperty('count');
+    expect(cat).toHaveProperty('percentage');
+  });
+});
+

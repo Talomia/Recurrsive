@@ -8,22 +8,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - Unreleased
 
 ### Added
+
+#### Full Stack Features
 - **Notification system**: Server endpoints, CLI command, dashboard page, Slack/HTTP channels
 - **Batch analysis**: Multi-project analysis (server + CLI + dashboard + MCP)
+- **Audit trail**: Server audit routes (GET/POST /api/v1/audit), CLI `audit` command, dashboard `/audit` page
+- **Analytics & trends**: Server analytics routes (summary + top-categories), CLI `analytics` command, dashboard `/analytics` page
+- **Experiments / A-B testing**: Server experiment routes (CRUD + status), dashboard `/experiments` page, MCP experiment tools
+
+#### Server
+- **Rate limiter middleware**: Token-bucket rate limiting with X-RateLimit headers
+- **Request logger middleware**: Circular buffer logging for last 500 requests
+- **API key auth middleware**: Header-based validation with path exclusions
+- **Integration tests**: 20+ multi-endpoint flow tests (analysis, webhook, batch, config)
+- **Server config tests**: Full coverage for config routes
+
+#### CLI
 - **CLI config subcommands**: `get`, `set`, `reset` for dot-notation config management
+- **CLI experiments command**: `list`, `create`, `status` subcommands
+- **CLI analytics command**: `summary`, `categories` subcommands
+
+#### Dashboard
 - **Webhook dashboard page**: Management UI with stats and event configuration
 - **Notifications dashboard page**: Channel management and delivery history
-- **MCP governance resources**: `policies/active` and `webhooks/status`
+- **Batch dashboard page**: Stats, active batches, expandable history
+- **Analytics dashboard page**: 12-week trend charts, category breakdown
+- **Audit dashboard page**: Filterable event list with type icons and expandable details
+- **Experiments dashboard page**: Stats, active experiment progress, completed grid
+- **Shared UI components**: StatusBadge, EmptyState, Collapsible, DataTable, ProgressBar, StatCard
+- **Activity log component**: Timestamped event feed with relative time
+
+#### MCP
 - **MCP batch tools**: `start_batch_analysis` and `get_batch_status`
-- **Server config tests**: Full test coverage for config routes
-- **Integration tests**: Multi-endpoint flow tests (20 scenarios)
+- **MCP experiment tools**: `list_experiments` and `create_experiment`
+- **MCP operations prompts**: `configure_notifications`, `batch_analysis_plan`, `audit_review`
+- **MCP analytics resource**: `recurrsive://analytics/summary`
+- **MCP governance resources**: `policies/active` and `webhooks/status`
+
+#### Core
+- **retry()**: Exponential backoff with configurable jitter and shouldRetry predicate
+- **contentHash()**: Deterministic DJB2 hash for cache keys
+- **batchProcess()**: Concurrent batch processing with configurable batch size
 
 ### Changed
-- Server endpoints expanded from 38 to 44+
-- CLI commands expanded from 12 to 14
-- MCP tools expanded from 18 to 20, resources from 4 to 6
-- Dashboard pages expanded from 12 to 15+
-- Test suite expanded from 1,948 to 2,000+
+- Server endpoints expanded from 38 to 52+
+- CLI commands expanded from 12 to 17+
+- MCP tools expanded from 18 to 22+, prompts from 9 to 12, resources from 4 to 7
+- Dashboard pages expanded from 12 to 18
+- Test suite expanded from 1,948 to 2,095+
 - README overhauled with platform overview, notification channels, webhook events
 - API documentation updated with all new endpoints and tools
 

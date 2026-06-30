@@ -3,7 +3,7 @@
  *
  * Tests cover:
  * - Server has correct name and version
- * - All 22 tools are registered
+ * - All 26 tools are registered
  * - All 7 resources are registered
  * - All 12 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
@@ -176,9 +176,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 22 tools', () => {
+    it('registers exactly 26 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(22);
+      expect(mockTool).toHaveBeenCalledTimes(26);
     });
 
     it('registers "analyze_project" tool', () => {
@@ -357,13 +357,45 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('create_experiment');
     });
 
-    it('all 22 tool names are unique', () => {
+    it('registers "search_codebase" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('search_codebase');
+    });
+
+    it('registers "get_audit_events" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('get_audit_events');
+    });
+
+    it('registers "take_snapshot" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('take_snapshot');
+    });
+
+    it('registers "get_timeline" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('get_timeline');
+    });
+
+    it('all 26 tool names are unique', () => {
       createServer();
       const toolNames = mockTool.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(toolNames);
-      expect(uniqueNames.size).toBe(22);
+      expect(uniqueNames.size).toBe(26);
     });
 
     it('each tool has a description string as second argument', () => {

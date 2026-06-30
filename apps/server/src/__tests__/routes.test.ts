@@ -1201,3 +1201,114 @@ describe('Analytics Routes', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Experiment Routes
+// ---------------------------------------------------------------------------
+
+describe('Experiment Routes', () => {
+  it('GET /api/v1/experiments returns experiment list with data array', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/experiments' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.total).toBeGreaterThan(0);
+  });
+
+  it('GET /api/v1/experiments respects status filter', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/experiments?status=completed' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(Array.isArray(body.data)).toBe(true);
+    for (const exp of body.data) {
+      expect(exp.status).toBe('completed');
+    }
+  });
+
+  it('POST /api/v1/experiments creates a new experiment', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/experiments',
+      payload: {
+        name: 'Route Test Experiment',
+        description: 'Created from route test',
+        hypothesis: 'Testing creates experiments',
+        variants: [
+          { name: 'Control', config: { enabled: false } },
+          { name: 'Treatment', config: { enabled: true } },
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('id');
+    expect(body.data.name).toBe('Route Test Experiment');
+    expect(body.data.status).toBe('pending');
+    expect(body.data.variants).toHaveLength(2);
+    expect(body.data.metrics).toEqual([]);
+    expect(body.data.started_at).toBeNull();
+    expect(body.data.completed_at).toBeNull();
+    expect(body.data.conclusion).toBeNull();
+  });
+
+  it('POST /api/v1/experiments validates required fields', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/experiments',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toContain('name');
+  });
+
+  it('GET /api/v1/experiments/:id returns single experiment', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/experiments/exp_001' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body.data.id).toBe('exp_001');
+    expect(body.data).toHaveProperty('name');
+    expect(body.data).toHaveProperty('description');
+    expect(body.data).toHaveProperty('status');
+    expect(body.data).toHaveProperty('hypothesis');
+    expect(body.data).toHaveProperty('variants');
+    expect(body.data).toHaveProperty('metrics');
+    expect(body.data).toHaveProperty('created_at');
+  });
+
+  it('GET /api/v1/experiments/:id returns 404 for unknown ID', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/experiments/exp_nonexistent' });
+    expect(res.statusCode).toBe(404);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toContain('not found');
+  });
+
+  it('PUT /api/v1/experiments/:id/status updates experiment status', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/v1/experiments/exp_004/status',
+      payload: { status: 'running' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body.data.status).toBe('running');
+    expect(body.data.started_at).toBeDefined();
+    expect(body.data.started_at).not.toBeNull();
+  });
+
+  it('PUT /api/v1/experiments/:id/status validates status value', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/v1/experiments/exp_004/status',
+      payload: { status: 'invalid_status' },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toContain('Invalid status');
+  });
+});
+

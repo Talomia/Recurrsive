@@ -13,6 +13,8 @@ import { registerGovernanceTools } from './governance.js';
 import { registerWebhookTools } from './webhooks.js';
 import { registerBatchTools } from './batch.js';
 import { registerExperimentTools } from './experiments.js';
+import { registerSearchTools } from './search.js';
+import { registerSnapshotTools } from './snapshots.js';
 
 /**
  * Register all MCP tools with the server.
@@ -26,4 +28,6 @@ export function registerTools(server: McpServer): void {
   registerWebhookTools(server);
   registerBatchTools(server);
   registerExperimentTools(server);
+  registerSearchTools(server);
+  registerSnapshotTools(server);
 }
