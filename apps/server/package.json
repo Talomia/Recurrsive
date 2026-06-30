@@ -1,7 +1,7 @@
 {
   "name": "@recurrsive/server",
   "version": "0.2.1",
-  "description": "Recurrsive API server - REST + GraphQL",
+  "description": "Recurrsive API server - REST + WebSocket",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

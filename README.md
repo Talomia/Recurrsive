@@ -371,7 +371,7 @@ Complete opportunity lifecycle:
 ### `@recurrsive/policy`
 Governance and compliance:
 - Recursive descent expression parser (no `eval()`)
-- 5 built-in policy sets (15 rules): Security Baseline, Change Management, Cost Governance, Compliance, Quality Gates
+- 5 built-in policy sets (16 rules): Security Baseline, Change Management, Cost Governance, Compliance, Quality Gates
 - Block, warn, require_approval actions
 
 ### `@recurrsive/presentation`

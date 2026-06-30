@@ -204,7 +204,7 @@ node apps/server/dist/bin.js
 ```bash
 cd apps/dashboard
 pnpm dev
-# Opens at http://localhost:3001
+# Opens at http://localhost:3100
 ```
 
 The dashboard provides:

@@ -167,8 +167,8 @@ Base URL: `http://localhost:3000`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/batch` | Start a new batch analysis across projects |
-| `GET` | `/api/v1/batch/:id` | Get batch analysis status |
+| `POST` | `/api/v1/batch/analyze` | Start a new batch analysis across projects |
+| `GET` | `/api/v1/batch/status/:id` | Get batch analysis status |
 | `GET` | `/api/v1/batch/history` | List past batch analyses |
 
 ### Export

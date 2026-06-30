@@ -1,6 +1,6 @@
 # Recurrsive — Product Roadmap
 
-## Current State (v0.1.3)
+## Current State (v0.2.1)
 
 | Component | Status | Evidence |
 |---|---|---|
@@ -11,13 +11,13 @@
 | Analyzers | ✅ Complete | 10 analyzers, 66+ rules, all 10 with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
-| Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (15 rules) |
+| Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (16 rules) |
 | Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
 | CLI | ✅ Complete | 19 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export) |
 | MCP Server | ✅ Complete | 28 tools, 9 resources, 15 prompts |
 | REST API | ✅ Complete | 56 endpoints, WebSocket streaming |
 | Dashboard | ✅ Complete | Next.js, 26 pages (incl. detail pages), 8+ components |
-| Tests | ✅ Complete | 52+ test files, 2,203+ individual tests (incl. integration tests) |
+| Tests | ✅ Complete | 80+ test files, 2,203+ individual tests (incl. integration tests) |
 
 ---
 

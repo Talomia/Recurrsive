@@ -2312,7 +2312,7 @@ stateDiagram-v2
 | pnpm | ≥ 9 | MIT |
 | Turborepo | 2.x | MIT |
 | Fastify | 5.x | MIT |
-| Next.js | 15.x | MIT |
+| Next.js | 16.x | MIT |
 | Vitest | 2.x | MIT |
 | Drizzle ORM | 0.3x.x | Apache 2.0 |
 | BullMQ | 5.x | MIT |
