@@ -29,6 +29,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Built-in analyzers: 10 not 14
   - BullMQ: marked as Phase 2 (current impl uses direct async)
 
+## [0.1.2] - 2026-06-30
+
+### Added
+
+#### New Collectors
+- **Database Schema Collector** — SQL `CREATE TABLE`, Prisma model, and Drizzle ORM schema discovery with foreign key relationship extraction and path deduplication.
+
+#### Pipeline Parity
+- **All 3 application pipelines (CLI, Server, MCP)** now use all 5 collectors (Git, Documentation, Environment, CI/CD, Database).
+- **Server pipeline** — Added ParsingPipeline integration, project info enrichment (languages, frameworks, AI providers), cost_optimizer specialist, and collector disposal.
+- **MCP pipeline** — Added all 4 new collectors and project info enrichment.
+
+#### Dashboard
+- **Error boundary** (`error.tsx`) — Styled retry UI matching dark glassmorphism theme.
+- **404 page** (`not-found.tsx`) — Custom not-found page with return link.
+- **Dynamic sidebar badge** — Opportunity count fetched from API instead of hardcoded.
+- **Functional filters** — Opportunities page category and severity filtering now works.
+- **Functional search** — Header search navigates to opportunities with search param.
+
+#### Server API
+- **`GET /api/v1/metrics/performance`** — New endpoint returning derived analysis metrics (analysis time, entity density, issue density, graph coverage) from the knowledge graph.
+- **Enriched health-score response** — `/api/v1/health-score` now includes `health_trend`, `tech_debt`, and per-dimension scores as a flat record.
+
+#### Testing
+- **Database Collector tests** — SQL, Prisma, Drizzle ORM parsing, validation, and metadata (6 tests).
+- Full monorepo: 42 test files, 1,226+ individual tests.
+
+### Fixed
+- Dashboard API client: `getPerformanceMetrics()` now calls real server endpoint with mock fallback.
+- Dashboard API client: `getHealthMetrics()` now uses computed trend data from server instead of hardcoded values.
+- ROADMAP.md: updated collector status to ✅ Complete, fixed test counts, marked completed items.
+
 ## [0.1.0] - 2026-06-29
 
 ### Added

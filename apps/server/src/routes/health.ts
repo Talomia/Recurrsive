@@ -58,9 +58,34 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
     const timeline = state.getEvolutionTimeline();
     const latestSnapshot = timeline.snapshots[timeline.snapshots.length - 1];
 
+    // Compute trends from analysis history
+    const history = state.getAnalysisHistory();
+    let healthTrend = 0;
+    if (history.length >= 2) {
+      const prev = history[history.length - 2]!;
+      const current = history[history.length - 1]!;
+      healthTrend = current.findingCount < prev.findingCount
+        ? Math.round((1 - current.findingCount / Math.max(1, prev.findingCount)) * 100) / 10
+        : -Math.round((current.findingCount / Math.max(1, prev.findingCount) - 1) * 100) / 10;
+    }
+
+    // Compute dimension-specific scores
+    const dimScores: Record<string, number> = {};
+    for (const d of dimensions) {
+      dimScores[d.dimension] = d.score;
+    }
+
+    // Estimate tech debt: ~3K per finding, weighted by severity
+    const techDebt = cache.findings.reduce((sum, f) => {
+      const cost: Record<string, number> = { critical: 12000, high: 6000, medium: 3000, low: 1000, info: 0 };
+      return sum + (cost[f.severity] ?? 3000);
+    }, 0);
+
     return reply.status(200).send({
       overall_health: overall,
-      dimensions,
+      dimensions: dimScores,
+      health_trend: healthTrend,
+      tech_debt: techDebt,
       snapshot: latestSnapshot ?? null,
       finding_count: cache.findings.length,
       opportunity_count: cache.opportunities.length,

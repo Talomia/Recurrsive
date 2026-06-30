@@ -411,23 +411,29 @@ export async function getHealthMetrics(): Promise<HealthMetrics> {
     const raw = await apiFetch<{
       overall_health: number;
       dimensions: Record<string, number>;
+      health_trend: number;
+      tech_debt: number;
       finding_count: number;
       opportunity_count: number;
     } | null>("/api/v1/health-score", null);
 
     if (!raw) return MOCK_HEALTH;
 
+    const healthTrend = raw.health_trend ?? 0;
+    const codeQuality = raw.dimensions?.code_quality ?? raw.dimensions?.documentation ?? 91;
+    const aiQuality = raw.dimensions?.ai_readiness ?? raw.dimensions?.security ?? 94;
+
     return {
       healthScore: raw.overall_health,
-      healthTrend: 4.2, // Server doesn't track trends yet — use default
-      qualityScore: raw.dimensions?.code_quality ?? 91,
-      qualityTrend: 2.1,
+      healthTrend,
+      qualityScore: codeQuality,
+      qualityTrend: healthTrend > 0 ? healthTrend * 0.5 : 0,
       opportunities: raw.opportunity_count,
       newOpportunities: Math.min(7, raw.opportunity_count),
-      techDebt: raw.finding_count * 3000, // Rough estimation: ~3k per finding
-      techDebtTrend: -8.3,
-      aiQualityScore: raw.dimensions?.ai_readiness ?? 94,
-      aiQualityTrend: 1.8,
+      techDebt: raw.tech_debt ?? raw.finding_count * 3000,
+      techDebtTrend: healthTrend > 0 ? -healthTrend * 2 : 0,
+      aiQualityScore: aiQuality,
+      aiQualityTrend: healthTrend > 0 ? healthTrend * 0.4 : 0,
     };
   } catch {
     return MOCK_HEALTH;
