@@ -72,4 +72,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Zero trend incorrectly treated as positive in MetricCard
 - Health chart Y-axis hardcoded to [50, 100] clipping data — now dynamic
 - Relationship type count corrected from 40 to 43 across all documentation
+- Race condition in `POST /api/v1/analyze` — concurrent requests could bypass the running-state guard
+- Resource leak when changing project path — `dispose()` not called before re-initialization
+- `NaN` limit parameter in graph entities route causing query failure
+- Negative `limit`/`offset` values in findings route producing unexpected slice behavior
+- API.md rewritten — 14 inaccuracies corrected (wrong MCP tool names, resource URIs, body fields, endpoint paths)
+- CONTRIBUTING.md project structure missing dashboard entry
+- README.md docs listing missing API.md and DEVELOPMENT.md
+- Specialist role mapping comments clarified for `AIQualityEngineer`, `ReliabilityEngineer`, `DeveloperExperienceEngineer`
 

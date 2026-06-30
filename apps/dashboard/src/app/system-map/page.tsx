@@ -47,7 +47,8 @@ export default function SystemMapPage() {
 
           {/* SVG Map */}
           <div className="relative w-full aspect-[16/9] rounded-xl bg-white/[0.02] border border-white/5 overflow-hidden">
-            <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+            <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System architecture map showing entity nodes and their connections">
+              <title>System Map — Entity relationship visualization</title>
               {/* Edges */}
               {EDGES.map((edge) => {
                 const from = NODES.find((n) => n.id === edge.from);

@@ -118,7 +118,7 @@ function sparkline(values: number[], _width?: number): string {
 export function registerTimelineCommand(program: Command): void {
   program
     .command('timeline')
-    .description('Show evolution over time')
+    .description('Show intelligence timeline')
     .option('--limit <n>', 'Number of snapshots to show', parseInt)
     .option('--compare <ids>', 'Compare two snapshot IDs (comma-separated)')
     .option('--dimension <dim>', 'Focus on a specific maturity dimension')
@@ -138,7 +138,7 @@ export function registerTimelineCommand(program: Command): void {
         const snapshots = await loadSnapshots(snapshotsDir);
 
         if (snapshots.length === 0) {
-          info('No evolution snapshots found.');
+          info('No intelligence snapshots found.');
           info(
             `Run ${bold(cyan('recurrsive analyze'))} to generate your first snapshot.`,
           );
@@ -282,7 +282,7 @@ export function registerTimelineCommand(program: Command): void {
         }
 
         // ── Default: Timeline Overview ───────────────────────────
-        header('Evolution Timeline');
+        header('Intelligence Timeline');
 
         const latest = displayed[0]!;
         console.log(

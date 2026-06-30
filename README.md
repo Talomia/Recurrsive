@@ -80,6 +80,12 @@ pnpm test
 ### CLI Usage
 
 ```bash
+# Link the CLI globally (after building)
+npx --package ./apps/cli recurrsive --help
+
+# Or link it permanently for development
+pnpm --filter @recurrsive/cli link --global
+
 # Initialize Recurrsive in your project
 cd your-project
 recurrsive init
@@ -96,7 +102,7 @@ recurrsive health
 # Explore the knowledge graph
 recurrsive graph --stats
 
-# View evolution timeline
+# View intelligence timeline
 recurrsive timeline
 
 # Generate reports

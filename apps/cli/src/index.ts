@@ -8,7 +8,7 @@
  * - `analyze` — Run the full analysis pipeline
  * - `opportunities` — View and manage opportunities
  * - `graph` — Explore the knowledge graph
- * - `timeline` — Show evolution over time
+ * - `timeline` — Show intelligence timeline
  * - `health` — Show project health score
  * - `report` — Generate reports from analysis results
  * - `config` — View, validate, and inspect configuration

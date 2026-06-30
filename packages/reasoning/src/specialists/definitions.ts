@@ -174,6 +174,10 @@ export class CostOptimizer extends BaseSpecialist {
 /**
  * Evaluates AI behavior through systematic testing, prompt analysis,
  * and model quality assessment.
+ *
+ * Maps to the `qa_engineer` role — the closest available role for
+ * AI-specific quality assessment. A dedicated `ai_engineer` role
+ * may be added in a future schema revision.
  */
 export class AIQualityEngineer extends BaseSpecialist {
   override role: SpecialistRole = 'qa_engineer';
@@ -251,8 +255,11 @@ export class ProductManager extends BaseSpecialist {
 // ---------------------------------------------------------------------------
 
 /**
- * Applies failure mode analysis, redundancy planning, and SLO-based
- * reasoning to identify reliability risks.
+ * Evaluates full-system reliability through error budgets,
+ * chaos engineering, resilience patterns, and operational maturity.
+ *
+ * Maps to `sre` — Site Reliability Engineering is the operational
+ * discipline that encompasses reliability engineering.
  */
 export class ReliabilityEngineer extends BaseSpecialist {
   override role: SpecialistRole = 'sre';
@@ -295,6 +302,8 @@ export class ReliabilityEngineer extends BaseSpecialist {
  * developer experience of the codebase.
  */
 export class DeveloperExperienceEngineer extends BaseSpecialist {
+  // Maps to `devops_engineer` — the closest available role. DevEx
+  // overlaps heavily with DevOps (CI/CD, build tooling, pipelines).
   override role: SpecialistRole = 'devops_engineer';
   override name = 'Developer Experience Engineer';
   override cognitiveFramework =

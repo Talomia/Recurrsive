@@ -1,14 +1,49 @@
-import Header from "@/components/header";
-import { Settings as SettingsIcon, Globe, Bell, Shield, Palette, Code2, Database } from "lucide-react";
+'use client';
 
-const SECTIONS = [
+import { useState, useCallback, useId } from 'react';
+import Header from "@/components/header";
+import { Globe, Bell, Shield, Palette } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ToggleSetting {
+  label: string;
+  key: string;
+  type: 'toggle';
+  defaultValue: boolean;
+}
+
+interface TextSetting {
+  label: string;
+  key: string;
+  type: 'text' | 'password' | 'number';
+  defaultValue: string;
+}
+
+type Setting = ToggleSetting | TextSetting;
+
+interface Section {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  settings: Setting[];
+}
+
+// ---------------------------------------------------------------------------
+// Section definitions
+// ---------------------------------------------------------------------------
+
+const SECTIONS: Section[] = [
   {
     icon: Globe,
     title: "API Connection",
     description: "Configure the Recurrsive API server endpoint",
     settings: [
-      { label: "API Base URL", value: "http://localhost:3000", type: "text" as const },
-      { label: "API Key", value: "••••••••••••••••", type: "password" as const },
+      { label: "API Base URL", key: "api_url", type: "text", defaultValue: "http://localhost:3000" },
+      { label: "API Key", key: "api_key", type: "password", defaultValue: "" },
     ],
   },
   {
@@ -16,8 +51,8 @@ const SECTIONS = [
     title: "Notifications",
     description: "Configure alert thresholds and notification preferences",
     settings: [
-      { label: "Health Score Alert Threshold", value: "70", type: "number" as const },
-      { label: "Email Notifications", value: "enabled", type: "toggle" as const },
+      { label: "Health Score Alert Threshold", key: "health_threshold", type: "number", defaultValue: "70" },
+      { label: "Email Notifications", key: "email_notifications", type: "toggle", defaultValue: true },
     ],
   },
   {
@@ -25,8 +60,8 @@ const SECTIONS = [
     title: "Security",
     description: "Security scanning and vulnerability detection settings",
     settings: [
-      { label: "Auto-scan on Push", value: "enabled", type: "toggle" as const },
-      { label: "CVE Alert Level", value: "High", type: "text" as const },
+      { label: "Auto-scan on Push", key: "auto_scan", type: "toggle", defaultValue: true },
+      { label: "CVE Alert Level", key: "cve_level", type: "text", defaultValue: "High" },
     ],
   },
   {
@@ -34,13 +69,97 @@ const SECTIONS = [
     title: "Appearance",
     description: "Customize dashboard look and feel",
     settings: [
-      { label: "Theme", value: "Dark", type: "text" as const },
-      { label: "Compact Mode", value: "disabled", type: "toggle" as const },
+      { label: "Theme", key: "theme", type: "text", defaultValue: "Dark" },
+      { label: "Compact Mode", key: "compact_mode", type: "toggle", defaultValue: false },
     ],
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Defaults map
+// ---------------------------------------------------------------------------
+
+function buildDefaults(): Record<string, string | boolean> {
+  const defaults: Record<string, string | boolean> = {};
+  for (const section of SECTIONS) {
+    for (const setting of section.settings) {
+      defaults[setting.key] = setting.defaultValue;
+    }
+  }
+  return defaults;
+}
+
+// ---------------------------------------------------------------------------
+// Toggle component (accessible)
+// ---------------------------------------------------------------------------
+
+function Toggle({
+  id,
+  checked,
+  onChange,
+  label,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      id={id}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-6 w-11 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-blue ${
+        checked ? 'bg-accent-blue' : 'bg-white/10'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+          checked ? 'left-[1.375rem]' : 'left-0.5'
+        }`}
+      />
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
+
 export default function SettingsPage() {
+  const baseId = useId();
+  const [values, setValues] = useState<Record<string, string | boolean>>(buildDefaults);
+  const [saved, setSaved] = useState(false);
+
+  const handleChange = useCallback((key: string, value: string | boolean) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    setSaved(false);
+  }, []);
+
+  const handleSave = useCallback(() => {
+    // In production, this would POST to the API.
+    // For now, persist to localStorage.
+    try {
+      localStorage.setItem('recurrsive-settings', JSON.stringify(values));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      // localStorage unavailable (e.g. SSR) — no-op
+    }
+  }, [values]);
+
+  const handleReset = useCallback(() => {
+    setValues(buildDefaults());
+    setSaved(false);
+    try {
+      localStorage.removeItem('recurrsive-settings');
+    } catch {
+      // no-op
+    }
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header title="Settings" subtitle="Configure your Recurrsive dashboard" />
@@ -48,10 +167,15 @@ export default function SettingsPage() {
         {SECTIONS.map((section, i) => {
           const Icon = section.icon;
           return (
-            <div key={i} className="glass-card p-5 space-y-4">
+            <fieldset
+              key={section.title}
+              className="glass-card p-5 space-y-4 border-0"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <legend className="sr-only">{section.title}</legend>
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                  <Icon className="h-4.5 w-4.5 text-text-secondary" />
+                  <Icon className="h-4.5 w-4.5 text-text-secondary" aria-hidden="true" />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-text-primary">{section.title}</h3>
@@ -59,33 +183,49 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="space-y-3 pl-12">
-                {section.settings.map((setting, j) => (
-                  <div key={j} className="flex items-center justify-between gap-4">
-                    <label className="text-sm text-text-secondary">{setting.label}</label>
-                    {setting.type === "toggle" ? (
-                      <div className={`relative h-6 w-11 rounded-full transition-colors ${setting.value === "enabled" ? "bg-accent-blue" : "bg-white/10"}`}>
-                        <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${setting.value === "enabled" ? "left-5.5" : "left-0.5"}`} />
-                      </div>
-                    ) : (
-                      <input
-                        type={setting.type}
-                        defaultValue={setting.value}
-                        className="rounded-lg bg-white/5 border border-white/5 px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent-blue/40 transition-colors w-64 text-right"
-                      />
-                    )}
-                  </div>
-                ))}
+                {section.settings.map((setting) => {
+                  const inputId = `${baseId}-${setting.key}`;
+                  return (
+                    <div key={setting.key} className="flex items-center justify-between gap-4">
+                      <label htmlFor={inputId} className="text-sm text-text-secondary">
+                        {setting.label}
+                      </label>
+                      {setting.type === 'toggle' ? (
+                        <Toggle
+                          id={inputId}
+                          checked={values[setting.key] as boolean}
+                          onChange={(v) => handleChange(setting.key, v)}
+                          label={setting.label}
+                        />
+                      ) : (
+                        <input
+                          id={inputId}
+                          type={setting.type}
+                          value={values[setting.key] as string}
+                          onChange={(e) => handleChange(setting.key, e.target.value)}
+                          className="rounded-lg bg-white/5 border border-white/5 px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent-blue/40 transition-colors w-64 text-right"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            </fieldset>
           );
         })}
 
         <div className="flex justify-end gap-3">
-          <button className="rounded-xl bg-white/5 border border-white/5 px-5 py-2.5 text-sm font-medium text-text-secondary hover:bg-white/8 transition-colors">
+          <button
+            onClick={handleReset}
+            className="rounded-xl bg-white/5 border border-white/5 px-5 py-2.5 text-sm font-medium text-text-secondary hover:bg-white/8 transition-colors"
+          >
             Reset to Defaults
           </button>
-          <button className="rounded-xl bg-accent-blue px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-600 transition-colors">
-            Save Changes
+          <button
+            onClick={handleSave}
+            className="rounded-xl bg-accent-blue px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-600 transition-colors"
+          >
+            {saved ? '✓ Saved' : 'Save Changes'}
           </button>
         </div>
       </div>
