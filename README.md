@@ -130,7 +130,7 @@ Add to your MCP configuration:
 }
 ```
 
-**Available MCP tools (10):**
+**Available MCP tools (11):**
 - `analyze_project` — Run the full analysis pipeline
 - `get_opportunities` — Get prioritized improvement opportunities
 - `get_opportunity_detail` — Deep dive into a specific opportunity
@@ -141,6 +141,7 @@ Add to your MCP configuration:
 - `trace_dependency` — Trace dependency chain between entities
 - `explain_entity` — LLM-powered entity explanation
 - `analyze_impact` — Analyze blast radius of changing an entity
+- `search_graph` — Full-text search across the knowledge graph (FTS5)
 
 ### Docker
 

@@ -86,6 +86,7 @@ Base URL: `http://localhost:3000`
 | `GET` | `/api/v1/graph/entities/:id` | Get entity details |
 | `GET` | `/api/v1/graph/entities/:id/neighbors` | Get related entities |
 | `GET` | `/api/v1/graph/stats` | Graph statistics |
+| `GET` | `/api/v1/graph/search?q=` | Full-text search (FTS5, ranked) |
 
 ### Timeline
 

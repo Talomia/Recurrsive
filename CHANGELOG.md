@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-30
+
+### Added
+
+#### Full-Text Search (FTS5)
+- **FTS5 Virtual Table** — SQLite FTS5 with Porter stemming and unicode61 tokenizer for ranked entity search across name, qualified_name, and description fields.
+- **Auto-sync Triggers** — INSERT/UPDATE/DELETE triggers keep the FTS index perfectly synchronized with the entities table.
+- **`searchEntities()` method** — New method on `SqliteGraphClient` for BM25-ranked full-text search with optional type filtering and configurable limits.
+- **`GET /api/v1/graph/search`** — New server endpoint for full-text search with `q`, `type`, and `limit` query parameters.
+- **`search_graph` MCP tool** — 11th MCP tool for AI assistant full-text search with formatted markdown results.
+- 11 new FTS5 unit tests covering search, type filtering, limit, update sync, and delete sync.
+
+#### CLI Test Completion (all 8/8 commands tested)
+- **`analyze.test.ts`** — 18 tests: full pipeline, `--analyzers` filtering, error handling, graph lifecycle.
+- **`opportunities.test.ts`** — 22 tests: listing, `--filter`, `--top N`, detail view, accept/reject, export.
+- **`report.test.ts`** — 20 tests: markdown/json/sarif/html, `--output`, `--title`, no results handling.
+
+### Changed
+- All 13 packages bumped from 0.1.0 → **0.2.0** to reflect significant new capabilities.
+- MCP tools: 10 → **11** (added `search_graph`).
+- Total tests: 1,722 → **1,793** (+71 tests).
+- README updated with 11 MCP tools, search endpoint, and Getting Started guide.
+
 ## [0.1.4] - 2026-06-30
 
 ### Added
