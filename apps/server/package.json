@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/server",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Recurrsive API server - REST + GraphQL",
   "type": "module",
   "main": "dist/index.js",

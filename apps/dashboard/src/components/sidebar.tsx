@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   Search,
+  Shield,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/system-map", label: "System Map", icon: Network },
   { href: "/search", label: "Search", icon: Search },
   { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/policies", label: "Policies", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 

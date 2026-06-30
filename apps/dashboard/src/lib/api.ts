@@ -810,3 +810,116 @@ export async function getAnalysisStatus(): Promise<{
     };
   }
 }
+
+// ─── Policy Types ────────────────────────────────────────────────────────────
+
+export interface PolicyRule {
+  id: string;
+  name: string;
+  description?: string;
+  scope: string;
+  action: string;
+  condition: string;
+}
+
+export interface PolicySet {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  rule_count: number;
+  rules: PolicyRule[];
+}
+
+export interface ComplianceReport {
+  total_opportunities: number;
+  compliant: number;
+  blocked: number;
+  compliance_rate: number;
+  policy_sets_active: number;
+}
+
+// ─── Policy Mock Data ────────────────────────────────────────────────────────
+
+const MOCK_POLICIES: PolicySet[] = [
+  {
+    id: "builtin-quality-gates",
+    name: "Quality Gates",
+    description: "Enforce minimum quality standards for all opportunities before implementation.",
+    enabled: true,
+    rule_count: 3,
+    rules: [
+      { id: "qg-min-confidence", name: "Minimum Confidence", scope: "opportunity", action: "block", condition: "confidence >= 60" },
+      { id: "qg-min-impact", name: "Minimum Impact", scope: "opportunity", action: "warn", condition: "impact >= 40" },
+      { id: "qg-evidence-required", name: "Evidence Required", scope: "opportunity", action: "block", condition: "evidence.length >= 1" },
+    ],
+  },
+  {
+    id: "builtin-risk-management",
+    name: "Risk Management",
+    description: "Prevent high-risk changes from being auto-approved without human review.",
+    enabled: true,
+    rule_count: 2,
+    rules: [
+      { id: "rm-high-risk", name: "High Risk Review", scope: "opportunity", action: "require_approval", condition: "risk_level != 'high' OR has_approval" },
+      { id: "rm-critical-severity", name: "Critical Severity Gate", scope: "opportunity", action: "require_approval", condition: "severity != 'critical' OR has_approval" },
+    ],
+  },
+  {
+    id: "builtin-security",
+    name: "Security Policies",
+    description: "Ensure security-related findings are prioritized and reviewed by security team.",
+    enabled: true,
+    rule_count: 2,
+    rules: [
+      { id: "sec-review", name: "Security Review Required", scope: "opportunity", action: "require_approval", condition: "category != 'Security' OR security_reviewed" },
+      { id: "sec-min-score", name: "Security Minimum Score", scope: "opportunity", action: "block", condition: "category != 'Security' OR score >= 70" },
+    ],
+  },
+];
+
+const MOCK_COMPLIANCE: ComplianceReport = {
+  total_opportunities: 23,
+  compliant: 19,
+  blocked: 2,
+  compliance_rate: 83,
+  policy_sets_active: 3,
+};
+
+// ─── Policies ────────────────────────────────────────────────────────────────
+
+/**
+ * Get all policy sets from `GET /api/v1/policies`.
+ *
+ * Server returns: `{ data: PolicySet[], total, builtin_count }`
+ */
+export async function getPolicies(): Promise<PolicySet[]> {
+  try {
+    const raw = await apiFetch<{
+      data: PolicySet[];
+      total: number;
+    } | null>("/api/v1/policies", null);
+
+    if (!raw?.data?.length) return MOCK_POLICIES;
+    return raw.data;
+  } catch {
+    return MOCK_POLICIES;
+  }
+}
+
+/**
+ * Get compliance report from `GET /api/v1/policies/compliance`.
+ *
+ * Server returns: `{ data: ComplianceReport }`
+ */
+export async function getComplianceReport(): Promise<ComplianceReport> {
+  try {
+    const raw = await apiFetch<{
+      data: ComplianceReport;
+    } | null>("/api/v1/policies/compliance", null);
+
+    return raw?.data ?? MOCK_COMPLIANCE;
+  } catch {
+    return MOCK_COMPLIANCE;
+  }
+}

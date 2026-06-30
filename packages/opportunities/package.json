@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/opportunities",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Opportunity lifecycle management, ranking, reporting, and export for the Recurrsive engineering intelligence platform",
   "license": "Apache-2.0",
