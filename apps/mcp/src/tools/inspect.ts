@@ -796,14 +796,12 @@ ORDER BY rt.depth;`.trim();
           'Optional: filter results by entity type (function, class, module, endpoint, etc.).',
         ),
       limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(20)
-        .describe('Maximum number of results to return (default 20).'),
+        .string()
+        .optional()
+        .describe('Maximum number of results to return (default 20, max 100).'),
     },
-    async ({ query, type, limit }) => {
+    async ({ query, type, limit: limitStr }) => {
+      const limit = limitStr ? Math.max(1, Math.min(parseInt(limitStr, 10) || 20, 100)) : 20;
       if (!state.isInitialized()) {
         return {
           content: [

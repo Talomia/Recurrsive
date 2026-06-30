@@ -160,9 +160,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 10 tools', () => {
+    it('registers exactly 11 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(10);
+      expect(mockTool).toHaveBeenCalledTimes(11);
     });
 
     it('registers "analyze_project" tool', () => {
