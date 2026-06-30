@@ -98,8 +98,137 @@ export class DataAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    try {
+      const tables = await ctx.graph.getEntities('table');
+
+      // Detect distinct databases by grouping tables by their database property/tag
+      const databaseNames = new Set<string>();
+      for (const table of tables) {
+        const dbName =
+          (table.properties['database'] as string | undefined) ??
+          (table.properties['schema'] as string | undefined);
+        if (dbName) databaseNames.add(dbName);
+      }
+
+      if (tables.length > 0) {
+        // Cross-cutting check: tables exist but no migration files detected
+        const files = await ctx.graph.getEntities('file');
+        const migrationFiles = files.filter(
+          (f) =>
+            /migrat/i.test(f.name) ||
+            (f.properties['directory'] as string | undefined ?? '').includes('migration') ||
+            f.tags.includes('migration') ||
+            f.tags.includes('schema-migration'),
+        );
+
+        if (migrationFiles.length === 0) {
+          findings.push(
+            createFinding({
+              title: 'Database schema without migration management',
+              description:
+                `The project has ${tables.length} database table(s) but no migration files ` +
+                `were found. Database schema changes should be tracked with versioned migrations ` +
+                `to ensure reproducible deployments and safe rollbacks.`,
+              severity: 'medium',
+              category: 'data',
+              analyzer_id: this.id,
+              evidence: [
+                createEvidence({
+                  type: 'metric',
+                  source: 'data.cross-cutting',
+                  description: `${tables.length} table(s), 0 migration files`,
+                  entity_ids: tables.slice(0, 10).map((t) => t.id),
+                  confidence: 0.85,
+                  data: {
+                    table_count: tables.length,
+                    migration_file_count: 0,
+                  },
+                }),
+              ],
+              locations: [],
+              suggested_fix:
+                'Adopt a migration tool (Prisma Migrate, Knex migrations, Flyway, Alembic, or golang-migrate). Version all schema changes as migration files committed to source control.',
+              confidence: 0.8,
+              tags: ['no-migrations', 'data', 'schema-management', 'deployment'],
+            }),
+          );
+        }
+
+        // Cross-cutting check: multiple databases without cross-database relationships
+        if (databaseNames.size > 2) {
+          // Group tables by database
+          const dbTableMap = new Map<string, Entity[]>();
+          for (const table of tables) {
+            const dbName =
+              (table.properties['database'] as string | undefined) ??
+              (table.properties['schema'] as string | undefined) ??
+              'default';
+            const list = dbTableMap.get(dbName) ?? [];
+            list.push(table);
+            dbTableMap.set(dbName, list);
+          }
+
+          // Check if any cross-database relationships exist
+          let hasCrossDbRelationship = false;
+          for (const [_dbName, dbTables] of dbTableMap) {
+            const dbTableIds = new Set(dbTables.map((t) => t.id));
+            for (const table of dbTables) {
+              const outRels = await ctx.graph.getRelationships(table.id, 'out');
+              const crossDb = outRels.some(
+                (r) => r.type === 'references' && !dbTableIds.has(r.target_id),
+              );
+              if (crossDb) {
+                hasCrossDbRelationship = true;
+                break;
+              }
+            }
+            if (hasCrossDbRelationship) break;
+          }
+
+          if (!hasCrossDbRelationship) {
+            const dbNamesList = [...databaseNames];
+            findings.push(
+              createFinding({
+                title: 'Multiple databases without documented relationships',
+                description:
+                  `The project uses ${databaseNames.size} databases (${dbNamesList.join(', ')}) ` +
+                  `but no cross-database relationships are documented in the knowledge graph. ` +
+                  `When multiple data stores coexist, their boundaries, data flow, and consistency ` +
+                  `guarantees should be explicitly mapped.`,
+                severity: 'low',
+                category: 'data',
+                analyzer_id: this.id,
+                evidence: [
+                  createEvidence({
+                    type: 'metric',
+                    source: 'data.cross-cutting',
+                    description: `${databaseNames.size} databases with no cross-database relationships`,
+                    entity_ids: tables.slice(0, 10).map((t) => t.id),
+                    confidence: 0.7,
+                    data: {
+                      database_count: databaseNames.size,
+                      database_names: dbNamesList,
+                    },
+                  }),
+                ],
+                locations: [],
+                suggested_fix:
+                  'Document the data flow between databases. Create an architecture diagram showing which services own which databases and how data is synchronized or replicated.',
+                confidence: 0.65,
+                tags: ['multi-database', 'data', 'architecture', 'data-flow'],
+              }),
+            );
+          }
+        }
+      }
+    } catch {
+      // If entity types don't exist, return empty findings
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Missing Indexes ─────────────────────────────────────────

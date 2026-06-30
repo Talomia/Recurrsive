@@ -18,8 +18,12 @@ import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
 import type { Finding, Opportunity } from '@recurrsive/core';
 import { OpportunityManager } from '@recurrsive/opportunities';
-import { exportToSarif } from '@recurrsive/opportunities';
-import { generateMarkdownReport, generateHtmlReport } from '@recurrsive/presentation';
+import {
+  generateMarkdownReport,
+  generateHtmlReport,
+  generateJsonReport,
+  generateSarifReport,
+} from '@recurrsive/presentation';
 import { loadConfig } from '../config/loader.js';
 import {
   banner,
@@ -214,18 +218,16 @@ export function registerReportCommand(program: Command): void {
             break;
           }
           case 'sarif': {
-            content = exportToSarif(opportunities);
+            content = generateSarifReport(opportunities, {
+              title: reportTitle,
+            });
             break;
           }
           case 'json': {
-            const payload = {
-              generated_at: new Date().toISOString(),
-              findings_count: findings.length,
-              opportunities_count: opportunities.length,
-              findings,
-              opportunities,
-            };
-            content = JSON.stringify(payload, null, 2);
+            content = generateJsonReport(opportunities, {
+              title: reportTitle,
+              includeEvidence: true,
+            });
             break;
           }
         }

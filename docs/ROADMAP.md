@@ -1,6 +1,6 @@
 # Recurrsive — Product Roadmap
 
-## Current State (v0.1.0)
+## Current State (v0.1.3)
 
 | Component | Status | Evidence |
 |---|---|---|
@@ -8,16 +8,16 @@
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
 | Collectors | ✅ Complete | 5 collectors: Git, Doc, Environment, CI/CD, Database. More planned. |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
-| Analyzers | ✅ Complete | 10 analyzers, 66+ rules |
+| Analyzers | ✅ Complete | 10 analyzers, 66+ rules, all 10 with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (15 rules) |
-| Presentation | ✅ Complete | Markdown/HTML reports, console/webhook notifications |
+| Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
 | CLI | ✅ Complete | 8 commands (analyze, opportunities, health, graph, timeline, report, config, init) |
 | MCP Server | ✅ Complete | 10 tools, 4 resources, 6 prompts |
 | REST API | ✅ Complete | 22 endpoints, WebSocket streaming |
 | Dashboard | ✅ Complete | Next.js, 6 pages, 8+ components, mock data |
-| Tests | ✅ Complete | 50 test files, 1,370+ individual tests (incl. integration tests) |
+| Tests | ✅ Complete | 52+ test files, 1,442+ individual tests (incl. integration tests) |
 
 ---
 

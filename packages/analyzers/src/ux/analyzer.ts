@@ -12,6 +12,7 @@ import type {
   Analyzer,
   AnalysisContext,
   Finding,
+  Entity,
 } from '@recurrsive/core';
 import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
 
@@ -75,8 +76,152 @@ export class UXAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    try {
+      let endpoints: Entity[] = [];
+      try {
+        endpoints = await ctx.graph.getEntities('endpoint');
+      } catch {
+        // endpoint entity type may not exist
+      }
+
+      if (endpoints.length > 0) {
+        // Cross-cutting check: error states without loading states
+        const errorEndpoints = endpoints.filter(
+          (e) =>
+            /error|fail|exception|fault/i.test(e.name) ||
+            e.tags.includes('error') ||
+            e.tags.includes('error-handler') ||
+            e.properties['handles_errors'] === true,
+        );
+
+        const loadingEndpoints = endpoints.filter(
+          (e) =>
+            /load|skeleton|spinner|pending|progress/i.test(e.name) ||
+            e.tags.includes('loading') ||
+            e.tags.includes('skeleton') ||
+            e.properties['has_loading_state'] === true,
+        );
+
+        // Also check functions for loading patterns
+        let functions: Entity[] = [];
+        try {
+          functions = await ctx.graph.getEntities('function');
+        } catch {
+          // function entity type may not exist
+        }
+
+        const hasLoadingPatterns =
+          loadingEndpoints.length > 0 ||
+          functions.some(
+            (fn) =>
+              fn.tags.includes('loading-state') ||
+              fn.tags.includes('skeleton') ||
+              fn.properties['has_loading_state'] === true ||
+              /skeleton|spinner|loading/i.test(fn.name),
+          );
+
+        if (errorEndpoints.length > 0 && !hasLoadingPatterns) {
+          findings.push(
+            createFinding({
+              title: 'Error states without loading states',
+              description:
+                `The project has ${errorEndpoints.length} error-related endpoint(s) or patterns ` +
+                `but no loading/skeleton state patterns were detected. Good UX requires both: ` +
+                `loading indicators tell users something is happening, while error states ` +
+                `communicate when something went wrong.`,
+              severity: 'medium',
+              category: 'ux',
+              analyzer_id: this.id,
+              evidence: [
+                createEvidence({
+                  type: 'metric',
+                  source: 'ux.cross-cutting',
+                  description: `${errorEndpoints.length} error patterns, 0 loading patterns`,
+                  entity_ids: errorEndpoints.slice(0, 10).map((e) => e.id),
+                  confidence: 0.7,
+                  data: {
+                    error_pattern_count: errorEndpoints.length,
+                    loading_pattern_count: 0,
+                  },
+                }),
+              ],
+              locations: [],
+              suggested_fix:
+                'Add loading state indicators (spinners, skeleton screens, progress bars) for all async operations. Use Suspense boundaries or loading state hooks for consistent loading UX.',
+              confidence: 0.65,
+              tags: ['missing-loading', 'ux', 'error-handling', 'loading-states'],
+            }),
+          );
+        }
+
+        // Cross-cutting check: no internationalization in multi-endpoint app
+        if (endpoints.length > 5) {
+          let configs: Entity[] = [];
+          try {
+            configs = await ctx.graph.getEntities('config');
+          } catch {
+            // config entity type may not exist
+          }
+
+          const hasI18n =
+            configs.some(
+              (c) =>
+                /i18n|intl|locale|l10n|translation/i.test(c.name) ||
+                c.tags.includes('i18n') ||
+                c.tags.includes('internationalization') ||
+                c.tags.includes('localization') ||
+                c.properties['type'] === 'i18n',
+            ) ||
+            functions.some(
+              (fn) =>
+                /translate|i18n|intl|formatMessage|useTranslation|t\(/i.test(fn.name) ||
+                fn.tags.includes('i18n'),
+            );
+
+          if (!hasI18n) {
+            findings.push(
+              createFinding({
+                title: 'No internationalization detected in multi-endpoint app',
+                description:
+                  `The project has ${endpoints.length} endpoints, suggesting a substantial ` +
+                  `application, but no internationalization (i18n) or localization configuration ` +
+                  `was detected. Retrofitting i18n after launch is significantly more expensive ` +
+                  `than building it in from the start.`,
+                severity: 'low',
+                category: 'ux',
+                analyzer_id: this.id,
+                evidence: [
+                  createEvidence({
+                    type: 'metric',
+                    source: 'ux.cross-cutting',
+                    description: `${endpoints.length} endpoints, 0 i18n/l10n configurations`,
+                    entity_ids: [],
+                    confidence: 0.6,
+                    data: {
+                      endpoint_count: endpoints.length,
+                      config_count: configs.length,
+                      i18n_detected: false,
+                    },
+                  }),
+                ],
+                locations: [],
+                suggested_fix:
+                  'Integrate an i18n framework (react-intl, next-intl, i18next, vue-i18n). Extract all user-facing strings into translation files. Even for single-language apps, this prepares the codebase for future localization.',
+                confidence: 0.55,
+                tags: ['no-i18n', 'ux', 'internationalization', 'localization'],
+              }),
+            );
+          }
+        }
+      }
+    } catch {
+      // If entity types don't exist, return empty findings
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Missing Loading States ──────────────────────────────────

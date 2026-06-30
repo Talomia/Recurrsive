@@ -10,7 +10,6 @@ import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 import { generateReport } from '@recurrsive/presentation';
-import { exportToSarif } from '@recurrsive/opportunities';
 
 const logger = createLogger({ context: { component: 'server:routes:reports' } });
 
@@ -86,31 +85,23 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
         }
 
         case 'sarif': {
-          const sarifJson = exportToSarif(opportunities);
+          const sarifReport = generateReport(opportunities, 'sarif', {
+            title: `Recurrsive Report — ${projectName}`,
+          });
           return reply
             .header('Content-Type', 'application/json; charset=utf-8')
             .header('Content-Disposition', 'attachment; filename="recurrsive-report.sarif.json"')
-            .send(sarifJson);
+            .send(sarifReport);
         }
 
         case 'json': {
-          const report = {
-            version: '0.1.0',
-            generated_at: new Date().toISOString(),
-            project: { name: projectName },
-            summary: {
-              total_findings: cache.findings.length,
-              total_opportunities: opportunities.length,
-              analyzed_at: cache.analyzedAt,
-              duration_ms: cache.durationMs,
-            },
-            findings: cache.findings,
-            opportunities,
-          };
+          const jsonReport = generateReport(opportunities, 'json', {
+            title: `Recurrsive Report — ${projectName}`,
+          });
           return reply
             .header('Content-Type', 'application/json; charset=utf-8')
             .header('Content-Disposition', 'attachment; filename="recurrsive-report.json"')
-            .send(JSON.stringify(report, null, 2));
+            .send(jsonReport);
         }
 
         default:

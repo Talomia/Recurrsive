@@ -13,6 +13,7 @@ import type {
   Analyzer,
   AnalysisContext,
   Finding,
+  Entity,
 } from '@recurrsive/core';
 import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
 
@@ -77,8 +78,161 @@ export class ProductAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    try {
+      const endpoints = await ctx.graph.getEntities('endpoint');
+
+      if (endpoints.length > 0) {
+        // Cross-cutting check: no test coverage for API endpoints
+        // Look for test files and test-tagged functions since 'test' is not a top-level entity type
+        const files = await ctx.graph.getEntities('file');
+        const functions = await ctx.graph.getEntities('function');
+
+        const testFiles = files.filter(
+          (f) =>
+            /\.(test|spec)\./i.test(f.name) ||
+            f.tags.includes('test') ||
+            f.tags.includes('spec') ||
+            (f.properties['directory'] as string | undefined ?? '').includes('__tests__'),
+        );
+
+        const testFunctions = functions.filter(
+          (fn) =>
+            fn.tags.includes('test') ||
+            fn.tags.includes('spec') ||
+            fn.properties['is_test'] === true ||
+            /^(test|it|describe|spec)/i.test(fn.name),
+        );
+
+        if (testFiles.length === 0 && testFunctions.length === 0) {
+          findings.push(
+            createFinding({
+              title: 'No test coverage detected for API endpoints',
+              description:
+                `The project has ${endpoints.length} API endpoint(s) but no test files or ` +
+                `test functions were found in the knowledge graph. API endpoints are critical ` +
+                `integration points that should have automated tests to prevent regressions ` +
+                `and validate contracts.`,
+              severity: 'high',
+              category: 'product',
+              analyzer_id: this.id,
+              evidence: [
+                createEvidence({
+                  type: 'metric',
+                  source: 'product.cross-cutting',
+                  description: `${endpoints.length} endpoints, 0 test files, 0 test functions`,
+                  entity_ids: endpoints.slice(0, 10).map((e) => e.id),
+                  confidence: 0.85,
+                  data: {
+                    endpoint_count: endpoints.length,
+                    test_file_count: 0,
+                    test_function_count: 0,
+                  },
+                }),
+              ],
+              locations: [],
+              suggested_fix:
+                'Add integration tests for each API endpoint covering happy paths, edge cases, authentication, and error scenarios. Use a test framework like Jest, Vitest, or pytest.',
+              confidence: 0.8,
+              tags: ['no-tests', 'product', 'quality', 'api', 'coverage'],
+            }),
+          );
+        }
+
+        // Cross-cutting check: feature documentation gap
+        let docEntities: Entity[] = [];
+        try {
+          docEntities = await ctx.graph.getEntities('document');
+        } catch {
+          // document entity type may not exist
+        }
+
+        // Also check ADRs and RFCs as documentation
+        let adrs: Entity[] = [];
+        let rfcs: Entity[] = [];
+        try {
+          adrs = await ctx.graph.getEntities('adr');
+        } catch { /* may not exist */ }
+        try {
+          rfcs = await ctx.graph.getEntities('rfc');
+        } catch { /* may not exist */ }
+
+        const totalDocs = docEntities.length + adrs.length + rfcs.length;
+
+        if (totalDocs > 0 && endpoints.length > totalDocs * 3) {
+          const ratio = (endpoints.length / totalDocs).toFixed(1);
+          findings.push(
+            createFinding({
+              title: 'Feature documentation gap',
+              description:
+                `The project has ${endpoints.length} endpoint(s) but only ${totalDocs} ` +
+                `documentation entit${totalDocs === 1 ? 'y' : 'ies'} (${ratio}:1 ratio). ` +
+                `A ratio above 3:1 suggests many features ship without corresponding documentation, ` +
+                `making it harder for users and developers to understand the product surface.`,
+              severity: 'low',
+              category: 'product',
+              analyzer_id: this.id,
+              evidence: [
+                createEvidence({
+                  type: 'metric',
+                  source: 'product.cross-cutting',
+                  description: `Endpoint-to-documentation ratio: ${ratio}:1`,
+                  entity_ids: endpoints.slice(0, 10).map((e) => e.id),
+                  confidence: 0.7,
+                  data: {
+                    endpoint_count: endpoints.length,
+                    documentation_count: totalDocs,
+                    ratio: parseFloat(ratio),
+                  },
+                }),
+              ],
+              locations: [],
+              suggested_fix:
+                'Create documentation for undocumented features. Consider auto-generating API reference docs from endpoint metadata and supplementing with usage guides.',
+              confidence: 0.65,
+              tags: ['documentation-gap', 'product', 'documentation', 'feature-coverage'],
+            }),
+          );
+        } else if (endpoints.length > 3 && totalDocs === 0) {
+          findings.push(
+            createFinding({
+              title: 'Feature documentation gap',
+              description:
+                `The project has ${endpoints.length} endpoint(s) but zero documentation entities. ` +
+                `Product features are effectively undocumented, which hampers adoption and increases ` +
+                `the support burden.`,
+              severity: 'medium',
+              category: 'product',
+              analyzer_id: this.id,
+              evidence: [
+                createEvidence({
+                  type: 'metric',
+                  source: 'product.cross-cutting',
+                  description: `${endpoints.length} endpoints, 0 documentation entities`,
+                  entity_ids: endpoints.slice(0, 10).map((e) => e.id),
+                  confidence: 0.75,
+                  data: {
+                    endpoint_count: endpoints.length,
+                    documentation_count: 0,
+                  },
+                }),
+              ],
+              locations: [],
+              suggested_fix:
+                'Create feature documentation for each major product area. Start with the most-used endpoints and work outward.',
+              confidence: 0.7,
+              tags: ['documentation-gap', 'product', 'documentation', 'feature-coverage'],
+            }),
+          );
+        }
+      }
+    } catch {
+      // If entity types don't exist, return empty findings
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Dead Feature Flags ──────────────────────────────────────

@@ -86,8 +86,109 @@ export class DocsAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    // Cross-cutting check: low documentation coverage
+    try {
+      const functions = await ctx.graph.getEntities('function');
+      const publicFunctions = functions.filter(
+        (e) =>
+          e.properties['visibility'] === 'public' ||
+          e.properties['exported'] === true ||
+          e.properties['is_exported'] === true ||
+          e.tags.includes('exported'),
+      );
+
+      let docEntities: Entity[] = [];
+      try {
+        docEntities = await ctx.graph.getEntities('document');
+      } catch {
+        // document entity type may not exist in this graph
+      }
+
+      if (publicFunctions.length > 10 && docEntities.length < 3) {
+        findings.push(
+          createFinding({
+            title: 'Low documentation coverage',
+            description:
+              `The project has ${publicFunctions.length} public/exported functions but only ` +
+              `${docEntities.length} documentation entit${docEntities.length === 1 ? 'y' : 'ies'}. ` +
+              `Public APIs should be well-documented to enable adoption and reduce support burden.`,
+            severity: 'medium',
+            category: 'documentation',
+            analyzer_id: this.id,
+            evidence: [
+              createEvidence({
+                type: 'metric',
+                source: 'docs.cross-cutting',
+                description: `${publicFunctions.length} public functions, ${docEntities.length} documentation entities`,
+                entity_ids: publicFunctions.slice(0, 10).map((e) => e.id),
+                confidence: 0.8,
+                data: {
+                  public_function_count: publicFunctions.length,
+                  documentation_count: docEntities.length,
+                },
+              }),
+            ],
+            locations: [],
+            confidence: 0.75,
+            tags: ['low-doc-coverage', 'documentation', 'public-api'],
+          }),
+        );
+      }
+
+      // Cross-cutting check: API endpoints not documented
+      let endpoints: Entity[] = [];
+      try {
+        endpoints = await ctx.graph.getEntities('endpoint');
+      } catch {
+        // endpoint entity type may not exist
+      }
+
+      const apiDocs = docEntities.filter(
+        (d) =>
+          d.properties['type'] === 'api_doc' ||
+          d.tags.includes('api-doc') ||
+          d.tags.includes('api-documentation') ||
+          /api/i.test(d.name),
+      );
+
+      if (endpoints.length > 0 && apiDocs.length === 0) {
+        findings.push(
+          createFinding({
+            title: 'API endpoints not documented',
+            description:
+              `The project has ${endpoints.length} API endpoint(s) but no API documentation ` +
+              `entities were found. API consumers need clear documentation for each endpoint ` +
+              `covering request/response schemas, authentication, rate limits, and error codes.`,
+            severity: 'medium',
+            category: 'documentation',
+            analyzer_id: this.id,
+            evidence: [
+              createEvidence({
+                type: 'metric',
+                source: 'docs.cross-cutting',
+                description: `${endpoints.length} endpoints with 0 API documentation entities`,
+                entity_ids: endpoints.slice(0, 10).map((e) => e.id),
+                confidence: 0.8,
+                data: {
+                  endpoint_count: endpoints.length,
+                  api_doc_count: 0,
+                },
+              }),
+            ],
+            locations: [],
+            confidence: 0.75,
+            tags: ['undocumented-api', 'documentation', 'api', 'endpoints'],
+          }),
+        );
+      }
+    } catch {
+      // If entity types don't exist, return empty findings
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Missing README ──────────────────────────────────────────

@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-06-30
+
+### Added
+
+#### Report Formats
+- **JSON Report Generator** — Structured JSON report with severity/category distributions, health scores, maturity dimensions, and detailed opportunities for CI/CD and monitoring integrations.
+- **SARIF v2.1.0 Report Generator** — Static Analysis Results Interchange Format output compatible with GitHub Advanced Security, Azure DevOps, and VS Code SARIF Viewer.
+- Report factory now supports 4 formats: `markdown`, `html`, `json`, `sarif`.
+
+#### Analyzer Cross-Cutting Logic
+- **AI Analyzer `finalize()`** — Detects projects using AI without evaluations; checks AI-to-function modularity ratio.
+- **Performance Analyzer `finalize()`** — Detects low function extraction in endpoint-heavy codebases.
+- **Reliability Analyzer `finalize()`** — Detects external dependencies without resilience configuration (retry, circuit-breaker, timeout).
+- **Cost Analyzer `finalize()`** — Detects multiple AI models without cost tracking.
+- **Docs Analyzer `finalize()`** — Detects low documentation coverage for public functions and undocumented API endpoints.
+- **Data Analyzer `finalize()`** — Detects databases without migration management.
+- **Product Analyzer `finalize()`** — Detects API endpoints without test coverage.
+- **UX Analyzer `finalize()`** — Detects missing internationalization in multi-endpoint apps.
+- All 10 analyzers now have real cross-cutting `finalize()` logic (previously only 2/10).
+
+#### Config
+- **YAML config file support** — Lightweight zero-dependency parser handles key:value pairs, nested objects, arrays, booleans, numbers, and comments.
+
+#### Testing
+- **Performance Analyzer tests** — 37 tests covering 7 rules (sequential LLM calls, N+1 queries, missing caching, large context windows, synchronous blocking, missing pagination, unbounded loops).
+- **Reliability Analyzer tests** — 35 tests covering 7 rules (SPOF, missing retries, missing timeouts, no circuit breaker, missing health checks, no graceful shutdown, error swallowing).
+- **Pipeline integration tests** — 6 end-to-end tests using real SQLite graph + real analyzers.
+- **Go language extractor tests** — 34 tests covering all entity types.
+- Total: 1,442+ tests across 52 test files.
+
+#### Dashboard
+- Settings page now hydrates from localStorage on mount (round-trip persistence).
+
 ## [0.1.1] - 2026-06-30
 
 ### Added
