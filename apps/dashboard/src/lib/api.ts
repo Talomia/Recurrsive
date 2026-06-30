@@ -923,3 +923,303 @@ export async function getComplianceReport(): Promise<ComplianceReport> {
     return MOCK_COMPLIANCE;
   }
 }
+
+// ─── Timeline Types ──────────────────────────────────────────────────────────
+
+export interface AnalysisHistoryEntry {
+  id: string;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  findingCount: number;
+  opportunityCount: number;
+  includeReasoning: boolean;
+  status: "success" | "error";
+  error: string | null;
+}
+
+export interface MaturityScoreEntry {
+  dimension: string;
+  level: string;
+  score: number;
+  trend: "improving" | "stable" | "declining";
+  evidence: string[];
+  recommendations: string[];
+}
+
+export interface SnapshotDelta {
+  new_opportunities: number;
+  resolved_opportunities: number;
+  new_risks: number;
+  resolved_risks: number;
+  maturity_changes: Array<{
+    dimension: string;
+    previous_score: number;
+    current_score: number;
+  }>;
+}
+
+export interface EvolutionSnapshot {
+  id: string;
+  timestamp: string;
+  maturity_scores: MaturityScoreEntry[];
+  overall_health: number;
+  opportunity_count: number;
+  debt_count: number;
+  risk_count: number;
+  top_opportunities: string[];
+  changes_since_last: SnapshotDelta;
+}
+
+export interface TrendDataPoint {
+  timestamp: string;
+  value: number;
+}
+
+export interface TrendSeries {
+  dimension: string;
+  data_points: TrendDataPoint[];
+}
+
+export interface TrendData {
+  series: TrendSeries[];
+  total: number;
+}
+
+// ─── Timeline Mock Data ──────────────────────────────────────────────────────
+
+const MOCK_ANALYSIS_HISTORY: AnalysisHistoryEntry[] = [
+  {
+    id: "run-001",
+    startedAt: "2026-06-30T10:00:00Z",
+    completedAt: "2026-06-30T10:02:34Z",
+    durationMs: 154000,
+    findingCount: 47,
+    opportunityCount: 23,
+    includeReasoning: true,
+    status: "success",
+    error: null,
+  },
+  {
+    id: "run-002",
+    startedAt: "2026-06-29T09:00:00Z",
+    completedAt: "2026-06-29T09:01:48Z",
+    durationMs: 108000,
+    findingCount: 42,
+    opportunityCount: 19,
+    includeReasoning: false,
+    status: "success",
+    error: null,
+  },
+  {
+    id: "run-003",
+    startedAt: "2026-06-28T14:30:00Z",
+    completedAt: "2026-06-28T14:32:12Z",
+    durationMs: 132000,
+    findingCount: 51,
+    opportunityCount: 25,
+    includeReasoning: true,
+    status: "success",
+    error: null,
+  },
+  {
+    id: "run-004",
+    startedAt: "2026-06-27T08:15:00Z",
+    completedAt: "2026-06-27T08:16:55Z",
+    durationMs: 115000,
+    findingCount: 38,
+    opportunityCount: 17,
+    includeReasoning: false,
+    status: "success",
+    error: null,
+  },
+  {
+    id: "run-005",
+    startedAt: "2026-06-25T16:00:00Z",
+    completedAt: "2026-06-25T16:02:20Z",
+    durationMs: 140000,
+    findingCount: 55,
+    opportunityCount: 28,
+    includeReasoning: true,
+    status: "success",
+    error: null,
+  },
+];
+
+const MOCK_SNAPSHOTS: EvolutionSnapshot[] = [
+  {
+    id: "snap-001",
+    timestamp: "2026-06-30T10:02:34Z",
+    maturity_scores: [
+      { dimension: "architecture", level: "defined", score: 72, trend: "improving", evidence: ["Clean module boundaries"], recommendations: ["Reduce circular deps"] },
+      { dimension: "security", level: "developing", score: 58, trend: "improving", evidence: ["OAuth 2.0 in use"], recommendations: ["Migrate to PKCE flow"] },
+      { dimension: "reliability", level: "managed", score: 85, trend: "stable", evidence: ["Retry patterns in place"], recommendations: ["Add circuit breakers"] },
+      { dimension: "testing", level: "developing", score: 62, trend: "improving", evidence: ["Unit test coverage 68%"], recommendations: ["Add integration tests"] },
+    ],
+    overall_health: 87,
+    opportunity_count: 23,
+    debt_count: 8,
+    risk_count: 5,
+    top_opportunities: ["OPP-2847", "OPP-2843", "OPP-2839"],
+    changes_since_last: {
+      new_opportunities: 4,
+      resolved_opportunities: 2,
+      new_risks: 1,
+      resolved_risks: 0,
+      maturity_changes: [
+        { dimension: "architecture", previous_score: 68, current_score: 72 },
+        { dimension: "security", previous_score: 54, current_score: 58 },
+      ],
+    },
+  },
+  {
+    id: "snap-002",
+    timestamp: "2026-06-29T09:01:48Z",
+    maturity_scores: [
+      { dimension: "architecture", level: "defined", score: 68, trend: "stable", evidence: ["Module structure improving"], recommendations: ["Extract shared utils"] },
+      { dimension: "security", level: "developing", score: 54, trend: "stable", evidence: ["Basic auth in place"], recommendations: ["Enable MFA"] },
+      { dimension: "reliability", level: "managed", score: 84, trend: "stable", evidence: ["Error handling present"], recommendations: ["Add health checks"] },
+    ],
+    overall_health: 82,
+    opportunity_count: 19,
+    debt_count: 7,
+    risk_count: 4,
+    top_opportunities: ["OPP-2843", "OPP-2835"],
+    changes_since_last: {
+      new_opportunities: 2,
+      resolved_opportunities: 3,
+      new_risks: 0,
+      resolved_risks: 1,
+      maturity_changes: [
+        { dimension: "architecture", previous_score: 65, current_score: 68 },
+      ],
+    },
+  },
+  {
+    id: "snap-003",
+    timestamp: "2026-06-28T14:32:12Z",
+    maturity_scores: [
+      { dimension: "architecture", level: "developing", score: 65, trend: "improving", evidence: ["Service boundaries defined"], recommendations: ["Document APIs"] },
+      { dimension: "security", level: "initial", score: 48, trend: "declining", evidence: ["Deprecated auth flow"], recommendations: ["Upgrade OAuth library"] },
+    ],
+    overall_health: 76,
+    opportunity_count: 25,
+    debt_count: 10,
+    risk_count: 6,
+    top_opportunities: ["OPP-2847", "OPP-2843", "OPP-2839", "OPP-2835"],
+    changes_since_last: {
+      new_opportunities: 5,
+      resolved_opportunities: 1,
+      new_risks: 2,
+      resolved_risks: 0,
+      maturity_changes: [],
+    },
+  },
+];
+
+const MOCK_TREND_DATA: TrendData = {
+  series: [
+    {
+      dimension: "overall_health",
+      data_points: [
+        { timestamp: "2026-06-25T16:02:20Z", value: 71 },
+        { timestamp: "2026-06-27T08:16:55Z", value: 74 },
+        { timestamp: "2026-06-28T14:32:12Z", value: 76 },
+        { timestamp: "2026-06-29T09:01:48Z", value: 82 },
+        { timestamp: "2026-06-30T10:02:34Z", value: 87 },
+      ],
+    },
+    {
+      dimension: "architecture",
+      data_points: [
+        { timestamp: "2026-06-25T16:02:20Z", value: 60 },
+        { timestamp: "2026-06-27T08:16:55Z", value: 63 },
+        { timestamp: "2026-06-28T14:32:12Z", value: 65 },
+        { timestamp: "2026-06-29T09:01:48Z", value: 68 },
+        { timestamp: "2026-06-30T10:02:34Z", value: 72 },
+      ],
+    },
+    {
+      dimension: "security",
+      data_points: [
+        { timestamp: "2026-06-25T16:02:20Z", value: 45 },
+        { timestamp: "2026-06-27T08:16:55Z", value: 47 },
+        { timestamp: "2026-06-28T14:32:12Z", value: 48 },
+        { timestamp: "2026-06-29T09:01:48Z", value: 54 },
+        { timestamp: "2026-06-30T10:02:34Z", value: 58 },
+      ],
+    },
+    {
+      dimension: "reliability",
+      data_points: [
+        { timestamp: "2026-06-25T16:02:20Z", value: 80 },
+        { timestamp: "2026-06-27T08:16:55Z", value: 82 },
+        { timestamp: "2026-06-28T14:32:12Z", value: 83 },
+        { timestamp: "2026-06-29T09:01:48Z", value: 84 },
+        { timestamp: "2026-06-30T10:02:34Z", value: 85 },
+      ],
+    },
+  ],
+  total: 4,
+};
+
+// ─── Timeline API ────────────────────────────────────────────────────────────
+
+/**
+ * Get analysis history from `GET /api/v1/analysis/history`.
+ *
+ * Returns the list of past analysis runs with timestamps, durations,
+ * finding counts, and opportunity counts.
+ */
+export async function getTimelineHistory(): Promise<AnalysisHistoryEntry[]> {
+  try {
+    const raw = await apiFetch<{
+      data: AnalysisHistoryEntry[];
+    } | null>("/api/v1/analysis/history", null);
+
+    if (!raw?.data?.length) return MOCK_ANALYSIS_HISTORY;
+    return raw.data;
+  } catch {
+    return MOCK_ANALYSIS_HISTORY;
+  }
+}
+
+/**
+ * Get evolution snapshots from `GET /api/v1/timeline/snapshots`.
+ *
+ * Returns point-in-time snapshots of the project's evolutionary state,
+ * ordered newest first.
+ */
+export async function getTimelineSnapshots(): Promise<EvolutionSnapshot[]> {
+  try {
+    const raw = await apiFetch<{
+      data: EvolutionSnapshot[];
+      total: number;
+    } | null>("/api/v1/timeline/snapshots", null);
+
+    if (!raw?.data?.length) return MOCK_SNAPSHOTS;
+    return raw.data;
+  } catch {
+    return MOCK_SNAPSHOTS;
+  }
+}
+
+/**
+ * Get trend data from `GET /api/v1/timeline/trends`.
+ *
+ * Returns trend series for each maturity dimension, suitable for
+ * charting the evolution of scores over time.
+ */
+export async function getTimelineTrends(): Promise<TrendData> {
+  try {
+    const raw = await apiFetch<{
+      data: TrendSeries[];
+      total: number;
+    } | null>("/api/v1/timeline/trends", null);
+
+    if (!raw?.data?.length) return MOCK_TREND_DATA;
+    return { series: raw.data, total: raw.total };
+  } catch {
+    return MOCK_TREND_DATA;
+  }
+}

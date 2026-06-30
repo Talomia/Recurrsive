@@ -1,0 +1,1432 @@
+openapi: '3.0.3'
+info:
+  title: Recurrsive API
+  description: >-
+    REST API for the Recurrsive codebase intelligence engine.
+    Provides analysis, knowledge-graph querying, opportunity management,
+    policy enforcement, and report generation.
+  version: 0.1.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: Health
+    description: Liveness probes, health scores, and performance metrics
+  - name: Analysis
+    description: Trigger and monitor analysis runs
+  - name: Opportunities
+    description: Browse, update, and export improvement opportunities
+  - name: Graph
+    description: Query the knowledge graph
+  - name: Findings
+    description: Query analysis findings
+  - name: Reports
+    description: Generate reports in various formats
+  - name: Timeline
+    description: Intelligence timeline, snapshots, and trends
+  - name: Snapshots
+    description: Export and import graph snapshots
+  - name: Policies
+    description: Policy enforcement and compliance checking
+
+paths:
+  # -------------------------------------------------------------------------
+  # Health
+  # -------------------------------------------------------------------------
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Liveness probe
+      description: Returns basic health information. Always returns 200.
+      responses:
+        '200':
+          description: Server is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version, uptime, timestamp, initialized]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: 0.1.0
+                  uptime:
+                    type: number
+                    description: Server uptime in seconds
+                  timestamp:
+                    type: string
+                    format: date-time
+                  initialized:
+                    type: boolean
+
+  /api/v1/health-score:
+    get:
+      operationId: getHealthScore
+      tags: [Health]
+      summary: Project health score
+      description: Returns overall health score, maturity scores, and project overview.
+      responses:
+        '200':
+          description: Health score data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      overall_health:
+                        type: number
+                      maturity_scores:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MaturityScore'
+                      project:
+                        $ref: '#/components/schemas/ProjectInfo'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/metrics/performance:
+    get:
+      operationId: getPerformanceMetrics
+      tags: [Health]
+      summary: Performance metrics
+      description: Returns analyzer timing, finding trends, and performance data.
+      responses:
+        '200':
+          description: Performance metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      analyzers:
+                        type: array
+                        items:
+                          type: object
+                      timing:
+                        type: object
+                      trends:
+                        type: object
+        '404':
+          description: No analysis data available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # -------------------------------------------------------------------------
+  # Analysis
+  # -------------------------------------------------------------------------
+  /api/v1/analyze:
+    post:
+      operationId: startAnalysis
+      tags: [Analysis]
+      summary: Start a new analysis run
+      description: >-
+        Triggers the full analysis pipeline: collect → parse → analyze → reason.
+        Returns immediately with a run ID; subscribe via WebSocket for progress.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path:
+                  type: string
+                  description: Absolute path to the project root
+                analyzers:
+                  type: array
+                  items:
+                    type: string
+                  description: Analyzer IDs to run (default all)
+                include_reasoning:
+                  type: boolean
+                  default: false
+                  description: Whether to run the reasoning engine
+      responses:
+        '200':
+          description: Analysis started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run_id:
+                    type: string
+                  status:
+                    type: string
+                    example: running
+                  started_at:
+                    type: string
+                    format: date-time
+                  ws:
+                    type: string
+                    example: ws://localhost:3000/ws
+        '400':
+          description: Missing or invalid project path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Analysis already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/analysis/status:
+    get:
+      operationId: getAnalysisStatus
+      tags: [Analysis]
+      summary: Current analysis status
+      description: Returns the current phase, progress, and status message.
+      responses:
+        '200':
+          description: Analysis status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AnalysisStatus'
+
+  /api/v1/analysis/history:
+    get:
+      operationId: getAnalysisHistory
+      tags: [Analysis]
+      summary: History of past analysis runs
+      responses:
+        '200':
+          description: Analysis history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnalysisHistoryEntry'
+
+  /api/v1/analysis/compare:
+    get:
+      operationId: compareAnalysisRuns
+      tags: [Analysis]
+      summary: Compare analysis runs
+      description: Compare the current analysis against a previous baseline run.
+      parameters:
+        - name: baseline
+          in: query
+          schema:
+            type: integer
+          description: Index of the history entry to compare against (default previous run)
+      responses:
+        '200':
+          description: Comparison result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      comparison:
+                        $ref: '#/components/schemas/ComparisonResult'
+                      is_first_run:
+                        type: boolean
+                      current:
+                        type: object
+                        properties:
+                          finding_count:
+                            type: integer
+                          opportunity_count:
+                            type: integer
+                          analyzed_at:
+                            type: string
+                            format: date-time
+                      baseline:
+                        type: object
+                        properties:
+                          run:
+                            type: integer
+                          finding_count:
+                            type: integer
+                          opportunity_count:
+                            type: integer
+                          analyzed_at:
+                            type: string
+                            format: date-time
+        '404':
+          description: No analysis results available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  # -------------------------------------------------------------------------
+  # Opportunities
+  # -------------------------------------------------------------------------
+  /api/v1/opportunities:
+    get:
+      operationId: listOpportunities
+      tags: [Opportunities]
+      summary: List improvement opportunities
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: severity
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated opportunity list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total, has_more, limit, offset]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Opportunity'
+                  total:
+                    type: integer
+                  has_more:
+                    type: boolean
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+  /api/v1/opportunities/{id}:
+    get:
+      operationId: getOpportunity
+      tags: [Opportunities]
+      summary: Get opportunity detail
+      parameters:
+        - $ref: '#/components/parameters/OpportunityId'
+      responses:
+        '200':
+          description: Opportunity detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Opportunity'
+        '404':
+          description: Opportunity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      operationId: updateOpportunityStatus
+      tags: [Opportunities]
+      summary: Update opportunity status
+      parameters:
+        - $ref: '#/components/parameters/OpportunityId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [open, accepted, rejected, deferred, in_progress, completed]
+      responses:
+        '200':
+          description: Updated opportunity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Opportunity'
+        '400':
+          description: Missing or invalid status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Opportunity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/opportunities/export/{format}:
+    get:
+      operationId: exportOpportunities
+      tags: [Opportunities]
+      summary: Export opportunities
+      parameters:
+        - name: format
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [json, sarif, markdown]
+      responses:
+        '200':
+          description: Exported data
+          content:
+            application/json:
+              schema:
+                type: object
+            text/markdown:
+              schema:
+                type: string
+        '400':
+          description: Invalid export format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # -------------------------------------------------------------------------
+  # Graph
+  # -------------------------------------------------------------------------
+  /api/v1/graph/stats:
+    get:
+      operationId: getGraphStats
+      tags: [Graph]
+      summary: Graph statistics
+      description: Returns entity and relationship counts by type.
+      responses:
+        '200':
+          description: Graph statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      entity_count:
+                        type: integer
+                      relationship_count:
+                        type: integer
+                      entity_types:
+                        type: object
+                        additionalProperties:
+                          type: integer
+                      relationship_types:
+                        type: object
+                        additionalProperties:
+                          type: integer
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/graph/entities:
+    get:
+      operationId: listEntities
+      tags: [Graph]
+      summary: List entities
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+          description: Filter by entity type
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Entity list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Entity'
+                  total:
+                    type: integer
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/graph/entities/{id}:
+    get:
+      operationId: getEntity
+      tags: [Graph]
+      summary: Get entity details
+      parameters:
+        - $ref: '#/components/parameters/EntityId'
+      responses:
+        '200':
+          description: Entity detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Entity'
+        '404':
+          description: Entity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/graph/entities/{id}/neighbors:
+    get:
+      operationId: getEntityNeighbors
+      tags: [Graph]
+      summary: Get related entities
+      parameters:
+        - $ref: '#/components/parameters/EntityId'
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+            default: 1
+          description: Traversal depth (1–5)
+      responses:
+        '200':
+          description: Neighbor graph
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      entities:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Entity'
+                      relationships:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Relationship'
+        '400':
+          description: Invalid depth parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/graph/search:
+    get:
+      operationId: searchGraph
+      tags: [Graph]
+      summary: Full-text search
+      description: FTS5-ranked search across entities.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+        - name: type
+          in: query
+          schema:
+            type: string
+          description: Filter by entity type
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Entity'
+                  total:
+                    type: integer
+        '400':
+          description: Missing query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  # -------------------------------------------------------------------------
+  # Findings
+  # -------------------------------------------------------------------------
+  /api/v1/findings:
+    get:
+      operationId: listFindings
+      tags: [Findings]
+      summary: List findings
+      parameters:
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low, info]
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: analyzer
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Finding list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Finding'
+                  total:
+                    type: integer
+                  has_more:
+                    type: boolean
+        '404':
+          description: No analysis results available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/findings/{id}:
+    get:
+      operationId: getFinding
+      tags: [Findings]
+      summary: Get finding detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Finding detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Finding'
+        '404':
+          description: Finding not found or no analysis results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/findings/summary:
+    get:
+      operationId: getFindingsSummary
+      tags: [Findings]
+      summary: Findings summary
+      description: Aggregated counts by severity, category, and analyzer.
+      responses:
+        '200':
+          description: Finding summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      by_severity:
+                        type: object
+                        additionalProperties:
+                          type: integer
+                      by_category:
+                        type: object
+                        additionalProperties:
+                          type: integer
+                      by_analyzer:
+                        type: object
+                        additionalProperties:
+                          type: integer
+        '404':
+          description: No analysis results available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # -------------------------------------------------------------------------
+  # Reports
+  # -------------------------------------------------------------------------
+  /api/v1/reports/{format}:
+    get:
+      operationId: generateReport
+      tags: [Reports]
+      summary: Generate report
+      description: Generate a report in the specified format.
+      parameters:
+        - name: format
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [json, markdown, md, html, sarif]
+      responses:
+        '200':
+          description: Generated report
+          content:
+            application/json:
+              schema:
+                type: object
+            text/html:
+              schema:
+                type: string
+            text/markdown:
+              schema:
+                type: string
+        '400':
+          description: Invalid report format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No analysis results available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # -------------------------------------------------------------------------
+  # Timeline
+  # -------------------------------------------------------------------------
+  /api/v1/timeline:
+    get:
+      operationId: getTimeline
+      tags: [Timeline]
+      summary: Full intelligence timeline
+      responses:
+        '200':
+          description: Evolution timeline
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EvolutionTimeline'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/timeline/snapshots:
+    get:
+      operationId: getTimelineSnapshots
+      tags: [Timeline]
+      summary: List timeline snapshots
+      responses:
+        '200':
+          description: Snapshot list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EvolutionSnapshot'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/timeline/trends:
+    get:
+      operationId: getTimelineTrends
+      tags: [Timeline]
+      summary: Trend data over time
+      responses:
+        '200':
+          description: Trend data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      trends:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            metric:
+                              type: string
+                            values:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  timestamp:
+                                    type: string
+                                    format: date-time
+                                  value:
+                                    type: number
+                      summary:
+                        type: object
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  # -------------------------------------------------------------------------
+  # Snapshots
+  # -------------------------------------------------------------------------
+  /api/v1/snapshots/export:
+    get:
+      operationId: exportSnapshot
+      tags: [Snapshots]
+      summary: Export graph as portable JSON
+      description: >-
+        Exports the entire knowledge graph state as a portable JSON snapshot
+        with a Content-Disposition header for download.
+      responses:
+        '200':
+          description: Snapshot data
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="recurrsive-snapshot-2026-01-01.json"'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '500':
+          description: Export failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/snapshots/import:
+    post:
+      operationId: importSnapshot
+      tags: [Snapshots]
+      summary: Import from snapshot file
+      description: Upserts all entities and relationships from a snapshot.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Snapshot'
+      responses:
+        '200':
+          description: Import successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Snapshot imported successfully
+                  data:
+                    type: object
+                    properties:
+                      entities_imported:
+                        type: integer
+                      relationships_imported:
+                        type: integer
+                      source_version:
+                        type: string
+                      source_project:
+                        type: string
+                      exported_at:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid snapshot format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Import failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  # -------------------------------------------------------------------------
+  # Policies
+  # -------------------------------------------------------------------------
+  /api/v1/policies:
+    get:
+      operationId: listPolicies
+      tags: [Policies]
+      summary: List active policy sets
+      description: Returns all policy sets and their rules.
+      responses:
+        '200':
+          description: Policy list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PolicySet'
+                  total:
+                    type: integer
+                  builtin_count:
+                    type: integer
+
+  /api/v1/policies/evaluate:
+    post:
+      operationId: evaluatePolicies
+      tags: [Policies]
+      summary: Evaluate opportunities against policies
+      description: >-
+        Evaluates all (or specific) opportunities against active policy rules,
+        returning a compliance report.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                opportunity_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: Evaluate only these opportunities (default all)
+      responses:
+        '200':
+          description: Evaluation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      results:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PolicyEvaluationResult'
+                      summary:
+                        $ref: '#/components/schemas/PolicySummary'
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+  /api/v1/policies/compliance:
+    get:
+      operationId: getPolicyCompliance
+      tags: [Policies]
+      summary: Quick compliance check
+      description: Returns the overall compliance rate without full evaluation details.
+      responses:
+        '200':
+          description: Compliance summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total_opportunities:
+                        type: integer
+                      compliant:
+                        type: integer
+                      blocked:
+                        type: integer
+                      compliance_rate:
+                        type: integer
+                        description: Percentage (0–100)
+                      policy_sets_active:
+                        type: integer
+        '503':
+          $ref: '#/components/responses/NotInitialized'
+
+# ---------------------------------------------------------------------------
+# Components
+# ---------------------------------------------------------------------------
+components:
+  parameters:
+    OpportunityId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Opportunity identifier
+
+    EntityId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Entity identifier
+
+  responses:
+    NotInitialized:
+      description: Server not initialized — run POST /api/v1/analyze first
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    Entity:
+      type: object
+      required: [id, type, name, properties]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+
+    Relationship:
+      type: object
+      required: [id, type, source_id, target_id, properties]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        source_id:
+          type: string
+        target_id:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+
+    Finding:
+      type: object
+      required: [id, title, severity, category, analyzer_id]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        category:
+          type: string
+        analyzer_id:
+          type: string
+        location:
+          type: object
+          properties:
+            file:
+              type: string
+            line:
+              type: integer
+        recommendation:
+          type: string
+
+    Opportunity:
+      type: object
+      required: [id, title, description, category, severity, status, score]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        status:
+          type: string
+          enum: [open, accepted, rejected, deferred, in_progress, completed]
+        score:
+          type: number
+        type:
+          type: string
+          enum: [improvement, debt, risk]
+        effort:
+          type: object
+        impact:
+          type: object
+
+    PolicySet:
+      type: object
+      required: [id, name, enabled, rules]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        rule_count:
+          type: integer
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyRule'
+
+    PolicyRule:
+      type: object
+      required: [id, name, scope, action, condition]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        scope:
+          type: string
+        action:
+          type: string
+          enum: [allow, warn, require_approval, block]
+        condition:
+          type: object
+
+    PolicyEvaluationResult:
+      type: object
+      properties:
+        opportunity_id:
+          type: string
+        opportunity_title:
+          type: string
+        passed:
+          type: boolean
+        action:
+          type: string
+          enum: [allow, warn, require_approval, block]
+        violations:
+          type: array
+          items:
+            type: object
+            properties:
+              rule_id:
+                type: string
+              action:
+                type: string
+              message:
+                type: string
+        warnings:
+          type: array
+          items:
+            type: object
+            properties:
+              rule_id:
+                type: string
+              message:
+                type: string
+
+    PolicySummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        passed:
+          type: integer
+        blocked:
+          type: integer
+        needs_approval:
+          type: integer
+        warned:
+          type: integer
+        compliance_rate:
+          type: integer
+          description: Percentage (0–100)
+
+    AnalysisStatus:
+      type: object
+      properties:
+        phase:
+          type: string
+          enum: [idle, collecting, parsing, analyzing, reasoning, complete, error]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        message:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    AnalysisHistoryEntry:
+      type: object
+      required: [id, startedAt, completedAt, durationMs, findingCount, opportunityCount, status]
+      properties:
+        id:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: integer
+        findingCount:
+          type: integer
+        opportunityCount:
+          type: integer
+        includeReasoning:
+          type: boolean
+        status:
+          type: string
+          enum: [success, error]
+        error:
+          type: string
+          nullable: true
+
+    ComparisonResult:
+      type: object
+      properties:
+        added_findings:
+          type: integer
+        removed_findings:
+          type: integer
+        changed_findings:
+          type: integer
+        added_opportunities:
+          type: integer
+        removed_opportunities:
+          type: integer
+        severity_changes:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+              from:
+                type: string
+              to:
+                type: string
+        summary:
+          type: string
+
+    Snapshot:
+      type: object
+      required: [version, exported_at, project, entities, relationships, stats]
+      properties:
+        version:
+          type: string
+        exported_at:
+          type: string
+          format: date-time
+        project:
+          type: string
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+        relationships:
+          type: array
+          items:
+            $ref: '#/components/schemas/Relationship'
+        stats:
+          type: object
+          properties:
+            entity_count:
+              type: integer
+            relationship_count:
+              type: integer
+            entity_types:
+              type: object
+              additionalProperties:
+                type: integer
+            relationship_types:
+              type: object
+              additionalProperties:
+                type: integer
+
+    ProjectInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        root_path:
+          type: string
+        languages:
+          type: array
+          items:
+            type: string
+        frameworks:
+          type: array
+          items:
+            type: string
+        ai_providers:
+          type: array
+          items:
+            type: string
+
+    MaturityScore:
+      type: object
+      properties:
+        dimension:
+          type: string
+        score:
+          type: number
+        level:
+          type: string
+        details:
+          type: string
+
+    EvolutionTimeline:
+      type: object
+      properties:
+        snapshots:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvolutionSnapshot'
+        duration_days:
+          type: integer
+        trend:
+          type: string
+
+    EvolutionSnapshot:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        overall_health:
+          type: number
+        opportunity_count:
+          type: integer
+        debt_count:
+          type: integer
+        risk_count:
+          type: integer
+        top_opportunities:
+          type: array
+          items:
+            type: string
+        maturity_scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaturityScore'

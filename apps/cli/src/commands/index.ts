@@ -17,3 +17,4 @@ export { registerConfigCommand } from './config.js';
 export { registerSearchCommand } from './search.js';
 export { registerSnapshotCommand } from './snapshot.js';
 export { registerPolicyCommand } from './policy.js';
+export { registerWebhooksCommand } from './webhooks.js';

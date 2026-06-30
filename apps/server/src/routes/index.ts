@@ -17,6 +17,7 @@ import { registerFindingsRoutes } from './findings.js';
 import { registerReportRoutes } from './reports.js';
 import { registerSnapshotRoutes } from './snapshots.js';
 import { registerPolicyRoutes } from './policies.js';
+import { registerWebhookRoutes } from './webhooks.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -32,6 +33,7 @@ import { registerPolicyRoutes } from './policies.js';
  * - `/api/v1/reports/*` — Report generation (markdown, HTML, SARIF, JSON)
  * - `/api/v1/snapshots/*` — Snapshot export/import
  * - `/api/v1/policies/*` — Policy enforcement and compliance
+ * - `/api/v1/webhooks/*` — Webhook management and events
  *
  * @param app - The Fastify application instance.
  */
@@ -45,4 +47,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerReportRoutes(app);
   await registerSnapshotRoutes(app);
   await registerPolicyRoutes(app);
+  await registerWebhookRoutes(app);
 }

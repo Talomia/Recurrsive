@@ -15,6 +15,7 @@
  * - `search` — Full-text search the knowledge graph
  * - `snapshot` — Export and import knowledge graph snapshots
  * - `policy` — Policy compliance checks
+ * - `webhooks` — Manage webhook integrations
  *
  * @packageDocumentation
  */
@@ -32,6 +33,7 @@ import {
   registerSearchCommand,
   registerSnapshotCommand,
   registerPolicyCommand,
+  registerWebhooksCommand,
 } from './commands/index.js';
 
 /**
@@ -67,6 +69,7 @@ export function createProgram(): Command {
   registerSearchCommand(program);
   registerSnapshotCommand(program);
   registerPolicyCommand(program);
+  registerWebhooksCommand(program);
 
   return program;
 }

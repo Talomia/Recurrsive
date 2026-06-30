@@ -21,6 +21,8 @@ vi.mock('@recurrsive/graph', () => ({
       relationshipCount: 87,
       entityTypes: { module: 15, function: 20, class: 7 },
       relationshipTypes: { imports: 30, calls: 25, depends_on: 32 },
+      entityCountsByType: { module: 15, function: 20, class: 7 },
+      relationshipCountsByType: { imports: 30, calls: 25, depends_on: 32 },
     }),
     getEntities: vi.fn().mockResolvedValue([
       { id: 'e1', type: 'module', name: 'auth', properties: {} },
@@ -100,6 +102,40 @@ vi.mock('@recurrsive/collectors', () => ({
     }),
   })),
 }));
+
+vi.mock('@recurrsive/policy', () => {
+  const mockPolicySets = [
+    {
+      id: 'ps-security',
+      name: 'Security Policy',
+      description: 'Basic security rules',
+      enabled: true,
+      rules: [
+        {
+          id: 'rule-1',
+          name: 'Block Critical',
+          description: 'Block critical severity items',
+          scope: 'opportunity',
+          action: 'block',
+          condition: { field: 'severity', operator: 'eq', value: 'critical' },
+        },
+      ],
+    },
+  ];
+
+  return {
+    PolicyEngine: vi.fn().mockImplementation(() => ({
+      getPolicies: vi.fn().mockReturnValue(mockPolicySets),
+      passes: vi.fn().mockReturnValue({
+        passed: true,
+        effectiveAction: 'allow',
+        violations: [],
+        warnings: [],
+      }),
+    })),
+    BUILTIN_POLICIES: mockPolicySets,
+  };
+});
 
 vi.mock('@recurrsive/core', () => ({
   createLogger: vi.fn().mockReturnValue({
@@ -235,6 +271,47 @@ describe('Pre-initialization endpoint behavior', () => {
   it('GET /api/v1/findings/summary returns 404 before analysis', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/findings/summary' });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('POST /api/v1/policies/evaluate returns 503 before init', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/policies/evaluate',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(503);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Server not initialized');
+  });
+
+  it('GET /api/v1/policies/compliance returns 503 before init', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/policies/compliance',
+    });
+    expect(res.statusCode).toBe(503);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Server not initialized');
+  });
+
+  it('GET /api/v1/snapshots/export returns 503 before init', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/snapshots/export',
+    });
+    expect(res.statusCode).toBe(503);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Server not initialized');
+  });
+
+  it('GET /api/v1/analysis/compare returns 503 before init', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/analysis/compare',
+    });
+    expect(res.statusCode).toBe(503);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Server not initialized');
   });
 });
 
@@ -459,6 +536,130 @@ describe('Analysis concurrency', () => {
       payload: { path: 123 },
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CORS
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Policies (work without initialization for listing, require init for eval)
+// ---------------------------------------------------------------------------
+
+describe('Policy endpoints', () => {
+  it('GET /api/v1/policies returns policy list with data and total', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/policies' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(body).toHaveProperty('builtin_count');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.total).toBeGreaterThanOrEqual(0);
+  });
+
+  it('GET /api/v1/policies returns individual rules within policy sets', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/policies' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    if (body.data.length > 0) {
+      const first = body.data[0];
+      expect(first).toHaveProperty('id');
+      expect(first).toHaveProperty('name');
+      expect(first).toHaveProperty('enabled');
+      expect(first).toHaveProperty('rules');
+      expect(Array.isArray(first.rules)).toBe(true);
+      if (first.rules.length > 0) {
+        const rule = first.rules[0];
+        expect(rule).toHaveProperty('id');
+        expect(rule).toHaveProperty('name');
+        expect(rule).toHaveProperty('scope');
+        expect(rule).toHaveProperty('action');
+        expect(rule).toHaveProperty('condition');
+      }
+    }
+  });
+
+  it('POST /api/v1/policies/evaluate returns compliance results when initialized', async () => {
+    // Initialize the server state
+    const { state } = await import('../state.js');
+    await state.initialize('/tmp/test-policy-project');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/policies/evaluate',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('results');
+    expect(body.data).toHaveProperty('summary');
+    expect(body.data.summary).toHaveProperty('total');
+    expect(body.data.summary).toHaveProperty('passed');
+    expect(body.data.summary).toHaveProperty('compliance_rate');
+  });
+
+  it('GET /api/v1/policies/compliance returns compliance rate when initialized', async () => {
+    // state was initialized in a previous test
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/policies/compliance',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('total_opportunities');
+    expect(body.data).toHaveProperty('compliant');
+    expect(body.data).toHaveProperty('blocked');
+    expect(body.data).toHaveProperty('compliance_rate');
+    expect(body.data).toHaveProperty('policy_sets_active');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Snapshots
+// ---------------------------------------------------------------------------
+
+describe('Snapshot endpoints', () => {
+  it('GET /api/v1/snapshots/export returns snapshot data when initialized', async () => {
+    // state was initialized in the policies test
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/snapshots/export',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('version');
+    expect(body).toHaveProperty('exported_at');
+    expect(body).toHaveProperty('project');
+    expect(body).toHaveProperty('entities');
+    expect(body).toHaveProperty('relationships');
+    expect(body).toHaveProperty('stats');
+  });
+
+  it('POST /api/v1/snapshots/import validates body', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/snapshots/import',
+      payload: { invalid: true },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Bad request');
+    expect(body.message).toContain('entities');
+  });
+
+  it('GET /api/v1/analysis/compare returns 404 without analysis cache', async () => {
+    // state is initialized but no analysis has been run, so no cache
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/analysis/compare',
+    });
+    expect(res.statusCode).toBe(404);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('No analysis results');
   });
 });
 

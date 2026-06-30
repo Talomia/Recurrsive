@@ -5,7 +5,7 @@
  * - Server has correct name and version
  * - All 15 tools are registered
  * - All 4 resources are registered
- * - All 3 prompts are registered
+ * - All 9 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
  * - createServer returns a valid McpServer instance
  */
@@ -409,9 +409,9 @@ describe('MCP Server', () => {
   // ── Prompt Registration ────────────────────────────────────────────────
 
   describe('prompt registration', () => {
-    it('registers exactly 6 prompts', () => {
+    it('registers exactly 9 prompts', () => {
       createServer();
-      expect(mockPrompt).toHaveBeenCalledTimes(6);
+      expect(mockPrompt).toHaveBeenCalledTimes(9);
     });
 
     it('registers "interpret_health_report" prompt', () => {
@@ -462,13 +462,37 @@ describe('MCP Server', () => {
       expect(promptNames).toContain('cost_analysis');
     });
 
-    it('all 6 prompt names are unique', () => {
+    it('registers "policy_compliance_report" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('policy_compliance_report');
+    });
+
+    it('registers "snapshot_comparison" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('snapshot_comparison');
+    });
+
+    it('registers "risk_assessment" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('risk_assessment');
+    });
+
+    it('all 9 prompt names are unique', () => {
       createServer();
       const promptNames = mockPrompt.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(promptNames);
-      expect(uniqueNames.size).toBe(6);
+      expect(uniqueNames.size).toBe(9);
     });
 
     it('each prompt has a description string', () => {
