@@ -13,6 +13,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { registerRoutes } from './routes/index.js';
 import { registerWebSocket } from './ws/index.js';
+import { registerRateLimit } from './middleware/rate-limit.js';
+import { registerErrorHandler } from './middleware/error-handler.js';
 
 // ---------------------------------------------------------------------------
 // Server options
@@ -28,6 +30,8 @@ export interface ServerOptions {
   logger?: boolean;
   /** CORS allowed origins (default: true = allow all). */
   corsOrigin?: boolean | string | string[];
+  /** Max requests per minute per client (default: 100). Set 0 to disable. */
+  rateLimitMax?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,10 +60,19 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
     logger: options?.logger ?? true,
   });
 
+  // Register global error handler
+  registerErrorHandler(app);
+
   // Register CORS
   await app.register(cors, {
     origin: options?.corsOrigin ?? true,
   });
+
+  // Register rate limiting (skip if explicitly disabled)
+  const rateLimitMax = options?.rateLimitMax ?? 100;
+  if (rateLimitMax > 0) {
+    await registerRateLimit(app, { max: rateLimitMax });
+  }
 
   // Register all REST routes
   await registerRoutes(app);

@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
+import { validateBody, ANALYZE_REQUEST_FIELDS } from '../middleware/validate.js';
 
 const logger = createLogger({ context: { component: 'server:routes:analysis' } });
 
@@ -42,7 +43,9 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
    * The analysis runs asynchronously; progress is available via the
    * /api/v1/analysis/status endpoint or WebSocket events.
    */
-  app.post<{ Body: AnalyzeBody }>('/api/v1/analyze', async (request, reply) => {
+  app.post<{ Body: AnalyzeBody }>('/api/v1/analyze', {
+    preHandler: validateBody(ANALYZE_REQUEST_FIELDS),
+  }, async (request, reply) => {
     const { path: projectPath, analyzers, include_reasoning } = request.body;
 
     if (!projectPath) {

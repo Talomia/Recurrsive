@@ -14,6 +14,7 @@ Base URL: `http://localhost:3000`
 |--------|----------|-------------|
 | `GET` | `/health` | Liveness probe (returns `{ status: 'ok' }`) |
 | `GET` | `/api/v1/health-score` | Project health score, maturity scores, and overview |
+| `GET` | `/api/v1/metrics/performance` | Performance metrics (analyzer timing, finding trends) |
 
 ### Analysis
 
