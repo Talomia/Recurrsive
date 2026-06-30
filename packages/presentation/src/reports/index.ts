@@ -9,13 +9,15 @@
 import type { Opportunity, MaturityScore } from '@recurrsive/core';
 import { generateMarkdownReport, type MarkdownReportOptions } from './markdown.js';
 import { generateHtmlReport, type HtmlReportOptions } from './html.js';
+import { generateJsonReport, type JsonReportOptions } from './json.js';
+import { generateSarifReport, type SarifReportOptions } from './sarif.js';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 /** Supported report formats. */
-export type ReportFormat = 'markdown' | 'html';
+export type ReportFormat = 'markdown' | 'html' | 'json' | 'sarif';
 
 /** Unified report generation options. */
 export interface ReportOptions {
@@ -29,6 +31,10 @@ export interface ReportOptions {
   maxItems?: number;
   /** Whether to include action items (markdown only). */
   includeActionItems?: boolean;
+  /** Whether to include evidence (JSON only, default: true). */
+  includeEvidence?: boolean;
+  /** Whether to pretty-print output (JSON only, default: true). */
+  prettyPrint?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -39,7 +45,7 @@ export interface ReportOptions {
  * Generate a report in the specified format.
  *
  * @param opportunities - Array of opportunities to report on
- * @param format - Output format ('markdown' or 'html')
+ * @param format - Output format ('markdown', 'html', 'json', or 'sarif')
  * @param options - Report configuration options
  * @returns The formatted report string
  * @throws {Error} If the format is unsupported
@@ -50,6 +56,9 @@ export interface ReportOptions {
  *   healthScore: 78,
  *   title: 'Sprint Review',
  * });
+ *
+ * const sarif = generateReport(opportunities, 'sarif');
+ * const json = generateReport(opportunities, 'json', { prettyPrint: false });
  * ```
  */
 export function generateReport(
@@ -77,6 +86,24 @@ export function generateReport(
       };
       return generateHtmlReport(opportunities, htmlOpts);
     }
+    case 'json': {
+      const jsonOpts: JsonReportOptions = {
+        title: options.title,
+        healthScore: options.healthScore,
+        maturityScores: options.maturityScores,
+        maxItems: options.maxItems,
+        includeEvidence: options.includeEvidence,
+        prettyPrint: options.prettyPrint,
+      };
+      return generateJsonReport(opportunities, jsonOpts);
+    }
+    case 'sarif': {
+      const sarifOpts: SarifReportOptions = {
+        title: options.title,
+        maxItems: options.maxItems,
+      };
+      return generateSarifReport(opportunities, sarifOpts);
+    }
     default: {
       const _exhaustive: never = format;
       throw new Error(`Unsupported report format: ${String(_exhaustive)}`);
@@ -89,3 +116,7 @@ export { generateMarkdownReport } from './markdown.js';
 export type { MarkdownReportOptions } from './markdown.js';
 export { generateHtmlReport } from './html.js';
 export type { HtmlReportOptions } from './html.js';
+export { generateJsonReport } from './json.js';
+export type { JsonReportOptions } from './json.js';
+export { generateSarifReport } from './sarif.js';
+export type { SarifReportOptions } from './sarif.js';

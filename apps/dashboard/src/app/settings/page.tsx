@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useId } from 'react';
+import { useState, useCallback, useId, useEffect } from 'react';
 import Header from "@/components/header";
 import { Globe, Bell, Shield, Palette } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -132,6 +132,19 @@ export default function SettingsPage() {
   const baseId = useId();
   const [values, setValues] = useState<Record<string, string | boolean>>(buildDefaults);
   const [saved, setSaved] = useState(false);
+
+  // Hydrate from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('recurrsive-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, string | boolean>;
+        setValues((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch {
+      // localStorage unavailable or corrupt — use defaults
+    }
+  }, []);
 
   const handleChange = useCallback((key: string, value: string | boolean) => {
     setValues((prev) => ({ ...prev, [key]: value }));

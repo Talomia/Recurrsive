@@ -102,20 +102,131 @@ async function parseConfigFile(filePath: string): Promise<unknown> {
 
   try {
     return JSON.parse(raw) as unknown;
-  } catch { // expected
-    // If .yaml/.yml, attempt a simplistic key:value parse
+  } catch { // expected for non-JSON
+    // If .yaml/.yml, parse as YAML
     if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
-      throw new ConfigError(
-        `YAML config files require valid JSON content. ` +
-          `Please convert ${filePath} to JSON or install a YAML parser.`,
-        'YAML_NOT_SUPPORTED',
-      );
+      try {
+        return parseSimpleYaml(raw);
+      } catch (yamlErr: unknown) {
+        throw new ConfigError(
+          `Failed to parse YAML config file: ${filePath}`,
+          'CONFIG_PARSE_ERROR',
+          yamlErr,
+        );
+      }
     }
     throw new ConfigError(
       `Failed to parse config file as JSON: ${filePath}`,
       'CONFIG_PARSE_ERROR',
     );
   }
+}
+
+/**
+ * Lightweight YAML parser for config files.
+ *
+ * Supports:
+ * - Key-value pairs (`key: value`)
+ * - Nested objects via indentation
+ * - Array items (`- item`)
+ * - Booleans, numbers, null
+ * - Single and double quoted strings
+ * - Comments (`# ...`)
+ * - Empty values (treated as empty string)
+ *
+ * Does NOT support:
+ * - Multi-line strings (`|`, `>`)
+ * - Anchors and aliases (`&`, `*`)
+ * - Flow syntax (`{a: 1}`, `[1, 2]`)
+ * - Tags (`!!str`, `!!int`)
+ *
+ * This is sufficient for Recurrsive config files.
+ */
+function parseSimpleYaml(text: string): unknown {
+  const lines = text.split('\n');
+  const result: Record<string, unknown> = {};
+  const stack: Array<{ indent: number; obj: Record<string, unknown> }> = [
+    { indent: -1, obj: result },
+  ];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+
+    // Skip empty lines and comments
+    const trimmed = line.replace(/#.*$/, '').trimEnd();
+    if (trimmed.trim() === '') continue;
+
+    const indent = line.search(/\S/);
+    if (indent < 0) continue;
+
+    // Pop stack to find parent
+    while (stack.length > 1 && stack[stack.length - 1]!.indent >= indent) {
+      stack.pop();
+    }
+
+    const parent = stack[stack.length - 1]!.obj;
+
+    // Array item
+    if (trimmed.trim().startsWith('- ')) {
+      const arrValue = trimmed.trim().slice(2).trim();
+      // Find which key this array belongs to (last key in parent)
+      const keys = Object.keys(parent);
+      const lastKey = keys[keys.length - 1];
+      if (lastKey && Array.isArray(parent[lastKey])) {
+        (parent[lastKey] as unknown[]).push(parseYamlValue(arrValue));
+      }
+      continue;
+    }
+
+    // Key-value pair
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx > 0) {
+      const key = trimmed.slice(0, colonIdx).trim();
+      const rawVal = trimmed.slice(colonIdx + 1).trim();
+
+      if (rawVal === '' || rawVal === undefined) {
+        // Check if next line is indented more (nested object) or starts with '- ' (array)
+        const nextLine = i + 1 < lines.length ? lines[i + 1]! : '';
+        const nextTrimmed = nextLine.replace(/#.*$/, '').trimEnd();
+        const nextIndent = nextLine.search(/\S/);
+
+        if (nextIndent > indent && nextTrimmed.trim().startsWith('- ')) {
+          // Array
+          parent[key] = [];
+        } else if (nextIndent > indent) {
+          // Nested object
+          const nested: Record<string, unknown> = {};
+          parent[key] = nested;
+          stack.push({ indent, obj: nested });
+        } else {
+          parent[key] = '';
+        }
+      } else {
+        parent[key] = parseYamlValue(rawVal);
+      }
+    }
+  }
+
+  return result;
+}
+
+/** Parse a YAML scalar value into a JS primitive. */
+function parseYamlValue(val: string): unknown {
+  if (val === 'true' || val === 'True' || val === 'TRUE') return true;
+  if (val === 'false' || val === 'False' || val === 'FALSE') return false;
+  if (val === 'null' || val === 'Null' || val === 'NULL' || val === '~') return null;
+
+  // Quoted string
+  if ((val.startsWith("'") && val.endsWith("'")) ||
+      (val.startsWith('"') && val.endsWith('"'))) {
+    return val.slice(1, -1);
+  }
+
+  // Number
+  const num = Number(val);
+  if (!isNaN(num) && val !== '') return num;
+
+  return val;
 }
 
 // ---------------------------------------------------------------------------

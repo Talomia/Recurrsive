@@ -68,8 +68,64 @@ export class ReliabilityAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    // ── Cross-cutting: dependencies without resilience config ────
+    const [dependencies, configs] = await Promise.all([
+      ctx.graph.getEntities('dependency'),
+      ctx.graph.getEntities('config'),
+    ]);
+
+    if (dependencies.length > 0) {
+      const resiliencePatterns = ['retry', 'circuit-breaker', 'circuit_breaker', 'timeout', 'bulkhead', 'rate-limit', 'fallback'];
+
+      const hasResilienceConfig = configs.some((c) =>
+        resiliencePatterns.some(
+          (pattern) =>
+            c.tags.includes(pattern) ||
+            c.name.toLowerCase().includes(pattern) ||
+            c.properties['pattern'] === pattern,
+        ),
+      );
+
+      if (!hasResilienceConfig) {
+        findings.push(
+          createFinding({
+            analyzer_id: this.id,
+            title: 'External dependencies without resilience configuration',
+            description: `Project declares ${dependencies.length} external dependencies but no configuration entities implement resilience patterns (retry, circuit-breaker, timeout, bulkhead). Any transient failure in external services will propagate directly to callers without mitigation.`,
+            severity: 'high',
+            category: 'reliability',
+            evidence: [
+              createEvidence({
+                type: 'metric',
+                source: this.id,
+                description: `${dependencies.length} dependencies, 0 resilience configs among ${configs.length} config entities`,
+                entity_ids: [
+                  ...dependencies.slice(0, 10).map((d) => d.id),
+                  ...configs.slice(0, 5).map((c) => c.id),
+                ],
+                confidence: 0.8,
+                data: {
+                  dependency_count: dependencies.length,
+                  config_count: configs.length,
+                  resilience_config_found: false,
+                  checked_patterns: resiliencePatterns,
+                },
+              }),
+            ],
+            locations: [],
+            suggested_fix:
+              'Add resilience configuration for external dependencies: retry policies with exponential backoff, circuit breakers for degraded services, timeouts for all network calls, and bulkheads to isolate failure domains. Use libraries like opossum, p-retry, or cockatiel.',
+            confidence: 0.75,
+            tags: ['resilience', 'reliability', 'cross-cutting', 'dependencies'],
+          }),
+        );
+      }
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Single Point of Failure ────────────────────────────────

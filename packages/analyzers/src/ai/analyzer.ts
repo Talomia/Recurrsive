@@ -107,8 +107,96 @@ export class AIAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    // ── Cross-cutting: AI usage without evaluations ──────────────
+    const [prompts, agents, models, evaluations, functions] = await Promise.all([
+      ctx.graph.getEntities('prompt'),
+      ctx.graph.getEntities('agent'),
+      ctx.graph.getEntities('model'),
+      ctx.graph.getEntities('evaluation'),
+      ctx.graph.getEntities('function'),
+    ]);
+
+    const totalAiEntities = prompts.length + agents.length + models.length;
+
+    if (totalAiEntities > 0 && evaluations.length === 0) {
+      findings.push(
+        createFinding({
+          analyzer_id: this.id,
+          title: 'AI usage detected with no evaluation pipeline',
+          description: `Project uses ${totalAiEntities} AI entities (${models.length} models, ${prompts.length} prompts, ${agents.length} agents) but has zero evaluation entities. Without evaluations, there is no systematic way to measure quality, catch regressions, or validate prompt changes before deployment.`,
+          severity: 'high',
+          category: 'ai_quality',
+          evidence: [
+            createEvidence({
+              type: 'metric',
+              source: this.id,
+              description: `${totalAiEntities} AI entities with 0 evaluations`,
+              entity_ids: [
+                ...models.map((m) => m.id),
+                ...agents.map((a) => a.id),
+                ...prompts.slice(0, 10).map((p) => p.id),
+              ],
+              confidence: 0.9,
+              data: {
+                model_count: models.length,
+                prompt_count: prompts.length,
+                agent_count: agents.length,
+                evaluation_count: 0,
+              },
+            }),
+          ],
+          locations: [],
+          suggested_fix:
+            'Create evaluation datasets and automated eval pipelines using frameworks like promptfoo, deepeval, or custom harnesses. Add evals for each prompt and agent before deploying to production.',
+          confidence: 0.85,
+          tags: ['missing-evaluation', 'ai', 'cross-cutting', 'quality-assurance'],
+        }),
+      );
+    }
+
+    // ── Cross-cutting: AI-to-function modularity ratio ───────────
+    const aiEntityCount = prompts.length + agents.length;
+    if (aiEntityCount > 5 && functions.length > 0) {
+      const ratio = aiEntityCount / functions.length;
+      if (ratio > 0.5) {
+        findings.push(
+          createFinding({
+            analyzer_id: this.id,
+            title: 'Low function modularity relative to AI complexity',
+            description: `Project has ${aiEntityCount} AI entities (${prompts.length} prompts, ${agents.length} agents) but only ${functions.length} functions (ratio: ${ratio.toFixed(2)}). High AI entity count with few functions suggests AI logic is concentrated in monolithic blocks instead of being decomposed into reusable, testable functions.`,
+            severity: 'medium',
+            category: 'ai_quality',
+            evidence: [
+              createEvidence({
+                type: 'metric',
+                source: this.id,
+                description: `AI-to-function ratio of ${ratio.toFixed(2)} exceeds 0.5 threshold`,
+                entity_ids: [
+                  ...agents.map((a) => a.id),
+                  ...prompts.slice(0, 5).map((p) => p.id),
+                ],
+                confidence: 0.75,
+                data: {
+                  ai_entity_count: aiEntityCount,
+                  function_count: functions.length,
+                  ratio: ratio,
+                },
+              }),
+            ],
+            locations: [],
+            suggested_fix:
+              'Extract AI orchestration logic into smaller, focused functions. Each prompt/agent interaction should be wrapped in a dedicated function for testability, reuse, and independent error handling.',
+            confidence: 0.7,
+            tags: ['modularity', 'ai', 'cross-cutting', 'architecture'],
+          }),
+        );
+      }
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Hardcoded Models ───────────────────────────────────────

@@ -75,8 +75,56 @@ export class PerformanceAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    // ── Cross-cutting: endpoint-to-function ratio ────────────────
+    const [endpoints, functions, modules] = await Promise.all([
+      ctx.graph.getEntities('endpoint'),
+      ctx.graph.getEntities('function'),
+      ctx.graph.getEntities('module'),
+    ]);
+
+    if (endpoints.length > 3 && modules.length > 0) {
+      const avgFunctionsPerModule = functions.length / modules.length;
+
+      if (avgFunctionsPerModule < 3) {
+        findings.push(
+          createFinding({
+            analyzer_id: this.id,
+            title: 'Low function extraction across endpoint modules',
+            description: `Project defines ${endpoints.length} endpoints across ${modules.length} modules but averages only ${avgFunctionsPerModule.toFixed(1)} functions per module. This suggests endpoint handlers contain inline logic that should be extracted into separate functions for better performance profiling, caching granularity, and optimization targeting.`,
+            severity: 'medium',
+            category: 'performance',
+            evidence: [
+              createEvidence({
+                type: 'metric',
+                source: this.id,
+                description: `${endpoints.length} endpoints, ${functions.length} functions across ${modules.length} modules (avg ${avgFunctionsPerModule.toFixed(1)}/module)`,
+                entity_ids: [
+                  ...endpoints.slice(0, 5).map((e) => e.id),
+                  ...modules.slice(0, 5).map((m) => m.id),
+                ],
+                confidence: 0.75,
+                data: {
+                  endpoint_count: endpoints.length,
+                  function_count: functions.length,
+                  module_count: modules.length,
+                  avg_functions_per_module: avgFunctionsPerModule,
+                },
+              }),
+            ],
+            locations: [],
+            suggested_fix:
+              'Extract inline handler logic into named functions. This enables targeted performance profiling, memoization of hot paths, and independent optimization of bottleneck functions.',
+            confidence: 0.7,
+            tags: ['function-extraction', 'performance', 'cross-cutting', 'modularity'],
+          }),
+        );
+      }
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Sequential LLM Calls ──────────────────────────────────

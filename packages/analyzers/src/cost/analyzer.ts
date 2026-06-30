@@ -92,8 +92,48 @@ export class CostAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    // ── Cross-cutting: multiple models without cost tracking ─────
+    const [models, costMetrics] = await Promise.all([
+      ctx.graph.getEntities('model'),
+      ctx.graph.getEntities('cost_metric'),
+    ]);
+
+    if (models.length > 2 && costMetrics.length === 0) {
+      const modelNames = models.map((m) => m.name).join(', ');
+      findings.push(
+        createFinding({
+          analyzer_id: this.id,
+          title: 'Multiple AI models without cost tracking',
+          description: `Project uses ${models.length} AI models (${modelNames}) but has no cost_metric entities. With multiple models, cost variance can be significant (up to 100x between model tiers). Without cost tracking, budget overruns from model selection mistakes or traffic spikes will go undetected.`,
+          severity: 'high',
+          category: 'cost',
+          evidence: [
+            createEvidence({
+              type: 'metric',
+              source: this.id,
+              description: `${models.length} models configured, 0 cost metrics defined`,
+              entity_ids: models.map((m) => m.id),
+              confidence: 0.85,
+              data: {
+                model_count: models.length,
+                model_names: models.map((m) => m.name),
+                cost_metric_count: 0,
+              },
+            }),
+          ],
+          locations: [],
+          suggested_fix:
+            'Implement cost tracking per model: log token usage (input/output) per request, calculate cost using provider pricing, aggregate by model and function. Set up cost_metric entities with daily/weekly rollups and budget alerts.',
+          confidence: 0.8,
+          tags: ['cost-tracking', 'cost', 'cross-cutting', 'multi-model'],
+        }),
+      );
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Expensive Model Overuse ────────────────────────────────
