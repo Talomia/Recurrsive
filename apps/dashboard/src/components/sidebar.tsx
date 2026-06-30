@@ -17,6 +17,7 @@ import {
   Zap,
   Menu,
   X,
+  Search,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
   { href: "/insights", label: "Insights", icon: Sparkles },
   { href: "/system-map", label: "System Map", icon: Network },
+  { href: "/search", label: "Search", icon: Search },
   { href: "/reports", label: "Reports", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;

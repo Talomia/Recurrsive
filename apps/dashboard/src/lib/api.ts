@@ -110,6 +110,8 @@ export interface GraphEntity {
   id: string;
   name: string;
   type: string;
+  qualified_name?: string;
+  description?: string;
   properties?: Record<string, unknown>;
 }
 
@@ -643,6 +645,32 @@ export async function getGraphEntities(type?: string, search?: string, limit = 5
   try {
     const raw = await apiFetch<{ data: GraphEntity[] } | null>(
       `/api/v1/graph/entities?${query.toString()}`,
+      null,
+    );
+    return raw?.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Full-text search for entities via `GET /api/v1/graph/search`.
+ *
+ * Uses FTS5 with BM25 ranking for fast, relevant results.
+ */
+export async function searchGraphEntities(
+  q: string,
+  type?: string,
+  limit = 50,
+): Promise<GraphEntity[]> {
+  const query = new URLSearchParams();
+  query.set("q", q);
+  if (type) query.set("type", type);
+  query.set("limit", String(limit));
+
+  try {
+    const raw = await apiFetch<{ data: GraphEntity[] } | null>(
+      `/api/v1/graph/search?${query.toString()}`,
       null,
     );
     return raw?.data ?? [];

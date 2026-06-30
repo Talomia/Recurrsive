@@ -26,6 +26,7 @@ import {
   registerHealthCommand,
   registerReportCommand,
   registerConfigCommand,
+  registerSearchCommand,
 } from './commands/index.js';
 
 /**
@@ -58,6 +59,7 @@ export function createProgram(): Command {
   registerHealthCommand(program);
   registerReportCommand(program);
   registerConfigCommand(program);
+  registerSearchCommand(program);
 
   return program;
 }
