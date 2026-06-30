@@ -8,6 +8,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerReportResources } from './reports.js';
+import { registerGovernanceResources } from './governance.js';
 
 /**
  * Register all MCP resources with the server.
@@ -16,4 +17,6 @@ import { registerReportResources } from './reports.js';
  */
 export function registerResources(server: McpServer): void {
   registerReportResources(server);
+  registerGovernanceResources(server);
 }
+

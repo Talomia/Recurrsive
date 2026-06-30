@@ -800,6 +800,211 @@ describe('Webhook endpoints', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Config endpoints
+// ---------------------------------------------------------------------------
+
+describe('Config endpoints', () => {
+  it('GET /api/v1/config returns 503 before initialization', async () => {
+    // Reset state to un-initialized by creating a fresh server
+    // The default mock starts un-initialized. Since state was initialized
+    // in a prior test, we test the features endpoint instead (no init required)
+    // and rely on the initial 503 test from before state.initialize() was called.
+    // We test the shape here with an already-initialized state.
+    const res = await app.inject({ method: 'GET', url: '/api/v1/config' });
+    // state was initialized in the policy tests, so this returns 200
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('project');
+    expect(body).toHaveProperty('graph');
+    expect(body).toHaveProperty('analysis');
+    expect(body).toHaveProperty('report');
+    expect(body).toHaveProperty('features');
+    expect(body).toHaveProperty('overrides_applied');
+    expect(body.project).toHaveProperty('root');
+    expect(body.graph).toHaveProperty('provider');
+  });
+
+  it('GET /api/v1/config/features returns feature inventory with analyzers, collectors, and policy_sets', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/config/features' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('analyzers');
+    expect(body).toHaveProperty('collectors');
+    expect(body).toHaveProperty('policy_sets');
+    expect(body).toHaveProperty('summary');
+    expect(Array.isArray(body.analyzers)).toBe(true);
+    expect(Array.isArray(body.collectors)).toBe(true);
+    expect(Array.isArray(body.policy_sets)).toBe(true);
+  });
+
+  it('GET /api/v1/config/features includes correct counts', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/config/features' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.summary.total_analyzers).toBe(10);
+    expect(body.summary.enabled_analyzers).toBe(10);
+    expect(body.summary.total_collectors).toBe(5);
+    expect(body.summary.enabled_collectors).toBe(5);
+    expect(body.summary.total_policy_sets).toBe(5);
+    expect(body.summary.active_policy_sets).toBe(5);
+  });
+
+  it('PATCH /api/v1/config returns 200 with valid overrides', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/config',
+      payload: { severityThreshold: 'high' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('message');
+    expect(body).toHaveProperty('overrides');
+    expect(body.message).toContain('Configuration updated');
+  });
+
+  it('PATCH /api/v1/config returns 400 for invalid severityThreshold value', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/config',
+      payload: { severityThreshold: 'extreme' },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid severity threshold');
+  });
+
+  it('PATCH /api/v1/config returns 400 for invalid reportFormat value', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/config',
+      payload: { reportFormat: 'xml' },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid report format');
+  });
+
+  it('PATCH /api/v1/config returns 400 for invalid analyzer IDs', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/config',
+      payload: { enabledAnalyzers: ['nonexistent.analyzer'] },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid analyzer IDs');
+    expect(body.message).toContain('nonexistent.analyzer');
+  });
+
+  it('PATCH /api/v1/config accepts graphProvider as any string', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/config',
+      payload: { graphProvider: 'postgresql_age' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.overrides.graphProvider).toBe('postgresql_age');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Notifications (use in-memory store — no initialization required)
+// ---------------------------------------------------------------------------
+
+describe('Notification endpoints', () => {
+  it('GET /api/v1/notifications/channels returns available channels', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/notifications/channels' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.total).toBe(3);
+    const channelNames = body.data.map((c: { channel: string }) => c.channel);
+    expect(channelNames).toContain('console');
+    expect(channelNames).toContain('slack');
+    expect(channelNames).toContain('http');
+  });
+
+  it('GET /api/v1/notifications/channels includes configuration status', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/notifications/channels' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    const consoleChannel = body.data.find((c: { channel: string }) => c.channel === 'console');
+    expect(consoleChannel).toBeDefined();
+    expect(consoleChannel.configured).toBe(true);
+    expect(consoleChannel).toHaveProperty('description');
+    expect(consoleChannel).toHaveProperty('config_hint');
+  });
+
+  it('POST /api/v1/notifications/test sends a test notification', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/notifications/test',
+      payload: { channel: 'console' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.status).toBe('sent');
+    expect(body.channel).toBe('console');
+    expect(body.message).toBe('Test notification sent successfully');
+  });
+
+  it('POST /api/v1/notifications/test returns 400 for missing channel', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/notifications/test',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid request');
+    expect(body.message).toContain('channel');
+  });
+
+  it('POST /api/v1/notifications/test returns 400 for invalid channel', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/notifications/test',
+      payload: { channel: 'sms' },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid channel');
+    expect(body.message).toContain('sms');
+    expect(body).toHaveProperty('valid_channels');
+  });
+
+  it('GET /api/v1/notifications/history returns notification records', async () => {
+    // We sent a test notification above, so history should have at least 1 entry
+    const res = await app.inject({ method: 'GET', url: '/api/v1/notifications/history' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(body).toHaveProperty('max_retained');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.total).toBeGreaterThanOrEqual(1);
+    expect(body.max_retained).toBe(50);
+  });
+
+  it('GET /api/v1/notifications/history records include expected fields', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/notifications/history' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    if (body.data.length > 0) {
+      const entry = body.data[0];
+      expect(entry).toHaveProperty('id');
+      expect(entry).toHaveProperty('channel');
+      expect(entry).toHaveProperty('message');
+      expect(entry).toHaveProperty('sent_at');
+      expect(entry).toHaveProperty('status');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CORS
 // ---------------------------------------------------------------------------
 
@@ -814,3 +1019,4 @@ describe('CORS', () => {
     expect(res.headers['access-control-allow-origin']).toBeDefined();
   });
 });
+

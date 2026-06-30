@@ -20,6 +20,7 @@ import {
   Search,
   Shield,
   Clock,
+  Webhook,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { href: "/insights", label: "Insights", icon: Sparkles },
   { href: "/system-map", label: "System Map", icon: Network },
   { href: "/timeline", label: "Timeline", icon: Clock },
+  { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/search", label: "Search", icon: Search },
   { href: "/reports", label: "Reports", icon: FileText },
   { href: "/policies", label: "Policies", icon: Shield },

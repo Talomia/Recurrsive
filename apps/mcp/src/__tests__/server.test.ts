@@ -4,7 +4,7 @@
  * Tests cover:
  * - Server has correct name and version
  * - All 18 tools are registered
- * - All 4 resources are registered
+ * - All 6 resources are registered
  * - All 9 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
  * - createServer returns a valid McpServer instance
@@ -368,9 +368,9 @@ describe('MCP Server', () => {
   // ── Resource Registration ──────────────────────────────────────────────
 
   describe('resource registration', () => {
-    it('registers exactly 4 resources', () => {
+    it('registers exactly 6 resources', () => {
       createServer();
-      expect(mockResource).toHaveBeenCalledTimes(4);
+      expect(mockResource).toHaveBeenCalledTimes(6);
     });
 
     it('registers "health-latest" resource', () => {
@@ -422,6 +422,24 @@ describe('MCP Server', () => {
       expect(uris).toContain('recurrsive://opportunities/top');
       expect(uris).toContain('recurrsive://graph/summary');
       expect(uris).toContain('recurrsive://timeline/latest');
+      expect(uris).toContain('recurrsive://policies/active');
+      expect(uris).toContain('recurrsive://webhooks/status');
+    });
+
+    it('registers "policies-active" resource', () => {
+      createServer();
+      const resourceNames = mockResource.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(resourceNames).toContain('policies-active');
+    });
+
+    it('registers "webhooks-status" resource', () => {
+      createServer();
+      const resourceNames = mockResource.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(resourceNames).toContain('webhooks-status');
     });
 
     it('each resource has a handler function as the last argument', () => {

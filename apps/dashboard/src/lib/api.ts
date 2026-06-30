@@ -1223,3 +1223,101 @@ export async function getTimelineTrends(): Promise<TrendData> {
     return MOCK_TREND_DATA;
   }
 }
+
+// ─── Webhook Types ───────────────────────────────────────────────────────────
+
+export interface WebhookRegistration {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  created_at: string;
+  delivery_count: number;
+  failure_count: number;
+}
+
+export interface WebhookEvent {
+  type: string;
+  description: string;
+}
+
+// ─── Webhook Mock Data ───────────────────────────────────────────────────────
+
+const MOCK_WEBHOOKS: WebhookRegistration[] = [
+  {
+    id: "wh_000001",
+    url: "https://ci.example.com/recurrsive/hooks",
+    events: ["analysis.complete", "policy.violation"],
+    active: true,
+    created_at: "2026-06-15T08:00:00Z",
+    delivery_count: 42,
+    failure_count: 0,
+  },
+  {
+    id: "wh_000002",
+    url: "https://slack.example.com/webhooks/recurrsive",
+    events: ["opportunity.created", "health.degraded"],
+    active: true,
+    created_at: "2026-06-20T14:30:00Z",
+    delivery_count: 18,
+    failure_count: 2,
+  },
+  {
+    id: "wh_000003",
+    url: "https://pagerduty.example.com/v2/enqueue",
+    events: ["analysis.failed", "health.degraded", "policy.violation"],
+    active: false,
+    created_at: "2026-06-10T10:00:00Z",
+    delivery_count: 7,
+    failure_count: 5,
+  },
+];
+
+const MOCK_WEBHOOK_EVENTS: WebhookEvent[] = [
+  { type: "analysis.complete", description: "Triggered when an analysis run completes successfully" },
+  { type: "analysis.failed", description: "Triggered when an analysis run fails" },
+  { type: "opportunity.created", description: "Triggered when a new opportunity is identified" },
+  { type: "opportunity.updated", description: "Triggered when an opportunity status changes" },
+  { type: "policy.violation", description: "Triggered when a policy check finds a violation" },
+  { type: "health.degraded", description: "Triggered when the project health score drops below threshold" },
+  { type: "snapshot.created", description: "Triggered when a new knowledge graph snapshot is saved" },
+];
+
+// ─── Webhooks ────────────────────────────────────────────────────────────────
+
+/**
+ * Get all registered webhooks from `GET /api/v1/webhooks`.
+ *
+ * Server returns: `{ data: WebhookRegistration[], total }`
+ */
+export async function getWebhooks(): Promise<WebhookRegistration[]> {
+  try {
+    const raw = await apiFetch<{
+      data: WebhookRegistration[];
+      total: number;
+    } | null>("/api/v1/webhooks", null);
+
+    if (!raw?.data?.length) return MOCK_WEBHOOKS;
+    return raw.data;
+  } catch {
+    return MOCK_WEBHOOKS;
+  }
+}
+
+/**
+ * Get supported webhook event types from `GET /api/v1/webhooks/events`.
+ *
+ * Server returns: `{ data: [{ event, description }] }`
+ */
+export async function getWebhookEvents(): Promise<WebhookEvent[]> {
+  try {
+    const raw = await apiFetch<{
+      data: Array<{ event: string; description: string }>;
+    } | null>("/api/v1/webhooks/events", null);
+
+    if (!raw?.data?.length) return MOCK_WEBHOOK_EVENTS;
+    return raw.data.map((e) => ({ type: e.event, description: e.description }));
+  } catch {
+    return MOCK_WEBHOOK_EVENTS;
+  }
+}

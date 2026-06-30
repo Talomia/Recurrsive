@@ -16,6 +16,7 @@
  * - `snapshot` — Export and import knowledge graph snapshots
  * - `policy` — Policy compliance checks
  * - `webhooks` — Manage webhook integrations
+ * - `notifications` — Manage notification channels
  *
  * @packageDocumentation
  */
@@ -35,6 +36,7 @@ import {
   registerPolicyCommand,
   registerWebhooksCommand,
 } from './commands/index.js';
+import { registerNotificationsCommand } from './commands/notifications.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -70,6 +72,7 @@ export function createProgram(): Command {
   registerSnapshotCommand(program);
   registerPolicyCommand(program);
   registerWebhooksCommand(program);
+  registerNotificationsCommand(program);
 
   return program;
 }
