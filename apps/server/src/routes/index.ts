@@ -25,6 +25,7 @@ import { registerAuditRoutes } from './audit.js';
 import { registerAnalyticsRoutes } from './analytics.js';
 import { registerExperimentRoutes } from './experiments.js';
 import { registerSearchRoutes } from './search.js';
+import { registerExportRoutes } from './export.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -48,6 +49,7 @@ import { registerSearchRoutes } from './search.js';
  * - `/api/v1/analytics/*` — Analytics summary and categories
  * - `/api/v1/experiments/*` — A/B experiment management
  * - `/api/v1/search` — Cross-entity keyword search
+ * - `/api/v1/export/*` — Data export in JSON, CSV, Markdown
  *
  * @param app - The Fastify application instance.
  */
@@ -69,4 +71,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerAnalyticsRoutes(app);
   await registerExperimentRoutes(app);
   await registerSearchRoutes(app);
+  await registerExportRoutes(app);
 }

@@ -27,14 +27,20 @@ import {
   History,
   FlaskConical,
   GitCompare,
+  ShieldAlert,
+  HeartPulse,
+  Camera,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Intelligence Overview", icon: LayoutDashboard },
   { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
+  { href: "/findings", label: "Findings", icon: ShieldAlert },
   { href: "/insights", label: "Insights", icon: Sparkles },
   { href: "/system-map", label: "System Map", icon: Network },
   { href: "/timeline", label: "Timeline", icon: Clock },
+  { href: "/health", label: "Health", icon: HeartPulse },
+  { href: "/snapshots", label: "Snapshots", icon: Camera },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/batch", label: "Batch", icon: Layers },

@@ -159,6 +159,7 @@ export {
   slugify,
   deepMerge,
   debounce,
+  LRUCache,
 } from './utils/index.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────

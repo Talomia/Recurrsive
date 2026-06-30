@@ -47,6 +47,7 @@ import { registerAuditCommand } from './commands/audit.js';
 import { registerAnalyticsCommand } from './commands/analytics.js';
 import { registerExperimentsCommand } from './commands/experiments.js';
 import { registerComparisonsCommand } from './commands/comparisons.js';
+import { registerExportCommand } from './commands/export.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -88,6 +89,7 @@ export function createProgram(): Command {
   registerAnalyticsCommand(program);
   registerExperimentsCommand(program);
   registerComparisonsCommand(program);
+  registerExportCommand(program);
 
   return program;
 }

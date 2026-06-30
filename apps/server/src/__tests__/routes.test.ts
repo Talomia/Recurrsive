@@ -157,7 +157,7 @@ import { createServer } from '../index.js';
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = await createServer({ logger: false });
+  app = await createServer({ logger: false, rateLimitMax: 200 });
   await app.ready();
 });
 
@@ -1309,6 +1309,97 @@ describe('Experiment Routes', () => {
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.payload);
     expect(body.error).toContain('Invalid status');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export Routes
+// ---------------------------------------------------------------------------
+
+describe('Export Routes', () => {
+  it('POST /api/v1/export creates export', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/export',
+      payload: { format: 'json', scope: 'findings' },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('export_id');
+    expect(body.format).toBe('json');
+    expect(body.scope).toBe('findings');
+    expect(body.status).toBe('completed');
+    expect(body).toHaveProperty('download_url');
+    expect(body).toHaveProperty('record_count');
+    expect(body).toHaveProperty('generated_at');
+  });
+
+  it('POST /api/v1/export validates format', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/export',
+      payload: { format: 'xml', scope: 'findings' },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid format');
+  });
+
+  it('POST /api/v1/export validates scope', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/export',
+      payload: { format: 'json', scope: 'invalid' },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid scope');
+  });
+
+  it('GET /api/v1/export/:id/download returns content', async () => {
+    // First create an export to get an ID
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/export',
+      payload: { format: 'json', scope: 'findings' },
+    });
+    const { export_id } = JSON.parse(createRes.payload);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/export/${export_id}/download`,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.length).toBeGreaterThan(0);
+  });
+
+  it('GET /api/v1/export/history returns list', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/export/history',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.total).toBeGreaterThan(0);
+  });
+
+  it('POST /api/v1/export with filters works', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/export',
+      payload: {
+        format: 'csv',
+        scope: 'all',
+        filters: { severity: 'high', category: 'security' },
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.payload);
+    expect(body.format).toBe('csv');
+    expect(body.scope).toBe('all');
   });
 });
 

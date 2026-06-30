@@ -44,3 +44,5 @@ export {
   deepMerge,
   debounce,
 } from './validation.js';
+
+export { LRUCache } from './cache.js';

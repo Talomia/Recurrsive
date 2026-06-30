@@ -15,6 +15,7 @@ import { registerBatchTools } from './batch.js';
 import { registerExperimentTools } from './experiments.js';
 import { registerSearchTools } from './search.js';
 import { registerSnapshotTools } from './snapshots.js';
+import { registerExportTools } from './export.js';
 
 /**
  * Register all MCP tools with the server.
@@ -30,4 +31,5 @@ export function registerTools(server: McpServer): void {
   registerExperimentTools(server);
   registerSearchTools(server);
   registerSnapshotTools(server);
+  registerExportTools(server);
 }

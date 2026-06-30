@@ -2289,3 +2289,482 @@ export async function searchAll(
   return results.length > 0 ? results : MOCK_SEARCH_RESULTS;
 }
 
+// ─── Findings Page Types ─────────────────────────────────────────────────────
+
+export interface FindingsPageItem {
+  id: string;
+  title: string;
+  severity: "critical" | "high" | "medium" | "low";
+  category: string;
+  status: "open" | "resolved" | "suppressed";
+  assignee: string;
+  created_at: string;
+}
+
+export interface FindingsPageData {
+  findings: FindingsPageItem[];
+  stats: {
+    total: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+}
+
+// ─── Findings Page Mock Data ─────────────────────────────────────────────────
+
+const MOCK_FINDINGS_PAGE: FindingsPageData = {
+  findings: [
+    { id: "FND-001", title: "SQL injection vulnerability in user search endpoint", severity: "critical", category: "Security", status: "open", assignee: "Alice Chen", created_at: "2026-06-30T08:12:00Z" },
+    { id: "FND-002", title: "Hardcoded API key in configuration module", severity: "critical", category: "Security", status: "open", assignee: "Bob Kim", created_at: "2026-06-29T14:30:00Z" },
+    { id: "FND-003", title: "Memory leak in WebSocket connection handler", severity: "high", category: "Performance", status: "open", assignee: "Carol Diaz", created_at: "2026-06-29T09:15:00Z" },
+    { id: "FND-004", title: "Missing rate limiting on public API endpoints", severity: "high", category: "Security", status: "open", assignee: "Alice Chen", created_at: "2026-06-28T16:45:00Z" },
+    { id: "FND-005", title: "Circular dependency between order and inventory modules", severity: "medium", category: "Architecture", status: "resolved", assignee: "Dave Patel", created_at: "2026-06-28T11:20:00Z" },
+    { id: "FND-006", title: "Unhandled promise rejection in payment callback", severity: "high", category: "Reliability", status: "open", assignee: "Eve Torres", created_at: "2026-06-27T15:00:00Z" },
+    { id: "FND-007", title: "Missing CSRF protection on state-changing endpoints", severity: "medium", category: "Security", status: "suppressed", assignee: "Alice Chen", created_at: "2026-06-27T10:30:00Z" },
+    { id: "FND-008", title: "Excessive logging causing disk space issues", severity: "low", category: "Operations", status: "resolved", assignee: "Frank Nguyen", created_at: "2026-06-26T14:15:00Z" },
+    { id: "FND-009", title: "Deprecated crypto algorithm in token generation", severity: "medium", category: "Security", status: "open", assignee: "Bob Kim", created_at: "2026-06-26T09:00:00Z" },
+    { id: "FND-010", title: "Missing health check endpoint for load balancer", severity: "low", category: "Reliability", status: "open", assignee: "Carol Diaz", created_at: "2026-06-25T17:30:00Z" },
+  ],
+  stats: { total: 10, critical: 2, high: 3, medium: 3, low: 2 },
+};
+
+// ─── Findings Page API ───────────────────────────────────────────────────────
+
+/**
+ * Get findings page data with stats and filterable list.
+ */
+export async function getFindingsPage(): Promise<FindingsPageData> {
+  try {
+    const raw = await apiFetch<{ data: FindingsPageData } | null>(
+      "/api/v1/findings/page",
+      null,
+    );
+    return raw?.data ?? MOCK_FINDINGS_PAGE;
+  } catch {
+    return MOCK_FINDINGS_PAGE;
+  }
+}
+
+// ─── Health Dashboard Types ──────────────────────────────────────────────────
+
+export interface ServiceStatus {
+  name: string;
+  status: "healthy" | "degraded" | "down";
+  latency_ms?: number;
+  uptime_percent?: number;
+  last_check: string;
+}
+
+export interface HealthDashboardData {
+  overall_score: number;
+  api_latency_ms: number;
+  memory_usage_percent: number;
+  cpu_usage_percent: number;
+  uptime_days: number;
+  services: ServiceStatus[];
+}
+
+// ─── Health Dashboard Mock Data ──────────────────────────────────────────────
+
+const MOCK_HEALTH_DASHBOARD: HealthDashboardData = {
+  overall_score: 92,
+  api_latency_ms: 142,
+  memory_usage_percent: 67,
+  cpu_usage_percent: 34,
+  uptime_days: 42,
+  services: [
+    { name: "Database (PostgreSQL)", status: "healthy", latency_ms: 8, uptime_percent: 99.99, last_check: "2026-06-30T20:40:00Z" },
+    { name: "Cache (Redis)", status: "healthy", latency_ms: 2, uptime_percent: 99.98, last_check: "2026-06-30T20:40:00Z" },
+    { name: "Queue (RabbitMQ)", status: "degraded", latency_ms: 45, uptime_percent: 99.85, last_check: "2026-06-30T20:40:00Z" },
+    { name: "Storage (S3)", status: "healthy", latency_ms: 22, uptime_percent: 99.99, last_check: "2026-06-30T20:40:00Z" },
+  ],
+};
+
+// ─── Health Dashboard API ────────────────────────────────────────────────────
+
+/**
+ * Get system health dashboard data.
+ */
+export async function getHealthDashboard(): Promise<HealthDashboardData> {
+  try {
+    const raw = await apiFetch<{ data: HealthDashboardData } | null>(
+      "/api/v1/health/dashboard",
+      null,
+    );
+    return raw?.data ?? MOCK_HEALTH_DASHBOARD;
+  } catch {
+    return MOCK_HEALTH_DASHBOARD;
+  }
+}
+
+// ─── Snapshots Page Types ────────────────────────────────────────────────────
+
+export interface ProjectSnapshot {
+  id: string;
+  date: string;
+  health_score: number;
+  findings_count: number;
+  opportunities_count: number;
+  trigger: "manual" | "scheduled" | "ci";
+  summary: string;
+  dimensions: Record<string, number>;
+}
+
+// ─── Snapshots Mock Data ─────────────────────────────────────────────────────
+
+const MOCK_PROJECT_SNAPSHOTS: ProjectSnapshot[] = [
+  { id: "snap-2026-06-30", date: "2026-06-30T10:02:34Z", health_score: 87, findings_count: 47, opportunities_count: 23, trigger: "scheduled", summary: "Steady improvement in architecture and security dimensions. 4 new opportunities identified.", dimensions: { architecture: 72, security: 58, reliability: 85, testing: 62 } },
+  { id: "snap-2026-06-29", date: "2026-06-29T09:01:48Z", health_score: 82, findings_count: 42, opportunities_count: 19, trigger: "scheduled", summary: "Moderate progress with 3 opportunities resolved. Queue latency slightly elevated.", dimensions: { architecture: 68, security: 54, reliability: 84, testing: 60 } },
+  { id: "snap-2026-06-28", date: "2026-06-28T14:32:12Z", health_score: 76, findings_count: 51, opportunities_count: 25, trigger: "manual", summary: "Spike in findings after new analyzer rules added. Security score dropped due to deprecated auth flow.", dimensions: { architecture: 65, security: 48, reliability: 83, testing: 58 } },
+  { id: "snap-2026-06-27", date: "2026-06-27T08:16:55Z", health_score: 74, findings_count: 38, opportunities_count: 17, trigger: "scheduled", summary: "Baseline analysis after infrastructure changes. Reliability improved after circuit breaker addition.", dimensions: { architecture: 63, security: 47, reliability: 82, testing: 55 } },
+  { id: "snap-2026-06-25", date: "2026-06-25T16:02:20Z", health_score: 71, findings_count: 55, opportunities_count: 28, trigger: "ci", summary: "CI-triggered analysis after major merge. High number of findings from new code paths.", dimensions: { architecture: 60, security: 45, reliability: 80, testing: 52 } },
+  { id: "snap-2026-06-23", date: "2026-06-23T10:30:00Z", health_score: 69, findings_count: 48, opportunities_count: 22, trigger: "manual", summary: "Manual analysis requested by team lead. Focus on performance bottlenecks.", dimensions: { architecture: 58, security: 44, reliability: 78, testing: 50 } },
+  { id: "snap-2026-06-20", date: "2026-06-20T08:00:00Z", health_score: 65, findings_count: 52, opportunities_count: 30, trigger: "scheduled", summary: "Weekly scheduled analysis. Architecture score improving after refactoring sprint.", dimensions: { architecture: 55, security: 42, reliability: 76, testing: 48 } },
+  { id: "snap-2026-06-15", date: "2026-06-15T14:00:00Z", health_score: 60, findings_count: 58, opportunities_count: 35, trigger: "scheduled", summary: "Initial baseline scan of the codebase. Identified key areas for improvement.", dimensions: { architecture: 50, security: 38, reliability: 72, testing: 45 } },
+];
+
+// ─── Snapshots API ───────────────────────────────────────────────────────────
+
+/**
+ * Get project snapshots for the timeline page.
+ */
+export async function getSnapshots(): Promise<ProjectSnapshot[]> {
+  try {
+    const raw = await apiFetch<{ data: ProjectSnapshot[]; total: number } | null>(
+      "/api/v1/snapshots",
+      null,
+    );
+    if (!raw?.data?.length) return MOCK_PROJECT_SNAPSHOTS;
+    return raw.data;
+  } catch {
+    return MOCK_PROJECT_SNAPSHOTS;
+  }
+}
+
+// ─── Policy Detail Types ─────────────────────────────────────────────────────
+
+export interface PolicyDetailViolation {
+  id: string;
+  rule_id: string;
+  rule_name: string;
+  opportunity_id: string;
+  opportunity_title: string;
+  detected_at: string;
+  status: "active" | "resolved" | "waived";
+}
+
+export interface PolicyDetail {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  severity: string;
+  category: string;
+  scope: string;
+  rules: PolicyRule[];
+  config: Record<string, unknown>;
+  violations: PolicyDetailViolation[];
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Policy Detail Mock Data ─────────────────────────────────────────────────
+
+const MOCK_POLICY_DETAILS: Record<string, PolicyDetail> = {
+  "builtin-quality-gates": {
+    id: "builtin-quality-gates",
+    name: "Quality Gates",
+    description: "Enforce minimum quality standards for all opportunities before implementation. Ensures that low-confidence or low-impact opportunities are flagged for review.",
+    enabled: true,
+    severity: "high",
+    category: "Quality",
+    scope: "opportunity",
+    rules: [
+      { id: "qg-min-confidence", name: "Minimum Confidence", scope: "opportunity", action: "block", condition: "confidence >= 60", description: "Block opportunities with confidence below 60%" },
+      { id: "qg-min-impact", name: "Minimum Impact", scope: "opportunity", action: "warn", condition: "impact >= 40", description: "Warn on opportunities with impact below 40%" },
+      { id: "qg-evidence-required", name: "Evidence Required", scope: "opportunity", action: "block", condition: "evidence.length >= 1", description: "Require at least one piece of evidence" },
+    ],
+    config: { min_confidence: 60, min_impact: 40, require_evidence: true, auto_suppress_low_confidence: false },
+    violations: [
+      { id: "viol-001", rule_id: "qg-min-confidence", rule_name: "Minimum Confidence", opportunity_id: "OPP-2850", opportunity_title: "Refactor utility functions", detected_at: "2026-06-30T08:00:00Z", status: "active" },
+      { id: "viol-002", rule_id: "qg-evidence-required", rule_name: "Evidence Required", opportunity_id: "OPP-2848", opportunity_title: "Update logging framework", detected_at: "2026-06-29T12:00:00Z", status: "resolved" },
+    ],
+    created_at: "2026-06-01T00:00:00Z",
+    updated_at: "2026-06-28T10:00:00Z",
+  },
+  "builtin-risk-management": {
+    id: "builtin-risk-management",
+    name: "Risk Management",
+    description: "Prevent high-risk changes from being auto-approved without human review. Critical for maintaining system stability.",
+    enabled: true,
+    severity: "critical",
+    category: "Governance",
+    scope: "opportunity",
+    rules: [
+      { id: "rm-high-risk", name: "High Risk Review", scope: "opportunity", action: "require_approval", condition: "risk_level != 'high' OR has_approval", description: "Require approval for high-risk changes" },
+      { id: "rm-critical-severity", name: "Critical Severity Gate", scope: "opportunity", action: "require_approval", condition: "severity != 'critical' OR has_approval", description: "Require approval for critical severity items" },
+    ],
+    config: { auto_approve_low_risk: true, approval_timeout_hours: 72, escalation_enabled: true },
+    violations: [
+      { id: "viol-003", rule_id: "rm-high-risk", rule_name: "High Risk Review", opportunity_id: "OPP-2847", opportunity_title: "Migrate legacy authentication to OAuth 2.1 PKCE flow", detected_at: "2026-06-28T14:30:00Z", status: "active" },
+    ],
+    created_at: "2026-06-01T00:00:00Z",
+    updated_at: "2026-06-29T16:00:00Z",
+  },
+  "builtin-security": {
+    id: "builtin-security",
+    name: "Security Policies",
+    description: "Ensure security-related findings are prioritized and reviewed by security team before implementation.",
+    enabled: true,
+    severity: "critical",
+    category: "Security",
+    scope: "opportunity",
+    rules: [
+      { id: "sec-review", name: "Security Review Required", scope: "opportunity", action: "require_approval", condition: "category != 'Security' OR security_reviewed", description: "Security changes require team review" },
+      { id: "sec-min-score", name: "Security Minimum Score", scope: "opportunity", action: "block", condition: "category != 'Security' OR score >= 70", description: "Block low-score security changes" },
+    ],
+    config: { require_security_review: true, min_security_score: 70, alert_on_critical: true },
+    violations: [],
+    created_at: "2026-06-01T00:00:00Z",
+    updated_at: "2026-06-30T09:00:00Z",
+  },
+};
+
+// ─── Policy Detail API ───────────────────────────────────────────────────────
+
+/**
+ * Get a single policy detail by ID.
+ */
+export async function getPolicy(id: string): Promise<PolicyDetail | null> {
+  try {
+    const raw = await apiFetch<{ data: PolicyDetail } | null>(
+      `/api/v1/policies/${encodeURIComponent(id)}`,
+      null,
+    );
+    if (raw?.data) return raw.data;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_POLICY_DETAILS[id] ?? null;
+}
+
+// ─── Batch Job Detail Types ──────────────────────────────────────────────────
+
+export interface BatchJobTask {
+  id: string;
+  name: string;
+  status: "pending" | "running" | "completed" | "failed";
+  started_at?: string;
+  completed_at?: string;
+  error?: string;
+  findings_count?: number;
+}
+
+export interface BatchJobDetail {
+  batch_id: string;
+  name: string;
+  status: "queued" | "running" | "completed" | "failed";
+  progress_percent: number;
+  items_processed: number;
+  total_items: number;
+  duration_ms: number;
+  started_at: string;
+  completed_at?: string;
+  tasks: BatchJobTask[];
+  errors: string[];
+}
+
+// ─── Batch Job Detail Mock Data ──────────────────────────────────────────────
+
+const MOCK_BATCH_JOB_DETAILS: Record<string, BatchJobDetail> = {
+  batch_000003: {
+    batch_id: "batch_000003",
+    name: "Multi-Repo Analysis — Sprint 12",
+    status: "running",
+    progress_percent: 45,
+    items_processed: 1,
+    total_items: 3,
+    duration_ms: 135000,
+    started_at: "2026-06-30T14:00:00Z",
+    tasks: [
+      { id: "task-001", name: "api-gateway analysis", status: "completed", started_at: "2026-06-30T14:00:00Z", completed_at: "2026-06-30T14:02:15Z", findings_count: 12 },
+      { id: "task-002", name: "auth-service analysis", status: "running", started_at: "2026-06-30T14:02:16Z" },
+      { id: "task-003", name: "payment-service analysis", status: "pending" },
+    ],
+    errors: [],
+  },
+  batch_000002: {
+    batch_id: "batch_000002",
+    name: "Frontend Services Scan",
+    status: "completed",
+    progress_percent: 100,
+    items_processed: 3,
+    total_items: 3,
+    duration_ms: 480000,
+    started_at: "2026-06-29T10:00:00Z",
+    completed_at: "2026-06-29T10:08:00Z",
+    tasks: [
+      { id: "task-004", name: "web-client analysis", status: "completed", started_at: "2026-06-29T10:00:00Z", completed_at: "2026-06-29T10:03:45Z", findings_count: 23 },
+      { id: "task-005", name: "admin-portal analysis", status: "completed", started_at: "2026-06-29T10:03:46Z", completed_at: "2026-06-29T10:06:12Z", findings_count: 15 },
+      { id: "task-006", name: "notification-service analysis", status: "completed", started_at: "2026-06-29T10:06:13Z", completed_at: "2026-06-29T10:08:00Z", findings_count: 8 },
+    ],
+    errors: [],
+  },
+  batch_000001: {
+    batch_id: "batch_000001",
+    name: "Backend Services Audit",
+    status: "failed",
+    progress_percent: 67,
+    items_processed: 2,
+    total_items: 3,
+    duration_ms: 300000,
+    started_at: "2026-06-28T08:00:00Z",
+    completed_at: "2026-06-28T08:05:00Z",
+    tasks: [
+      { id: "task-007", name: "order-service analysis", status: "completed", started_at: "2026-06-28T08:00:00Z", completed_at: "2026-06-28T08:02:30Z", findings_count: 19 },
+      { id: "task-008", name: "inventory-service analysis", status: "failed", started_at: "2026-06-28T08:02:31Z", completed_at: "2026-06-28T08:03:10Z", error: "Analysis failed: unable to parse project configuration" },
+      { id: "task-009", name: "search-service analysis", status: "completed", started_at: "2026-06-28T08:03:11Z", completed_at: "2026-06-28T08:05:00Z", findings_count: 11 },
+    ],
+    errors: ["inventory-service: Analysis failed — unable to parse project configuration. Check .recurrsive.yaml for syntax errors."],
+  },
+};
+
+// ─── Batch Job Detail API ────────────────────────────────────────────────────
+
+/**
+ * Get a single batch job detail by ID.
+ */
+export async function getBatchJob(id: string): Promise<BatchJobDetail | null> {
+  try {
+    const raw = await apiFetch<{ data: BatchJobDetail } | null>(
+      `/api/v1/batch/${encodeURIComponent(id)}`,
+      null,
+    );
+    if (raw?.data) return raw.data;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_BATCH_JOB_DETAILS[id] ?? null;
+}
+
+// ─── Notification Detail Types ───────────────────────────────────────────────
+
+export interface NotificationRelatedItem {
+  type: "finding" | "policy" | "opportunity";
+  id: string;
+  title: string;
+}
+
+export interface NotificationDetail {
+  id: string;
+  title: string;
+  type: "info" | "warning" | "error" | "success";
+  severity: string;
+  source: string;
+  timestamp: string;
+  message: string;
+  read: boolean;
+  dismissed: boolean;
+  related_items: NotificationRelatedItem[];
+}
+
+// ─── Notification Detail Mock Data ───────────────────────────────────────────
+
+const MOCK_NOTIFICATION_DETAILS: Record<string, NotificationDetail> = {
+  notif_000001: {
+    id: "notif_000001",
+    title: "Analysis completed successfully",
+    type: "success",
+    severity: "info",
+    source: "Analysis Engine",
+    timestamp: "2026-06-30T10:02:34Z",
+    message: "Full analysis run completed successfully. Found 47 findings across 23 opportunities. Overall health score improved from 82 to 87. Key improvements include architecture (+4) and security (+4) dimensions.",
+    read: true,
+    dismissed: false,
+    related_items: [
+      { type: "opportunity", id: "OPP-2847", title: "Migrate legacy authentication to OAuth 2.1 PKCE flow" },
+      { type: "opportunity", id: "OPP-2843", title: "Optimize N+1 query pattern in order processing" },
+    ],
+  },
+  notif_000002: {
+    id: "notif_000002",
+    title: "Health score dropped below threshold",
+    type: "warning",
+    severity: "warning",
+    source: "Health Monitor",
+    timestamp: "2026-06-29T15:30:00Z",
+    message: "The project health score has dropped below the configured threshold of 80. Current score: 76. Primary factors: security dimension declined to 48 (-6 points) and testing coverage dropped to 58%. Immediate review recommended.",
+    read: true,
+    dismissed: false,
+    related_items: [
+      { type: "finding", id: "FND-002", title: "Hardcoded API key in configuration module" },
+      { type: "policy", id: "builtin-security", title: "Security Policies" },
+    ],
+  },
+  notif_000003: {
+    id: "notif_000003",
+    title: "Policy violation detected in auth-service",
+    type: "error",
+    severity: "critical",
+    source: "Policy Engine",
+    timestamp: "2026-06-29T09:15:00Z",
+    message: "Critical policy violation detected: Security Policies rule 'Security Review Required' was triggered for opportunity OPP-2847 (Migrate legacy authentication). This change requires security team review before proceeding. Delivery via HTTP webhook failed — endpoint returned 503.",
+    read: false,
+    dismissed: false,
+    related_items: [
+      { type: "policy", id: "builtin-security", title: "Security Policies" },
+      { type: "opportunity", id: "OPP-2847", title: "Migrate legacy authentication to OAuth 2.1 PKCE flow" },
+      { type: "finding", id: "FND-001", title: "SQL injection vulnerability in user search endpoint" },
+    ],
+  },
+  notif_000004: {
+    id: "notif_000004",
+    title: "New opportunity identified: N+1 query optimization",
+    type: "info",
+    severity: "info",
+    source: "Analysis Engine",
+    timestamp: "2026-06-28T14:45:00Z",
+    message: "A new high-impact opportunity has been identified. N+1 query pattern detected in the order processing pipeline causing 340% latency increase under load. Estimated ROI: 94. Recommended fix involves adding eager loading and a composite index.",
+    read: true,
+    dismissed: false,
+    related_items: [
+      { type: "opportunity", id: "OPP-2843", title: "Optimize N+1 query pattern in order processing" },
+    ],
+  },
+  notif_000005: {
+    id: "notif_000005",
+    title: "Circuit breaker tripped for payment gateway",
+    type: "error",
+    severity: "critical",
+    source: "Reliability Monitor",
+    timestamp: "2026-06-28T11:20:00Z",
+    message: "The circuit breaker for the external payment gateway has tripped due to sustained 5xx errors. Payment processing is currently in fallback mode — failed payments are being queued for retry. This is the 3rd incident in 30 days. The opportunity to implement a proper circuit breaker (OPP-2835) should be prioritized.",
+    read: true,
+    dismissed: false,
+    related_items: [
+      { type: "opportunity", id: "OPP-2835", title: "Implement circuit breaker for payment gateway" },
+      { type: "finding", id: "FND-006", title: "Unhandled promise rejection in payment callback" },
+    ],
+  },
+};
+
+// ─── Notification Detail API ─────────────────────────────────────────────────
+
+/**
+ * Get a single notification detail by ID.
+ */
+export async function getNotification(id: string): Promise<NotificationDetail | null> {
+  try {
+    const raw = await apiFetch<{ data: NotificationDetail } | null>(
+      `/api/v1/notifications/${encodeURIComponent(id)}`,
+      null,
+    );
+    if (raw?.data) return raw.data;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_NOTIFICATION_DETAILS[id] ?? null;
+}
+
