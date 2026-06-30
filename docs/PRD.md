@@ -1,6 +1,6 @@
 # Recurrsive — Product Requirements Document
 
-> **The Evolution Runtime for AI Software**
+> **Engineering Intelligence Platform**
 
 | Field | Value |
 |---|---|
