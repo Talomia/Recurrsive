@@ -49,9 +49,9 @@ describe('Specialist Definitions', () => {
       }
     });
 
-    it('createDefaultSpecialists() returns exactly 12 specialists', () => {
+    it('createDefaultSpecialists() returns exactly 19 specialists', () => {
       const specialists = createDefaultSpecialists();
-      expect(specialists).toHaveLength(12);
+      expect(specialists).toHaveLength(19);
     });
   });
 

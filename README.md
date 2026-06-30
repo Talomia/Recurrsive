@@ -44,7 +44,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 | 🔍 **Evidence Collection** | Git repos, docs, ADRs, API contracts with PII detection & governance |
 | 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 43 relationship types |
 | 🔬 **10 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product |
-| 🤖 **Multi-Agent Reasoning** | 12 specialist AI agents debate and rank improvement opportunities |
+| 🤖 **Multi-Agent Reasoning** | 19 specialist AI agents debate and rank improvement opportunities |
 | 📊 **Opportunity Management** | Prioritized roadmap with evidence, validation plans, rollback plans |
 | 🛡️ **Policy Engine** | Governance rules with recursive descent expression evaluation |
 | 🔌 **MCP Server** | Expose analysis to Claude, Cursor, Copilot, and other AI assistants |
@@ -186,7 +186,7 @@ Recurrsive follows a four-phase pipeline — **Collect → Understand → Reason
 │     CLI  ·  MCP Server  ·  REST API  ·  Dashboard│
 ├─────────────────────────────────────────────────┤
 │                   REASON                         │
-│  12 Specialists  ·  Debate  ·  Judge  ·  Memory  │
+│  19 Specialists  ·  Debate  ·  Judge  ·  Memory  │
 │  Opportunities  ·  Policy  ·  Experiments        │
 ├─────────────────────────────────────────────────┤
 │                 UNDERSTAND                        │
@@ -271,7 +271,7 @@ Multi-language code analysis:
 
 ### `@recurrsive/reasoning`
 Multi-agent reasoning engine:
-- **12 Specialist Agents** with cognitive frameworks and detailed system prompts
+- **19 Specialist Agents** with cognitive frameworks and detailed system prompts
 - **Debate Protocol** with challenge/defend cycles and dual consensus detection
 - **Synthesizer** — Transforms hypotheses into structured opportunities
 - **Judge** — Weighted multi-factor scoring

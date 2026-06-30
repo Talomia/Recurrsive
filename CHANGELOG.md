@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Analysis & Reasoning
 - **`@recurrsive/analyzers`** — 10 built-in analyzers (Architecture, AI, Performance, Cost, Reliability, Security, Data, Documentation, UX, Product) with 66+ analysis rules
-- **`@recurrsive/reasoning`** — Multi-agent reasoning engine with 12 specialist agents, debate protocol, synthesizer, judge, and file-based memory store
+- **`@recurrsive/reasoning`** — Multi-agent reasoning engine with 19 specialist agents, debate protocol, synthesizer, judge, and file-based memory store
 - **`@recurrsive/opportunities`** — Complete opportunity lifecycle management with SARIF v2.1.0 export, markdown reports, and roadmap generation
 
 #### Governance & Output

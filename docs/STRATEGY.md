@@ -56,7 +56,7 @@ This graph, continuously updated, IS the digital twin.
 |---|---|---|
 | **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (Git, Doc collectors) |
 | **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (10 analyzers, 66+ rules) |
-| **Reason** | `@recurrsive/reasoning` | ✅ Built (12 specialists, debate protocol) |
+| **Reason** | `@recurrsive/reasoning` | ✅ Built (19 specialists, debate protocol) |
 | **Evolve** | `@recurrsive/opportunities` | ✅ Built (lifecycle, SARIF, reports) |
 
 ---

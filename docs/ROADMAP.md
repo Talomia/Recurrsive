@@ -9,7 +9,7 @@
 | Collectors | ⚠️ Partial | Git + Doc collectors built. 60+ planned integrations pending |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python extractors, AI pattern detection (13 patterns) |
 | Analyzers | ✅ Complete | 10 analyzers, 66+ rules |
-| Reasoning | ✅ Complete | 12 specialist agents, multi-agent debate, synthesis, ranking |
+| Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (15 rules) |
 | Presentation | ✅ Complete | Markdown/HTML reports, console/webhook notifications |
@@ -40,9 +40,9 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 - [ ] **API contract analyzer** — OpenAPI/GraphQL schema analysis
 
 ### Dashboard
-- [ ] Connect dashboard to live API (replace mock data)
+- [x] Connect dashboard to live API (replace mock data)
 - [ ] Add real-time WebSocket updates
-- [ ] Implement settings persistence
+- [x] Implement settings persistence
 
 ### Quality
 - [ ] Reconcile ARCHITECTURE.md with actual code (fix 13 documented gaps)

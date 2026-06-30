@@ -1,3 +1,16 @@
+/**
+ * @module Dashboard API Client
+ *
+ * Fetches data from the Recurrsive REST API server.
+ *
+ * Each function attempts a real API call first. If the server is unreachable
+ * or hasn't been initialized, it falls back to realistic mock data so the
+ * dashboard remains usable during development.
+ *
+ * API paths use the `/api/v1/` prefix which the Next.js rewrite proxy
+ * forwards to the backend server (see next.config.ts).
+ */
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface HealthMetrics {
@@ -68,6 +81,36 @@ export interface SystemNode {
   type: string;
   health: number;
   connections: string[];
+}
+
+export interface Finding {
+  id: string;
+  title: string;
+  description: string;
+  severity: string;
+  category: string;
+  analyzer_id: string;
+}
+
+export interface FindingsSummary {
+  total: number;
+  by_severity: Record<string, number>;
+  by_category: Record<string, number>;
+  by_analyzer: Record<string, number>;
+}
+
+export interface GraphStats {
+  total_entities: number;
+  total_relationships: number;
+  entities_by_type: Record<string, number>;
+  relationships_by_type: Record<string, number>;
+}
+
+export interface GraphEntity {
+  id: string;
+  name: string;
+  type: string;
+  properties?: Record<string, unknown>;
 }
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
@@ -307,10 +350,41 @@ const MOCK_PERFORMANCE: PerformanceMetric[] = [
   },
 ];
 
+const MOCK_FINDINGS_SUMMARY: FindingsSummary = {
+  total: 47,
+  by_severity: { critical: 3, high: 12, medium: 19, low: 13 },
+  by_category: { security: 8, performance: 11, architecture: 9, reliability: 7, cost: 5, documentation: 7 },
+  by_analyzer: { architecture: 9, security: 8, performance: 11, cost: 5, reliability: 7, documentation: 7 },
+};
+
+const MOCK_GRAPH_STATS: GraphStats = {
+  total_entities: 234,
+  total_relationships: 567,
+  entities_by_type: {
+    module: 42, function: 89, class: 28, interface: 31, api_endpoint: 16,
+    configuration: 8, ai_model: 4, ai_prompt: 6, database_table: 10,
+  },
+  relationships_by_type: {
+    imports: 156, depends_on: 98, exports: 87, calls: 72, implements: 34,
+    contains: 45, references: 38, uses_model: 12, queries: 25,
+  },
+};
+
 // ─── API Client ──────────────────────────────────────────────────────────────
 
+/**
+ * Base URL for API requests.
+ *
+ * In production, the Next.js rewrite proxy (next.config.ts) forwards
+ * `/api/v1/*` requests to the server. For direct access or SSR, the
+ * full URL is used.
+ */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
+/**
+ * Fetch JSON from the API, falling back to a default value if the
+ * server is unreachable or returns an error.
+ */
 async function apiFetch<T>(path: string, fallback: T): Promise<T> {
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -324,16 +398,163 @@ async function apiFetch<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
+// ─── Health ──────────────────────────────────────────────────────────────────
+
+/**
+ * Get health metrics from `GET /api/v1/health-score`.
+ *
+ * Server returns: `{ overall_health, dimensions, snapshot, finding_count, opportunity_count, analyzed_at }`
+ * Dashboard needs: `HealthMetrics` shape with scores and trends.
+ */
 export async function getHealthMetrics(): Promise<HealthMetrics> {
-  return apiFetch("/api/health/metrics", MOCK_HEALTH);
+  try {
+    const raw = await apiFetch<{
+      overall_health: number;
+      dimensions: Record<string, number>;
+      finding_count: number;
+      opportunity_count: number;
+    } | null>("/api/v1/health-score", null);
+
+    if (!raw) return MOCK_HEALTH;
+
+    return {
+      healthScore: raw.overall_health,
+      healthTrend: 4.2, // Server doesn't track trends yet — use default
+      qualityScore: raw.dimensions?.code_quality ?? 91,
+      qualityTrend: 2.1,
+      opportunities: raw.opportunity_count,
+      newOpportunities: Math.min(7, raw.opportunity_count),
+      techDebt: raw.finding_count * 3000, // Rough estimation: ~3k per finding
+      techDebtTrend: -8.3,
+      aiQualityScore: raw.dimensions?.ai_readiness ?? 94,
+      aiQualityTrend: 1.8,
+    };
+  } catch {
+    return MOCK_HEALTH;
+  }
 }
 
+// ─── Timeline ────────────────────────────────────────────────────────────────
+
+/**
+ * Get timeline data from `GET /api/v1/timeline/trends`.
+ *
+ * Server returns: `{ data: [{ dimension, data_points: [{ timestamp, value }] }] }`
+ * Dashboard needs: `TimelinePoint[]` with date + multiple dimension values.
+ */
 export async function getTimeline(): Promise<TimelinePoint[]> {
-  return apiFetch("/api/health/timeline", MOCK_TIMELINE);
+  try {
+    const raw = await apiFetch<{
+      data: Array<{
+        dimension: string;
+        data_points: Array<{ timestamp: string; value: number }>;
+      }>;
+    } | null>("/api/v1/timeline/trends", null);
+
+    if (!raw?.data?.length) return MOCK_TIMELINE;
+
+    // Transpose dimension-keyed data into date-keyed TimelinePoints
+    const dateMap = new Map<string, TimelinePoint>();
+
+    for (const dim of raw.data) {
+      for (const pt of dim.data_points) {
+        const date = pt.timestamp.slice(5, 10).replace("-", "/"); // "2026-06-15" → "06/15"
+        if (!dateMap.has(date)) {
+          dateMap.set(date, { date, healthScore: 0, quality: 0, reliability: 0, performance: 0 });
+        }
+        const entry = dateMap.get(date)!;
+        // Map dimension names to TimelinePoint fields
+        if (dim.dimension.includes("health") || dim.dimension.includes("overall")) entry.healthScore = Math.round(pt.value);
+        else if (dim.dimension.includes("quality") || dim.dimension.includes("code")) entry.quality = Math.round(pt.value);
+        else if (dim.dimension.includes("reliability") || dim.dimension.includes("sre")) entry.reliability = Math.round(pt.value);
+        else if (dim.dimension.includes("performance") || dim.dimension.includes("perf")) entry.performance = Math.round(pt.value);
+      }
+    }
+
+    const points = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    return points.length > 0 ? points : MOCK_TIMELINE;
+  } catch {
+    return MOCK_TIMELINE;
+  }
 }
 
+// ─── Opportunities ───────────────────────────────────────────────────────────
+
+/**
+ * Server shape for opportunities (snake_case from the API).
+ */
+interface ServerOpportunity {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  severity: string;
+  status: string;
+  score?: number;
+  impact?: number;
+  confidence?: number;
+  effort_estimate?: string;
+  risk_assessment?: { risk_level?: string };
+  root_causes?: string[];
+  evidence?: Array<{ type: string; description: string; source: string; value?: string }>;
+  affected_entities?: string[];
+  recommendations?: Array<{ title: string; description: string; effort?: string }>;
+  created_at?: string;
+}
+
+/** Transform a server opportunity into the dashboard shape. */
+function transformOpportunity(raw: ServerOpportunity, idx: number): Opportunity {
+  const severityMap: Record<string, Opportunity["severity"]> = {
+    critical: "critical", high: "high", medium: "medium", low: "low",
+  };
+  return {
+    id: raw.id || `OPP-${1000 + idx}`,
+    title: raw.title,
+    description: raw.description,
+    categories: [raw.category].filter(Boolean),
+    severity: severityMap[raw.severity] ?? "medium",
+    score: raw.score ?? 70,
+    impact: raw.impact ?? 70,
+    confidence: raw.confidence ?? 80,
+    effort: parseInt(raw.effort_estimate ?? "50", 10) || 50,
+    risk: raw.risk_assessment?.risk_level === "high" ? 70 : raw.risk_assessment?.risk_level === "medium" ? 40 : 20,
+    roi: Math.round(((raw.impact ?? 70) * (raw.confidence ?? 80)) / 100),
+    rootCauses: raw.root_causes ?? [],
+    evidence: (raw.evidence ?? []).map((e) => ({
+      type: e.type,
+      description: e.description,
+      source: e.source,
+      value: e.value ?? "",
+    })),
+    affectedComponents: raw.affected_entities ?? [],
+    solution: (raw.recommendations ?? []).map((r, i) => ({
+      step: i + 1,
+      title: r.title,
+      description: r.description,
+      effort: r.effort ?? "TBD",
+    })),
+    createdAt: raw.created_at ?? new Date().toISOString(),
+  };
+}
+
+/**
+ * Get opportunities from `GET /api/v1/opportunities`.
+ *
+ * Server returns: `{ data: Opportunity[], total, limit, offset, has_more }`
+ */
 export async function getOpportunities(): Promise<Opportunity[]> {
-  return apiFetch("/api/opportunities", MOCK_OPPORTUNITIES);
+  try {
+    const raw = await apiFetch<{
+      data: ServerOpportunity[];
+      total: number;
+    } | null>("/api/v1/opportunities?limit=50", null);
+
+    if (!raw?.data?.length) return MOCK_OPPORTUNITIES;
+
+    return raw.data.map(transformOpportunity);
+  } catch {
+    return MOCK_OPPORTUNITIES;
+  }
 }
 
 export async function getOpportunity(id: string): Promise<Opportunity | undefined> {
@@ -341,10 +562,133 @@ export async function getOpportunity(id: string): Promise<Opportunity | undefine
   return opps.find((o) => o.id === id);
 }
 
-export async function getPerformanceMetrics(): Promise<PerformanceMetric[]> {
-  return apiFetch("/api/metrics/performance", MOCK_PERFORMANCE);
-}
-
 export function getMockOpportunities(): Opportunity[] {
   return MOCK_OPPORTUNITIES;
+}
+
+// ─── Performance Metrics ─────────────────────────────────────────────────────
+
+/**
+ * Performance metrics don't have a dedicated server endpoint yet.
+ * Returns mock data, which can be replaced when telemetry is available.
+ */
+export async function getPerformanceMetrics(): Promise<PerformanceMetric[]> {
+  return MOCK_PERFORMANCE;
+}
+
+// ─── Findings ────────────────────────────────────────────────────────────────
+
+/**
+ * Get findings summary from `GET /api/v1/findings/summary`.
+ */
+export async function getFindingsSummary(): Promise<FindingsSummary> {
+  return apiFetch("/api/v1/findings/summary", MOCK_FINDINGS_SUMMARY);
+}
+
+/**
+ * Get paginated findings from `GET /api/v1/findings`.
+ */
+export async function getFindings(params?: {
+  severity?: string;
+  category?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ findings: Finding[]; total: number }> {
+  const query = new URLSearchParams();
+  if (params?.severity) query.set("severity", params.severity);
+  if (params?.category) query.set("category", params.category);
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.offset) query.set("offset", String(params.offset));
+
+  const qs = query.toString();
+  const path = `/api/v1/findings${qs ? `?${qs}` : ""}`;
+
+  return apiFetch(path, { findings: [], total: 0 });
+}
+
+// ─── Graph ───────────────────────────────────────────────────────────────────
+
+/**
+ * Get graph statistics from `GET /api/v1/graph/stats`.
+ */
+export async function getGraphStats(): Promise<GraphStats> {
+  try {
+    const raw = await apiFetch<{ data: GraphStats } | null>("/api/v1/graph/stats", null);
+    return raw?.data ?? MOCK_GRAPH_STATS;
+  } catch {
+    return MOCK_GRAPH_STATS;
+  }
+}
+
+/**
+ * Get entities by type from `GET /api/v1/graph/entities`.
+ */
+export async function getGraphEntities(type?: string, search?: string, limit = 50): Promise<GraphEntity[]> {
+  const query = new URLSearchParams();
+  if (type) query.set("type", type);
+  if (search) query.set("search", search);
+  query.set("limit", String(limit));
+
+  try {
+    const raw = await apiFetch<{ data: GraphEntity[] } | null>(
+      `/api/v1/graph/entities?${query.toString()}`,
+      null,
+    );
+    return raw?.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get entity with relationships from `GET /api/v1/graph/entities/:id`.
+ */
+export async function getEntityWithRelationships(id: string): Promise<{
+  entity: GraphEntity;
+  relationships: Array<{ type: string; source_id: string; target_id: string }>;
+} | null> {
+  try {
+    const raw = await apiFetch<{
+      data: {
+        entity: GraphEntity;
+        relationships: Array<{ type: string; source_id: string; target_id: string }>;
+      };
+    } | null>(`/api/v1/graph/entities/${encodeURIComponent(id)}`, null);
+    return raw?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Reports ─────────────────────────────────────────────────────────────────
+
+/**
+ * Trigger a report download from `GET /api/v1/reports/:format`.
+ * Returns the download URL. Formats: markdown, html, sarif, json.
+ */
+export function getReportUrl(format: string): string {
+  return `${API_BASE}/api/v1/reports/${encodeURIComponent(format)}`;
+}
+
+// ─── Analysis ────────────────────────────────────────────────────────────────
+
+/**
+ * Get analysis status from `GET /api/v1/analyze`.
+ */
+export async function getAnalysisStatus(): Promise<{
+  phase: string;
+  progress: number;
+  message: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  error: string | null;
+}> {
+  return apiFetch("/api/v1/analyze", {
+    phase: "idle",
+    progress: 0,
+    message: "No analysis running",
+    startedAt: null,
+    completedAt: null,
+    error: null,
+  });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap } from "lucide-react";
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
@@ -41,11 +41,62 @@ function getMetricBarColor(label: string, value: number): string {
   return "bg-red-500";
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
 export default function OpportunitiesPage() {
-  const opportunities = useMemo(() => getMockOpportunities(), []);
-  const [selectedId, setSelectedId] = useState(opportunities[0]?.id ?? "");
+  const [opportunities, setOpportunities] = useState<Opportunity[]>(() => getMockOpportunities());
+  const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+
+  // Attempt to fetch from API on mount, fall back to mock on failure
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/opportunities?limit=50`);
+        if (!res.ok) throw new Error(`API ${res.status}`);
+        const json = await res.json();
+        if (!cancelled && json?.data?.length) {
+          // Transform server snake_case to dashboard shape
+          const mapped: Opportunity[] = json.data.map((raw: Record<string, unknown>, idx: number) => ({
+            id: (raw.id as string) || `OPP-${1000 + idx}`,
+            title: raw.title as string,
+            description: raw.description as string,
+            categories: [raw.category as string].filter(Boolean),
+            severity: raw.severity as Opportunity["severity"],
+            score: (raw.score as number) ?? 70,
+            impact: (raw.impact as number) ?? 70,
+            confidence: (raw.confidence as number) ?? 80,
+            effort: parseInt(String(raw.effort_estimate ?? "50"), 10) || 50,
+            risk: 30,
+            roi: Math.round(((raw.impact as number) ?? 70) * ((raw.confidence as number) ?? 80) / 100),
+            rootCauses: (raw.root_causes as string[]) ?? [],
+            evidence: ((raw.evidence as Array<Record<string, string>>) ?? []).map((e) => ({
+              type: e.type, description: e.description, source: e.source, value: e.value ?? "",
+            })),
+            affectedComponents: (raw.affected_entities as string[]) ?? [],
+            solution: ((raw.recommendations as Array<Record<string, string>>) ?? []).map((r, i) => ({
+              step: i + 1, title: r.title, description: r.description, effort: r.effort ?? "TBD",
+            })),
+            createdAt: (raw.created_at as string) ?? new Date().toISOString(),
+          }));
+          setOpportunities(mapped);
+          setSelectedId(mapped[0]?.id ?? "");
+        }
+      } catch {
+        // Keep mock data on API failure
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Set initial selection when opportunities load
+  useEffect(() => {
+    if (!selectedId && opportunities.length > 0) {
+      setSelectedId(opportunities[0]!.id);
+    }
+  }, [opportunities, selectedId]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return opportunities;
