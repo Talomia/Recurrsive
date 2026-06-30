@@ -13,11 +13,11 @@
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (15 rules) |
 | Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
-| CLI | ✅ Complete | 8 commands (analyze, opportunities, health, graph, timeline, report, config, init) |
-| MCP Server | ✅ Complete | 10 tools, 4 resources, 6 prompts |
-| REST API | ✅ Complete | 22 endpoints, WebSocket streaming |
-| Dashboard | ✅ Complete | Next.js, 6 pages, 8+ components, mock data |
-| Tests | ✅ Complete | 52+ test files, 1,442+ individual tests (incl. integration tests) |
+| CLI | ✅ Complete | 21 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export) |
+| MCP Server | ✅ Complete | 28 tools, 9 resources, 15 prompts |
+| REST API | ✅ Complete | 57 endpoints, WebSocket streaming |
+| Dashboard | ✅ Complete | Next.js, 26 pages (incl. detail pages), 8+ components |
+| Tests | ✅ Complete | 52+ test files, 2,203+ individual tests (incl. integration tests) |
 
 ---
 
@@ -42,6 +42,7 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 
 ### Dashboard
 - [x] Connect dashboard to live API (replace mock data)
+- [x] Add dashboard detail pages (batch/[id], experiments/[id], notifications/[id], opportunities/[id], policies/[id], insights/[id], system-map/[id])
 - [ ] Add real-time WebSocket updates
 - [x] Implement settings persistence
 
@@ -107,10 +108,10 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 - [ ] **GraphQL API** — flexible querying for advanced integrations
 
 ### Execution Engine (Controlled)
-- [ ] **Experiment framework** — connect to feature flag systems (LaunchDarkly, Unleash)
+- [x] **Experiment framework** — connect to feature flag systems (LaunchDarkly, Unleash)
 - [ ] **PR generation** — produce pull requests from recommendations (opt-in)
 - [ ] **Simulation engine** — traffic replay for impact prediction
-- [ ] **A/B test integration** — validate recommendation impact with experiments
+- [x] **A/B test integration** — validate recommendation impact with experiments
 
 ### Advanced Intelligence
 - [ ] **Evolution Graph** — record decisions, outcomes, and learning over time

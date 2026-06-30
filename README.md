@@ -90,7 +90,7 @@ pnpm build
 pnpm test
 ```
 
-### CLI Usage (14 commands)
+### CLI Usage (21 commands)
 
 ```bash
 # Link the CLI globally (after building)
@@ -148,6 +148,14 @@ recurrsive notifications history
 recurrsive batch run --projects ./proj1 ./proj2
 recurrsive batch status <batch_id>
 recurrsive batch history
+
+# Compare analysis runs
+recurrsive comparisons list
+recurrsive comparisons diff <run_id_1> <run_id_2>
+
+# Export data
+recurrsive export create --format json
+recurrsive export history
 ```
 
 ### MCP Server (for AI Assistants)
@@ -168,7 +176,7 @@ Add to your MCP configuration:
 }
 ```
 
-**Available MCP tools (18), prompts (9), resources (6):**
+**Available MCP tools (28), prompts (15), resources (9):**
 
 *Tools — Analysis:*
 - `analyze_project` — Run the full analysis pipeline
@@ -195,6 +203,21 @@ Add to your MCP configuration:
 - `list_webhooks` — List registered webhook integrations
 - `register_webhook` — Register a new webhook endpoint
 - `list_webhook_events` — List supported webhook event types
+
+*Tools — Snapshots:*
+- `export_snapshot` — Export knowledge graph as portable JSON
+- `import_snapshot` — Import entities and relationships from a snapshot
+
+*Tools — Comparison:*
+- `evaluate_policies` — Evaluate opportunities against policy rules
+- `compare_analyses` — Compare findings between analysis runs
+- `manage_webhook` — Update, test, or delete a webhook
+
+*Tools — Batch & Experiments:*
+- `start_batch_analysis` — Start batch analysis across multiple projects
+- `get_batch_status` — Check status of a running batch analysis
+- `list_experiments` — List engineering experiments
+- `create_experiment` — Create a new engineering experiment
 
 ### Docker
 

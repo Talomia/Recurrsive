@@ -1542,40 +1542,72 @@ type Subgraph {
 
 **Package**: `apps/mcp` — implements an MCP server using `@modelcontextprotocol/sdk`.
 
-#### Tools
+#### Tools (28)
 
 | Tool Name | Description | Parameters |
 |---|---|---|
+| `analyze_project` | Run full analysis on a project directory | `path: string`, `analyzers?: string[]` |
+| `get_opportunities` | List prioritized improvement opportunities | `status?: string`, `limit?: number` |
+| `get_opportunity_detail` | Deep dive into a specific opportunity | `opportunityId: string` |
 | `query_graph` | Execute a read-only Cypher query against the knowledge graph | `cypher: string`, `params?: object` |
 | `get_entity` | Get full details of an entity by ID or qualified name | `identifier: string` |
-| `get_subgraph` | Get a subgraph around an entity | `entityId: string`, `depth?: number`, `edgeTypes?: string[]` |
+| `get_health_score` | Get project health and maturity scores | — |
 | `list_findings` | List findings with optional filters | `severity?: string`, `category?: string`, `limit?: number` |
-| `list_opportunities` | List ranked opportunities | `status?: string`, `limit?: number` |
-| `explain_entity` | Get an AI-generated explanation of an entity and its role in the system | `entityId: string` |
 | `trace_dependency` | Trace the dependency chain of a file/function/class | `entityId: string`, `direction: 'upstream' \| 'downstream'`, `depth?: number` |
+| `explain_entity` | Get an AI-generated explanation of an entity and its role in the system | `entityId: string` |
 | `analyze_impact` | Analyze the blast radius of changing a specific entity | `entityId: string` |
-| `search_entities` | Full-text search across all entities | `query: string`, `entityType?: string`, `limit?: number` |
-| `get_cost_report` | Get a cost breakdown for model usage | `period?: string`, `groupBy?: string` |
+| `search_graph` | Full-text search across all entities | `query: string`, `entityType?: string`, `limit?: number` |
+| `export_snapshot` | Export knowledge graph as portable JSON | `outputPath?: string` |
+| `import_snapshot` | Import entities and relationships from a snapshot | `snapshotPath: string` |
+| `check_policies` | Run policy compliance checks | `policySetId?: string` |
+| `list_policies` | List available policy sets | — |
+| `export_sarif` | Export findings as SARIF v2.1.0 | `outputPath?: string` |
+| `get_governance_status` | Data governance summary | — |
+| `evaluate_policies` | Evaluate opportunities against policy rules | `opportunityIds?: string[]` |
+| `compare_analyses` | Compare findings between analysis runs | `baselineRunId: string`, `currentRunId?: string` |
+| `list_webhooks` | List registered webhook integrations | — |
+| `register_webhook` | Register a new webhook for events | `url: string`, `events: string[]` |
+| `list_webhook_events` | List supported webhook event types | — |
+| `manage_webhook` | Update, test, or delete a webhook | `webhookId: string`, `action: string` |
+| `start_batch_analysis` | Start batch analysis across multiple projects | `projects: string[]` |
+| `get_batch_status` | Check status of a running batch analysis | `batchId: string` |
+| `list_experiments` | List engineering experiments | `status?: string` |
+| `create_experiment` | Create a new engineering experiment | `name: string`, `hypothesis: string` |
+| `get_experiment_detail` | Get detailed experiment information | `experimentId: string` |
 
-#### Resources
+#### Resources (9)
 
 | Resource URI | Description |
 |---|---|
-| `recurrsive://graph/stats` | Current graph statistics (entity counts, edge counts, last sync) |
-| `recurrsive://repositories` | List of monitored repositories with status |
-| `recurrsive://findings/summary` | Aggregated findings summary by severity and category |
+| `recurrsive://health/latest` | Latest health assessment |
 | `recurrsive://opportunities/top` | Top 10 ranked opportunities |
-| `recurrsive://system/health` | System health status |
+| `recurrsive://graph/summary` | Knowledge graph statistics |
+| `recurrsive://timeline/latest` | Latest intelligence snapshot |
+| `recurrsive://policies/active` | Currently active policy rules |
+| `recurrsive://webhooks/status` | Webhook integration status |
+| `recurrsive://analytics/summary` | Analysis trends summary |
+| `recurrsive://experiments/active` | Active engineering experiments |
+| `recurrsive://audit/recent` | Recent audit trail events |
 
-#### Prompts
+#### Prompts (15)
 
 | Prompt Name | Description | Arguments |
 |---|---|---|
-| `architecture_review` | Conduct a comprehensive architecture review | `repository: string` |
-| `ai_audit` | Audit AI component usage, costs, and risks | `repository: string` |
-| `cost_analysis` | Analyze and optimize costs across the system | `period?: string` |
-| `security_assessment` | Identify security vulnerabilities and risks | `scope?: string` |
-| `impact_analysis` | Analyze the impact of a proposed change | `entityId: string`, `changeDescription: string` |
+| `interpret_health_report` | Guide interpretation of health scores | — |
+| `plan_improvement_cycle` | Plan an improvement cycle from opportunities | — |
+| `explain_opportunity` | Detailed explanation of a specific opportunity | `opportunityId: string` |
+| `architecture_review` | System architecture review template | `repository: string` |
+| `security_assessment` | Security assessment template | `scope?: string` |
+| `cost_analysis` | Cost optimization analysis template | `period?: string` |
+| `policy_compliance_report` | Generate compliance report against policies | — |
+| `snapshot_comparison` | Compare snapshots for architectural drift | — |
+| `risk_assessment` | Comprehensive project risk assessment | — |
+| `configure_notifications` | Guide setting up notification channels | — |
+| `batch_analysis_plan` | Plan a batch analysis strategy | — |
+| `audit_review` | Review audit trail events and identify patterns | — |
+| `experiment_design` | Design an engineering experiment with hypothesis and metrics | — |
+| `export_analysis` | Guide data export configuration and format selection | — |
+| `comparison_report` | Compare analysis runs and explain changes | — |
 
 ### 10.5 Dashboard Page Structure
 
@@ -1583,18 +1615,32 @@ type Subgraph {
 
 | Route | Page | Description |
 |---|---|---|
-| `/` | Dashboard Home | Overview: entity counts, top findings, top opportunities, recent activity |
-| `/graph` | Graph Explorer | Interactive graph visualization (force-directed), entity search, filter by type |
-| `/graph/:entityId` | Entity Detail | Entity properties, neighbors, findings, history, code location |
-| `/repositories` | Repository List | Monitored repositories, sync status, entity counts |
-| `/repositories/:id` | Repository Detail | Repository-scoped graph, findings, costs |
+| `/` | Dashboard Home | Overview: health gauge, top findings, top opportunities, recent activity |
+| `/analytics` | Analytics | Analysis trends (12-week), health score trends, category breakdown |
+| `/audit` | Audit Trail | Audit event log with filtering by type and date |
+| `/batch` | Batch Analysis | Start and monitor batch analyses across projects |
+| `/batch/[id]` | Batch Detail | Status and results for a specific batch analysis |
+| `/comparisons` | Comparisons | Compare analysis runs side by side |
+| `/experiments` | Experiments | List and manage A/B testing experiments |
+| `/experiments/[id]` | Experiment Detail | Detailed view of a specific experiment with metrics |
 | `/findings` | Findings List | Filterable/sortable table of all findings |
-| `/findings/:id` | Finding Detail | Evidence, affected entities, remediation |
+| `/health` | Health Overview | Health score gauge, maturity scores, dimension breakdown |
+| `/insights` | Insights | Browse reasoning insights and debate summaries |
+| `/insights/[id]` | Insight Detail | Full insight detail with evidence chain |
+| `/notifications` | Notifications | Notification channel management and history |
+| `/notifications/[id]` | Notification Detail | Details of a specific notification |
 | `/opportunities` | Opportunity Board | Kanban board grouped by maturity stage |
-| `/opportunities/:id` | Opportunity Detail | Full detail, timeline, simulation results |
-| `/reasoning` | Reasoning Sessions | Browse debate transcripts, insight history |
-| `/costs` | Cost Dashboard | Cost breakdown by model, function, repository, trend charts |
+| `/opportunities/[id]` | Opportunity Detail | Full detail, timeline, simulation results |
+| `/policies` | Policies | Active policy sets and compliance overview |
+| `/policies/[id]` | Policy Detail | Individual policy rules and violation history |
+| `/reports` | Reports | Generate and download reports in multiple formats |
+| `/search` | Search | Full-text search across all entities and findings |
 | `/settings` | Settings | Collector config, analyzer config, policies, credentials |
+| `/snapshots` | Snapshots | Export/import knowledge graph snapshots |
+| `/system-map` | System Map | Interactive knowledge graph visualization |
+| `/system-map/[id]` | Entity Detail | Entity properties, neighbors, findings, history |
+| `/timeline` | Timeline | Intelligence timeline with trend data |
+| `/webhooks` | Webhooks | Manage webhook integrations and delivery history |
 
 ### 10.6 Report Formats
 
@@ -1640,7 +1686,7 @@ recurrsive/
 │   │   ├── src/
 │   │   │   ├── schema/       # Zod schemas for all entities, relationships, configs
 │   │   │   ├── interfaces/   # Collector, Analyzer, LLMProvider interfaces
-│   │   │   ├── utils/        # Hashing, ID generation, date helpers
+│   │   │   ├── utils/        # Hashing, ID generation, date helpers, LRU cache
 │   │   │   ├── errors/       # Typed error hierarchy
 │   │   │   └── constants/    # Entity types, relationship types, defaults
 │   │   ├── package.json

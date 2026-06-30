@@ -155,6 +155,37 @@ Base URL: `http://localhost:3000`
 | `GET` | `/api/v1/experiments/:id` | Get experiment details |
 | `PUT` | `/api/v1/experiments/:id/status` | Update experiment status |
 
+### Notifications
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/notifications/channels` | List available notification channels |
+| `POST` | `/api/v1/notifications/test` | Send a test notification |
+| `GET` | `/api/v1/notifications/history` | View notification history |
+| `GET` | `/api/v1/notifications/:id` | Get notification details |
+
+### Batch Analysis
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/batch` | Start a new batch analysis across projects |
+| `GET` | `/api/v1/batch/:id` | Get batch analysis status |
+| `GET` | `/api/v1/batch/history` | List past batch analyses |
+
+### Export
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/export` | Create a new data export |
+| `GET` | `/api/v1/export/:id/download` | Download an export file |
+| `GET` | `/api/v1/export/history` | View export history |
+
+### Search
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/search` | Full-text search across all entities, findings, and opportunities |
+
 ---
 
 ## WebSocket API
@@ -191,7 +222,7 @@ Connect to `ws://localhost:3000/ws` for real-time events.
 
 The MCP server exposes Recurrsive as an AI tool provider compatible with the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-### Tools (22+)
+### Tools (28)
 
 | Tool | Description |
 |------|-------------|
@@ -208,17 +239,23 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `search_graph` | Full-text search across the knowledge graph |
 | `export_snapshot` | Export knowledge graph as portable JSON |
 | `import_snapshot` | Import entities and relationships from a snapshot |
+| `check_policies` | Run policy compliance checks |
+| `list_policies` | List available policy sets |
+| `export_sarif` | Export findings as SARIF v2.1.0 |
+| `get_governance_status` | Data governance summary |
 | `evaluate_policies` | Evaluate opportunities against policy rules |
 | `compare_analyses` | Compare findings between analysis runs |
 | `list_webhooks` | List registered webhook integrations |
 | `register_webhook` | Register a new webhook for events |
+| `list_webhook_events` | List supported webhook event types |
 | `manage_webhook` | Update, test, or delete a webhook |
 | `start_batch_analysis` | Start batch analysis across multiple projects |
 | `get_batch_status` | Check status of a running batch analysis |
 | `list_experiments` | List engineering experiments |
 | `create_experiment` | Create a new engineering experiment |
+| `get_experiment_detail` | Get detailed experiment information |
 
-### Prompts (12)
+### Prompts (15)
 
 | Prompt | Description |
 |--------|-------------|
@@ -234,8 +271,11 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `configure_notifications` | Guide setting up notification channels |
 | `batch_analysis_plan` | Plan a batch analysis strategy |
 | `audit_review` | Review audit trail events and identify patterns |
+| `experiment_design` | Design an engineering experiment with hypothesis and metrics |
+| `export_analysis` | Guide data export configuration and format selection |
+| `comparison_report` | Compare analysis runs and explain changes |
 
-### Resources (7)
+### Resources (9)
 
 | Resource | URI | Description |
 |----------|-----|-------------|
@@ -246,10 +286,12 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | Active Policies | `recurrsive://policies/active` | Currently active policy rules |
 | Webhook Status | `recurrsive://webhooks/status` | Webhook integration status |
 | Analytics Summary | `recurrsive://analytics/summary` | Analysis trends summary |
+| Experiment Status | `recurrsive://experiments/active` | Active engineering experiments |
+| Audit Trail | `recurrsive://audit/recent` | Recent audit trail events |
 
 ---
 
-## CLI Commands (17+)
+## CLI Commands (21)
 
 ```bash
 recurrsive init            # Initialize a project for analysis
@@ -269,6 +311,8 @@ recurrsive batch           # Run batch analysis across projects
 recurrsive audit           # View and search audit trail
 recurrsive analytics       # View analysis trends and categories
 recurrsive experiments     # Manage A/B testing experiments
+recurrsive comparisons     # Compare analysis runs (list, diff)
+recurrsive export          # Export data (create, history)
 ```
 
 ### Global Flags
