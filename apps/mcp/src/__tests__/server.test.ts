@@ -527,9 +527,9 @@ describe('MCP Server', () => {
   // ── Prompt Registration ────────────────────────────────────────────────
 
   describe('prompt registration', () => {
-    it('registers exactly 12 prompts', () => {
+    it('registers exactly 15 prompts', () => {
       createServer();
-      expect(mockPrompt).toHaveBeenCalledTimes(12);
+      expect(mockPrompt).toHaveBeenCalledTimes(15);
     });
 
     it('registers "interpret_health_report" prompt', () => {
@@ -628,13 +628,37 @@ describe('MCP Server', () => {
       expect(promptNames).toContain('audit_review');
     });
 
-    it('all 12 prompt names are unique', () => {
+    it('registers "deep_dive_finding" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('deep_dive_finding');
+    });
+
+    it('registers "compare_snapshots" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('compare_snapshots');
+    });
+
+    it('registers "generate_action_items" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('generate_action_items');
+    });
+
+    it('all 15 prompt names are unique', () => {
       createServer();
       const promptNames = mockPrompt.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(promptNames);
-      expect(uniqueNames.size).toBe(12);
+      expect(uniqueNames.size).toBe(15);
     });
 
     it('each prompt has a description string', () => {

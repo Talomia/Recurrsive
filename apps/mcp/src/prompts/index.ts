@@ -11,6 +11,7 @@ import { registerPromptTemplates } from './templates.js';
 import { registerAssessmentPrompts } from './assessments.js';
 import { registerGovernancePrompts } from './governance.js';
 import { registerOperationsPrompts } from './operations.js';
+import { registerAnalysisPrompts } from './analysis.js';
 
 /**
  * Register all MCP prompts with the server.
@@ -22,4 +23,5 @@ export function registerPrompts(server: McpServer): void {
   registerAssessmentPrompts(server);
   registerGovernancePrompts(server);
   registerOperationsPrompts(server);
+  registerAnalysisPrompts(server);
 }

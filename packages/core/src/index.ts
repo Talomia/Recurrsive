@@ -152,6 +152,13 @@ export {
   contentHash,
   batchProcess,
   type RetryConfig,
+  sanitizeInput,
+  validateEmail,
+  validateUrl,
+  truncate,
+  slugify,
+  deepMerge,
+  debounce,
 } from './utils/index.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────

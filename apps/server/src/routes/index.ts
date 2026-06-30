@@ -24,6 +24,7 @@ import { registerBatchRoutes } from './batch.js';
 import { registerAuditRoutes } from './audit.js';
 import { registerAnalyticsRoutes } from './analytics.js';
 import { registerExperimentRoutes } from './experiments.js';
+import { registerSearchRoutes } from './search.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -46,6 +47,7 @@ import { registerExperimentRoutes } from './experiments.js';
  * - `/api/v1/audit` — Audit trail events
  * - `/api/v1/analytics/*` — Analytics summary and categories
  * - `/api/v1/experiments/*` — A/B experiment management
+ * - `/api/v1/search` — Cross-entity keyword search
  *
  * @param app - The Fastify application instance.
  */
@@ -66,4 +68,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerAuditRoutes(app);
   await registerAnalyticsRoutes(app);
   await registerExperimentRoutes(app);
+  await registerSearchRoutes(app);
 }

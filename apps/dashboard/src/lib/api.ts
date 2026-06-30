@@ -2051,3 +2051,169 @@ export async function getExperiment(id: string): Promise<DashboardExperiment | n
     return MOCK_EXPERIMENTS.find((e) => e.id === id) ?? null;
   }
 }
+
+// ─── Analysis Run Comparison Types ───────────────────────────────────────────
+
+export interface AnalysisRunCategory {
+  name: string;
+  count: number;
+}
+
+export interface AnalysisRun {
+  id: string;
+  label: string;
+  date: string;
+  health_score: number;
+  findings: number;
+  resolved: number;
+  categories: AnalysisRunCategory[];
+}
+
+export interface ComparisonData {
+  runA: AnalysisRun;
+  runB: AnalysisRun;
+  health_delta: number;
+  findings_delta: number;
+  resolution_rate_a: number;
+  resolution_rate_b: number;
+  resolution_rate_delta: number;
+  new_findings: number;
+  findings_resolved: number;
+}
+
+// ─── Analysis Run Mock Data ──────────────────────────────────────────────────
+
+const MOCK_ANALYSIS_RUNS: AnalysisRun[] = [
+  {
+    id: "run_001",
+    label: "Run #1",
+    date: "2026-06-20T08:00:00Z",
+    health_score: 71,
+    findings: 55,
+    resolved: 18,
+    categories: [
+      { name: "Security", count: 12 },
+      { name: "Performance", count: 16 },
+      { name: "Architecture", count: 10 },
+      { name: "Reliability", count: 9 },
+      { name: "Cost", count: 8 },
+    ],
+  },
+  {
+    id: "run_002",
+    label: "Run #2",
+    date: "2026-06-23T10:30:00Z",
+    health_score: 76,
+    findings: 48,
+    resolved: 22,
+    categories: [
+      { name: "Security", count: 10 },
+      { name: "Performance", count: 14 },
+      { name: "Architecture", count: 9 },
+      { name: "Reliability", count: 8 },
+      { name: "Cost", count: 7 },
+    ],
+  },
+  {
+    id: "run_003",
+    label: "Run #3",
+    date: "2026-06-25T14:15:00Z",
+    health_score: 80,
+    findings: 42,
+    resolved: 28,
+    categories: [
+      { name: "Security", count: 8 },
+      { name: "Performance", count: 12 },
+      { name: "Architecture", count: 8 },
+      { name: "Reliability", count: 7 },
+      { name: "Cost", count: 7 },
+    ],
+  },
+  {
+    id: "run_004",
+    label: "Run #4",
+    date: "2026-06-28T09:00:00Z",
+    health_score: 84,
+    findings: 38,
+    resolved: 31,
+    categories: [
+      { name: "Security", count: 6 },
+      { name: "Performance", count: 11 },
+      { name: "Architecture", count: 8 },
+      { name: "Reliability", count: 6 },
+      { name: "Cost", count: 7 },
+    ],
+  },
+  {
+    id: "run_005",
+    label: "Run #5",
+    date: "2026-06-30T10:00:00Z",
+    health_score: 87,
+    findings: 34,
+    resolved: 29,
+    categories: [
+      { name: "Security", count: 5 },
+      { name: "Performance", count: 9 },
+      { name: "Architecture", count: 7 },
+      { name: "Reliability", count: 6 },
+      { name: "Cost", count: 7 },
+    ],
+  },
+];
+
+// ─── Analysis Run Comparisons API ────────────────────────────────────────────
+
+/**
+ * Get all analysis runs for comparison selection.
+ */
+export async function getAnalysisRuns(): Promise<AnalysisRun[]> {
+  try {
+    const raw = await apiFetch<{
+      data: AnalysisRun[];
+    } | null>("/api/v1/analysis/runs", null);
+
+    if (!raw?.data?.length) return MOCK_ANALYSIS_RUNS;
+    return raw.data;
+  } catch {
+    return MOCK_ANALYSIS_RUNS;
+  }
+}
+
+/**
+ * Get comparison data between two analysis runs.
+ */
+export async function getComparisonData(
+  runAId: string,
+  runBId: string,
+): Promise<ComparisonData | null> {
+  try {
+    const raw = await apiFetch<{
+      data: ComparisonData;
+    } | null>(`/api/v1/analysis/compare?run_a=${encodeURIComponent(runAId)}&run_b=${encodeURIComponent(runBId)}`, null);
+
+    if (raw?.data) return raw.data;
+  } catch {
+    // Fall through to mock computation
+  }
+
+  // Compute from mock data
+  const runA = MOCK_ANALYSIS_RUNS.find((r) => r.id === runAId);
+  const runB = MOCK_ANALYSIS_RUNS.find((r) => r.id === runBId);
+
+  if (!runA || !runB) return null;
+
+  const resRateA = runA.findings > 0 ? (runA.resolved / runA.findings) * 100 : 0;
+  const resRateB = runB.findings > 0 ? (runB.resolved / runB.findings) * 100 : 0;
+
+  return {
+    runA,
+    runB,
+    health_delta: runB.health_score - runA.health_score,
+    findings_delta: runB.findings - runA.findings,
+    resolution_rate_a: Math.round(resRateA * 10) / 10,
+    resolution_rate_b: Math.round(resRateB * 10) / 10,
+    resolution_rate_delta: Math.round((resRateB - resRateA) * 10) / 10,
+    new_findings: Math.max(0, runB.findings - runA.resolved),
+    findings_resolved: Math.max(0, runA.findings - runB.findings + runB.resolved - runA.resolved),
+  };
+}

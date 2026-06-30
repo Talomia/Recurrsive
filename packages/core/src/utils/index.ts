@@ -34,3 +34,13 @@ export {
   batchProcess,
   type RetryConfig,
 } from './async.js';
+
+export {
+  sanitizeInput,
+  validateEmail,
+  validateUrl,
+  truncate,
+  slugify,
+  deepMerge,
+  debounce,
+} from './validation.js';

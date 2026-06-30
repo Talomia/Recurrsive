@@ -26,6 +26,7 @@ import {
   BarChart3,
   History,
   FlaskConical,
+  GitCompare,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -39,6 +40,7 @@ const NAV_ITEMS = [
   { href: "/batch", label: "Batch", icon: Layers },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/experiments", label: "Experiments", icon: FlaskConical },
+  { href: "/comparisons", label: "Comparisons", icon: GitCompare },
   { href: "/audit", label: "Audit Trail", icon: History },
   { href: "/search", label: "Search", icon: Search },
   { href: "/reports", label: "Reports", icon: FileText },
