@@ -23,6 +23,7 @@ Base URL: `http://localhost:3000`
 | `POST` | `/api/v1/analyze` | Start a new analysis run |
 | `GET` | `/api/v1/analysis/status` | Current analysis status (phase, progress, message) |
 | `GET` | `/api/v1/analysis/history` | History of past analysis runs |
+| `GET` | `/api/v1/analysis/compare?baseline=N` | Compare analysis runs (current vs baseline run N) |
 
 #### `POST /api/v1/analyze`
 
@@ -95,6 +96,13 @@ Base URL: `http://localhost:3000`
 | `GET` | `/api/v1/timeline` | Full intelligence timeline |
 | `GET` | `/api/v1/timeline/snapshots` | List timeline snapshots |
 | `GET` | `/api/v1/timeline/trends` | Trend data over time |
+
+### Snapshots
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/snapshots/export` | Export graph as portable JSON |
+| `POST` | `/api/v1/snapshots/import` | Import from snapshot file |
 
 ---
 
@@ -169,7 +177,7 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 
 ---
 
-## CLI Commands (8)
+## CLI Commands (10)
 
 ```bash
 recurrsive init            # Initialize a project for analysis
@@ -180,6 +188,8 @@ recurrsive timeline        # View intelligence timeline
 recurrsive health          # Show health scores
 recurrsive report          # Generate reports (markdown/html/sarif/json)
 recurrsive config          # View, validate, or locate configuration
+recurrsive search          # Full-text search across the knowledge graph
+recurrsive snapshot        # Export/import graph snapshots
 ```
 
 ### Global Flags

@@ -110,6 +110,13 @@ recurrsive report --format html
 
 # Manage configuration
 recurrsive config --list
+
+# Full-text search across the knowledge graph
+recurrsive search "authentication"
+
+# Export/import graph snapshots
+recurrsive snapshot export --output backup.json
+recurrsive snapshot import backup.json
 ```
 
 ### MCP Server (for AI Assistants)
@@ -215,7 +222,7 @@ recurrsive/
 │   ├── policy/         # Policy engine + 5 built-in policies
 │   └── presentation/   # Reports + notifications + terminal
 ├── apps/
-│   ├── cli/            # Commander.js CLI — 8 commands
+│   ├── cli/            # Commander.js CLI — 10 commands
 │   ├── mcp/            # MCP server — 10 tools, 4 resources, 6 prompts
 │   ├── server/         # Fastify REST + WebSocket API
 │   └── dashboard/      # Next.js dashboard — 6 pages

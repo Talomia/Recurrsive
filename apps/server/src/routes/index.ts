@@ -16,6 +16,7 @@ import { registerTimelineRoutes } from './timeline.js';
 import { registerFindingsRoutes } from './findings.js';
 import { registerReportRoutes } from './reports.js';
 import { registerSnapshotRoutes } from './snapshots.js';
+import { registerPolicyRoutes } from './policies.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -29,6 +30,8 @@ import { registerSnapshotRoutes } from './snapshots.js';
  * - `/api/v1/timeline/*` — Intelligence timeline and trends
  * - `/api/v1/findings/*` — Findings query and detail
  * - `/api/v1/reports/*` — Report generation (markdown, HTML, SARIF, JSON)
+ * - `/api/v1/snapshots/*` — Snapshot export/import
+ * - `/api/v1/policies/*` — Policy enforcement and compliance
  *
  * @param app - The Fastify application instance.
  */
@@ -41,4 +44,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerFindingsRoutes(app);
   await registerReportRoutes(app);
   await registerSnapshotRoutes(app);
+  await registerPolicyRoutes(app);
 }

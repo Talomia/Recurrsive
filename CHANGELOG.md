@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-06-30
+
+### Added
+
+#### Snapshot Export/Import
+- **Snapshot export** — `GET /api/v1/snapshots/export` server endpoint and `recurrsive snapshot export` CLI command for exporting the knowledge graph as portable JSON.
+- **Snapshot import** — `POST /api/v1/snapshots/import` server endpoint and `recurrsive snapshot import` CLI command for restoring from snapshot files.
+- **`search` CLI command** — `recurrsive search` for full-text search directly from the command line.
+
+#### Analysis
+- **`GET /api/v1/analysis/compare?baseline=N`** — Compare current analysis run against a previous baseline run.
+
+#### Dashboard
+- **Search page** — Dashboard search page for querying the knowledge graph.
+- **Opportunity detail page** — Deep-dive view for individual opportunities.
+- **Entity detail page** — Deep-dive view for individual entities.
+
+### Changed
+- CLI commands: 8 → **10** (added `search`, `snapshot`).
+- Server test expansion: 64 → **100** tests.
+- MCP test expansion: 29 → **41** tests.
+- CLI test expansion: 167 → **193** tests.
+- API.md updated with snapshot endpoints, analysis compare endpoint, and 10 CLI commands.
+- README updated with new CLI commands, endpoint count, and test count.
+
 ## [0.2.0] - 2026-06-30
 
 ### Added

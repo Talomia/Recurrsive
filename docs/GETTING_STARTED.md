@@ -143,6 +143,26 @@ recurrsive timeline
 recurrsive timeline --compare snap-1 snap-2
 ```
 
+### Search
+
+```bash
+# Full-text search across the knowledge graph
+recurrsive search "authentication"
+
+# Search with type filter
+recurrsive search "handler" --type function
+```
+
+### Snapshots
+
+```bash
+# Export the knowledge graph as portable JSON
+recurrsive snapshot export --output backup.json
+
+# Import from a snapshot file
+recurrsive snapshot import backup.json
+```
+
 ### Reports
 
 ```bash
@@ -212,7 +232,7 @@ Add Recurrsive as an MCP server for Claude, Cursor, or Copilot:
 }
 ```
 
-This gives your AI assistant 10 tools to analyze, query, and reason about your codebase.
+This gives your AI assistant 11 tools to analyze, query, and reason about your codebase.
 
 ---
 

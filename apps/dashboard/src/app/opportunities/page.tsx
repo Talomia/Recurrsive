@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap } from "lucide-react";
+import Link from "next/link";
+import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink } from "lucide-react";
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
@@ -241,7 +242,13 @@ export default function OpportunitiesPage() {
                           active ? "text-text-primary" : "text-text-secondary"
                         )}
                       >
-                        {opp.title}
+                        <Link
+                          href={`/opportunities/${encodeURIComponent(opp.id)}`}
+                          className="hover:underline hover:text-accent-blue transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {opp.title}
+                        </Link>
                       </p>
                       <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                         {opp.categories.map((cat) => (
@@ -304,7 +311,13 @@ export default function OpportunitiesPage() {
               </span>
             </div>
             <h2 className="text-xl font-bold text-text-primary leading-snug">
-              {selected.title}
+              <Link
+                href={`/opportunities/${encodeURIComponent(selected.id)}`}
+                className="hover:underline hover:text-accent-blue transition-colors inline-flex items-center gap-2"
+              >
+                {selected.title}
+                <ExternalLink className="h-4 w-4 text-text-muted" />
+              </Link>
             </h2>
             <p className="mt-2 text-sm text-text-secondary leading-relaxed">
               {selected.description}
