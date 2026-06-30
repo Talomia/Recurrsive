@@ -1008,6 +1008,7 @@ describe('Notification endpoints', () => {
 // CORS
 // ---------------------------------------------------------------------------
 
+
 describe('CORS', () => {
   it('includes CORS headers on responses', async () => {
     const res = await app.inject({
@@ -1017,6 +1018,70 @@ describe('CORS', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.headers['access-control-allow-origin']).toBeDefined();
+  });
+});
+
+describe('Batch endpoints', () => {
+  it('POST /api/v1/batch/analyze returns 400 without projects', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/batch/analyze',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json();
+    expect(body.error).toBeDefined();
+  });
+
+  it('POST /api/v1/batch/analyze returns 400 with empty projects', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/batch/analyze',
+      payload: { projects: [] },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('POST /api/v1/batch/analyze returns 400 with >10 projects', async () => {
+    const projects = Array.from({ length: 11 }, (_, i) => `/project-${i}`);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/batch/analyze',
+      payload: { projects },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('POST /api/v1/batch/analyze returns 202 with valid projects', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/batch/analyze',
+      payload: { projects: ['/project-a', '/project-b'] },
+    });
+    expect(res.statusCode).toBe(202);
+    const body = res.json();
+    expect(body.batch_id).toBeDefined();
+    expect(body.projects).toHaveLength(2);
+    expect(body.status).toBe('running');
+  });
+
+  it('GET /api/v1/batch/status/:id returns 404 for unknown batch', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/batch/status/nonexistent',
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('GET /api/v1/batch/history returns array', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/batch/history',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.total).toBeTypeOf('number');
   });
 });
 

@@ -1321,3 +1321,154 @@ export async function getWebhookEvents(): Promise<WebhookEvent[]> {
     return MOCK_WEBHOOK_EVENTS;
   }
 }
+
+// ─── Notification Types ──────────────────────────────────────────────────────
+
+export interface NotificationChannel {
+  type: string;
+  name: string;
+  enabled: boolean;
+  description: string;
+}
+
+export interface NotificationEntry {
+  id: string;
+  channel: string;
+  title: string;
+  severity: string;
+  sent_at: string;
+  status: "delivered" | "failed";
+}
+
+// ─── Notification Mock Data ──────────────────────────────────────────────────
+
+const MOCK_NOTIFICATION_CHANNELS: NotificationChannel[] = [
+  {
+    type: "console",
+    name: "Console",
+    enabled: true,
+    description: "Log notifications to the server console. Always available — no configuration needed.",
+  },
+  {
+    type: "slack",
+    name: "Slack",
+    enabled: false,
+    description: "Send notifications to a Slack channel via webhook. Set SLACK_WEBHOOK_URL to enable.",
+  },
+  {
+    type: "http",
+    name: "HTTP",
+    enabled: false,
+    description: "Send notifications to a custom HTTP endpoint. Provide a URL when sending.",
+  },
+];
+
+const MOCK_NOTIFICATION_HISTORY: NotificationEntry[] = [
+  {
+    id: "notif_000001",
+    channel: "console",
+    title: "Analysis completed successfully",
+    severity: "info",
+    sent_at: "2026-06-30T10:02:34Z",
+    status: "delivered",
+  },
+  {
+    id: "notif_000002",
+    channel: "slack",
+    title: "Health score dropped below threshold",
+    severity: "warning",
+    sent_at: "2026-06-29T15:30:00Z",
+    status: "delivered",
+  },
+  {
+    id: "notif_000003",
+    channel: "http",
+    title: "Policy violation detected in auth-service",
+    severity: "critical",
+    sent_at: "2026-06-29T09:15:00Z",
+    status: "failed",
+  },
+  {
+    id: "notif_000004",
+    channel: "console",
+    title: "New opportunity identified: N+1 query optimization",
+    severity: "info",
+    sent_at: "2026-06-28T14:45:00Z",
+    status: "delivered",
+  },
+  {
+    id: "notif_000005",
+    channel: "slack",
+    title: "Circuit breaker tripped for payment gateway",
+    severity: "critical",
+    sent_at: "2026-06-28T11:20:00Z",
+    status: "delivered",
+  },
+];
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+/**
+ * Get notification channels from `GET /api/v1/notifications/channels`.
+ *
+ * Server returns: `{ data: ChannelInfo[], total }`
+ * Dashboard needs: `NotificationChannel[]` with type, name, enabled, description.
+ */
+export async function getNotificationChannels(): Promise<NotificationChannel[]> {
+  try {
+    const raw = await apiFetch<{
+      data: Array<{
+        channel: string;
+        description: string;
+        configured: boolean;
+        config_hint: string;
+      }>;
+      total: number;
+    } | null>("/api/v1/notifications/channels", null);
+
+    if (!raw?.data?.length) return MOCK_NOTIFICATION_CHANNELS;
+
+    return raw.data.map((ch) => ({
+      type: ch.channel,
+      name: ch.channel.charAt(0).toUpperCase() + ch.channel.slice(1),
+      enabled: ch.configured,
+      description: ch.description,
+    }));
+  } catch {
+    return MOCK_NOTIFICATION_CHANNELS;
+  }
+}
+
+/**
+ * Get notification history from `GET /api/v1/notifications/history`.
+ *
+ * Server returns: `{ data: NotificationRecord[], total, max_retained }`
+ * Dashboard needs: `NotificationEntry[]` with id, channel, title, severity, sent_at, status.
+ */
+export async function getNotificationHistory(): Promise<NotificationEntry[]> {
+  try {
+    const raw = await apiFetch<{
+      data: Array<{
+        id: string;
+        channel: string;
+        message: string;
+        sent_at: string;
+        status: string;
+      }>;
+      total: number;
+    } | null>("/api/v1/notifications/history", null);
+
+    if (!raw?.data?.length) return MOCK_NOTIFICATION_HISTORY;
+
+    return raw.data.map((n) => ({
+      id: n.id,
+      channel: n.channel,
+      title: n.message,
+      severity: "info",
+      sent_at: n.sent_at,
+      status: n.status === "sent" ? ("delivered" as const) : ("failed" as const),
+    }));
+  } catch {
+    return MOCK_NOTIFICATION_HISTORY;
+  }
+}

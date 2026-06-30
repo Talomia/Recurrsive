@@ -17,6 +17,7 @@
  * - `policy` — Policy compliance checks
  * - `webhooks` — Manage webhook integrations
  * - `notifications` — Manage notification channels
+ * - `batch` — Run batch analysis on multiple projects
  *
  * @packageDocumentation
  */
@@ -37,6 +38,7 @@ import {
   registerWebhooksCommand,
 } from './commands/index.js';
 import { registerNotificationsCommand } from './commands/notifications.js';
+import { registerBatchCommand } from './commands/batch.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -73,6 +75,7 @@ export function createProgram(): Command {
   registerPolicyCommand(program);
   registerWebhooksCommand(program);
   registerNotificationsCommand(program);
+  registerBatchCommand(program);
 
   return program;
 }

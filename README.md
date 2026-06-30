@@ -51,6 +51,19 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 | 📡 **REST + WebSocket API** | Real-time analysis with live progress streaming |
 | 🐳 **Docker Ready** | Multi-stage Dockerfile with Apache AGE PostgreSQL |
 
+### Platform Overview
+
+| Surface | Count |
+|---------|-------|
+| 📡 Server REST endpoints | 41 |
+| ⌨️ CLI commands | 14 |
+| 🔌 MCP tools | 18 |
+| 💬 MCP prompts | 9 |
+| 📦 MCP resources | 6 |
+| 📊 Dashboard pages | 13 |
+| ✅ Tests | 2,000+ |
+| 📁 Packages | 13 (9 core + 4 apps) |
+
 ---
 
 ## Quick Start
@@ -77,7 +90,7 @@ pnpm build
 pnpm test
 ```
 
-### CLI Usage
+### CLI Usage (14 commands)
 
 ```bash
 # Link the CLI globally (after building)
@@ -117,6 +130,24 @@ recurrsive search "authentication"
 # Export/import graph snapshots
 recurrsive snapshot export --output backup.json
 recurrsive snapshot import backup.json
+
+# Policy compliance checks
+recurrsive policy check
+recurrsive policy list
+
+# Manage webhooks
+recurrsive webhooks list
+recurrsive webhooks add --url https://example.com/hook --events analysis.complete
+
+# Manage notification channels
+recurrsive notifications channels
+recurrsive notifications test console
+recurrsive notifications history
+
+# Batch analysis across multiple projects
+recurrsive batch run --projects ./proj1 ./proj2
+recurrsive batch status <batch_id>
+recurrsive batch history
 ```
 
 ### MCP Server (for AI Assistants)
@@ -137,18 +168,33 @@ Add to your MCP configuration:
 }
 ```
 
-**Available MCP tools (11):**
+**Available MCP tools (18), prompts (9), resources (6):**
+
+*Tools — Analysis:*
 - `analyze_project` — Run the full analysis pipeline
 - `get_opportunities` — Get prioritized improvement opportunities
 - `get_opportunity_detail` — Deep dive into a specific opportunity
-- `query_graph` — Query the knowledge graph
 - `get_health_score` — Get system health score and maturity
 - `list_findings` — List analysis findings with severity filter
+
+*Tools — Inspection:*
+- `query_graph` — Query the knowledge graph
 - `get_entity` — Get full entity details by ID
 - `trace_dependency` — Trace dependency chain between entities
 - `explain_entity` — LLM-powered entity explanation
 - `analyze_impact` — Analyze blast radius of changing an entity
 - `search_graph` — Full-text search across the knowledge graph (FTS5)
+
+*Tools — Governance:*
+- `check_policies` — Run policy compliance checks
+- `list_policies` — List available policy sets
+- `export_sarif` — Export findings as SARIF v2.1.0
+- `get_governance_status` — Data governance summary
+
+*Tools — Webhooks:*
+- `list_webhooks` — List registered webhook integrations
+- `register_webhook` — Register a new webhook endpoint
+- `list_webhook_events` — List supported webhook event types
 
 ### Docker
 
@@ -222,10 +268,10 @@ recurrsive/
 │   ├── policy/         # Policy engine + 5 built-in policies
 │   └── presentation/   # Reports + notifications + terminal
 ├── apps/
-│   ├── cli/            # Commander.js CLI — 10 commands
-│   ├── mcp/            # MCP server — 10 tools, 4 resources, 6 prompts
-│   ├── server/         # Fastify REST + WebSocket API
-│   └── dashboard/      # Next.js dashboard — 6 pages
+│   ├── cli/            # Commander.js CLI — 14 commands
+│   ├── mcp/            # MCP server — 18 tools, 6 resources, 9 prompts
+│   ├── server/         # Fastify REST + WebSocket API — 41 endpoints
+│   └── dashboard/      # Next.js dashboard — 13 pages
 ├── docker/             # Dockerfile + docker-compose
 ├── docs/
 │   ├── PRD.md          # Product Requirements
@@ -308,6 +354,63 @@ Reports and output formatting:
 - Console notifications with ANSI colors and severity icons
 - Webhook notifications with retry
 - Terminal formatter with box-drawing tables and progress bars
+
+---
+
+## Notification Channels
+
+Recurrsive supports three notification channels for alerting on analysis results, policy violations, and system events:
+
+| Channel | Description | Configuration |
+|---------|-------------|---------------|
+| 📺 **Console** | Log to server console with ANSI colors and severity icons | Always available — no setup needed |
+| 💬 **Slack** | Post to a Slack channel via incoming webhook | Set `SLACK_WEBHOOK_URL` environment variable |
+| 🌐 **HTTP** | POST to any custom HTTP endpoint | Provide a `url` per notification or in config |
+
+```bash
+# CLI
+recurrsive notifications channels          # List available channels
+recurrsive notifications test console      # Send a test notification
+recurrsive notifications history           # View recent notifications
+
+# REST API
+curl http://localhost:3000/api/v1/notifications/channels
+curl -X POST http://localhost:3000/api/v1/notifications/test \
+  -H "Content-Type: application/json" \
+  -d '{"channel": "console"}'
+```
+
+---
+
+## Webhook Events
+
+Register webhooks to receive real-time notifications when platform events occur.
+
+| Event | Description |
+|-------|-------------|
+| `analysis.complete` | Triggered when an analysis run completes successfully |
+| `analysis.failed` | Triggered when an analysis run fails |
+| `opportunity.created` | Triggered when a new improvement opportunity is identified |
+| `opportunity.updated` | Triggered when an opportunity status changes |
+| `policy.violation` | Triggered when a policy check finds a violation |
+| `health.degraded` | Triggered when the project health score drops below threshold |
+| `snapshot.created` | Triggered when a new knowledge graph snapshot is saved |
+
+```bash
+# Register a webhook
+curl -X POST http://localhost:3000/api/v1/webhooks \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/hook", "events": ["analysis.complete", "policy.violation"]}'
+
+# List registered webhooks
+curl http://localhost:3000/api/v1/webhooks
+
+# Test a webhook
+curl -X POST http://localhost:3000/api/v1/webhooks/wh_000001/test
+
+# View supported event types
+curl http://localhost:3000/api/v1/webhooks/events
+```
 
 ---
 
