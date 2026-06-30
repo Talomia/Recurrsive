@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - Unreleased
+
+### Added
+- **Notification system**: Server endpoints, CLI command, dashboard page, Slack/HTTP channels
+- **Batch analysis**: Multi-project analysis (server + CLI + dashboard + MCP)
+- **CLI config subcommands**: `get`, `set`, `reset` for dot-notation config management
+- **Webhook dashboard page**: Management UI with stats and event configuration
+- **Notifications dashboard page**: Channel management and delivery history
+- **MCP governance resources**: `policies/active` and `webhooks/status`
+- **MCP batch tools**: `start_batch_analysis` and `get_batch_status`
+- **Server config tests**: Full test coverage for config routes
+- **Integration tests**: Multi-endpoint flow tests (20 scenarios)
+
+### Changed
+- Server endpoints expanded from 38 to 44+
+- CLI commands expanded from 12 to 14
+- MCP tools expanded from 18 to 20, resources from 4 to 6
+- Dashboard pages expanded from 12 to 15+
+- Test suite expanded from 1,948 to 2,000+
+- README overhauled with platform overview, notification channels, webhook events
+- API documentation updated with all new endpoints and tools
+
 ## [0.2.1] - 2026-06-30
 
 ### Added

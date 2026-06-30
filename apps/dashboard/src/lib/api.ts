@@ -1472,3 +1472,158 @@ export async function getNotificationHistory(): Promise<NotificationEntry[]> {
     return MOCK_NOTIFICATION_HISTORY;
   }
 }
+
+// ─── Batch Types ─────────────────────────────────────────────────────────────
+
+export interface BatchProject {
+  path: string;
+  status: "pending" | "running" | "completed" | "failed";
+  findings_count?: number;
+  opportunities_count?: number;
+  started_at?: string;
+  completed_at?: string;
+  error?: string;
+}
+
+export interface BatchRun {
+  batch_id: string;
+  status: "pending" | "running" | "completed" | "partial" | "failed";
+  projects: BatchProject[];
+  created_at: string;
+  completed_at?: string;
+}
+
+// ─── Batch Mock Data ─────────────────────────────────────────────────────────
+
+const MOCK_BATCH_RUNS: BatchRun[] = [
+  {
+    batch_id: "batch_000003",
+    status: "running",
+    projects: [
+      {
+        path: "/home/user/projects/api-gateway",
+        status: "completed",
+        findings_count: 12,
+        opportunities_count: 4,
+        started_at: "2026-06-30T14:00:00Z",
+        completed_at: "2026-06-30T14:02:15Z",
+      },
+      {
+        path: "/home/user/projects/auth-service",
+        status: "running",
+        findings_count: 0,
+        opportunities_count: 0,
+        started_at: "2026-06-30T14:02:16Z",
+      },
+      {
+        path: "/home/user/projects/payment-service",
+        status: "pending",
+      },
+    ],
+    created_at: "2026-06-30T14:00:00Z",
+  },
+  {
+    batch_id: "batch_000002",
+    status: "completed",
+    projects: [
+      {
+        path: "/home/user/projects/web-client",
+        status: "completed",
+        findings_count: 23,
+        opportunities_count: 8,
+        started_at: "2026-06-29T10:00:00Z",
+        completed_at: "2026-06-29T10:03:45Z",
+      },
+      {
+        path: "/home/user/projects/admin-portal",
+        status: "completed",
+        findings_count: 15,
+        opportunities_count: 5,
+        started_at: "2026-06-29T10:03:46Z",
+        completed_at: "2026-06-29T10:06:12Z",
+      },
+      {
+        path: "/home/user/projects/notification-service",
+        status: "completed",
+        findings_count: 8,
+        opportunities_count: 3,
+        started_at: "2026-06-29T10:06:13Z",
+        completed_at: "2026-06-29T10:08:00Z",
+      },
+    ],
+    created_at: "2026-06-29T10:00:00Z",
+    completed_at: "2026-06-29T10:08:00Z",
+  },
+  {
+    batch_id: "batch_000001",
+    status: "partial",
+    projects: [
+      {
+        path: "/home/user/projects/order-service",
+        status: "completed",
+        findings_count: 19,
+        opportunities_count: 6,
+        started_at: "2026-06-28T08:00:00Z",
+        completed_at: "2026-06-28T08:02:30Z",
+      },
+      {
+        path: "/home/user/projects/inventory-service",
+        status: "failed",
+        error: "Analysis failed: unable to parse project configuration",
+        started_at: "2026-06-28T08:02:31Z",
+        completed_at: "2026-06-28T08:03:10Z",
+      },
+      {
+        path: "/home/user/projects/search-service",
+        status: "completed",
+        findings_count: 11,
+        opportunities_count: 4,
+        started_at: "2026-06-28T08:03:11Z",
+        completed_at: "2026-06-28T08:05:00Z",
+      },
+    ],
+    created_at: "2026-06-28T08:00:00Z",
+    completed_at: "2026-06-28T08:05:00Z",
+  },
+];
+
+// ─── Batch API ───────────────────────────────────────────────────────────────
+
+/**
+ * Get batch analysis history from `GET /api/v1/batch/history`.
+ *
+ * Server returns: `{ data: BatchRun[], total }`
+ */
+export async function getBatchHistory(): Promise<BatchRun[]> {
+  try {
+    const raw = await apiFetch<{
+      data: BatchRun[];
+      total: number;
+    } | null>("/api/v1/batch/history", null);
+
+    if (!raw?.data?.length) return MOCK_BATCH_RUNS;
+    return raw.data;
+  } catch {
+    return MOCK_BATCH_RUNS;
+  }
+}
+
+/**
+ * Get status of a specific batch run from `GET /api/v1/batch/status/:id`.
+ *
+ * Server returns: `{ data: BatchRun }`
+ */
+export async function getBatchStatus(id: string): Promise<BatchRun | null> {
+  try {
+    const raw = await apiFetch<{
+      data: BatchRun;
+    } | null>(`/api/v1/batch/status/${encodeURIComponent(id)}`, null);
+
+    if (!raw?.data) {
+      return MOCK_BATCH_RUNS.find((b) => b.batch_id === id) ?? null;
+    }
+    return raw.data;
+  } catch {
+    return MOCK_BATCH_RUNS.find((b) => b.batch_id === id) ?? null;
+  }
+}
