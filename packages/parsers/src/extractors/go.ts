@@ -166,9 +166,9 @@ const VAR_BLOCK_RE = /^var\s*\(/gm;
 
 // ─── Import Patterns ──────────────────────────────────────────────────────────
 
-/** Single-line import: `import "fmt"` or `import alias "path"`. */
+/** Single-line import: `import "fmt"`, `import alias "path"`, `import . "path"`, `import _ "path"`. */
 const IMPORT_SINGLE_RE =
-  /^import\s+(?:([A-Za-z_]\w*)\s+)?["']([^"']+)["']/gm;
+  /^import\s+(?:([A-Za-z_]\w*|\.)\s+)?["']([^"']+)["']/gm;
 
 /** Grouped import block: `import ( ... )` */
 const IMPORT_BLOCK_RE = /^import\s*\(/gm;
@@ -252,7 +252,7 @@ export class GoExtractor implements LanguageExtractor {
       }
 
       const block = source.substring(blockStart, parenEnd);
-      const importLineRe = /(?:([A-Za-z_]\w*)\s+)?["']([^"']+)["']/g;
+      const importLineRe = /(?:([A-Za-z_]\w*|\.)\s+)?["']([^"']+)["']/g;
       let lineMatch: RegExpExecArray | null;
       while ((lineMatch = importLineRe.exec(block)) !== null) {
         const alias = lineMatch[1] ?? null;
