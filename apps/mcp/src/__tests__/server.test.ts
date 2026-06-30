@@ -3,7 +3,7 @@
  *
  * Tests cover:
  * - Server has correct name and version
- * - All 5 tools are registered
+ * - All 15 tools are registered
  * - All 4 resources are registered
  * - All 3 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
@@ -72,6 +72,19 @@ vi.mock('@recurrsive/opportunities', () => ({
     get: vi.fn(),
     getTopN: vi.fn().mockReturnValue([]),
   })),
+}));
+
+vi.mock('@recurrsive/policy', () => ({
+  PolicyEngine: vi.fn().mockImplementation(() => ({
+    getPolicies: vi.fn().mockReturnValue([]),
+    passes: vi.fn().mockReturnValue({
+      passed: true,
+      effectiveAction: 'allow',
+      violations: [],
+      warnings: [],
+    }),
+  })),
+  BUILTIN_POLICIES: [],
 }));
 
 vi.mock('@recurrsive/analyzers', () => ({
@@ -160,9 +173,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 11 tools', () => {
+    it('registers exactly 15 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(11);
+      expect(mockTool).toHaveBeenCalledTimes(15);
     });
 
     it('registers "analyze_project" tool', () => {
@@ -253,13 +266,45 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('search_graph');
     });
 
-    it('all 11 tool names are unique', () => {
+    it('registers "export_snapshot" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('export_snapshot');
+    });
+
+    it('registers "import_snapshot" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('import_snapshot');
+    });
+
+    it('registers "evaluate_policies" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('evaluate_policies');
+    });
+
+    it('registers "compare_analyses" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('compare_analyses');
+    });
+
+    it('all 15 tool names are unique', () => {
       createServer();
       const toolNames = mockTool.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(toolNames);
-      expect(uniqueNames.size).toBe(11);
+      expect(uniqueNames.size).toBe(15);
     });
 
     it('each tool has a description string as second argument', () => {

@@ -1,6 +1,8 @@
+import Link from "next/link";
 import Header from "@/components/header";
-import { Sparkles, TrendingUp, Eye, Zap, GitBranch, AlertTriangle, Shield, BarChart3, Layers } from "lucide-react";
-import { getFindingsSummary } from "@/lib/api";
+import { Sparkles, TrendingUp, Eye, Zap, GitBranch, AlertTriangle, Shield, BarChart3, Layers, ChevronRight } from "lucide-react";
+import { getFindingsSummary, getFindings } from "@/lib/api";
+import type { Finding } from "@/lib/api";
 import type { LucideIcon } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -170,6 +172,7 @@ const FALLBACK_INSIGHTS: Insight[] = [
 
 export default async function InsightsPage() {
   const summary = await getFindingsSummary();
+  const { findings } = await getFindings({ limit: 10 });
   const insights = summary.total > 0
     ? generateInsights(summary)
     : FALLBACK_INSIGHTS;
@@ -243,6 +246,47 @@ export default async function InsightsPage() {
             );
           })}
         </div>
+
+        {/* Recent Findings list */}
+        {findings.length > 0 && (
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-text-primary">Recent Findings</h2>
+              <span className="text-xs text-text-muted">{findings.length} shown</span>
+            </div>
+            <div className="space-y-2 stagger-children">
+              {findings.map((finding: Finding) => {
+                const sevColor: Record<string, string> = {
+                  critical: "bg-red-500",
+                  high: "bg-orange-500",
+                  medium: "bg-amber-500",
+                  low: "bg-green-500",
+                  info: "bg-blue-500",
+                };
+                return (
+                  <Link
+                    key={finding.id}
+                    href={`/insights/${finding.id}`}
+                    className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
+                  >
+                    <div className={`h-2 w-2 rounded-full shrink-0 ${sevColor[finding.severity] ?? "bg-blue-500"}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate group-hover:text-accent-blue transition-colors">
+                        {finding.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-text-muted capitalize">{finding.category.replace(/_/g, " ")}</span>
+                        <span className="h-0.5 w-0.5 rounded-full bg-white/20" />
+                        <span className="text-[10px] text-text-muted">{finding.analyzer_id}</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-text-muted shrink-0 group-hover:text-text-secondary transition-colors" />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

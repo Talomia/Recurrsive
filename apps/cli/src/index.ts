@@ -12,7 +12,9 @@
  * - `health` — Show project health score
  * - `report` — Generate reports from analysis results
  * - `config` — View, validate, and inspect configuration
+ * - `search` — Full-text search the knowledge graph
  * - `snapshot` — Export and import knowledge graph snapshots
+ * - `policy` — Policy compliance checks
  *
  * @packageDocumentation
  */
@@ -29,6 +31,7 @@ import {
   registerConfigCommand,
   registerSearchCommand,
   registerSnapshotCommand,
+  registerPolicyCommand,
 } from './commands/index.js';
 
 /**
@@ -63,6 +66,7 @@ export function createProgram(): Command {
   registerConfigCommand(program);
   registerSearchCommand(program);
   registerSnapshotCommand(program);
+  registerPolicyCommand(program);
 
   return program;
 }

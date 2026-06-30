@@ -83,6 +83,40 @@ export interface SystemNode {
   connections: string[];
 }
 
+export interface FindingEvidence {
+  id: string;
+  type: string;
+  source: string;
+  description: string;
+  data?: Record<string, unknown>;
+  entity_ids: string[];
+  collected_at: string;
+  confidence: number;
+}
+
+export interface FindingLocation {
+  file: string;
+  start_line?: number;
+  end_line?: number;
+  start_column?: number;
+  end_column?: number;
+  repository?: string;
+  commit?: string;
+}
+
+export interface FindingImpact {
+  summary?: string;
+  metrics?: Array<{
+    name: string;
+    current_value?: string | number;
+    expected_value?: string | number;
+    change_percent?: number;
+    direction?: string;
+  }>;
+  affected_services?: string[];
+  affected_users?: string;
+}
+
 export interface Finding {
   id: string;
   title: string;
@@ -90,6 +124,14 @@ export interface Finding {
   severity: string;
   category: string;
   analyzer_id: string;
+  evidence: FindingEvidence[];
+  locations: FindingLocation[];
+  suggested_fix?: string;
+  estimated_impact?: FindingImpact;
+  confidence: number;
+  tags: string[];
+  metadata?: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface FindingsSummary {
@@ -617,6 +659,21 @@ export async function getFindings(params?: {
   const path = `/api/v1/findings${qs ? `?${qs}` : ""}`;
 
   return apiFetch(path, { findings: [], total: 0 });
+}
+
+/**
+ * Get a single finding by ID from `GET /api/v1/findings/:id`.
+ */
+export async function getFinding(id: string): Promise<Finding | null> {
+  try {
+    const finding = await apiFetch<Finding | null>(
+      `/api/v1/findings/${encodeURIComponent(id)}`,
+      null,
+    );
+    return finding;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Graph ───────────────────────────────────────────────────────────────────

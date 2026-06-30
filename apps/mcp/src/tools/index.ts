@@ -9,6 +9,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerAnalyzeTools } from './analyze.js';
 import { registerInspectTools } from './inspect.js';
+import { registerGovernanceTools } from './governance.js';
 
 /**
  * Register all MCP tools with the server.
@@ -18,4 +19,5 @@ import { registerInspectTools } from './inspect.js';
 export function registerTools(server: McpServer): void {
   registerAnalyzeTools(server);
   registerInspectTools(server);
+  registerGovernanceTools(server);
 }
