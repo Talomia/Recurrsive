@@ -80,8 +80,113 @@ export class ArchitectureAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    // Cross-cutting check: low abstraction ratio
+    // Note: We use tags to detect interfaces since 'class' entities with
+    // 'interface' or 'abstract' tags represent abstractions.
+    const classes = await ctx.graph.getEntities('class');
+    const abstractions = classes.filter(
+      (e) => (e.tags ?? []).some((t) => t === 'interface' || t === 'abstract' || t === 'trait'),
+    );
+    const concretes = classes.filter(
+      (e) => !(e.tags ?? []).some((t) => t === 'interface' || t === 'abstract' || t === 'trait'),
+    );
+
+    if (concretes.length >= 10 && abstractions.length === 0) {
+      findings.push(
+        createFinding({
+          title: 'No abstractions in a large codebase',
+          description:
+            `The project has ${concretes.length} concrete types (classes/structs) but no ` +
+            `interfaces or abstract contracts. This makes the codebase rigid and hard to ` +
+            `test in isolation. Consider extracting interfaces for key collaborators.`,
+          severity: 'medium',
+          category: 'architecture',
+          analyzer_id: this.id,
+          evidence: [
+            createEvidence({
+              type: 'metric',
+              source: 'architecture.structural',
+              description: `${concretes.length} classes/structs, 0 abstractions`,
+              entity_ids: [],
+              confidence: 0.9,
+              data: { classes: concretes.length, abstractions: 0 },
+            }),
+          ],
+          locations: [],
+          confidence: 0.85,
+          tags: ['abstraction', 'architecture', 'design'],
+        }),
+      );
+    } else if (concretes.length >= 5 && abstractions.length > 0) {
+      const ratio = abstractions.length / concretes.length;
+      if (ratio < 0.1) {
+        findings.push(
+          createFinding({
+            title: 'Low abstraction ratio',
+            description:
+              `Only ${Math.round(ratio * 100)}% of concrete types have corresponding abstractions ` +
+              `(${abstractions.length} abstractions to ${concretes.length} classes). ` +
+              `A ratio below 10% suggests key boundaries lack contracts.`,
+            severity: 'low',
+            category: 'architecture',
+            analyzer_id: this.id,
+            evidence: [
+              createEvidence({
+                type: 'metric',
+                source: 'architecture.structural',
+                description: `Abstraction ratio: ${abstractions.length}/${concretes.length} = ${Math.round(ratio * 100)}%`,
+                entity_ids: [],
+                confidence: 0.85,
+                data: { ratio, abstractions: abstractions.length, concretes: concretes.length },
+              }),
+            ],
+            locations: [],
+            confidence: 0.8,
+            tags: ['abstraction-ratio', 'architecture', 'design'],
+          }),
+        );
+      }
+    }
+
+    // Cross-cutting check: module spread (too many tiny modules)
+    const modules = await ctx.graph.getEntities('module');
+    const functions = await ctx.graph.getEntities('function');
+
+    if (modules.length > 0 && functions.length > 0) {
+      const avgFunctions = functions.length / modules.length;
+      if (modules.length >= 20 && avgFunctions < 2) {
+        findings.push(
+          createFinding({
+            title: 'Excessive module fragmentation',
+            description:
+              `The project has ${modules.length} modules averaging only ${avgFunctions.toFixed(1)} ` +
+              `functions each. This can make navigation difficult and increase import complexity. ` +
+              `Consider consolidating closely related modules.`,
+            severity: 'low',
+            category: 'architecture',
+            analyzer_id: this.id,
+            evidence: [
+              createEvidence({
+                type: 'metric',
+                source: 'architecture.structural',
+                description: `${modules.length} modules, ${functions.length} functions, avg ${avgFunctions.toFixed(1)} per module`,
+                entity_ids: [],
+                confidence: 0.8,
+                data: { modules: modules.length, functions: functions.length, average: avgFunctions },
+              }),
+            ],
+            locations: [],
+            confidence: 0.75,
+            tags: ['fragmentation', 'architecture', 'modules'],
+          }),
+        );
+      }
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Circular Dependencies ──────────────────────────────────

@@ -10,10 +10,12 @@ import { extname } from 'node:path';
 import type { LanguageExtractor } from './base.js';
 import { TypeScriptExtractor } from './typescript.js';
 import { PythonExtractor } from './python.js';
+import { GoExtractor } from './go.js';
 
 export type { ExtractedEntity, ExtractedRelationship, ImportInfo, LanguageExtractor, SourceLocation } from './base.js';
 export { TypeScriptExtractor } from './typescript.js';
 export { PythonExtractor } from './python.js';
+export { GoExtractor } from './go.js';
 
 // ─── Extractor Registry ───────────────────────────────────────────────────────
 
@@ -96,7 +98,7 @@ export class ExtractorRegistry {
 
 /**
  * Create an {@link ExtractorRegistry} pre-populated with all built-in
- * language extractors (TypeScript, Python).
+ * language extractors (TypeScript, Python, Go).
  *
  * @returns A ready-to-use registry.
  */
@@ -104,5 +106,6 @@ export function createDefaultRegistry(): ExtractorRegistry {
   const registry = new ExtractorRegistry();
   registry.register(new TypeScriptExtractor());
   registry.register(new PythonExtractor());
+  registry.register(new GoExtractor());
   return registry;
 }

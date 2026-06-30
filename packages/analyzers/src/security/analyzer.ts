@@ -100,8 +100,45 @@ export class SecurityAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
-    return [];
+  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
+    const findings: Finding[] = [];
+
+    // Systemic check: no endpoints have authentication
+    const endpoints = await ctx.graph.getEntities('endpoint');
+    if (endpoints.length >= 3) {
+      const authenticated = endpoints.filter(
+        (e) => e.properties['authenticated'] === true || (e.tags ?? []).includes('authenticated'),
+      );
+      if (authenticated.length === 0) {
+        findings.push(
+          createFinding({
+            title: 'No authenticated endpoints in the project',
+            description:
+              `None of the ${endpoints.length} API endpoints have authentication markers. ` +
+              `This suggests authentication is either not implemented or not detectable from ` +
+              `the codebase. Consider adding auth middleware or documenting public endpoints.`,
+            severity: 'high',
+            category: 'security',
+            analyzer_id: this.id,
+            evidence: [
+              createEvidence({
+                type: 'metric',
+                source: 'security.vulnerabilities',
+                description: `${endpoints.length} endpoints, 0 authenticated`,
+                entity_ids: [],
+                confidence: 0.9,
+                data: { total: endpoints.length, authenticated: 0 },
+              }),
+            ],
+            locations: [],
+            confidence: 0.9,
+            tags: ['authentication', 'security', 'endpoints'],
+          }),
+        );
+      }
+    }
+
+    return findings;
   }
 
   // ── Rule 1: Hardcoded Secrets ──────────────────────────────────────
