@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -33,6 +33,14 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   // Mobile sidebar is closed by default
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [opportunityCount, setOpportunityCount] = useState(23);
+
+  useEffect(() => {
+    fetch('/api/v1/opportunities')
+      .then((r) => r.json())
+      .then((data) => setOpportunityCount(data.data?.length ?? 23))
+      .catch(() => {});
+  }, []);
 
   return (
     <>
@@ -113,7 +121,7 @@ export default function Sidebar() {
                 {!collapsed && <span>{label}</span>}
                 {!collapsed && href === "/opportunities" && (
                   <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-blue/15 px-1.5 text-[10px] font-semibold text-blue-400">
-                    23
+                    {opportunityCount}
                   </span>
                 )}
               </Link>

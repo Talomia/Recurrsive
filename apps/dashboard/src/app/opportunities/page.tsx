@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap } from "lucide-react";
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
@@ -43,11 +44,17 @@ function getMetricBarColor(label: string, value: number): string {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
+const CATEGORY_OPTIONS = ["All Categories", "Security", "Performance", "Cost", "DevOps", "Architecture", "Database", "Reliability", "Frontend"] as const;
+const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low"] as const;
+
 export default function OpportunitiesPage() {
+  const searchParams = useSearchParams();
   const [opportunities, setOpportunities] = useState<Opportunity[]>(() => getMockOpportunities());
   const [selectedId, setSelectedId] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [categoryFilter, setCategoryFilter] = useState<string>("All Categories");
+  const [severityFilter, setSeverityFilter] = useState<string>("All Severities");
 
   // Attempt to fetch from API on mount, fall back to mock on failure
   useEffect(() => {
@@ -99,15 +106,31 @@ export default function OpportunitiesPage() {
   }, [opportunities, selectedId]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return opportunities;
-    const q = search.toLowerCase();
-    return opportunities.filter(
-      (o) =>
-        o.title.toLowerCase().includes(q) ||
-        o.categories.some((c) => c.toLowerCase().includes(q)) ||
-        o.id.toLowerCase().includes(q)
-    );
-  }, [opportunities, search]);
+    let result = opportunities;
+
+    // Category filter
+    if (categoryFilter !== "All Categories") {
+      result = result.filter((o) => o.categories.includes(categoryFilter));
+    }
+
+    // Severity filter
+    if (severityFilter !== "All Severities") {
+      result = result.filter((o) => o.severity === severityFilter);
+    }
+
+    // Search filter
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (o) =>
+          o.title.toLowerCase().includes(q) ||
+          o.categories.some((c) => c.toLowerCase().includes(q)) ||
+          o.id.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [opportunities, search, categoryFilter, severityFilter]);
 
   const selected = filtered.find((o) => o.id === selectedId) ?? filtered[0];
 
@@ -157,12 +180,34 @@ export default function OpportunitiesPage() {
               />
             </div>
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/5 px-2.5 py-1.5 text-xs text-text-secondary hover:bg-white/8 transition-colors">
+              <button
+                onClick={() => {
+                  const idx = CATEGORY_OPTIONS.indexOf(categoryFilter as typeof CATEGORY_OPTIONS[number]);
+                  setCategoryFilter(CATEGORY_OPTIONS[(idx + 1) % CATEGORY_OPTIONS.length]!);
+                }}
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                  categoryFilter !== "All Categories"
+                    ? "bg-accent-blue/10 border-accent-blue/30 text-blue-400"
+                    : "bg-white/5 border-white/5 text-text-secondary hover:bg-white/8"
+                )}
+              >
                 <Filter className="h-3 w-3" />
-                All Categories
+                {categoryFilter}
               </button>
-              <button className="rounded-lg bg-white/5 border border-white/5 px-2.5 py-1.5 text-xs text-text-secondary hover:bg-white/8 transition-colors">
-                All Severities
+              <button
+                onClick={() => {
+                  const idx = SEVERITY_OPTIONS.indexOf(severityFilter as typeof SEVERITY_OPTIONS[number]);
+                  setSeverityFilter(SEVERITY_OPTIONS[(idx + 1) % SEVERITY_OPTIONS.length]!);
+                }}
+                className={clsx(
+                  "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                  severityFilter !== "All Severities"
+                    ? "bg-accent-blue/10 border-accent-blue/30 text-blue-400"
+                    : "bg-white/5 border-white/5 text-text-secondary hover:bg-white/8"
+                )}
+              >
+                {severityFilter === "All Severities" ? "All Severities" : severityFilter.charAt(0).toUpperCase() + severityFilter.slice(1)}
               </button>
             </div>
             <p className="text-xs text-text-muted">

@@ -67,4 +67,71 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       analyzed_at: cache.analyzedAt,
     });
   });
+
+  /**
+   * GET /api/v1/metrics/performance
+   *
+   * Returns derived performance metrics from the latest analysis:
+   * - Analysis duration
+   * - Entity density (entities per file)
+   * - Issue density (findings per 1K entities)
+   * - Graph coverage (relationship-to-entity ratio)
+   */
+  app.get('/api/v1/metrics/performance', async (_request, reply) => {
+    const cache = state.getAnalysisCache();
+    if (!cache) {
+      return reply.status(404).send({
+        error: 'No analysis data',
+        message: 'No analysis has been run yet.',
+      });
+    }
+
+    const graph = state.getGraph();
+    const stats = await graph.getStats();
+    const totalEntities = stats.totalEntities;
+    const totalRelationships = stats.totalRelationships;
+    const fileCount = stats.entityCountsByType['file'] ?? 1;
+
+    const analysisTimeSec = (cache.durationMs / 1000).toFixed(1);
+    const entityDensity = fileCount > 0 ? (totalEntities / fileCount).toFixed(1) : '0';
+    const issueDensity = totalEntities > 0
+      ? ((cache.findings.length / totalEntities) * 1000).toFixed(1)
+      : '0';
+    const coverageRatio = totalEntities > 0
+      ? (totalRelationships / totalEntities).toFixed(2)
+      : '0';
+
+    const metrics = [
+      {
+        label: 'Analysis Time',
+        value: analysisTimeSec,
+        unit: 's',
+        trend: 0,
+        data: [{ value: parseFloat(analysisTimeSec) }],
+      },
+      {
+        label: 'Entity Density',
+        value: entityDensity,
+        unit: 'per file',
+        trend: 0,
+        data: [{ value: parseFloat(entityDensity) }],
+      },
+      {
+        label: 'Issue Density',
+        value: issueDensity,
+        unit: 'per 1K',
+        trend: 0,
+        data: [{ value: parseFloat(issueDensity) }],
+      },
+      {
+        label: 'Graph Coverage',
+        value: coverageRatio,
+        unit: 'ratio',
+        trend: 0,
+        data: [{ value: parseFloat(coverageRatio) }],
+      },
+    ];
+
+    return reply.status(200).send({ data: metrics });
+  });
 }

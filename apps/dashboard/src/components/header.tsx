@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search, Bell, Sparkles } from "lucide-react";
 
 interface HeaderProps {
@@ -8,6 +10,15 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle }: HeaderProps) {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && searchQuery.trim()) {
+      router.push(`/opportunities?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
     <header className="flex items-center justify-between border-b border-border px-6 py-4">
       {/* Left: title */}
@@ -25,6 +36,9 @@ export default function Header({ title, subtitle }: HeaderProps) {
           <Search className="h-4 w-4 text-text-muted" aria-hidden="true" />
           <input
             type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
             placeholder="Search everything…"
             aria-label="Search dashboard"
             className="bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none w-48"

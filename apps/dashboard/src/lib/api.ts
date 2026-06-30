@@ -569,10 +569,15 @@ export function getMockOpportunities(): Opportunity[] {
 // ─── Performance Metrics ─────────────────────────────────────────────────────
 
 /**
- * Performance metrics don't have a dedicated server endpoint yet.
- * Returns mock data, which can be replaced when telemetry is available.
+ * Get performance metrics from `GET /api/v1/metrics/performance`.
+ * Falls back to mock data when the server is unavailable.
  */
 export async function getPerformanceMetrics(): Promise<PerformanceMetric[]> {
+  const raw = await apiFetch<{ data: PerformanceMetric[] } | null>(
+    "/api/v1/metrics/performance",
+    null,
+  );
+  if (raw?.data) return raw.data;
   return MOCK_PERFORMANCE;
 }
 
