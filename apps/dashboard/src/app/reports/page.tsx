@@ -3,7 +3,7 @@ import { FileText, Download, Calendar, BarChart3 } from "lucide-react";
 
 const REPORTS = [
   {
-    title: "Monthly Evolution Report — June 2026",
+    title: "Monthly Intelligence Report — June 2026",
     description: "Comprehensive summary of code quality improvements, resolved opportunities, and performance trends.",
     date: "Jun 29, 2026",
     type: "Monthly",

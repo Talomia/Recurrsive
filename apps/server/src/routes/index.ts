@@ -25,7 +25,7 @@ import { registerReportRoutes } from './reports.js';
  * - `/api/v1/opportunities` — Opportunity CRUD and export
  * - `/api/v1/analyze`, `/api/v1/analysis/*` — Analysis management
  * - `/api/v1/graph/*` — Knowledge graph queries
- * - `/api/v1/timeline/*` — Evolution timeline and trends
+ * - `/api/v1/timeline/*` — Intelligence timeline and trends
  * - `/api/v1/findings/*` — Findings query and detail
  * - `/api/v1/reports/*` — Report generation (markdown, HTML, SARIF, JSON)
  *

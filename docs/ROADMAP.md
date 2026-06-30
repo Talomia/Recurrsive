@@ -5,7 +5,7 @@
 | Component | Status | Evidence |
 |---|---|---|
 | Core type system | ✅ Complete | 12 type files, Zod schemas with runtime validation |
-| Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 40 relationship types |
+| Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
 | Collectors | ⚠️ Partial | Git + Doc collectors built. 60+ planned integrations pending |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python extractors, AI pattern detection (13 patterns) |
 | Analyzers | ✅ Complete | 10 analyzers, 66+ rules |

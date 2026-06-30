@@ -9,7 +9,7 @@
  * - `recurrsive://health/latest` — Latest health score report
  * - `recurrsive://opportunities/top` — Top 10 opportunities
  * - `recurrsive://graph/summary` — Knowledge graph statistics
- * - `recurrsive://timeline/latest` — Latest evolution snapshot
+ * - `recurrsive://timeline/latest` — Latest intelligence snapshot
  *
  * @packageDocumentation
  */
@@ -280,7 +280,7 @@ export function registerReportResources(server: McpServer): void {
     'timeline-latest',
     'recurrsive://timeline/latest',
     {
-      description: 'Latest evolution snapshot: health score, findings count, ' +
+      description: 'Latest intelligence snapshot: health score, findings count, ' +
         'opportunity count, and analysis timing.',
       mimeType: 'text/markdown',
     },
@@ -301,7 +301,7 @@ export function registerReportResources(server: McpServer): void {
       const health = computeHealthScore(opportunities, stats);
 
       const lines = [
-        `# Evolution Snapshot`,
+        `# Intelligence Snapshot`,
         '',
         `**Project:** ${state.getProjectInfo().name}`,
         `**Health Score:** ${health}/100`,

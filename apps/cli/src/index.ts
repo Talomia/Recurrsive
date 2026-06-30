@@ -1,7 +1,7 @@
 /**
  * @module @recurrsive/cli
  *
- * Main CLI program setup for the Recurrsive Evolution Runtime.
+ * Main CLI program setup for the Recurrsive Engineering Intelligence Platform.
  *
  * Creates a Commander.js program with all registered commands:
  * - `init` — Initialize Recurrsive in a project
@@ -46,7 +46,7 @@ export function createProgram(): Command {
 
   program
     .name('recurrsive')
-    .description('The Evolution Runtime for AI Software')
+    .description('Engineering Intelligence Platform')
     .version('0.1.0');
 
   // Register all commands

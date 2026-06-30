@@ -36,11 +36,11 @@
 
 ## 1. Vision & Positioning
 
-### 1.1 Category Definition — Software Evolution Platform
+### 1.1 Category Definition — Engineering Intelligence Platform
 
-Recurrsive creates a new product category: **Software Evolution Platform (SEP)**.
+Recurrsive creates a new product category: **Engineering Intelligence Platform**.
 
-A Software Evolution Platform builds a continuously updated **digital twin** of an entire AI-powered software system — spanning code, data, infrastructure, runtime, and product context — then reasons across every dimension to deliver **evidence-based, measurable opportunities** to improve quality, performance, reliability, security, cost, and business outcomes.
+An Engineering Intelligence Platform builds a continuously updated **digital twin** of an entire software system — spanning code, data, infrastructure, runtime, and product context — then reasons across every dimension to deliver **evidence-based, measurable opportunities** to improve quality, performance, reliability, security, cost, and business outcomes.
 
 This is fundamentally different from every existing tool category:
 
@@ -59,7 +59,7 @@ This is fundamentally different from every existing tool category:
 
 ### 1.2 Why This Category Doesn't Exist Today
 
-Three converging forces make the Software Evolution Platform both possible and necessary now:
+Three converging forces make the Engineering Intelligence Platform both possible and necessary now:
 
 1. **AI software is qualitatively different.** Systems with LLMs, agents, RAG pipelines, and tool-calling chains exhibit non-deterministic behavior, stochastic costs, evolving quality, and emergent failure modes that traditional tools cannot model or reason about.
 
@@ -95,7 +95,7 @@ Three converging forces make the Software Evolution Platform both possible and n
 
 ### 1.4 Positioning Statement
 
-> **For engineering teams building AI-powered software**, Recurrsive is a **Software Evolution Platform** that continuously models your entire system and delivers evidence-based opportunities to improve quality, performance, reliability, security, cost, and business outcomes. **Unlike** coding assistants that only see code, observability tools that only see runtime, or AI evaluators that only see prompts, Recurrsive **reasons across every dimension of your software system** to surface what matters most and prove that changes worked.
+> **For engineering teams building modern software**, Recurrsive is an **Engineering Intelligence Platform** that continuously models your entire system and delivers evidence-based opportunities to improve quality, performance, reliability, security, cost, and business outcomes. **Unlike** coding assistants that only see code, observability tools that only see runtime, or AI evaluators that only see prompts, Recurrsive **reasons across every dimension of your software system** to surface what matters most and prove that changes worked.
 
 ### 1.5 How Recurrsive Relates to Existing Tools
 
@@ -104,7 +104,7 @@ Recurrsive **orchestrates, not replaces** existing tools. Every tool in a team's
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                        RECURRSIVE                                │
-│                  Software Evolution Platform                     │
+│                  Engineering Intelligence Platform                │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │                    DIGITAL TWIN                            │  │
@@ -2074,7 +2074,7 @@ The system tracks its own evolution:
 
 | Term | Definition |
 |---|---|
-| **Software Evolution Platform (SEP)** | A platform that continuously models an entire software system and provides evidence-based evolution guidance |
+| **Engineering Intelligence Platform** | A platform that continuously models an entire software system and provides evidence-based intelligence and recommendations |
 | **Digital Twin** | The continuously synchronized semantic representation of a software system maintained by Recurrsive |
 | **Opportunity** | A specific, evidence-backed, actionable possibility to improve the system |
 | **Collector** | A plugin that ingests data from an external source |

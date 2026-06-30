@@ -430,8 +430,8 @@ export function banner(): void {
   console.log(bold(cyan('  ╭─────────────────────────────────────╮')));
   console.log(bold(cyan('  │                                     │')));
   console.log(bold(cyan('  │  ') + magenta('◈') + cyan('  RECURRSIVE') + cyan('                    │')));
-  console.log(bold(cyan('  │  ') + dim('   The Evolution Runtime') + cyan('          │')));
-  console.log(bold(cyan('  │  ') + dim('   for AI Software') + cyan('                │')));
+  console.log(bold(cyan('  │  ') + dim('   Engineering Intelligence') + cyan('      │')));
+  console.log(bold(cyan('  │  ') + dim('   Platform') + cyan('                        │')));
   console.log(bold(cyan('  │                                     │')));
   console.log(bold(cyan('  ╰─────────────────────────────────────╯')));
   console.log('');

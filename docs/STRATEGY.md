@@ -41,7 +41,7 @@ Evidence → Collectors → Knowledge Graph → Deterministic Analysis → Speci
 
 ### The Knowledge Graph Is the Core Asset
 
-The graph contains 43 entity types and 40 relationship types spanning:
+The graph contains 43 entity types and 43 relationship types spanning:
 - **Code**: repositories, files, functions, classes, modules, endpoints
 - **AI**: prompts, agents, tools, models, MCP servers, evaluations
 - **Data**: tables, collections, indexes, queries, datasets

@@ -2,7 +2,7 @@
  * @module @recurrsive/core
  *
  * Core type system, Zod schemas, utilities, and constants for the
- * Recurrsive evolution runtime.
+ * Recurrsive engineering intelligence platform.
  *
  * This package contains no runtime logic beyond utilities — it is the
  * shared vocabulary that all other Recurrsive packages depend on.

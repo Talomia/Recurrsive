@@ -2,7 +2,7 @@
   "name": "@recurrsive/cli",
   "version": "0.1.0",
   "private": true,
-  "description": "Recurrsive CLI - The Evolution Runtime for AI Software",
+  "description": "Recurrsive CLI - Engineering Intelligence Platform",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {

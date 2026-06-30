@@ -1,7 +1,7 @@
 /**
  * @module @recurrsive/reasoning
  *
- * Multi-agent reasoning engine for the Recurrsive evolution runtime.
+ * Multi-agent reasoning engine for the Recurrsive engineering intelligence platform.
  *
  * Transforms raw {@link Finding}s from analyzers into prioritized
  * {@link Opportunity} objects through specialist debate and consensus.

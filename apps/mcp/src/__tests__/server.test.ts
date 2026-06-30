@@ -143,7 +143,7 @@ describe('MCP Server', () => {
 
       expect(McpServer).toHaveBeenCalledWith(
         expect.objectContaining({
-          description: expect.stringContaining('Evolution Runtime'),
+          description: expect.stringContaining('Engineering Intelligence Platform'),
         }),
       );
     });

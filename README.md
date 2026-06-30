@@ -42,7 +42,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 | Capability | Description |
 |---|---|
 | 🔍 **Evidence Collection** | Git repos, docs, ADRs, API contracts with PII detection & governance |
-| 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 40 relationship types |
+| 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 43 relationship types |
 | 🔬 **10 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product |
 | 🤖 **Multi-Agent Reasoning** | 12 specialist AI agents debate and rank improvement opportunities |
 | 📊 **Opportunity Management** | Prioritized roadmap with evidence, validation plans, rollback plans |
@@ -130,11 +130,11 @@ Add to your MCP configuration:
 - `get_opportunity_detail` — Deep dive into a specific opportunity
 - `query_graph` — Query the knowledge graph
 - `get_health_score` — Get system health score and maturity
-- `inspect_entity` — Inspect a specific entity in the knowledge graph
-- `inspect_relationships` — List relationships for an entity
-- `inspect_analyzers` — List available analyzers and their rules
-- `inspect_policies` — List active policies and evaluation results
-- `inspect_findings` — Browse raw analysis findings
+- `list_findings` — List analysis findings with severity filter
+- `get_entity` — Get full entity details by ID
+- `trace_dependency` — Trace dependency chain between entities
+- `explain_entity` — LLM-powered entity explanation
+- `analyze_impact` — Analyze blast radius of changing an entity
 
 ### Docker
 
@@ -189,7 +189,7 @@ Recurrsive follows a four-phase pipeline — **Collect → Understand → Reason
 ├─────────────────────────────────────────────────┤
 │                   COLLECT                         │
 │  Collectors  ·  Git  ·  Docs  ·  Telemetry       │
-│  Knowledge Graph  (43 entities, 40 relationships)│
+│  Knowledge Graph  (43 entities, 43 relationships)│
 └─────────────────────────────────────────────────┘
 ```
 
@@ -226,7 +226,7 @@ recurrsive/
 ## Packages
 
 ### `@recurrsive/core`
-Core type system with **43 entity types**, **40 relationship types**, Zod schemas, structured logger, error hierarchy, and shared utilities.
+Core type system with **43 entity types**, **43 relationship types**, Zod schemas, structured logger, error hierarchy, and shared utilities.
 
 ### `@recurrsive/graph`
 Dual-backend knowledge graph with a unified `GraphClient` interface:

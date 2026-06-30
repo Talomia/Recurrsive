@@ -1,7 +1,7 @@
 /**
  * @module @recurrsive/analyzers
  *
- * Analysis plugins for the Recurrsive evolution engine.
+ * Analysis plugins for the Recurrsive engineering intelligence platform.
  *
  * This package provides a suite of analyzers that inspect the
  * knowledge graph to detect architecture, AI, performance, cost,

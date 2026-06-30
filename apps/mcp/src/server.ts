@@ -29,7 +29,7 @@ import { state } from './state.js';
  * - **5 tools** for analysis, opportunity browsing, graph querying, and
  *   health scoring
  * - **4 resources** for read-only access to health reports, top
- *   opportunities, graph statistics, and evolution timeline
+ *   opportunities, graph statistics, and intelligence timeline
  * - **3 prompts** for guided health report interpretation, improvement
  *   cycle planning, and opportunity explanation
  *
@@ -50,8 +50,8 @@ export function createServer(): McpServer {
     name: 'recurrsive',
     version: '0.1.0',
     description:
-      'The Evolution Runtime for AI Software — continuously analyze ' +
-      'and improve AI applications through knowledge graph construction, ' +
+      'Engineering Intelligence Platform — continuously analyze ' +
+      'and improve software systems through knowledge graph construction, ' +
       'multi-analyzer inspection, and multi-agent reasoning.',
   });
 
