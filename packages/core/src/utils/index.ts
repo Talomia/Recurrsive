@@ -27,3 +27,10 @@ export {
   ConfigError,
   ValidationError,
 } from './errors.js';
+
+export {
+  retry,
+  contentHash,
+  batchProcess,
+  type RetryConfig,
+} from './async.js';

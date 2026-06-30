@@ -18,6 +18,7 @@
  * - `webhooks` — Manage webhook integrations
  * - `notifications` — Manage notification channels
  * - `batch` — Run batch analysis on multiple projects
+ * - `audit` — View and search the audit trail
  *
  * @packageDocumentation
  */
@@ -39,6 +40,7 @@ import {
 } from './commands/index.js';
 import { registerNotificationsCommand } from './commands/notifications.js';
 import { registerBatchCommand } from './commands/batch.js';
+import { registerAuditCommand } from './commands/audit.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -76,6 +78,7 @@ export function createProgram(): Command {
   registerWebhooksCommand(program);
   registerNotificationsCommand(program);
   registerBatchCommand(program);
+  registerAuditCommand(program);
 
   return program;
 }

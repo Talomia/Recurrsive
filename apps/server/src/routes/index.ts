@@ -21,6 +21,8 @@ import { registerWebhookRoutes } from './webhooks.js';
 import { registerConfigRoutes } from './config.js';
 import { registerNotificationRoutes } from './notifications.js';
 import { registerBatchRoutes } from './batch.js';
+import { registerAuditRoutes } from './audit.js';
+import { registerAnalyticsRoutes } from './analytics.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -40,6 +42,8 @@ import { registerBatchRoutes } from './batch.js';
  * - `/api/v1/config` — Configuration management and features
  * - `/api/v1/notifications/*` — Notification channels and history
  * - `/api/v1/batch/*` — Batch analysis management
+ * - `/api/v1/audit` — Audit trail events
+ * - `/api/v1/analytics/*` — Analytics summary and categories
  *
  * @param app - The Fastify application instance.
  */
@@ -57,4 +61,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerConfigRoutes(app);
   await registerNotificationRoutes(app);
   await registerBatchRoutes(app);
+  await registerAuditRoutes(app);
+  await registerAnalyticsRoutes(app);
 }

@@ -23,6 +23,8 @@ import {
   Webhook,
   Bell,
   Layers,
+  BarChart3,
+  History,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -34,6 +36,8 @@ const NAV_ITEMS = [
   { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/batch", label: "Batch", icon: Layers },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/audit", label: "Audit Trail", icon: History },
   { href: "/search", label: "Search", icon: Search },
   { href: "/reports", label: "Reports", icon: FileText },
   { href: "/policies", label: "Policies", icon: Shield },

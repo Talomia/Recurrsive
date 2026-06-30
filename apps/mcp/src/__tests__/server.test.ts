@@ -4,8 +4,8 @@
  * Tests cover:
  * - Server has correct name and version
  * - All 20 tools are registered
- * - All 6 resources are registered
- * - All 9 prompts are registered
+ * - All 7 resources are registered
+ * - All 12 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
  * - createServer returns a valid McpServer instance
  */
@@ -384,9 +384,9 @@ describe('MCP Server', () => {
   // ── Resource Registration ──────────────────────────────────────────────
 
   describe('resource registration', () => {
-    it('registers exactly 6 resources', () => {
+    it('registers exactly 7 resources', () => {
       createServer();
-      expect(mockResource).toHaveBeenCalledTimes(6);
+      expect(mockResource).toHaveBeenCalledTimes(7);
     });
 
     it('registers "health-latest" resource', () => {
@@ -440,6 +440,15 @@ describe('MCP Server', () => {
       expect(uris).toContain('recurrsive://timeline/latest');
       expect(uris).toContain('recurrsive://policies/active');
       expect(uris).toContain('recurrsive://webhooks/status');
+      expect(uris).toContain('recurrsive://analytics/summary');
+    });
+
+    it('registers "analytics-summary" resource', () => {
+      createServer();
+      const resourceNames = mockResource.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(resourceNames).toContain('analytics-summary');
     });
 
     it('registers "policies-active" resource', () => {
@@ -470,9 +479,9 @@ describe('MCP Server', () => {
   // ── Prompt Registration ────────────────────────────────────────────────
 
   describe('prompt registration', () => {
-    it('registers exactly 9 prompts', () => {
+    it('registers exactly 12 prompts', () => {
       createServer();
-      expect(mockPrompt).toHaveBeenCalledTimes(9);
+      expect(mockPrompt).toHaveBeenCalledTimes(12);
     });
 
     it('registers "interpret_health_report" prompt', () => {
@@ -547,13 +556,37 @@ describe('MCP Server', () => {
       expect(promptNames).toContain('risk_assessment');
     });
 
-    it('all 9 prompt names are unique', () => {
+    it('registers "configure_notifications" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('configure_notifications');
+    });
+
+    it('registers "batch_analysis_plan" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('batch_analysis_plan');
+    });
+
+    it('registers "audit_review" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('audit_review');
+    });
+
+    it('all 12 prompt names are unique', () => {
       createServer();
       const promptNames = mockPrompt.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(promptNames);
-      expect(uniqueNames.size).toBe(9);
+      expect(uniqueNames.size).toBe(12);
     });
 
     it('each prompt has a description string', () => {

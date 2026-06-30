@@ -148,6 +148,10 @@ export {
   GraphError,
   ConfigError,
   ValidationError,
+  retry,
+  contentHash,
+  batchProcess,
+  type RetryConfig,
 } from './utils/index.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────

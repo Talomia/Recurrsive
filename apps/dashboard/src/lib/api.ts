@@ -1627,3 +1627,258 @@ export async function getBatchStatus(id: string): Promise<BatchRun | null> {
     return MOCK_BATCH_RUNS.find((b) => b.batch_id === id) ?? null;
   }
 }
+
+// ─── Audit Trail Types ───────────────────────────────────────────────────────
+
+export type AuditEventType =
+  | "analysis"
+  | "webhook"
+  | "config"
+  | "notification"
+  | "batch"
+  | "policy";
+
+export type AuditAction =
+  | "created"
+  | "updated"
+  | "deleted"
+  | "executed"
+  | "tested"
+  | "configured";
+
+export interface AuditEvent {
+  id: string;
+  type: AuditEventType;
+  action: AuditAction;
+  actor: string;
+  target: string;
+  details: string;
+  timestamp: string;
+  ip: string;
+}
+
+// ─── Audit Trail Mock Data ───────────────────────────────────────────────────
+
+const MOCK_AUDIT_EVENTS: AuditEvent[] = [
+  {
+    id: "audit_000001",
+    type: "analysis",
+    action: "executed",
+    actor: "system",
+    target: "/home/user/projects/api-gateway",
+    details: "Full analysis run completed with 47 findings and 23 opportunities.",
+    timestamp: "2026-06-30T10:02:34Z",
+    ip: "127.0.0.1",
+  },
+  {
+    id: "audit_000002",
+    type: "webhook",
+    action: "created",
+    actor: "admin@example.com",
+    target: "wh_000001",
+    details: "Registered webhook for analysis.complete and policy.violation events.",
+    timestamp: "2026-06-30T09:15:00Z",
+    ip: "192.168.1.42",
+  },
+  {
+    id: "audit_000003",
+    type: "config",
+    action: "updated",
+    actor: "admin@example.com",
+    target: "analysis.include_reasoning",
+    details: "Changed include_reasoning from false to true.",
+    timestamp: "2026-06-29T16:30:00Z",
+    ip: "192.168.1.42",
+  },
+  {
+    id: "audit_000004",
+    type: "notification",
+    action: "tested",
+    actor: "admin@example.com",
+    target: "slack",
+    details: "Sent test notification to Slack channel #engineering-alerts.",
+    timestamp: "2026-06-29T14:00:00Z",
+    ip: "192.168.1.42",
+  },
+  {
+    id: "audit_000005",
+    type: "policy",
+    action: "configured",
+    actor: "admin@example.com",
+    target: "builtin-security",
+    details: "Enabled Security Policies policy set with 2 rules.",
+    timestamp: "2026-06-29T11:20:00Z",
+    ip: "192.168.1.42",
+  },
+  {
+    id: "audit_000006",
+    type: "batch",
+    action: "executed",
+    actor: "ci-pipeline",
+    target: "batch_000002",
+    details: "Batch analysis of 3 projects completed. 2 succeeded, 1 failed.",
+    timestamp: "2026-06-28T10:08:00Z",
+    ip: "10.0.0.5",
+  },
+  {
+    id: "audit_000007",
+    type: "analysis",
+    action: "executed",
+    actor: "system",
+    target: "/home/user/projects/web-client",
+    details: "Analysis run completed with 51 findings and 25 opportunities.",
+    timestamp: "2026-06-28T14:32:12Z",
+    ip: "127.0.0.1",
+  },
+  {
+    id: "audit_000008",
+    type: "webhook",
+    action: "deleted",
+    actor: "admin@example.com",
+    target: "wh_000004",
+    details: "Removed inactive webhook endpoint https://old.example.com/hooks.",
+    timestamp: "2026-06-27T09:00:00Z",
+    ip: "192.168.1.42",
+  },
+];
+
+// ─── Audit Trail API ─────────────────────────────────────────────────────────
+
+/**
+ * Get audit trail events from `GET /api/v1/audit`.
+ *
+ * Server returns: `{ data: AuditEvent[], total }`
+ */
+export async function getAuditLog(type?: AuditEventType): Promise<AuditEvent[]> {
+  try {
+    const query = new URLSearchParams();
+    query.set("limit", "50");
+    if (type) query.set("type", type);
+
+    const raw = await apiFetch<{
+      data: AuditEvent[];
+      total: number;
+    } | null>(`/api/v1/audit?${query.toString()}`, null);
+
+    if (!raw?.data?.length) return MOCK_AUDIT_EVENTS;
+    return raw.data;
+  } catch {
+    return MOCK_AUDIT_EVENTS;
+  }
+}
+
+// ─── Analytics Types ─────────────────────────────────────────────────────────
+
+export interface AnalyticsTrendPoint {
+  date: string;
+  findings: number;
+  resolved: number;
+  health: number;
+}
+
+export interface AnalyticsSummary {
+  analysis_runs: number;
+  total_findings: number;
+  findings_resolved: number;
+  resolution_rate: number;
+  avg_health_score: number;
+  trends: AnalyticsTrendPoint[];
+}
+
+export interface AnalyticsCategory {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+// ─── Analytics Mock Data ─────────────────────────────────────────────────────
+
+function generateAnalyticsTrends(): AnalyticsTrendPoint[] {
+  const points: AnalyticsTrendPoint[] = [];
+  const baseDate = new Date("2026-04-06");
+
+  for (let week = 0; week < 12; week++) {
+    const date = new Date(baseDate);
+    date.setDate(date.getDate() + week * 7);
+    const dateStr = date.toISOString().slice(0, 10);
+
+    const noise = (s: number) => seededRandom(week * 137 + s) * 8 - 4;
+    const findings = Math.round(30 + week * 1.5 + noise(0));
+    const resolved = Math.round(findings * (0.45 + week * 0.015 + noise(1) * 0.03));
+    const health = Math.round(68 + week * 0.8 + noise(2));
+
+    points.push({
+      date: dateStr,
+      findings: Math.max(findings, 10),
+      resolved: Math.max(Math.min(resolved, findings), 0),
+      health: Math.max(Math.min(health, 100), 50),
+    });
+  }
+
+  return points;
+}
+
+const MOCK_ANALYTICS_TRENDS = generateAnalyticsTrends();
+
+const MOCK_ANALYTICS_SUMMARY: AnalyticsSummary = (() => {
+  const totalFindings = MOCK_ANALYTICS_TRENDS.reduce((s, t) => s + t.findings, 0);
+  const totalResolved = MOCK_ANALYTICS_TRENDS.reduce((s, t) => s + t.resolved, 0);
+  const avgHealth =
+    Math.round(
+      (MOCK_ANALYTICS_TRENDS.reduce((s, t) => s + t.health, 0) / MOCK_ANALYTICS_TRENDS.length) * 10,
+    ) / 10;
+
+  return {
+    analysis_runs: 47,
+    total_findings: totalFindings,
+    findings_resolved: totalResolved,
+    resolution_rate: Math.round((totalResolved / totalFindings) * 1000) / 10,
+    avg_health_score: avgHealth,
+    trends: MOCK_ANALYTICS_TRENDS,
+  };
+})();
+
+const MOCK_ANALYTICS_CATEGORIES: AnalyticsCategory[] = [
+  { name: "Security", count: 42, percentage: 13.5 },
+  { name: "Performance", count: 68, percentage: 21.8 },
+  { name: "Architecture", count: 54, percentage: 17.3 },
+  { name: "Reliability", count: 39, percentage: 12.5 },
+  { name: "Cost", count: 28, percentage: 9.0 },
+  { name: "Documentation", count: 35, percentage: 11.2 },
+  { name: "Testing", count: 26, percentage: 8.3 },
+  { name: "DevOps", count: 20, percentage: 6.4 },
+];
+
+// ─── Analytics API ───────────────────────────────────────────────────────────
+
+/**
+ * Get analytics summary from `GET /api/v1/analytics/summary`.
+ */
+export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
+  try {
+    const raw = await apiFetch<AnalyticsSummary | null>(
+      "/api/v1/analytics/summary",
+      null,
+    );
+
+    return raw ?? MOCK_ANALYTICS_SUMMARY;
+  } catch {
+    return MOCK_ANALYTICS_SUMMARY;
+  }
+}
+
+/**
+ * Get analytics categories from `GET /api/v1/analytics/top-categories`.
+ */
+export async function getAnalyticsCategories(): Promise<AnalyticsCategory[]> {
+  try {
+    const raw = await apiFetch<{
+      categories: AnalyticsCategory[];
+    } | null>("/api/v1/analytics/top-categories", null);
+
+    if (!raw?.categories?.length) return MOCK_ANALYTICS_CATEGORIES;
+    return raw.categories;
+  } catch {
+    return MOCK_ANALYTICS_CATEGORIES;
+  }
+}
