@@ -1,0 +1,73 @@
+# Recurrsive — AI/ML Project Configuration
+# Extended config for projects using LLM APIs and AI agents
+
+version: "1"
+
+project:
+  name: ai-powered-app
+  repository: https://github.com/org/ai-app
+
+# Knowledge graph
+graph:
+  provider: sqlite
+
+# Analyzer configuration
+analyzers:
+  enabled: ["*"]
+  disabled: []
+  config:
+    # AI analyzer: detect model sprawl, missing evaluations, etc.
+    ai:
+      severity_threshold: medium
+    # Cost analyzer: track AI API spending
+    cost:
+      severity_threshold: low
+
+# LLM configuration for reasoning engine
+reasoning:
+  provider: openai
+  model: gpt-4.1-mini
+  # api_key: set OPENAI_API_KEY or RECURRSIVE_LLM_API_KEY env var
+  max_debate_rounds: 3
+  temperature: 0.3
+
+# Data governance — extra careful with AI data
+governance:
+  pii_detection: true
+  masked_fields:
+    - password
+    - secret
+    - token
+    - api_key
+    - openai_key
+    - anthropic_key
+    - embedding
+    - vector
+  excluded_patterns:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/.git/**"
+    - "**/model_weights/**"
+    - "**/checkpoints/**"
+    - "**/*.onnx"
+    - "**/*.pt"
+    - "**/*.safetensors"
+
+# Policies for AI governance
+policies:
+  - name: require-ai-evaluation
+    description: All AI agents must have evaluation metrics
+    severity: high
+    condition: "entity.type == 'ai_agent' && !entity.properties.has_evaluation"
+    message: "AI agent '{{entity.name}}' has no evaluation framework"
+
+  - name: require-cost-tracking
+    description: All LLM API calls must have cost tracking
+    severity: medium
+    condition: "entity.type == 'llm_call' && !entity.properties.cost_tracked"
+    message: "LLM call '{{entity.name}}' lacks cost tracking"
+
+# Output settings
+output:
+  format: json
+  directory: .recurrsive

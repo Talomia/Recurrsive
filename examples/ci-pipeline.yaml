@@ -1,0 +1,89 @@
+# Recurrsive — CI/CD Integration
+#
+# GitHub Actions workflow for automated Recurrsive analysis.
+# Add this to .github/workflows/recurrsive.yml in your project.
+
+name: Recurrsive Analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    name: Engineering Intelligence
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # Required for SARIF upload
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git collector
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # Option A: Install from npm (when published)
+      # - name: Install Recurrsive
+      #   run: pnpm add -g @recurrsive/cli
+
+      # Option B: Build from source
+      - name: Clone Recurrsive
+        uses: actions/checkout@v4
+        with:
+          repository: Talomia/Recurrsive
+          path: .recurrsive-tool
+
+      - name: Build Recurrsive
+        run: |
+          cd .recurrsive-tool
+          pnpm install
+          pnpm build
+
+      - name: Initialize
+        run: |
+          cd ${{ github.workspace }}
+          node .recurrsive-tool/apps/cli/dist/bin.js init
+
+      - name: Run Analysis
+        run: |
+          node .recurrsive-tool/apps/cli/dist/bin.js analyze .
+
+      - name: Generate SARIF Report
+        if: always()
+        run: |
+          node .recurrsive-tool/apps/cli/dist/bin.js report --format sarif > recurrsive-results.sarif
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: recurrsive-results.sarif
+          category: recurrsive
+
+      - name: Health Summary
+        run: |
+          node .recurrsive-tool/apps/cli/dist/bin.js health --json > health.json
+          echo "### 🧠 Engineering Intelligence Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          node -e "
+            const h = require('./health.json');
+            console.log('| Metric | Value |');
+            console.log('|--------|-------|');
+            console.log('| Health Score | ' + (h.overall_health || 'N/A') + '/100 |');
+            console.log('| Opportunities | ' + (h.opportunity_count || 0) + ' |');
+            console.log('| Risks | ' + (h.risk_count || 0) + ' |');
+            console.log('| Debt | ' + (h.debt_count || 0) + ' |');
+          " >> $GITHUB_STEP_SUMMARY

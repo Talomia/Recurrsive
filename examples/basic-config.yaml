@@ -1,0 +1,36 @@
+# Recurrsive — Basic Configuration
+# Minimal setup for a TypeScript project
+
+version: "1"
+
+project:
+  name: my-typescript-app
+  repository: https://github.com/org/my-app
+
+# Knowledge graph (SQLite — zero setup)
+graph:
+  provider: sqlite
+
+# Run all analyzers with defaults
+analyzers:
+  enabled: ["*"]
+  disabled: []
+
+# Standard data governance
+governance:
+  pii_detection: true
+  masked_fields:
+    - password
+    - secret
+    - token
+    - api_key
+  excluded_patterns:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/.git/**"
+    - "**/coverage/**"
+
+# Output settings
+output:
+  format: markdown
+  directory: .recurrsive

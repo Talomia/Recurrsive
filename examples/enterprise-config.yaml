@@ -1,0 +1,104 @@
+# Recurrsive — Enterprise Configuration
+# Full-featured config for enterprise environments with governance
+
+version: "1"
+
+project:
+  name: enterprise-platform
+  repository: https://github.com/enterprise/platform
+
+# Knowledge graph — PostgreSQL with Apache AGE for production
+graph:
+  provider: postgresql_age
+  connection_string: postgres://recurrsive:password@localhost:5432/recurrsive_graph
+
+# Selective analyzers for enterprise focus areas
+analyzers:
+  enabled:
+    - architecture
+    - security
+    - reliability
+    - performance
+    - cost
+    - data
+  disabled:
+    - ux      # Not relevant for backend services
+  config:
+    security:
+      severity_threshold: low    # Catch everything
+    reliability:
+      severity_threshold: medium
+    architecture:
+      severity_threshold: medium
+
+# LLM configuration (enterprise proxy)
+reasoning:
+  provider: openai
+  model: gpt-4o
+  max_debate_rounds: 5
+  temperature: 0.2
+
+# Strict data governance
+governance:
+  pii_detection: true
+  audit_log: true
+  retention_days: 365
+  masked_fields:
+    - password
+    - secret
+    - token
+    - api_key
+    - ssn
+    - social_security
+    - credit_card
+    - phone_number
+    - email
+    - date_of_birth
+    - address
+  excluded_patterns:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/.git/**"
+    - "**/vendor/**"
+    - "**/third_party/**"
+    - "**/*.min.js"
+    - "**/coverage/**"
+    - "**/test-fixtures/**"
+
+# Enterprise policies
+policies:
+  - name: no-hardcoded-credentials
+    description: No credentials in source code
+    severity: critical
+    condition: "entity.type == 'config' && entity.properties.has_secrets"
+    message: "Hardcoded credentials found in '{{entity.name}}'"
+
+  - name: require-authentication
+    description: All API endpoints must have authentication
+    severity: high
+    condition: "entity.type == 'endpoint' && !entity.properties.has_auth"
+    message: "Endpoint '{{entity.name}}' lacks authentication"
+
+  - name: require-rate-limiting
+    description: Public endpoints must have rate limiting
+    severity: high
+    condition: "entity.type == 'endpoint' && entity.properties.is_public && !entity.properties.has_rate_limit"
+    message: "Public endpoint '{{entity.name}}' lacks rate limiting"
+
+  - name: require-database-migrations
+    description: Database schema changes must use migrations
+    severity: high
+    condition: "entity.type == 'database' && !entity.properties.has_migrations"
+    message: "Database '{{entity.name}}' has no migration framework"
+
+  - name: max-function-complexity
+    description: Functions should not exceed cyclomatic complexity of 15
+    severity: medium
+    condition: "entity.type == 'function' && entity.properties.complexity > 15"
+    message: "Function '{{entity.name}}' has complexity {{entity.properties.complexity}} (max: 15)"
+
+# Output — SARIF for GitHub Advanced Security integration
+output:
+  format: sarif
+  directory: .recurrsive

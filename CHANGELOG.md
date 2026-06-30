@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-06-30
+
+### Added
+
+#### Server Security Hardening
+- **Rate Limiter** — In-memory sliding-window rate limiter (100 req/min default, configurable). Sets `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` headers. Returns 429 with `Retry-After`. Excludes `/health` endpoint. Zero external dependencies.
+- **Global Error Handler** — Consistent JSON error responses with request ID tracking. Safe error serialization (no internal details leaked). Custom 404 handler for unmatched routes.
+- **Request Body Validation** — Validation middleware for POST endpoints with type checking, required fields, and structured 400 error responses with field-level issues.
+- Server factory now accepts `rateLimitMax` option (set 0 to disable).
+
+#### Documentation
+- **Getting Started Guide** (`docs/GETTING_STARTED.md`) — Step-by-step tutorial covering CLI setup, project initialization, analysis, reporting, server, dashboard, and MCP integration.
+- **Examples Directory** (`examples/`) — Configuration examples:
+  - `basic-config.yaml` — Minimal TypeScript project
+  - `ai-project-config.yaml` — AI/ML project with reasoning and cost tracking
+  - `enterprise-config.yaml` — Enterprise config with PostgreSQL, strict governance, and 5 custom policies
+  - `ci-pipeline.yaml` — GitHub Actions workflow with SARIF upload
+
+#### Test Coverage Expansion
+- **Analyzer tests**: All 10/10 analyzers now have dedicated test suites (+174 tests)
+  - Cost: 6 rules + finalize (30+ tests)
+  - Docs: 6 rules + finalize (30+ tests)
+  - Data: 6 rules + finalize (30+ tests)
+  - Product: 5 rules + finalize (41 tests)
+  - UX: 5 rules + finalize (44 tests)
+- **CLI command tests**: config (14), graph (18), timeline (14) — all 6/8 commands now tested
+- **Server middleware tests**: rate limiter, error handler, validation (13 tests)
+- **Docs collector tests**: README, ADR, API contract, docs dir scanning (9 tests)
+- Total: **1,722 tests** across 57+ test files (up from 1,480)
+
+### Changed
+- API docs updated with `/api/v1/metrics/performance` endpoint
+- README documentation table expanded with Getting Started guide and Examples
+
 ## [0.1.3] - 2026-06-30
 
 ### Added

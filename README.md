@@ -357,12 +357,14 @@ output:
 
 | Document | Description |
 |----------|-------------|
+| [Getting Started](docs/GETTING_STARTED.md) | Step-by-step tutorial for first analysis |
 | [Product Strategy](docs/STRATEGY.md) | Positioning, business model, go-to-market, and feasibility |
 | [Product Roadmap](docs/ROADMAP.md) | Phased roadmap with current status |
 | [Product Requirements](docs/PRD.md) | Vision, capabilities, and detailed specifications |
 | [Architecture Guide](docs/ARCHITECTURE.md) | Technical architecture, data model, and deployment |
 | [API Reference](docs/API.md) | REST, WebSocket, and MCP endpoints |
 | [Development Guide](docs/DEVELOPMENT.md) | Setup, testing, and contribution workflow |
+| [Examples](examples/) | Configuration examples for basic, AI, and enterprise projects |
 | [Changelog](CHANGELOG.md) | Version history and release notes |
 
 ---
