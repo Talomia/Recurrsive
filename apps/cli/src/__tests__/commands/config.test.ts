@@ -9,9 +9,13 @@
  * - `config validate` reports errors with invalid config
  * - `config path` prints the config file path
  * - `config path` handles missing config
+ * - `config get` displays value for known key
+ * - `config get` shows error for unknown key
+ * - `config set` updates value
+ * - `config reset` creates default config
  */
 
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Mock external dependencies
@@ -19,6 +23,8 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
 vi.mock('../../config/loader.js', () => ({
   loadConfig: vi.fn(),
+  saveConfig: vi.fn().mockResolvedValue(undefined),
+  getDefaultConfig: vi.fn(),
 }));
 
 vi.mock('@recurrsive/core', () => {
@@ -53,7 +59,7 @@ vi.mock('../../output/terminal.js', () => ({
   red: vi.fn((t: string) => t),
 }));
 
-import { loadConfig } from '../../config/loader.js';
+import { loadConfig, saveConfig, getDefaultConfig } from '../../config/loader.js';
 import { RecurrsiveConfigSchema, ConfigError } from '@recurrsive/core';
 import { registerConfigCommand } from '../../commands/config.js';
 import {
@@ -100,13 +106,14 @@ const withoutConfigFile = {
  * for the `config` subcommands.
  */
 function createFakeProgram() {
-  const actions: Record<string, (opts: Record<string, unknown>) => Promise<void>> = {};
+  const actions: Record<string, (...args: unknown[]) => Promise<void>> = {};
 
   const makeSubcommandChain = (name: string) => {
     const chain = {
       description: vi.fn().mockReturnThis(),
       option: vi.fn().mockReturnThis(),
-      action: vi.fn((fn: (opts: Record<string, unknown>) => Promise<void>) => {
+      argument: vi.fn().mockReturnThis(),
+      action: vi.fn((fn: (...args: unknown[]) => Promise<void>) => {
         actions[name] = fn;
         return chain;
       }),
@@ -138,6 +145,18 @@ function createFakeProgram() {
     runPath: () => {
       if (!actions['path']) throw new Error('path action not registered');
       return actions['path']({});
+    },
+    runGet: (key: string) => {
+      if (!actions['get']) throw new Error('get action not registered');
+      return actions['get'](key);
+    },
+    runSet: (key: string, value: string) => {
+      if (!actions['set']) throw new Error('set action not registered');
+      return actions['set'](key, value);
+    },
+    runReset: () => {
+      if (!actions['reset']) throw new Error('reset action not registered');
+      return actions['reset']();
     },
   };
 }
@@ -353,6 +372,124 @@ describe('registerConfigCommand', () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('/project'),
+      );
+    });
+  });
+
+  // ── config get ─────────────────────────────────────────────────────────
+
+  describe('config get', () => {
+    it('displays value for known key', async () => {
+      const { runGet } = createFakeProgram();
+      await runGet('graph.provider');
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('graph.provider'),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('sqlite'),
+      );
+    });
+
+    it('displays output.format value via reports.format alias', async () => {
+      const { runGet } = createFakeProgram();
+      await runGet('reports.format');
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('reports.format'),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('markdown'),
+      );
+    });
+
+    it('shows error for unknown key', async () => {
+      const { runGet } = createFakeProgram();
+      await runGet('nonexistent.key');
+
+      expect(termError).toHaveBeenCalledWith(
+        expect.stringContaining('Unknown config key'),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('lists known keys when key is unknown', async () => {
+      const { runGet } = createFakeProgram();
+      await runGet('bad.key');
+
+      expect(info).toHaveBeenCalledWith(
+        expect.stringContaining('graph.provider'),
+      );
+    });
+  });
+
+  // ── config set ─────────────────────────────────────────────────────────
+
+  describe('config set', () => {
+    it('updates value and saves config', async () => {
+      const { runSet } = createFakeProgram();
+      await runSet('graph.provider', 'postgresql_age');
+
+      expect(saveConfig).toHaveBeenCalled();
+      expect(success).toHaveBeenCalledWith(
+        expect.stringContaining('graph.provider'),
+      );
+      expect(success).toHaveBeenCalledWith(
+        expect.stringContaining('postgresql_age'),
+      );
+    });
+
+    it('shows error for unknown key', async () => {
+      const { runSet } = createFakeProgram();
+      await runSet('unknown.setting', 'value');
+
+      expect(termError).toHaveBeenCalledWith(
+        expect.stringContaining('Unknown config key'),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(saveConfig).not.toHaveBeenCalled();
+    });
+
+    it('writes config to .recurrsive/config.yaml', async () => {
+      const { runSet } = createFakeProgram();
+      await runSet('output.format', 'json');
+
+      expect(saveConfig).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('.recurrsive/config.yaml'),
+      );
+    });
+  });
+
+  // ── config reset ───────────────────────────────────────────────────────
+
+  describe('config reset', () => {
+    it('creates default config and writes to file', async () => {
+      const defaultCfg = { ...validConfig, project: { name: 'my-project' } };
+      (getDefaultConfig as Mock).mockReturnValue(defaultCfg);
+
+      const { runReset } = createFakeProgram();
+      await runReset();
+
+      expect(getDefaultConfig).toHaveBeenCalled();
+      expect(saveConfig).toHaveBeenCalledWith(
+        defaultCfg,
+        expect.stringContaining('.recurrsive/config.yaml'),
+      );
+      expect(success).toHaveBeenCalledWith(
+        expect.stringContaining('reset to defaults'),
+      );
+    });
+
+    it('shows the output path', async () => {
+      const defaultCfg = { ...validConfig };
+      (getDefaultConfig as Mock).mockReturnValue(defaultCfg);
+
+      const { runReset } = createFakeProgram();
+      await runReset();
+
+      expect(info).toHaveBeenCalledWith(
+        expect.stringContaining('.recurrsive/config.yaml'),
       );
     });
   });

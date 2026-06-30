@@ -104,6 +104,34 @@ Base URL: `http://localhost:3000`
 | `GET` | `/api/v1/snapshots/export` | Export graph as portable JSON |
 | `POST` | `/api/v1/snapshots/import` | Import from snapshot file |
 
+### Policies
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/policies` | List active policy sets and rules |
+| `POST` | `/api/v1/policies/evaluate` | Evaluate opportunities against policies |
+| `GET` | `/api/v1/policies/compliance` | Get compliance report and score |
+
+### Webhooks
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/webhooks` | List registered webhooks |
+| `POST` | `/api/v1/webhooks` | Register a new webhook |
+| `DELETE` | `/api/v1/webhooks/:id` | Remove a webhook |
+| `PATCH` | `/api/v1/webhooks/:id` | Update webhook settings |
+| `POST` | `/api/v1/webhooks/:id/test` | Send a test event |
+| `GET` | `/api/v1/webhooks/:id/deliveries` | View delivery history |
+| `GET` | `/api/v1/webhooks/events` | List supported event types |
+
+### Configuration
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/config` | Get current server configuration |
+| `PATCH` | `/api/v1/config` | Update runtime config (in-memory) |
+| `GET` | `/api/v1/config/features` | List available features and enabled status |
+
 ---
 
 ## WebSocket API
@@ -140,7 +168,7 @@ Connect to `ws://localhost:3000/ws` for real-time events.
 
 The MCP server exposes Recurrsive as an AI tool provider compatible with the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-### Tools (10)
+### Tools (18)
 
 | Tool | Description |
 |------|-------------|
@@ -154,8 +182,16 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `trace_dependency` | Trace dependency chain between entities |
 | `explain_entity` | LLM-powered entity explanation |
 | `analyze_impact` | Analyze blast radius of changing an entity |
+| `search_graph` | Full-text search across the knowledge graph |
+| `export_snapshot` | Export knowledge graph as portable JSON |
+| `import_snapshot` | Import entities and relationships from a snapshot |
+| `evaluate_policies` | Evaluate opportunities against policy rules |
+| `compare_analyses` | Compare findings between analysis runs |
+| `list_webhooks` | List registered webhook integrations |
+| `register_webhook` | Register a new webhook for events |
+| `manage_webhook` | Update, test, or delete a webhook |
 
-### Prompts (6)
+### Prompts (9)
 
 | Prompt | Description |
 |--------|-------------|
@@ -165,6 +201,9 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `architecture_review` | System architecture review template |
 | `security_assessment` | Security assessment template |
 | `cost_analysis` | Cost optimization analysis template |
+| `policy_compliance_report` | Generate compliance report against policies |
+| `snapshot_comparison` | Compare snapshots for architectural drift |
+| `risk_assessment` | Comprehensive project risk assessment |
 
 ### Resources (4)
 
@@ -177,7 +216,7 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 
 ---
 
-## CLI Commands (10)
+## CLI Commands (12)
 
 ```bash
 recurrsive init            # Initialize a project for analysis
@@ -187,9 +226,11 @@ recurrsive graph           # Explore the knowledge graph
 recurrsive timeline        # View intelligence timeline
 recurrsive health          # Show health scores
 recurrsive report          # Generate reports (markdown/html/sarif/json)
-recurrsive config          # View, validate, or locate configuration
+recurrsive config          # View, validate, set, or reset configuration
 recurrsive search          # Full-text search across the knowledge graph
 recurrsive snapshot        # Export/import graph snapshots
+recurrsive policy          # Policy compliance checks
+recurrsive webhooks        # Manage webhook integrations
 ```
 
 ### Global Flags

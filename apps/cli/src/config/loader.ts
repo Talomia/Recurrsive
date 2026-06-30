@@ -331,6 +331,32 @@ export async function loadConfig(options?: LoadConfigOptions): Promise<LoadConfi
 }
 
 /**
+ * Save a configuration object to the specified path.
+ *
+ * @param config - The configuration object to save.
+ * @param configPath - Absolute path to write the config file.
+ */
+export async function saveConfig(config: RecurrsiveConfig, configPath: string): Promise<void> {
+  const { writeFile: fsWrite } = await import('node:fs/promises');
+  const { dirname: pathDirname } = await import('node:path');
+  const { mkdir } = await import('node:fs/promises');
+
+  // Ensure the directory exists
+  await mkdir(pathDirname(configPath), { recursive: true });
+  await fsWrite(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+}
+
+/**
+ * Create and return a default configuration.
+ *
+ * @param projectName - Optional fallback project name.
+ * @returns A valid default {@link RecurrsiveConfig}.
+ */
+export function getDefaultConfig(projectName?: string): RecurrsiveConfig {
+  return createDefaultConfig(projectName ?? 'my-project');
+}
+
+/**
  * Infer the project name from the directory name or package.json.
  *
  * @param dir - Project root directory.

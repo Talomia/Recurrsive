@@ -7,14 +7,18 @@
  * - `view` — Load and pretty-print the resolved configuration.
  * - `validate` — Validate the config file and report schema errors.
  * - `path` — Print the path to the active config file.
+ * - `get <key>` — Read a specific config value by dot-notation key.
+ * - `set <key> <value>` — Set a config value by dot-notation key.
+ * - `reset` — Reset config to defaults.
  *
  * @packageDocumentation
  */
 
+import { join } from 'node:path';
 import type { Command } from 'commander';
 import { RecurrsiveConfigSchema } from '@recurrsive/core';
 import { ConfigError } from '@recurrsive/core';
-import { loadConfig } from '../config/loader.js';
+import { loadConfig, saveConfig, getDefaultConfig } from '../config/loader.js';
 import {
   banner,
   header,
@@ -33,6 +37,113 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Known dot-notation config keys that users can get/set.
+ */
+const KNOWN_KEYS = [
+  'graph.provider',
+  'analysis.severity_threshold',
+  'analysis.max_findings',
+  'reports.format',
+  'reports.output_dir',
+  'project.name',
+  'project.description',
+  'output.format',
+  'output.directory',
+  'governance.pii_detection',
+  'governance.retention_days',
+] as const;
+
+/**
+ * Resolve a dot-notation key against a config object.
+ *
+ * Maps user-facing keys to the actual nested config shape:
+ * - `analysis.severity_threshold` → `analyzers.config.severity_threshold`
+ * - `analysis.max_findings` → `analyzers.config.max_findings`
+ * - `reports.format` → `output.format`
+ * - `reports.output_dir` → `output.directory`
+ * - All others traverse directly by dot path.
+ *
+ * @param config - The config object.
+ * @param key - Dot-notation key.
+ * @returns The resolved value, or `undefined` if not found.
+ */
+function getConfigValue(config: Record<string, unknown>, key: string): unknown {
+  // Map user-friendly aliases to actual config paths
+  const mapped = mapKeyToPath(key);
+  const parts = mapped.split('.');
+  let current: unknown = config;
+  for (const part of parts) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+/**
+ * Set a value in a config object by dot-notation key.
+ *
+ * @param config - The config object to mutate.
+ * @param key - Dot-notation key.
+ * @param value - The value to set (will be coerced from string).
+ */
+function setConfigValue(config: Record<string, unknown>, key: string, value: string): void {
+  const mapped = mapKeyToPath(key);
+  const parts = mapped.split('.');
+  let current: Record<string, unknown> = config;
+
+  // Navigate to the parent object, creating intermediates as needed
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i]!;
+    if (current[part] === undefined || current[part] === null || typeof current[part] !== 'object') {
+      current[part] = {};
+    }
+    current = current[part] as Record<string, unknown>;
+  }
+
+  const lastPart = parts[parts.length - 1]!;
+  current[lastPart] = coerceValue(value);
+}
+
+/**
+ * Map user-facing keys to the actual config structure paths.
+ */
+function mapKeyToPath(key: string): string {
+  switch (key) {
+    case 'analysis.severity_threshold':
+      return 'analyzers.config.severity_threshold';
+    case 'analysis.max_findings':
+      return 'analyzers.config.max_findings';
+    case 'reports.format':
+      return 'output.format';
+    case 'reports.output_dir':
+      return 'output.directory';
+    default:
+      return key;
+  }
+}
+
+/**
+ * Coerce a CLI string value to the appropriate JS type.
+ */
+function coerceValue(value: string): unknown {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (value === 'null') return null;
+  const num = Number(value);
+  if (!isNaN(num) && value !== '') return num;
+  return value;
+}
+
+/**
+ * Check whether a key is in the set of known config keys.
+ */
+function isKnownKey(key: string): boolean {
+  return (KNOWN_KEYS as readonly string[]).includes(key);
+}
 
 /**
  * Pretty-print a config value with ANSI colour coding.
@@ -243,5 +354,67 @@ export function registerConfigCommand(program: Command): void {
         );
         process.exit(1);
       }
+    });
+
+  // ── config get <key> ─────────────────────────────────────────
+  configCmd
+    .command('get')
+    .description('Read a specific config value by dot-notation key')
+    .argument('<key>', 'Config key in dot-notation (e.g., graph.provider)')
+    .action(async (key: string) => {
+      if (!isKnownKey(key)) {
+        error(`Unknown config key: ${bold(key)}`);
+        console.log('');
+        info(`Known keys: ${KNOWN_KEYS.map((k) => cyan(k)).join(', ')}`);
+        console.log('');
+        process.exit(1);
+        return;
+      }
+
+      const { config } = await loadConfig();
+      const value = getConfigValue(config as unknown as Record<string, unknown>, key);
+
+      console.log(`${bold(key)}: ${cyan(String(value ?? 'undefined'))}`);
+    });
+
+  // ── config set <key> <value> ─────────────────────────────────
+  configCmd
+    .command('set')
+    .description('Set a config value by dot-notation key')
+    .argument('<key>', 'Config key in dot-notation (e.g., graph.provider)')
+    .argument('<value>', 'Value to set')
+    .action(async (key: string, value: string) => {
+      if (!isKnownKey(key)) {
+        error(`Unknown config key: ${bold(key)}`);
+        console.log('');
+        info(`Known keys: ${KNOWN_KEYS.map((k) => cyan(k)).join(', ')}`);
+        console.log('');
+        process.exit(1);
+        return;
+      }
+
+      const { config, projectRoot } = await loadConfig();
+      const configObj = config as unknown as Record<string, unknown>;
+      setConfigValue(configObj, key, value);
+
+      const configPath = join(projectRoot, '.recurrsive', 'config.yaml');
+      await saveConfig(config, configPath);
+
+      success(`Set ${bold(key)} = ${cyan(value)}`);
+    });
+
+  // ── config reset ─────────────────────────────────────────────
+  configCmd
+    .command('reset')
+    .description('Reset configuration to defaults')
+    .action(async () => {
+      const { projectRoot } = await loadConfig();
+      const defaultConfig = getDefaultConfig();
+      const configPath = join(projectRoot, '.recurrsive', 'config.yaml');
+
+      await saveConfig(defaultConfig, configPath);
+
+      success('Configuration reset to defaults');
+      info(`Written to: ${dim(configPath)}`);
     });
 }

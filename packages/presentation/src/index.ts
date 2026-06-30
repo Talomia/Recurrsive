@@ -31,6 +31,19 @@ export type {
 export { ConsoleNotificationChannel } from './notifications/console.js';
 export { WebhookNotificationChannel } from './notifications/webhook.js';
 export type { WebhookConfig } from './notifications/webhook.js';
+export { SlackNotifier, SEVERITY_SLACK_COLOR } from './notifications/slack.js';
+export type {
+  SlackConfig,
+  SlackBlock,
+  SlackHeaderBlock,
+  SlackSectionBlock,
+  SlackDividerBlock,
+  SlackContextBlock,
+  SlackAttachment,
+  SlackPayload,
+} from './notifications/slack.js';
+export { HttpNotifier } from './notifications/http.js';
+export type { HttpNotifierConfig } from './notifications/http.js';
 
 // Formatters
 export {
