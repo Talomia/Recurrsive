@@ -56,7 +56,9 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
       }
 
       let findings = [...cache.findings];
-      const { severity, category, analyzer, limit = 50, offset = 0 } = request.query;
+      const { severity, category, analyzer } = request.query;
+      const limit = Math.max(0, Math.min(Number(request.query.limit) || 50, 500));
+      const offset = Math.max(0, Number(request.query.offset) || 0);
 
       // Apply filters
       if (severity) {

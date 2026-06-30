@@ -84,8 +84,8 @@ Three converging forces make the Engineering Intelligence Platform both possible
   Prescriptive│                                           │
   (what to   │                          ┌───────────────┐│
    do next)  │                          │  RECURRSIVE   ││
-            │                          │  Software     ││
-            │                          │  Evolution    ││
+            │                          │  Engineering     ││
+            │                          │  Intelligence    ││
             │                          │  Platform     ││
             │                          └───────────────┘│
             └─────────────────────────────────────────────┘

@@ -211,6 +211,24 @@ export class ServerState {
   }
 
   /**
+   * Mark analysis as starting to prevent race conditions.
+   *
+   * This should be called synchronously in the route handler BEFORE
+   * launching the async `runAnalysis()` call, so that a second concurrent
+   * request sees the running state and returns 409.
+   */
+  markAnalysisStarting(): void {
+    this._analysisStatus = {
+      phase: 'collecting',
+      progress: 0,
+      message: 'Starting analysis…',
+      startedAt: nowISO(),
+      completedAt: null,
+      error: null,
+    };
+  }
+
+  /**
    * Run the full analysis pipeline on the current project.
    *
    * Executes: collect → parse → analyze → (optionally) reason.

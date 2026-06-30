@@ -217,7 +217,9 @@ recurrsive/
 │   ├── PRD.md          # Product Requirements
 │   ├── ARCHITECTURE.md # Technical Architecture
 │   ├── STRATEGY.md     # Product Strategy & Business Model
-│   └── ROADMAP.md      # Phased Roadmap
+│   ├── ROADMAP.md      # Phased Roadmap
+│   ├── API.md          # API Reference (REST, MCP, CLI)
+│   └── DEVELOPMENT.md  # Developer Setup Guide
 └── turbo.json          # Turborepo build orchestration
 ```
 

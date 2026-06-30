@@ -28,7 +28,7 @@ Base URL: `http://localhost:3000`
 **Body:**
 ```json
 {
-  "project_path": "/path/to/project",
+  "path": "/path/to/project",
   "analyzers": ["architecture", "security"],  // optional, default: all
   "include_reasoning": true                    // optional, default: false
 }
@@ -68,17 +68,14 @@ Base URL: `http://localhost:3000`
 |--------|----------|-------------|
 | `GET` | `/api/v1/opportunities` | List all opportunities |
 | `GET` | `/api/v1/opportunities/:id` | Get opportunity detail |
-| `PATCH` | `/api/v1/opportunities/:id/status` | Update opportunity status |
-| `GET` | `/api/v1/opportunities/export/sarif` | Export opportunities as SARIF |
+| `PATCH` | `/api/v1/opportunities/:id` | Update opportunity status |
+| `GET` | `/api/v1/opportunities/export/:format` | Export opportunities (sarif, json, markdown) |
 
 ### Reports
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/reports/markdown` | Generate Markdown report |
-| `GET` | `/api/v1/reports/html` | Generate HTML report |
-| `GET` | `/api/v1/reports/sarif` | Generate SARIF report |
-| `GET` | `/api/v1/reports/json` | Generate JSON report |
+| `GET` | `/api/v1/reports/:format` | Generate report in specified format (`markdown`, `html`, `sarif`, `json`) |
 
 ### Knowledge Graph
 
@@ -93,7 +90,8 @@ Base URL: `http://localhost:3000`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/timeline/events` | Evolution timeline events |
+| `GET` | `/api/v1/timeline` | Full intelligence timeline |
+| `GET` | `/api/v1/timeline/snapshots` | List timeline snapshots |
 | `GET` | `/api/v1/timeline/trends` | Trend data over time |
 
 ---
@@ -137,10 +135,10 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | Tool | Description |
 |------|-------------|
 | `analyze_project` | Run full analysis on a project directory |
+| `get_opportunities` | List prioritized improvement opportunities |
+| `get_opportunity_detail` | Deep dive into a specific opportunity |
+| `query_graph` | Query the knowledge graph |
 | `get_health_score` | Get project health and maturity scores |
-| `list_opportunities` | List opportunities with filtering |
-| `get_opportunity` | Get detailed opportunity information |
-| `export_sarif` | Export analysis results as SARIF |
 | `list_findings` | List findings with severity/category filter |
 | `get_entity` | Get entity details from knowledge graph |
 | `trace_dependency` | Trace dependency chain between entities |
@@ -152,20 +150,20 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | Prompt | Description |
 |--------|-------------|
 | `interpret_health_report` | Guide interpretation of health scores |
-| `prioritize_opportunities` | Help prioritize improvement opportunities |
-| `review_findings` | Structured review of analysis findings |
+| `plan_improvement_cycle` | Plan an improvement cycle from opportunities |
+| `explain_opportunity` | Detailed explanation of a specific opportunity |
 | `architecture_review` | System architecture review template |
 | `security_assessment` | Security assessment template |
 | `cost_analysis` | Cost optimization analysis template |
 
 ### Resources (4)
 
-| Resource | URI Pattern | Description |
-|----------|-------------|-------------|
-| Health Report | `recurrsive://reports/health` | Latest health assessment |
-| Opportunities | `recurrsive://reports/opportunities` | Current opportunities list |
-| Findings | `recurrsive://reports/findings` | Analysis findings summary |
-| Timeline | `recurrsive://reports/timeline` | Evolution timeline |
+| Resource | URI | Description |
+|----------|-----|-------------|
+| Health Report | `recurrsive://health/latest` | Latest health assessment |
+| Top Opportunities | `recurrsive://opportunities/top` | Top 10 opportunities |
+| Graph Summary | `recurrsive://graph/summary` | Knowledge graph statistics |
+| Intelligence Snapshot | `recurrsive://timeline/latest` | Latest intelligence snapshot |
 
 ---
 
@@ -176,7 +174,7 @@ recurrsive init            # Initialize a project for analysis
 recurrsive analyze         # Run analysis pipeline
 recurrsive opportunities   # View and manage opportunities
 recurrsive graph           # Explore the knowledge graph
-recurrsive timeline        # View evolution timeline
+recurrsive timeline        # View intelligence timeline
 recurrsive health          # Show health scores
 recurrsive report          # Generate reports (markdown/html/sarif/json)
 recurrsive config          # View, validate, or locate configuration

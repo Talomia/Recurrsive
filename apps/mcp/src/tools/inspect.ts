@@ -348,7 +348,10 @@ export function registerInspectTools(server: McpServer): void {
           };
         }
 
-        // Execute the dependency tree query
+        // Execute the dependency tree query.
+        // Dialect is 'sql' because the MCP server always uses the SQLite
+        // backend (see state.ts:80-82). If AGE support is added to MCP,
+        // this must be updated to detect the graph provider dynamically.
         const depQuery = findDependencyTree(source_id, 'sql');
         const rows = await graph.query(depQuery.sql, {
           '1': depQuery.params[0],

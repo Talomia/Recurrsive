@@ -61,6 +61,7 @@ recurrsive/
 │   └── presentation/   # Reports and output
 ├── apps/               # Applications
 │   ├── cli/            # CLI interface
+│   ├── dashboard/      # Next.js web dashboard
 │   ├── mcp/            # MCP server
 │   └── server/         # REST API
 ├── docker/             # Docker configuration

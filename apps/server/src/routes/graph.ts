@@ -91,7 +91,8 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const { type, search, limit: limitStr } = request.query;
-      const limit = limitStr ? parseInt(limitStr, 10) : 50;
+      const parsedLimit = limitStr ? parseInt(limitStr, 10) : 50;
+      const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 500));
 
       try {
         const graph = state.getGraph();

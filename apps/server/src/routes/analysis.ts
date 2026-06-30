@@ -69,6 +69,10 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
     // Initialize if needed or if the project path changed
     if (!state.isInitialized() || state.getProjectPath() !== projectPath) {
       try {
+        // Dispose old state to avoid resource leaks (e.g. graph client)
+        if (state.isInitialized()) {
+          await state.dispose();
+        }
         await state.initialize(projectPath);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -79,6 +83,11 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
         });
       }
     }
+
+    // Set status BEFORE launching async work to prevent race conditions.
+    // Without this, two near-simultaneous requests could both pass the
+    // phase check above before either sets a running state.
+    state.markAnalysisStarting();
 
     // Fire off the analysis asynchronously
     // We reply immediately with 202 and the client polls status or uses WS
