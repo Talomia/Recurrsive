@@ -162,7 +162,6 @@ Base URL: `http://localhost:3000`
 | `GET` | `/api/v1/notifications/channels` | List available notification channels |
 | `POST` | `/api/v1/notifications/test` | Send a test notification |
 | `GET` | `/api/v1/notifications/history` | View notification history |
-| `GET` | `/api/v1/notifications/:id` | Get notification details |
 
 ### Batch Analysis
 
@@ -239,21 +238,21 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `search_graph` | Full-text search across the knowledge graph |
 | `export_snapshot` | Export knowledge graph as portable JSON |
 | `import_snapshot` | Import entities and relationships from a snapshot |
-| `check_policies` | Run policy compliance checks |
-| `list_policies` | List available policy sets |
-| `export_sarif` | Export findings as SARIF v2.1.0 |
-| `get_governance_status` | Data governance summary |
 | `evaluate_policies` | Evaluate opportunities against policy rules |
 | `compare_analyses` | Compare findings between analysis runs |
 | `list_webhooks` | List registered webhook integrations |
 | `register_webhook` | Register a new webhook for events |
-| `list_webhook_events` | List supported webhook event types |
 | `manage_webhook` | Update, test, or delete a webhook |
 | `start_batch_analysis` | Start batch analysis across multiple projects |
 | `get_batch_status` | Check status of a running batch analysis |
 | `list_experiments` | List engineering experiments |
 | `create_experiment` | Create a new engineering experiment |
-| `get_experiment_detail` | Get detailed experiment information |
+| `search_codebase` | Full-text search across the codebase |
+| `get_audit_events` | Retrieve audit trail events |
+| `take_snapshot` | Create a point-in-time knowledge graph snapshot |
+| `get_timeline` | Get intelligence timeline with trend data |
+| `export_report` | Export analysis data in various formats |
+| `compare_analysis_runs` | Compare two analysis runs to identify changes |
 
 ### Prompts (15)
 
@@ -271,9 +270,9 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `configure_notifications` | Guide setting up notification channels |
 | `batch_analysis_plan` | Plan a batch analysis strategy |
 | `audit_review` | Review audit trail events and identify patterns |
-| `experiment_design` | Design an engineering experiment with hypothesis and metrics |
-| `export_analysis` | Guide data export configuration and format selection |
-| `comparison_report` | Compare analysis runs and explain changes |
+| `deep_dive_finding` | Deep analysis of a specific security finding |
+| `compare_snapshots` | Compare two snapshots and identify drift |
+| `generate_action_items` | Generate actionable items from analysis results |
 
 ### Resources (9)
 
@@ -287,11 +286,11 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | Webhook Status | `recurrsive://webhooks/status` | Webhook integration status |
 | Analytics Summary | `recurrsive://analytics/summary` | Analysis trends summary |
 | Experiment Status | `recurrsive://experiments/active` | Active engineering experiments |
-| Audit Trail | `recurrsive://audit/recent` | Recent audit trail events |
+| Experiment Results | `recurrsive://experiments/results` | Completed experiment results and conclusions |
 
 ---
 
-## CLI Commands (21)
+## CLI Commands (19)
 
 ```bash
 recurrsive init            # Initialize a project for analysis

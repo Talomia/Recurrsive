@@ -91,7 +91,7 @@ The foundation. Free forever.
 - Multi-agent reasoning engine
 - Opportunity management + SARIF export
 - Policy engine
-- CLI (21 commands)
+- CLI (19 commands)
 - MCP Server (28 tools, 15 prompts, 9 resources)
 - REST + WebSocket API
 - Plugin SDK for custom analyzers/collectors

@@ -55,8 +55,8 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 
 | Surface | Count |
 |---------|-------|
-| 📡 Server REST endpoints | 57 |
-| ⌨️ CLI commands | 21 |
+| 📡 Server REST endpoints | 56 |
+| ⌨️ CLI commands | 19 |
 | 🔌 MCP tools | 28 |
 | 💬 MCP prompts | 15 |
 | 📦 MCP resources | 9 |
@@ -90,7 +90,7 @@ pnpm build
 pnpm test
 ```
 
-### CLI Usage (21 commands)
+### CLI Usage (19 commands)
 
 ```bash
 # Link the CLI globally (after building)
@@ -194,30 +194,33 @@ Add to your MCP configuration:
 - `search_graph` — Full-text search across the knowledge graph (FTS5)
 
 *Tools — Governance:*
-- `check_policies` — Run policy compliance checks
-- `list_policies` — List available policy sets
-- `export_sarif` — Export findings as SARIF v2.1.0
-- `get_governance_status` — Data governance summary
+- `evaluate_policies` — Evaluate opportunities against policy rules
+- `compare_analyses` — Compare findings between analysis runs
 
 *Tools — Webhooks:*
 - `list_webhooks` — List registered webhook integrations
 - `register_webhook` — Register a new webhook endpoint
-- `list_webhook_events` — List supported webhook event types
+- `manage_webhook` — Update, test, or delete a webhook
 
-*Tools — Snapshots:*
+*Tools — Snapshots & Timeline:*
 - `export_snapshot` — Export knowledge graph as portable JSON
 - `import_snapshot` — Import entities and relationships from a snapshot
+- `take_snapshot` — Create a point-in-time knowledge graph snapshot
+- `get_timeline` — Get intelligence timeline with trend data
 
-*Tools — Comparison:*
-- `evaluate_policies` — Evaluate opportunities against policy rules
-- `compare_analyses` — Compare findings between analysis runs
-- `manage_webhook` — Update, test, or delete a webhook
+*Tools — Search & Audit:*
+- `search_codebase` — Full-text search across the codebase
+- `get_audit_events` — Retrieve audit trail events
 
 *Tools — Batch & Experiments:*
 - `start_batch_analysis` — Start batch analysis across multiple projects
 - `get_batch_status` — Check status of a running batch analysis
 - `list_experiments` — List engineering experiments
 - `create_experiment` — Create a new engineering experiment
+
+*Tools — Export:*
+- `export_report` — Export analysis data in various formats
+- `compare_analysis_runs` — Compare two analysis runs to identify changes
 
 ### Docker
 
@@ -291,9 +294,9 @@ recurrsive/
 │   ├── policy/         # Policy engine + 5 built-in policies
 │   └── presentation/   # Reports + notifications + terminal
 ├── apps/
-│   ├── cli/            # Commander.js CLI — 21 commands
+│   ├── cli/            # Commander.js CLI — 19 commands
 │   ├── mcp/            # MCP server — 28 tools, 9 resources, 15 prompts
-│   ├── server/         # Fastify REST + WebSocket API — 57 endpoints
+│   ├── server/         # Fastify REST + WebSocket API — 56 endpoints
 │   └── dashboard/      # Next.js dashboard — 26 pages
 ├── docker/             # Dockerfile + docker-compose
 ├── docs/

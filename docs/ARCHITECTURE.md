@@ -1559,21 +1559,21 @@ type Subgraph {
 | `search_graph` | Full-text search across all entities | `query: string`, `entityType?: string`, `limit?: number` |
 | `export_snapshot` | Export knowledge graph as portable JSON | `outputPath?: string` |
 | `import_snapshot` | Import entities and relationships from a snapshot | `snapshotPath: string` |
-| `check_policies` | Run policy compliance checks | `policySetId?: string` |
-| `list_policies` | List available policy sets | — |
-| `export_sarif` | Export findings as SARIF v2.1.0 | `outputPath?: string` |
-| `get_governance_status` | Data governance summary | — |
 | `evaluate_policies` | Evaluate opportunities against policy rules | `opportunityIds?: string[]` |
 | `compare_analyses` | Compare findings between analysis runs | `baselineRunId: string`, `currentRunId?: string` |
 | `list_webhooks` | List registered webhook integrations | — |
 | `register_webhook` | Register a new webhook for events | `url: string`, `events: string[]` |
-| `list_webhook_events` | List supported webhook event types | — |
 | `manage_webhook` | Update, test, or delete a webhook | `webhookId: string`, `action: string` |
 | `start_batch_analysis` | Start batch analysis across multiple projects | `projects: string[]` |
 | `get_batch_status` | Check status of a running batch analysis | `batchId: string` |
 | `list_experiments` | List engineering experiments | `status?: string` |
 | `create_experiment` | Create a new engineering experiment | `name: string`, `hypothesis: string` |
-| `get_experiment_detail` | Get detailed experiment information | `experimentId: string` |
+| `search_codebase` | Full-text search across the codebase | `query: string`, `scope?: string` |
+| `get_audit_events` | Retrieve audit trail events | `limit?: number`, `type?: string` |
+| `take_snapshot` | Create a point-in-time knowledge graph snapshot | `name?: string` |
+| `get_timeline` | Get intelligence timeline with trend data | `limit?: number` |
+| `export_report` | Export analysis data in various formats | `format: string`, `scope: string` |
+| `compare_analysis_runs` | Compare two analysis runs to identify changes | `baseline_run: number`, `target_run: number` |
 
 #### Resources (9)
 
@@ -1587,7 +1587,7 @@ type Subgraph {
 | `recurrsive://webhooks/status` | Webhook integration status |
 | `recurrsive://analytics/summary` | Analysis trends summary |
 | `recurrsive://experiments/active` | Active engineering experiments |
-| `recurrsive://audit/recent` | Recent audit trail events |
+| `recurrsive://experiments/results` | Completed experiment results and conclusions |
 
 #### Prompts (15)
 
@@ -1605,9 +1605,9 @@ type Subgraph {
 | `configure_notifications` | Guide setting up notification channels | — |
 | `batch_analysis_plan` | Plan a batch analysis strategy | — |
 | `audit_review` | Review audit trail events and identify patterns | — |
-| `experiment_design` | Design an engineering experiment with hypothesis and metrics | — |
-| `export_analysis` | Guide data export configuration and format selection | — |
-| `comparison_report` | Compare analysis runs and explain changes | — |
+| `deep_dive_finding` | Deep analysis of a specific security finding | `findingId: string` |
+| `compare_snapshots` | Compare two snapshots and identify drift | `snapshot1?: string`, `snapshot2?: string` |
+| `generate_action_items` | Generate actionable items from analysis results | — |
 
 ### 10.5 Dashboard Page Structure
 
