@@ -1,5 +1,5 @@
 import Header from "@/components/header";
-import { FileText, Download, Calendar, BarChart3, FileJson, Code2, Shield } from "lucide-react";
+import { FileText, Download, Calendar, BarChart3, FileJson, Code2, Shield, Clock } from "lucide-react";
 import { getReportUrl } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -41,38 +41,51 @@ const REPORT_FORMATS = [
   },
 ];
 
-const RECENT_REPORTS = [
-  {
-    title: "Monthly Intelligence Report — June 2026",
-    description: "Comprehensive summary of code quality improvements, resolved opportunities, and performance trends.",
-    date: "Jun 29, 2026",
-    type: "Monthly",
-    format: "html",
-  },
-  {
-    title: "Security Audit Summary — Q2 2026",
-    description: "Quarterly security assessment covering vulnerability analysis, dependency audits, and compliance checks.",
-    date: "Jun 15, 2026",
-    type: "Quarterly",
-    format: "sarif",
-  },
-  {
-    title: "Performance Benchmark Report",
-    description: "Detailed analysis of system performance metrics, response times, and resource utilization patterns.",
-    date: "Jun 10, 2026",
-    type: "On-demand",
-    format: "markdown",
-  },
-  {
-    title: "Technical Debt Assessment",
-    description: "Estimated technical debt cost, hotspot identification, and recommended remediation priorities.",
-    date: "Jun 1, 2026",
-    type: "Monthly",
-    format: "json",
-  },
-];
+// ---------------------------------------------------------------------------
+// Analysis history for recent reports (fetched from server)
+// ---------------------------------------------------------------------------
 
-export default function ReportsPage() {
+interface AnalysisHistoryEntry {
+  id: string;
+  startedAt: string;
+  completedAt: string;
+  findingCount: number;
+  opportunityCount: number;
+  status: string;
+}
+
+const API_BASE = process.env.RECURRSIVE_API_URL ?? "http://localhost:3200";
+
+async function getAnalysisHistory(): Promise<AnalysisHistoryEntry[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/analysis/history`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export default async function ReportsPage() {
+  const history = await getAnalysisHistory();
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header title="Reports" subtitle="Generated reports and analysis documents" />
@@ -114,46 +127,73 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Recent reports */}
+        {/* Recent analysis runs */}
         <div>
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Recent Reports</h3>
-          <div className="space-y-3 stagger-children">
-            {RECENT_REPORTS.map((report, i) => {
-              const formatDef = REPORT_FORMATS.find((f) => f.format === report.format);
-              const FormatIcon = formatDef?.icon ?? FileText;
-              return (
-                <div key={i} className="glass-card p-5 flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5">
-                    <FormatIcon className="h-5 w-5 text-text-muted" aria-hidden="true" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold text-text-primary">{report.title}</h4>
-                    <p className="mt-1 text-xs text-text-secondary leading-relaxed">{report.description}</p>
-                    <div className="mt-3 flex items-center gap-4">
-                      <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                        <Calendar className="h-3 w-3" aria-hidden="true" />
-                        {report.date}
+          <h3 className="text-sm font-semibold text-text-primary mb-3">
+            Recent Analysis Runs
+            {history.length > 0 && (
+              <span className="ml-2 text-xs font-normal text-text-muted">({history.length} runs)</span>
+            )}
+          </h3>
+
+          {history.length === 0 ? (
+            <div className="glass-card p-8 text-center">
+              <Clock className="h-10 w-10 mx-auto text-text-muted mb-3" aria-hidden="true" />
+              <p className="text-sm text-text-secondary mb-1">No analysis history yet</p>
+              <p className="text-xs text-text-muted">Run an analysis to generate reports. Use the CLI or POST to /api/v1/analyze.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 stagger-children">
+              {history.slice(0, 10).map((entry) => {
+                const formats = ["markdown", "html", "json", "sarif"] as const;
+                return (
+                  <div key={entry.id} className="glass-card p-5 flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5">
+                      <BarChart3 className="h-5 w-5 text-text-muted" aria-hidden="true" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-text-primary">
+                        Analysis Report &mdash; {formatDate(entry.completedAt)}
+                      </h4>
+                      <p className="mt-1 text-xs text-text-secondary leading-relaxed">
+                        {entry.findingCount} findings, {entry.opportunityCount} opportunities
+                      </p>
+                      <div className="mt-3 flex items-center gap-4">
+                        <div className="flex items-center gap-1.5 text-xs text-text-muted">
+                          <Calendar className="h-3 w-3" aria-hidden="true" />
+                          {formatDate(entry.startedAt)}
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          entry.status === "success"
+                            ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                            : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        }`}>
+                          {entry.status === "success" ? "Completed" : "Failed"}
+                        </span>
                       </div>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
-                        {report.type}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 font-medium">
-                        Ready
-                      </span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {formats.map((fmt) => {
+                        const fmtDef = REPORT_FORMATS.find((f) => f.format === fmt);
+                        return (
+                          <a
+                            key={fmt}
+                            href={getReportUrl(fmt)}
+                            download
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                            title={`Download ${fmtDef?.title ?? fmt}`}
+                            aria-label={`Download ${fmt} report`}
+                          >
+                            {fmtDef ? <fmtDef.icon className="h-3.5 w-3.5 text-text-secondary" /> : <Download className="h-3.5 w-3.5 text-text-secondary" />}
+                          </a>
+                        );
+                      })}
                     </div>
                   </div>
-                  <a
-                    href={getReportUrl(report.format)}
-                    download
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
-                    aria-label={`Download ${report.title}`}
-                  >
-                    <Download className="h-4 w-4 text-text-secondary" />
-                  </a>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -28,9 +28,40 @@ import type {
   ConsensusResult,
 } from '@recurrsive/core';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
 const logger = createLogger({ context: { component: 'server:state' } });
+
+// ---------------------------------------------------------------------------
+// Persistent history helpers
+// ---------------------------------------------------------------------------
+
+/** Path to the history file within the project. */
+function historyPath(projectRoot: string): string {
+  return path.join(projectRoot, '.recurrsive', 'history.json');
+}
+
+/** Load analysis history from disk. Returns [] on any error. */
+async function loadHistory(projectRoot: string): Promise<AnalysisHistoryEntry[]> {
+  try {
+    const raw = await readFile(historyPath(projectRoot), 'utf-8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Persist analysis history to disk. */
+async function saveHistory(projectRoot: string, history: AnalysisHistoryEntry[]): Promise<void> {
+  try {
+    const dir = path.join(projectRoot, '.recurrsive');
+    await mkdir(dir, { recursive: true });
+    await writeFile(historyPath(projectRoot), JSON.stringify(history, null, 2), 'utf-8');
+  } catch (err) {
+    logger.warn(`Failed to persist analysis history: ${err instanceof Error ? err.message : err}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Analysis status tracking
@@ -208,6 +239,12 @@ export class ServerState {
       frameworks: [],
       ai_providers: [],
     };
+
+    // Load persisted analysis history
+    this._analysisHistory = await loadHistory(projectPath);
+    if (this._analysisHistory.length > 0) {
+      logger.info(`Loaded ${this._analysisHistory.length} historical analysis entries`);
+    }
 
     logger.info('Server state initialized successfully');
   }
@@ -590,6 +627,8 @@ export class ServerState {
         error: null,
       });
 
+      // Persist history to disk
+      await saveHistory(this.projectPath!, this._analysisHistory);
       this.broadcast({
         type: 'analysis:complete',
         timestamp: completedAt,
@@ -632,6 +671,8 @@ export class ServerState {
         error: errorMessage,
       });
 
+      // Persist history to disk
+      await saveHistory(this.projectPath!, this._analysisHistory);
       this.broadcast({
         type: 'analysis:error',
         timestamp: nowISO(),
