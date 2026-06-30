@@ -49,8 +49,20 @@ services:
       RECURRSIVE_LLM_PROVIDER: ${RECURRSIVE_LLM_PROVIDER:-openai}
       RECURRSIVE_LLM_MODEL: ${RECURRSIVE_LLM_MODEL:-gpt-4.1-mini}
       RECURRSIVE_LLM_API_KEY: ${RECURRSIVE_LLM_API_KEY:-}
+      # Webhook configuration
+      RECURRSIVE_WEBHOOK_SECRET: ${RECURRSIVE_WEBHOOK_SECRET:-}
+      RECURRSIVE_WEBHOOK_TIMEOUT_MS: ${RECURRSIVE_WEBHOOK_TIMEOUT_MS:-5000}
+      RECURRSIVE_WEBHOOK_MAX_RETRIES: ${RECURRSIVE_WEBHOOK_MAX_RETRIES:-3}
     ports:
       - "3000:3000"
+    volumes:
+      - server-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
     restart: unless-stopped
 
   # ── Recurrsive Dashboard ───────────────────────────────────────────────────
@@ -60,7 +72,8 @@ services:
       dockerfile: docker/Dockerfile.dashboard
     container_name: recurrsive-dashboard
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     environment:
       NEXT_PUBLIC_API_URL: http://server:3000
       PORT: "3100"
@@ -71,4 +84,6 @@ services:
 
 volumes:
   pgdata:
+    driver: local
+  server-data:
     driver: local

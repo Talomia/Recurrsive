@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Webhook Management
+- **Webhook CRUD** — `POST /api/v1/webhooks`, `GET /api/v1/webhooks`, `GET /api/v1/webhooks/:id`, `PATCH /api/v1/webhooks/:id`, `DELETE /api/v1/webhooks/:id` server endpoints for managing webhook subscriptions.
+- **Webhook events** — `POST /api/v1/webhooks/:id/test` for sending test events and `GET /api/v1/webhooks/events` for listing available event types.
+- **7 webhook event types** — `analysis:started`, `analysis:progress`, `analysis:finding`, `analysis:complete`, `analysis:error`, `opportunity:created`, `opportunity:updated`.
+- **`recurrsive webhooks` CLI command** — Manage webhooks from the command line (list, create, delete, test).
+
+#### Dashboard
+- **Timeline page** — Intelligence timeline dashboard page with trend visualization and historical analysis data.
+
+#### Policy & Governance
+- **Policy governance prompts (MCP)** — MCP prompts for policy evaluation and compliance checking via AI assistants.
+
+#### OpenAPI Specification
+- **OpenAPI spec** — Machine-readable API specification for all REST endpoints.
+
+#### Configuration Management
+- **`GET /api/v1/config`** — Server endpoint returning current configuration (project root, graph provider, analysis settings, report output, feature flags).
+- **`PATCH /api/v1/config`** — Runtime configuration updates (in-memory only, no persistence).
+- **`GET /api/v1/config/features`** — Feature inventory with enabled status for all 10 analyzers, 5 collectors, and 5 policy sets.
+
 #### Snapshot Export/Import
 - **Snapshot export** — `GET /api/v1/snapshots/export` server endpoint and `recurrsive snapshot export` CLI command for exporting the knowledge graph as portable JSON.
 - **Snapshot import** — `POST /api/v1/snapshots/import` server endpoint and `recurrsive snapshot import` CLI command for restoring from snapshot files.
@@ -17,18 +37,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Analysis
 - **`GET /api/v1/analysis/compare?baseline=N`** — Compare current analysis run against a previous baseline run.
 
-#### Dashboard
+#### Dashboard (continued)
 - **Search page** — Dashboard search page for querying the knowledge graph.
 - **Opportunity detail page** — Deep-dive view for individual opportunities.
 - **Entity detail page** — Deep-dive view for individual entities.
 
 ### Changed
-- CLI commands: 8 → **10** (added `search`, `snapshot`).
+- Server endpoints: 28 → **35** (added webhook management, config management, OpenAPI).
+- CLI commands: 10 → **12** (added `webhooks`, `snapshot`).
+- Dashboard pages: 11 → **12** (added timeline page).
 - Server test expansion: 64 → **100** tests.
 - MCP test expansion: 29 → **41** tests.
 - CLI test expansion: 167 → **193** tests.
-- API.md updated with snapshot endpoints, analysis compare endpoint, and 10 CLI commands.
+- Total tests across all packages: **1,935+**.
+- API.md updated with webhook endpoints, config endpoints, analysis compare endpoint, and 12 CLI commands.
 - README updated with new CLI commands, endpoint count, and test count.
+
 
 ## [0.2.0] - 2026-06-30
 

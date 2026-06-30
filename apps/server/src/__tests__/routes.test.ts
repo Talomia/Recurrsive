@@ -664,6 +664,142 @@ describe('Snapshot endpoints', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Webhooks (use in-memory store — no initialization required)
+// ---------------------------------------------------------------------------
+
+describe('Webhook endpoints', () => {
+  it('GET /api/v1/webhooks returns empty list initially', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/webhooks' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(Array.isArray(body.data)).toBe(true);
+  });
+
+  it('POST /api/v1/webhooks creates a webhook with valid data', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/webhooks',
+      payload: {
+        url: 'https://example.com/hook',
+        events: ['analysis.complete', 'policy.violation'],
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('id');
+    expect(body.data.url).toBe('https://example.com/hook');
+    expect(body.data.events).toEqual(['analysis.complete', 'policy.violation']);
+    expect(body.data.active).toBe(true);
+    expect(body.data.delivery_count).toBe(0);
+  });
+
+  it('POST /api/v1/webhooks returns 400 for missing url', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/webhooks',
+      payload: {
+        events: ['analysis.complete'],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid request');
+    expect(body.message).toContain('url');
+  });
+
+  it('POST /api/v1/webhooks returns 400 for missing events', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/webhooks',
+      payload: {
+        url: 'https://example.com/hook',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid request');
+    expect(body.message).toContain('events');
+  });
+
+  it('POST /api/v1/webhooks returns 400 for invalid event types', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/webhooks',
+      payload: {
+        url: 'https://example.com/hook',
+        events: ['invalid.event'],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Invalid events');
+    expect(body.message).toContain('invalid.event');
+    expect(body).toHaveProperty('valid_events');
+  });
+
+  it('GET /api/v1/webhooks/events returns all supported event types', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/webhooks/events' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('data');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data.length).toBe(7);
+    const eventNames = body.data.map((e: { event: string }) => e.event);
+    expect(eventNames).toContain('analysis.complete');
+    expect(eventNames).toContain('analysis.failed');
+    expect(eventNames).toContain('opportunity.created');
+    expect(eventNames).toContain('opportunity.updated');
+    expect(eventNames).toContain('policy.violation');
+    expect(eventNames).toContain('health.degraded');
+    expect(eventNames).toContain('snapshot.created');
+  });
+
+  it('DELETE /api/v1/webhooks/:id returns 404 for unknown ID', async () => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/v1/webhooks/wh_nonexistent',
+    });
+    expect(res.statusCode).toBe(404);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Not found');
+  });
+
+  it('POST /api/v1/webhooks/:id/test returns 404 for unknown ID', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/webhooks/wh_nonexistent/test',
+    });
+    expect(res.statusCode).toBe(404);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Not found');
+  });
+
+  it('PATCH /api/v1/webhooks/:id returns 404 for unknown ID', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/webhooks/wh_nonexistent',
+      payload: { active: false },
+    });
+    expect(res.statusCode).toBe(404);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Not found');
+  });
+
+  it('GET /api/v1/webhooks/:id/deliveries returns 404 for unknown ID', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/webhooks/wh_nonexistent/deliveries',
+    });
+    expect(res.statusCode).toBe(404);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Not found');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CORS
 // ---------------------------------------------------------------------------
 

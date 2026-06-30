@@ -6,6 +6,7 @@
 #   - Node.js debug port exposed
 #   - Relaxed restart policy
 #   - Development environment variables
+#   - Webhook configuration for testing
 #
 # Usage:
 #   docker compose -f docker/docker-compose.yml \
@@ -39,6 +40,10 @@ services:
       RECURRSIVE_LLM_PROVIDER: ${RECURRSIVE_LLM_PROVIDER:-openai}
       RECURRSIVE_LLM_MODEL: ${RECURRSIVE_LLM_MODEL:-gpt-4.1-mini}
       RECURRSIVE_LLM_API_KEY: ${RECURRSIVE_LLM_API_KEY:-}
+      # Webhook configuration (dev defaults)
+      RECURRSIVE_WEBHOOK_SECRET: ${RECURRSIVE_WEBHOOK_SECRET:-dev-secret}
+      RECURRSIVE_WEBHOOK_TIMEOUT_MS: ${RECURRSIVE_WEBHOOK_TIMEOUT_MS:-10000}
+      RECURRSIVE_WEBHOOK_MAX_RETRIES: ${RECURRSIVE_WEBHOOK_MAX_RETRIES:-1}
     volumes:
       # Mount source directories for live editing
       - ../packages/core/src:/app/packages/core/src:ro
@@ -54,6 +59,8 @@ services:
       # Mount tsconfigs for tsc --watch
       - ../tsconfig.base.json:/app/tsconfig.base.json:ro
       - ../apps/server/tsconfig.json:/app/apps/server/tsconfig.json:ro
+      # Persist data in dev
+      - server-data-dev:/app/data
     ports:
       - "3000:3000"
       # Node.js debug port
@@ -66,3 +73,7 @@ services:
         node apps/server/dist/bin.js
       "
     restart: "no"
+
+volumes:
+  server-data-dev:
+    driver: local

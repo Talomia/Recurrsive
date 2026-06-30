@@ -3,7 +3,7 @@
  *
  * Tests cover:
  * - Server has correct name and version
- * - All 15 tools are registered
+ * - All 18 tools are registered
  * - All 4 resources are registered
  * - All 9 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
@@ -102,16 +102,19 @@ vi.mock('@recurrsive/collectors', () => ({
 }));
 
 vi.mock('zod', () => {
-  const mockSchema = {
-    describe: vi.fn().mockReturnThis(),
-    optional: vi.fn().mockReturnThis(),
-  };
+  const mockSchema: Record<string, unknown> = {};
+  const chainable = (): Record<string, unknown> => mockSchema;
+  mockSchema.describe = vi.fn().mockImplementation(chainable);
+  mockSchema.optional = vi.fn().mockImplementation(chainable);
+  mockSchema.url = vi.fn().mockImplementation(chainable);
+  mockSchema.min = vi.fn().mockImplementation(chainable);
   return {
     z: {
       string: vi.fn().mockReturnValue(mockSchema),
       boolean: vi.fn().mockReturnValue(mockSchema),
       number: vi.fn().mockReturnValue(mockSchema),
       array: vi.fn().mockReturnValue(mockSchema),
+      enum: vi.fn().mockReturnValue(mockSchema),
     },
   };
 });
@@ -173,9 +176,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 15 tools', () => {
+    it('registers exactly 18 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(15);
+      expect(mockTool).toHaveBeenCalledTimes(18);
     });
 
     it('registers "analyze_project" tool', () => {
@@ -298,13 +301,37 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('compare_analyses');
     });
 
-    it('all 15 tool names are unique', () => {
+    it('registers "list_webhooks" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('list_webhooks');
+    });
+
+    it('registers "register_webhook" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('register_webhook');
+    });
+
+    it('registers "manage_webhook" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('manage_webhook');
+    });
+
+    it('all 18 tool names are unique', () => {
       createServer();
       const toolNames = mockTool.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(toolNames);
-      expect(uniqueNames.size).toBe(15);
+      expect(uniqueNames.size).toBe(18);
     });
 
     it('each tool has a description string as second argument', () => {
