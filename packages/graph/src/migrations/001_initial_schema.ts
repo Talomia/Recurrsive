@@ -177,6 +177,44 @@ CREATE TABLE IF NOT EXISTS recurrsive_migrations (
 );
   `.trim());
 
+  // FTS5 virtual table for full-text search of entities
+  stmts.push(`
+CREATE VIRTUAL TABLE IF NOT EXISTS entities_fts USING fts5(
+  id UNINDEXED,
+  name,
+  qualified_name,
+  description,
+  type UNINDEXED,
+  content='entities',
+  content_rowid='rowid',
+  tokenize='porter unicode61'
+);
+  `.trim());
+
+  // Triggers to keep FTS index in sync with entities table
+  stmts.push(`
+CREATE TRIGGER IF NOT EXISTS entities_fts_insert AFTER INSERT ON entities BEGIN
+  INSERT INTO entities_fts(rowid, id, name, qualified_name, description, type)
+  VALUES (NEW.rowid, NEW.id, NEW.name, NEW.qualified_name, COALESCE(NEW.description, ''), NEW.type);
+END;
+  `.trim());
+
+  stmts.push(`
+CREATE TRIGGER IF NOT EXISTS entities_fts_update AFTER UPDATE ON entities BEGIN
+  INSERT INTO entities_fts(entities_fts, rowid, id, name, qualified_name, description, type)
+  VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.qualified_name, COALESCE(OLD.description, ''), OLD.type);
+  INSERT INTO entities_fts(rowid, id, name, qualified_name, description, type)
+  VALUES (NEW.rowid, NEW.id, NEW.name, NEW.qualified_name, COALESCE(NEW.description, ''), NEW.type);
+END;
+  `.trim());
+
+  stmts.push(`
+CREATE TRIGGER IF NOT EXISTS entities_fts_delete AFTER DELETE ON entities BEGIN
+  INSERT INTO entities_fts(entities_fts, rowid, id, name, qualified_name, description, type)
+  VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.qualified_name, COALESCE(OLD.description, ''), OLD.type);
+END;
+  `.trim());
+
   return stmts;
 }
 

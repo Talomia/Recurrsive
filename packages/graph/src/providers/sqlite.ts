@@ -578,6 +578,92 @@ export class SqliteGraphClient implements ExtendedGraphClient {
   }
 
   /**
+   * Full-text search for entities using SQLite FTS5.
+   *
+   * Searches across entity name, qualified_name, and description
+   * using the Porter stemming tokenizer. Results are ranked by
+   * relevance (BM25).
+   *
+   * @param query - The search query string.
+   * @param options - Optional search configuration.
+   * @returns Matching entities ordered by relevance.
+   *
+   * @example
+   * ```ts
+   * const results = await client.searchEntities('auth login');
+   * const functions = await client.searchEntities('database', { type: 'function', limit: 10 });
+   * ```
+   */
+  async searchEntities(
+    query: string,
+    options?: { type?: string; limit?: number },
+  ): Promise<Entity[]> {
+    if (!this.db) throw new GraphError('Database not initialized', 'NOT_INITIALIZED');
+
+    try {
+      const limit = options?.limit ?? 50;
+      const ftsQuery = query
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(term => `"${term.replace(/"/g, '""')}"*`)
+        .join(' OR ');
+
+      if (!ftsQuery) return [];
+
+      let sql: string;
+      let params: (string | number)[];
+
+      if (options?.type) {
+        sql = `
+          SELECT e.*
+          FROM entities_fts fts
+          JOIN entities e ON fts.id = e.id
+          WHERE entities_fts MATCH ?
+            AND fts.type = ?
+          ORDER BY rank
+          LIMIT ?
+        `;
+        params = [ftsQuery, options.type, limit];
+      } else {
+        sql = `
+          SELECT e.*
+          FROM entities_fts fts
+          JOIN entities e ON fts.id = e.id
+          WHERE entities_fts MATCH ?
+          ORDER BY rank
+          LIMIT ?
+        `;
+        params = [ftsQuery, limit];
+      }
+
+      const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
+
+      return rows.map((row) => ({
+        id: String(row['id']),
+        type: String(row['type']) as EntityType,
+        name: String(row['name']),
+        qualified_name: String(row['qualified_name']),
+        description: row['description'] ? String(row['description']) : undefined,
+        source: String(row['source']),
+        source_location: row['source_location'] != null
+          ? JSON.parse(String(row['source_location']))
+          : undefined,
+        properties: JSON.parse(String(row['properties'] ?? '{}')),
+        tags: JSON.parse(String(row['tags'] ?? '[]')),
+        created_at: String(row['created_at']),
+        updated_at: String(row['updated_at']),
+        last_seen_at: String(row['last_seen_at']),
+      }));
+    } catch (error) {
+      throw new GraphError(
+        'Full-text search failed',
+        'QUERY_FAILED',
+        error,
+      );
+    }
+  }
+
+  /**
    * Close the database connection and release resources.
    */
   async dispose(): Promise<void> {

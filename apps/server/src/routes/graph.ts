@@ -247,4 +247,95 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       }
     },
   );
+
+  /**
+   * GET /api/v1/graph/search
+   *
+   * Full-text search for entities using FTS5. Returns BM25-ranked
+   * results matching the query across entity name, qualified_name,
+   * and description.
+   *
+   * Query parameters:
+   * - `q` (required) — Search query string.
+   * - `type` (optional) — Filter by entity type.
+   * - `limit` (optional) — Maximum results (default 50, max 200).
+   */
+  app.get<{ Querystring: { q?: string; type?: string; limit?: string } }>(
+    '/api/v1/graph/search',
+    async (request, reply) => {
+      if (!state.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Server not initialized',
+          message: 'Run POST /api/v1/analyze first.',
+        });
+      }
+
+      const { q, type, limit: limitStr } = request.query;
+
+      if (!q || q.trim().length === 0) {
+        return reply.status(400).send({
+          error: 'Bad request',
+          message: 'Query parameter "q" is required.',
+        });
+      }
+
+      const parsedLimit = limitStr ? parseInt(limitStr, 10) : 50;
+      const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 200));
+
+      try {
+        const graph = state.getGraph();
+
+        // Try FTS5 search if the client supports it
+        if ('searchEntities' in graph && typeof (graph as any).searchEntities === 'function') {
+          const results = await (graph as any).searchEntities(q.trim(), {
+            type: type || undefined,
+            limit,
+          });
+
+          return reply.status(200).send({
+            data: results,
+            total: results.length,
+            limit,
+            query: q.trim(),
+          });
+        }
+
+        // Fallback for non-SQLite providers: LIKE-based search
+        if (type) {
+          let entities = await graph.getEntities(type as EntityType);
+          const searchLower = q.toLowerCase();
+          entities = entities.filter(
+            (e) =>
+              e.name.toLowerCase().includes(searchLower) ||
+              e.qualified_name.toLowerCase().includes(searchLower) ||
+              (e.description?.toLowerCase().includes(searchLower) ?? false),
+          );
+
+          return reply.status(200).send({
+            data: entities.slice(0, limit),
+            total: entities.length,
+            limit,
+            query: q.trim(),
+          });
+        }
+
+        // No type specified with fallback — use raw query
+        const allEntities = await graph.query(
+          `SELECT * FROM entities WHERE name LIKE '%${q.replace(/'/g, "''")}%' OR qualified_name LIKE '%${q.replace(/'/g, "''")}%' LIMIT ${limit}`,
+        );
+
+        return reply.status(200).send({
+          data: allEntities,
+          limit,
+          query: q.trim(),
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return reply.status(500).send({
+          error: 'Graph search failed',
+          message,
+        });
+      }
+    },
+  );
 }

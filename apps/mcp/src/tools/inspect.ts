@@ -779,4 +779,117 @@ ORDER BY rt.depth;`.trim();
       }
     },
   );
+
+  // ── search_graph ─────────────────────────────────────────────────────
+
+  server.tool(
+    'search_graph',
+    'Full-text search for entities in the knowledge graph. Uses FTS5 with Porter stemming for ranked results across entity names, qualified names, and descriptions. Faster and more relevant than pattern matching.',
+    {
+      query: z.string().describe(
+        'Search query string. Supports natural language terms. Examples: "auth login", "database connection", "payment handler".',
+      ),
+      type: z
+        .string()
+        .optional()
+        .describe(
+          'Optional: filter results by entity type (function, class, module, endpoint, etc.).',
+        ),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .default(20)
+        .describe('Maximum number of results to return (default 20).'),
+    },
+    async ({ query, type, limit }) => {
+      if (!state.isInitialized()) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Project has not been analyzed yet. Run the analyze_project tool first.',
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      try {
+        const graph = state.getGraph();
+        let results: Entity[];
+
+        // Use FTS5 search if available (SQLite client)
+        if ('searchEntities' in graph && typeof (graph as any).searchEntities === 'function') {
+          results = await (graph as any).searchEntities(query, {
+            type: type || undefined,
+            limit,
+          });
+        } else {
+          // Fallback: LIKE-based search
+          if (type) {
+            const typed = await graph.getEntities(type as any);
+            const q = query.toLowerCase();
+            results = typed
+              .filter(
+                (e) =>
+                  e.name.toLowerCase().includes(q) ||
+                  e.qualified_name.toLowerCase().includes(q) ||
+                  (e.description?.toLowerCase().includes(q) ?? false),
+              )
+              .slice(0, limit);
+          } else {
+            const allRows = await graph.query(
+              `SELECT * FROM entities WHERE name LIKE '%${query.replace(/'/g, "''")}%' OR qualified_name LIKE '%${query.replace(/'/g, "''")}%' LIMIT ${limit}`,
+            );
+            results = allRows as Entity[];
+          }
+        }
+
+        if (results.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `No entities found matching "${query}"${type ? ` (type: ${type})` : ''}.`,
+              },
+            ],
+          };
+        }
+
+        const lines: string[] = [
+          `# Search Results for "${query}"`,
+          '',
+          `Found **${results.length}** ${results.length === 1 ? 'entity' : 'entities'}${type ? ` of type \`${type}\`` : ''}:`,
+          '',
+        ];
+
+        for (const entity of results) {
+          lines.push(`## ${entity.name}`);
+          lines.push(`- **ID:** \`${entity.id}\``);
+          lines.push(`- **Type:** ${entity.type}`);
+          lines.push(`- **Qualified Name:** \`${entity.qualified_name}\``);
+          if (entity.description) {
+            lines.push(`- **Description:** ${entity.description}`);
+          }
+          if (entity.source_location) {
+            const loc = entity.source_location;
+            lines.push(`- **Location:** ${loc.file}:${loc.start_line}-${loc.end_line}`);
+          }
+          lines.push('');
+        }
+
+        return {
+          content: [{ type: 'text' as const, text: lines.join('\n') }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: 'text' as const, text: `Search failed: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
 }

@@ -595,4 +595,118 @@ describe('SqliteGraphClient', () => {
       expect((result[0] as any).changes).toBe(1);
     });
   });
+
+  // ── Full-Text Search (FTS5) ──────────────────────────────────────────
+
+  describe('searchEntities (FTS5)', () => {
+    it('finds entities by name', async () => {
+      await client.upsertEntity(makeEntity({ name: 'authenticateUser', qualified_name: 'auth:authenticateUser' }));
+      await client.upsertEntity(makeEntity({ name: 'processPayment', qualified_name: 'billing:processPayment' }));
+      await client.upsertEntity(makeEntity({ name: 'validateToken', qualified_name: 'auth:validateToken' }));
+
+      const results = await client.searchEntities('authenticate');
+      expect(results.length).toBe(1);
+      expect(results[0]!.name).toBe('authenticateUser');
+    });
+
+    it('searches across name and qualified_name', async () => {
+      await client.upsertEntity(makeEntity({ name: 'handler', qualified_name: 'auth:loginHandler' }));
+
+      const results = await client.searchEntities('login');
+      expect(results.length).toBe(1);
+      expect(results[0]!.name).toBe('handler');
+    });
+
+    it('searches description field', async () => {
+      await client.upsertEntity(makeEntity({ name: 'processData', description: 'Handles database connection pooling' }));
+
+      const results = await client.searchEntities('pooling');
+      expect(results.length).toBe(1);
+      expect(results[0]!.name).toBe('processData');
+    });
+
+    it('returns multiple matches', async () => {
+      await client.upsertEntity(makeEntity({ name: 'authLogin', qualified_name: 'auth:login' }));
+      await client.upsertEntity(makeEntity({ name: 'authLogout', qualified_name: 'auth:logout' }));
+      await client.upsertEntity(makeEntity({ name: 'paymentProcess', qualified_name: 'billing:process' }));
+
+      const results = await client.searchEntities('auth');
+      expect(results.length).toBe(2);
+    });
+
+    it('filters by entity type', async () => {
+      await client.upsertEntity(makeEntity({ name: 'authFunc', type: 'function' as EntityType }));
+      await client.upsertEntity(makeEntity({ name: 'authModule', type: 'module' as EntityType }));
+
+      const results = await client.searchEntities('auth', { type: 'function' });
+      expect(results.length).toBe(1);
+      expect(results[0]!.type).toBe('function');
+    });
+
+    it('respects limit option', async () => {
+      for (let i = 0; i < 10; i++) {
+        await client.upsertEntity(makeEntity({ name: `testEntity${i}`, qualified_name: `test:entity${i}` }));
+      }
+
+      const results = await client.searchEntities('test', { limit: 3 });
+      expect(results.length).toBe(3);
+    });
+
+    it('returns empty array for no matches', async () => {
+      await client.upsertEntity(makeEntity({ name: 'something' }));
+
+      const results = await client.searchEntities('zzzznonexistent');
+      expect(results.length).toBe(0);
+    });
+
+    it('handles empty query string', async () => {
+      const results = await client.searchEntities('');
+      expect(results.length).toBe(0);
+    });
+
+    it('reflects entity updates in search results', async () => {
+      const entity = makeEntity({ name: 'oldName', qualified_name: 'test:oldName' });
+      await client.upsertEntity(entity);
+
+      // Update the entity name
+      entity.name = 'newAuthName';
+      entity.qualified_name = 'test:newAuthName';
+      entity.updated_at = new Date().toISOString();
+      await client.upsertEntity(entity);
+
+      const oldResults = await client.searchEntities('oldName');
+      expect(oldResults.length).toBe(0);
+
+      const newResults = await client.searchEntities('newAuth');
+      expect(newResults.length).toBe(1);
+    });
+
+    it('removes deleted entities from search index', async () => {
+      const entity = makeEntity({ name: 'toBeDeleted' });
+      await client.upsertEntity(entity);
+
+      let results = await client.searchEntities('toBeDeleted');
+      expect(results.length).toBe(1);
+
+      await client.deleteEntity(entity.id);
+
+      results = await client.searchEntities('toBeDeleted');
+      expect(results.length).toBe(0);
+    });
+
+    it('returns properly typed entities', async () => {
+      await client.upsertEntity(makeEntity({
+        name: 'testSearch',
+        type: 'endpoint' as EntityType,
+        properties: { method: 'GET', path: '/api/health' },
+        tags: ['api', 'health'],
+      }));
+
+      const results = await client.searchEntities('testSearch');
+      expect(results.length).toBe(1);
+      expect(results[0]!.type).toBe('endpoint');
+      expect(results[0]!.properties).toEqual({ method: 'GET', path: '/api/health' });
+      expect(results[0]!.tags).toEqual(['api', 'health']);
+    });
+  });
 });
