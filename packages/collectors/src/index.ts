@@ -55,3 +55,7 @@ export { EnvironmentCollector } from './environment/index.js';
 // ─── CI/CD Collector ─────────────────────────────────────────────────────────
 
 export { CICDCollector } from './cicd/index.js';
+
+// ─── Database Collector ──────────────────────────────────────────────────────
+
+export { DatabaseCollector } from './database/index.js';
