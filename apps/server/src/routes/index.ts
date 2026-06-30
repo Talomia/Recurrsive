@@ -15,6 +15,7 @@ import { registerGraphRoutes } from './graph.js';
 import { registerTimelineRoutes } from './timeline.js';
 import { registerFindingsRoutes } from './findings.js';
 import { registerReportRoutes } from './reports.js';
+import { registerSnapshotRoutes } from './snapshots.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -39,4 +40,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerTimelineRoutes(app);
   await registerFindingsRoutes(app);
   await registerReportRoutes(app);
+  await registerSnapshotRoutes(app);
 }

@@ -205,11 +205,75 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('get_health_score');
     });
 
+    it('registers "list_findings" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('list_findings');
+    });
+
+    it('registers "get_entity" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('get_entity');
+    });
+
+    it('registers "trace_dependency" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('trace_dependency');
+    });
+
+    it('registers "explain_entity" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('explain_entity');
+    });
+
+    it('registers "analyze_impact" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('analyze_impact');
+    });
+
+    it('registers "search_graph" tool', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(toolNames).toContain('search_graph');
+    });
+
+    it('all 11 tool names are unique', () => {
+      createServer();
+      const toolNames = mockTool.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      const uniqueNames = new Set(toolNames);
+      expect(uniqueNames.size).toBe(11);
+    });
+
     it('each tool has a description string as second argument', () => {
       createServer();
       for (const call of mockTool.mock.calls) {
         expect(typeof call[1]).toBe('string');
         expect((call[1] as string).length).toBeGreaterThan(0);
+      }
+    });
+
+    it('tool descriptions contain meaningful content (min 10 chars)', () => {
+      createServer();
+      for (const call of mockTool.mock.calls) {
+        expect((call[1] as string).length).toBeGreaterThan(10);
       }
     });
 
@@ -327,6 +391,39 @@ describe('MCP Server', () => {
         (call: unknown[]) => call[0],
       );
       expect(promptNames).toContain('explain_opportunity');
+    });
+
+    it('registers "architecture_review" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('architecture_review');
+    });
+
+    it('registers "security_assessment" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('security_assessment');
+    });
+
+    it('registers "cost_analysis" prompt', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      expect(promptNames).toContain('cost_analysis');
+    });
+
+    it('all 6 prompt names are unique', () => {
+      createServer();
+      const promptNames = mockPrompt.mock.calls.map(
+        (call: unknown[]) => call[0],
+      );
+      const uniqueNames = new Set(promptNames);
+      expect(uniqueNames.size).toBe(6);
     });
 
     it('each prompt has a description string', () => {

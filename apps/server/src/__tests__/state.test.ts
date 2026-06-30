@@ -205,5 +205,167 @@ describe('ServerState', () => {
       await state.initialize('/tmp/test-project');
       await expect(state.dispose()).resolves.not.toThrow();
     });
+
+    it('resets initialized state after dispose', async () => {
+      await state.initialize('/tmp/test-project');
+      expect(state.isInitialized()).toBe(true);
+      await state.dispose();
+      expect(state.isInitialized()).toBe(false);
+    });
+  });
+
+  // ── Analysis History ─────────────────────────────────────────────────
+
+  describe('analysis history tracking', () => {
+    it('starts with empty history', () => {
+      expect(state.getAnalysisHistory()).toEqual([]);
+    });
+
+    it('getAnalysisHistory returns a copy, not a reference', () => {
+      const h1 = state.getAnalysisHistory();
+      const h2 = state.getAnalysisHistory();
+      expect(h1).toEqual(h2);
+      expect(h1).not.toBe(h2);
+    });
+  });
+
+  // ── Evolution Timeline ───────────────────────────────────────────────
+
+  describe('evolution timeline', () => {
+    it('returns a default timeline when not initialized and no cache', () => {
+      const timeline = state.getEvolutionTimeline();
+      expect(timeline).toHaveProperty('snapshots');
+      expect(timeline).toHaveProperty('trends');
+      expect(Array.isArray(timeline.snapshots)).toBe(true);
+      expect(timeline.snapshots.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('default timeline has overall_health of 50 without cache', () => {
+      const timeline = state.getEvolutionTimeline();
+      const snapshot = timeline.snapshots[0]!;
+      expect(snapshot.overall_health).toBe(50);
+    });
+
+    it('default timeline snapshot has expected properties', () => {
+      const timeline = state.getEvolutionTimeline();
+      const snapshot = timeline.snapshots[0]!;
+      expect(snapshot).toHaveProperty('id');
+      expect(snapshot).toHaveProperty('timestamp');
+      expect(snapshot).toHaveProperty('maturity_scores');
+      expect(snapshot).toHaveProperty('opportunity_count');
+      expect(snapshot).toHaveProperty('debt_count');
+      expect(snapshot).toHaveProperty('risk_count');
+    });
+
+    it('default timeline has empty trends array', () => {
+      const timeline = state.getEvolutionTimeline();
+      expect(timeline.trends).toEqual([]);
+    });
+  });
+
+  // ── Health Score ─────────────────────────────────────────────────────
+
+  describe('health score', () => {
+    it('returns default health score without analysis cache', () => {
+      const score = state.getHealthScore();
+      expect(score.overall).toBe(50);
+      expect(score.dimensions).toEqual([]);
+    });
+  });
+
+  // ── Uninitialized Accessor Errors ────────────────────────────────────
+
+  describe('uninitialized accessor errors', () => {
+    it('getGraph throws when not initialized', () => {
+      expect(() => state.getGraph()).toThrow(/not initialized/i);
+    });
+
+    it('getProjectInfo throws when not initialized', () => {
+      expect(() => state.getProjectInfo()).toThrow(/not initialized/i);
+    });
+
+    it('getProjectPath throws when not initialized', () => {
+      expect(() => state.getProjectPath()).toThrow(/not initialized/i);
+    });
+  });
+
+  // ── Analysis Cache ──────────────────────────────────────────────────
+
+  describe('analysis cache', () => {
+    it('getAnalysisCache returns null initially', () => {
+      expect(state.getAnalysisCache()).toBeNull();
+    });
+  });
+
+  // ── Broadcast Integration ────────────────────────────────────────────
+
+  describe('broadcast integration', () => {
+    it('setWSBroadcast can be called multiple times', () => {
+      const fn1 = vi.fn();
+      const fn2 = vi.fn();
+      state.setWSBroadcast(fn1);
+      state.broadcast({ type: 'analysis:started', timestamp: '2024-01-01T00:00:00Z', data: {} });
+      expect(fn1).toHaveBeenCalledTimes(1);
+
+      state.setWSBroadcast(fn2);
+      state.broadcast({ type: 'analysis:started', timestamp: '2024-01-01T00:00:00Z', data: {} });
+      expect(fn2).toHaveBeenCalledTimes(1);
+      // fn1 should not have been called again
+      expect(fn1).toHaveBeenCalledTimes(1);
+    });
+
+    it('broadcast includes all event fields', () => {
+      const broadcastFn = vi.fn();
+      state.setWSBroadcast(broadcastFn);
+
+      const event: WSEvent = {
+        type: 'analysis:complete',
+        timestamp: '2024-06-15T12:00:00Z',
+        data: { runId: 'test-run', durationMs: 1234 },
+      };
+      state.broadcast(event);
+
+      const called = broadcastFn.mock.calls[0]![0];
+      expect(called.type).toBe('analysis:complete');
+      expect(called.timestamp).toBe('2024-06-15T12:00:00Z');
+      expect(called.data.runId).toBe('test-run');
+      expect(called.data.durationMs).toBe(1234);
+    });
+  });
+
+  // ── markAnalysisStarting ─────────────────────────────────────────────
+
+  describe('markAnalysisStarting', () => {
+    it('transitions phase from idle to collecting', () => {
+      expect(state.getAnalysisStatus().phase).toBe('idle');
+      state.markAnalysisStarting();
+      expect(state.getAnalysisStatus().phase).toBe('collecting');
+    });
+
+    it('sets progress to 0', () => {
+      state.markAnalysisStarting();
+      expect(state.getAnalysisStatus().progress).toBe(0);
+    });
+
+    it('sets startedAt to a non-null value', () => {
+      state.markAnalysisStarting();
+      expect(state.getAnalysisStatus().startedAt).not.toBeNull();
+    });
+
+    it('leaves completedAt as null', () => {
+      state.markAnalysisStarting();
+      expect(state.getAnalysisStatus().completedAt).toBeNull();
+    });
+  });
+
+  // ── getOpportunities ────────────────────────────────────────────────
+
+  describe('opportunity manager', () => {
+    it('getOpportunities returns a manager even before initialization', () => {
+      const manager = state.getOpportunities();
+      expect(manager).toBeDefined();
+      expect(typeof manager.list).toBe('function');
+    });
   });
 });
+

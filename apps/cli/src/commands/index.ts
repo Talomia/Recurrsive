@@ -15,3 +15,4 @@ export { registerHealthCommand } from './health.js';
 export { registerReportCommand } from './report.js';
 export { registerConfigCommand } from './config.js';
 export { registerSearchCommand } from './search.js';
+export { registerSnapshotCommand } from './snapshot.js';
