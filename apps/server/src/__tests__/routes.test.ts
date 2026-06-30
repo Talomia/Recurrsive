@@ -1312,3 +1312,77 @@ describe('Experiment Routes', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Search Routes
+// ---------------------------------------------------------------------------
+
+describe('Search Routes', () => {
+  it('GET /api/v1/search returns results for valid query', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=auth' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body).toHaveProperty('results');
+    expect(body).toHaveProperty('total');
+    expect(body).toHaveProperty('query');
+    expect(Array.isArray(body.results)).toBe(true);
+    expect(body.total).toBeGreaterThan(0);
+    expect(body.query).toBe('auth');
+  });
+
+  it('GET /api/v1/search returns 400 without query param', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/search' });
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toBe('Bad request');
+    expect(body.message).toContain('q');
+  });
+
+  it('GET /api/v1/search filters by scope (findings, opportunities, entities)', async () => {
+    const findingsRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=findings' });
+    expect(findingsRes.statusCode).toBe(200);
+    const findingsBody = JSON.parse(findingsRes.payload);
+    for (const r of findingsBody.results) {
+      expect(r.type).toBe('finding');
+    }
+
+    const oppsRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=opportunities' });
+    expect(oppsRes.statusCode).toBe(200);
+    const oppsBody = JSON.parse(oppsRes.payload);
+    for (const r of oppsBody.results) {
+      expect(r.type).toBe('opportunity');
+    }
+
+    const entitiesRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=entities' });
+    expect(entitiesRes.statusCode).toBe(200);
+    const entitiesBody = JSON.parse(entitiesRes.payload);
+    for (const r of entitiesBody.results) {
+      expect(r.type).toBe('entity');
+    }
+  });
+
+  it('GET /api/v1/search returns empty array for non-matching query', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=zzzznonexistent' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.results).toEqual([]);
+    expect(body.total).toBe(0);
+  });
+
+  it('GET /api/v1/search results include score and type fields', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=notification' });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.total).toBeGreaterThan(0);
+    const validTypes = ['finding', 'opportunity', 'entity'];
+    for (const result of body.results) {
+      // Score field
+      expect(result).toHaveProperty('score');
+      expect(typeof result.score).toBe('number');
+      expect(result.score).toBeGreaterThan(0);
+      expect(result.score).toBeLessThanOrEqual(1);
+      // Type field
+      expect(result).toHaveProperty('type');
+      expect(validTypes).toContain(result.type);
+    }
+  });
+});

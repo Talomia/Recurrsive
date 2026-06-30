@@ -21,6 +21,7 @@
  * - `audit` — View and search the audit trail
  * - `analytics` — View analytics summaries and categories
  * - `experiments` — Manage analysis experiments
+ * - `comparisons` — Compare analysis runs side-by-side
  *
  * @packageDocumentation
  */
@@ -45,6 +46,7 @@ import { registerBatchCommand } from './commands/batch.js';
 import { registerAuditCommand } from './commands/audit.js';
 import { registerAnalyticsCommand } from './commands/analytics.js';
 import { registerExperimentsCommand } from './commands/experiments.js';
+import { registerComparisonsCommand } from './commands/comparisons.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -85,6 +87,7 @@ export function createProgram(): Command {
   registerAuditCommand(program);
   registerAnalyticsCommand(program);
   registerExperimentsCommand(program);
+  registerComparisonsCommand(program);
 
   return program;
 }

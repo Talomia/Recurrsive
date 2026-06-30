@@ -12,6 +12,7 @@
  * 4. Config + Notifications (5 tests)
  * 5. Experiment lifecycle (5 tests)
  * 6. Audit + Analytics (5 tests)
+ * 7. Search (query → filter → verify) (3 tests)
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -639,3 +640,50 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
   });
 });
 
+// ===========================================================================
+// Flow 7: Search (query → filter → verify)
+// ===========================================================================
+
+describe('Flow: Search (query → filter → verify)', () => {
+  it('31. GET /api/v1/search?q=auth returns results', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=auth' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('results');
+    expect(body).toHaveProperty('total');
+    expect(body).toHaveProperty('query');
+    expect(body.query).toBe('auth');
+    expect(body.total).toBeGreaterThan(0);
+    expect(Array.isArray(body.results)).toBe(true);
+  });
+
+  it('32. Search results have correct shape', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=auth' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBeGreaterThan(0);
+    for (const result of body.results) {
+      expect(result).toHaveProperty('type');
+      expect(result).toHaveProperty('id');
+      expect(result).toHaveProperty('name');
+      expect(result).toHaveProperty('match');
+      expect(result).toHaveProperty('score');
+      expect(typeof result.score).toBe('number');
+      expect(result.score).toBeGreaterThan(0);
+      expect(result.score).toBeLessThanOrEqual(1);
+      expect(['finding', 'opportunity', 'entity']).toContain(result.type);
+    }
+  });
+
+  it('33. GET /api/v1/search?q=injection&scope=findings limits to findings', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/search?q=injection&scope=findings',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    for (const result of body.results) {
+      expect(result.type).toBe('finding');
+    }
+  });
+});

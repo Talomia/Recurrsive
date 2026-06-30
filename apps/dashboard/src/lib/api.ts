@@ -2217,3 +2217,75 @@ export async function getComparisonData(
     findings_resolved: Math.max(0, runA.findings - runB.findings + runB.resolved - runA.resolved),
   };
 }
+
+// ─── Search Types ────────────────────────────────────────────────────────────
+
+export interface SearchResult {
+  type: string;
+  id: string;
+  name: string;
+  match: string;
+  score: number;
+}
+
+// ─── Search Mock Data ────────────────────────────────────────────────────────
+
+const MOCK_SEARCH_RESULTS: SearchResult[] = [
+  { type: "opportunity", id: "OPP-2847", name: "Migrate legacy authentication to OAuth 2.1 PKCE flow", match: "OAuth 2.1 PKCE migration for improved security", score: 0.97 },
+  { type: "finding", id: "FND-0042", name: "N+1 query pattern in order processing", match: "Detected N+1 query pattern causing 340% latency increase", score: 0.93 },
+  { type: "entity", id: "ent_auth_service", name: "auth-service", match: "Authentication microservice handling OAuth flows", score: 0.89 },
+  { type: "policy", id: "builtin-security", name: "Security Policies", match: "Ensure security-related findings are prioritized", score: 0.85 },
+  { type: "experiment", id: "exp_002", name: "Auto-Fix Security", match: "Evaluate automatic security vulnerability fixing", score: 0.82 },
+  { type: "entity", id: "ent_payment_gw", name: "payment-gateway", match: "External payment gateway integration module", score: 0.78 },
+  { type: "finding", id: "FND-0019", name: "Docker image size exceeds 1.2GB", match: "Production images include build dependencies", score: 0.74 },
+  { type: "opportunity", id: "OPP-2835", name: "Implement circuit breaker for payment gateway", match: "Circuit breaker pattern for external service resilience", score: 0.71 },
+];
+
+// ─── Search API ──────────────────────────────────────────────────────────────
+
+/**
+ * Full-text search across all resource types via `GET /api/v1/search`.
+ *
+ * Searches opportunities, findings, entities, policies, and experiments.
+ * Falls back to mock data when the API server is unreachable.
+ *
+ * @param query - The search query string.
+ * @param scope - Optional scope filter (e.g. "opportunity", "finding", "entity").
+ */
+export async function searchAll(
+  query: string,
+  scope?: string,
+): Promise<SearchResult[]> {
+  try {
+    const params = new URLSearchParams();
+    params.set("q", query);
+    if (scope) params.set("scope", scope);
+
+    const raw = await apiFetch<{
+      data: SearchResult[];
+      total: number;
+    } | null>(`/api/v1/search?${params.toString()}`, null);
+
+    if (raw?.data?.length) return raw.data;
+  } catch {
+    // Fall through to mock filtering
+  }
+
+  // Filter mock results by query (case-insensitive substring match)
+  const q = query.toLowerCase();
+  let results = MOCK_SEARCH_RESULTS.filter(
+    (r) =>
+      r.name.toLowerCase().includes(q) ||
+      r.match.toLowerCase().includes(q) ||
+      r.type.toLowerCase().includes(q),
+  );
+
+  // Apply scope filter if provided
+  if (scope) {
+    results = results.filter((r) => r.type === scope);
+  }
+
+  // Return all mock results if query is too broad (fallback)
+  return results.length > 0 ? results : MOCK_SEARCH_RESULTS;
+}
+
