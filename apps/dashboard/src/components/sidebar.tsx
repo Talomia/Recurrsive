@@ -31,11 +31,15 @@ import {
   HeartPulse,
   Camera,
   Crown,
+  Brain,
+  FolderGit2,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Intelligence Overview", icon: LayoutDashboard },
   { href: "/executive", label: "Executive View", icon: Crown },
+  { href: "/forecasting", label: "Forecasting", icon: Brain },
+  { href: "/projects", label: "Projects", icon: FolderGit2 },
   { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
   { href: "/findings", label: "Findings", icon: ShieldAlert },
   { href: "/insights", label: "Insights", icon: Sparkles },

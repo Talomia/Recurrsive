@@ -43,7 +43,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 |---|---|
 | 🔍 **Evidence Collection** | Git repos, docs, ADRs, API contracts with PII detection & governance |
 | 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 43 relationship types |
-| 🔬 **12 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product, Dependency, API Contract |
+| 🔬 **13 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product, Dependency, API Contract, AI Runtime |
 | 🤖 **Multi-Agent Reasoning** | 19 specialist AI agents debate and rank improvement opportunities |
 | 📊 **Opportunity Management** | Prioritized roadmap with evidence, validation plans, rollback plans |
 | 🛡️ **Policy Engine** | Governance rules with recursive descent expression evaluation |
@@ -55,7 +55,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 
 | Surface | Count |
 |---------|-------|
-| 📡 Server REST endpoints | 62 |
+| 📡 Server REST endpoints | 78 |
 | ⌨️ CLI commands | 19 |
 | 🔌 MCP tools | 28 |
 | 💬 MCP prompts | 15 |
@@ -270,7 +270,7 @@ Recurrsive follows a four-phase pipeline — **Collect → Understand → Reason
 │  Opportunities  ·  Policy  ·  Experiments        │
 ├─────────────────────────────────────────────────┤
 │                 UNDERSTAND                        │
-│  Graph Engine  ·  12 Analyzers  ·  81+ Rules     │
+│  Graph Engine  ·  13 Analyzers  ·  89+ Rules     │
 │  Parsers  ·  AI Pattern Detection                │
 ├─────────────────────────────────────────────────┤
 │                   COLLECT                         │
@@ -296,8 +296,8 @@ recurrsive/
 ├── apps/
 │   ├── cli/            # Commander.js CLI — 19 commands
 │   ├── mcp/            # MCP server — 28 tools, 9 resources, 15 prompts
-│   ├── server/         # Fastify REST + WebSocket API — 62 endpoints
-│   └── dashboard/      # Next.js dashboard — 26 pages
+│   ├── server/         # Fastify REST + WebSocket API — 78 endpoints
+│   └── dashboard/      # Next.js dashboard — 30 pages
 ├── docker/             # Dockerfile + docker-compose
 ├── docs/
 │   ├── PRD.md          # Product Requirements
@@ -340,7 +340,7 @@ Multi-language code analysis:
 - **Cross-file resolver** for import/dependency tracking
 
 ### `@recurrsive/analyzers`
-12 specialized analyzers with 81+ analysis rules:
+13 specialized analyzers with 89+ analysis rules:
 
 | Analyzer | Focus |
 |----------|-------|
@@ -356,6 +356,7 @@ Multi-language code analysis:
 | Product | Dead feature flags, missing analytics |
 | Dependency | Outdated deps, CVEs, unpinned versions, missing lockfiles |
 | API Contract | Missing docs, pagination, rate limits, naming inconsistencies |
+| AI Runtime | Token usage, rate limiting, guardrails, model diversity, streaming |
 
 ### `@recurrsive/reasoning`
 Multi-agent reasoning engine:

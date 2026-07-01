@@ -13,8 +13,8 @@ describe('createDefaultAnalyzers', () => {
 
   // ── Returns correct count ──────────────────────────────────────────────
 
-  it('returns an array of 12 analyzers', () => {
-    expect(analyzers).toHaveLength(12);
+  it('returns an array of 13 analyzers', () => {
+    expect(analyzers).toHaveLength(13);
   });
 
   it('returns an array (not null or undefined)', () => {
@@ -127,10 +127,10 @@ describe('createDefaultAnalyzers', () => {
   it('includes all expected domain analyzers', () => {
     const ids = analyzers.map((a) => a.id);
 
-    // We don't enforce exact ids but check there are 12 unique ones
+    // We don't enforce exact ids but check there are 13 unique ones
     // Each domain is represented
-    expect(ids.length).toBe(12);
-    expect(new Set(ids).size).toBe(12);
+    expect(ids.length).toBe(13);
+    expect(new Set(ids).size).toBe(13);
   });
 
   // ── Fresh instances each call ────────────────────────────────────────────

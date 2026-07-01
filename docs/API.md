@@ -374,4 +374,60 @@ All API endpoints are rate-limited using a token-bucket algorithm. Responses inc
 | RBAC | Role-based access control (admin/analyst/viewer) |
 | Rate Limiter | Token-bucket rate limiting with configurable window |
 | Request Logger | Circular buffer logging (last 500 requests) |
+| Audit Middleware | Auto-capture all requests into audit trail |
 
+### Projects (Multi-Project)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/projects` | List all projects |
+| `GET` | `/api/v1/projects/:id` | Get project details |
+| `POST` | `/api/v1/projects` | Create new project |
+| `PUT` | `/api/v1/projects/:id` | Update project |
+| `DELETE` | `/api/v1/projects/:id` | Delete project |
+| `GET` | `/api/v1/projects/compare/health` | Cross-project health comparison |
+
+### Forecasting & Intelligence
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/forecasting/health` | Health trajectory prediction (linear regression) |
+| `POST` | `/api/v1/forecasting/what-if` | What-if impact simulation |
+| `GET` | `/api/v1/forecasting/evolution` | Evolution graph (decisions, outcomes, learnings) |
+
+#### `GET /api/v1/forecasting/health`
+
+**Query Parameters:**
+- `horizon` — Days to forecast (default: 30, max: 180)
+- `history` — Historical days for model fitting (default: 90)
+
+**Response includes:** current score, trend (improving/declining/stable), confidence (R²), forecast with bounds, target estimates.
+
+#### `POST /api/v1/forecasting/what-if`
+
+**Body:**
+```json
+{
+  "actions": [
+    { "type": "fix-critical-findings", "description": "Fix all critical security findings" },
+    { "type": "add-tests", "description": "Increase test coverage to 80%" }
+  ]
+}
+```
+
+**Supported action types:** `fix-critical-findings`, `add-tests`, `upgrade-dependencies`, `add-monitoring`, `refactor-architecture`, `add-documentation`, `enable-strict-mode`, `fix-security-issues`, `optimize-performance`, `add-rate-limiting`.
+
+### SSO / SAML
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/sso/providers` | List SSO configurations |
+| `GET` | `/api/v1/sso/providers/:id` | Get SSO config details |
+| `PUT` | `/api/v1/sso/providers/:id` | Create/update SSO config |
+| `DELETE` | `/api/v1/sso/providers/:id` | Delete SSO config |
+| `GET` | `/api/v1/sso/login/:provider` | Initiate SSO login (returns redirect URL) |
+| `POST` | `/api/v1/sso/callback/:provider` | Process SAML response, issue JWT |
+| `GET` | `/api/v1/sso/sessions` | List active SSO sessions |
+| `DELETE` | `/api/v1/sso/sessions/:id` | Revoke SSO session |
+
+Supported identity providers: Okta, Auth0, Azure AD, Google Workspace, Custom.

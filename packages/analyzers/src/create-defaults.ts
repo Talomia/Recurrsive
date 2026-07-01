@@ -20,6 +20,7 @@ import { UXAnalyzer } from './ux/index.js';
 import { ProductAnalyzer } from './product/index.js';
 import { DependencyAnalyzer } from './dependency/index.js';
 import { APIContractAnalyzer } from './api-contract/index.js';
+import { AIRuntimeAnalyzer } from './ai-runtime/index.js';
 
 /**
  * Create an array containing one instance of every built-in analyzer.
@@ -54,5 +55,6 @@ export function createDefaultAnalyzers(): Analyzer[] {
     new ProductAnalyzer(),
     new DependencyAnalyzer(),
     new APIContractAnalyzer(),
+    new AIRuntimeAnalyzer(),
   ];
 }

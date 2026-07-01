@@ -27,6 +27,9 @@ import { registerExperimentRoutes } from './experiments.js';
 import { registerSearchRoutes } from './search.js';
 import { registerExportRoutes } from './export.js';
 import { registerAuthRoutes } from './auth.js';
+import { registerProjectRoutes } from './projects.js';
+import { registerForecastingRoutes } from './forecasting.js';
+import { registerSSORoutes } from './sso.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -76,4 +79,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerSearchRoutes(app);
   await registerExportRoutes(app);
   await registerAuthRoutes(app);
+  await registerProjectRoutes(app);
+  await registerForecastingRoutes(app);
+  await registerSSORoutes(app);
 }

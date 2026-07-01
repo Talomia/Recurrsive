@@ -19,6 +19,10 @@
  * - **Database collector**: {@link DatabaseCollector} — SQL, Prisma, Drizzle schemas
  * - **OpenTelemetry collector**: {@link OpenTelemetryCollector} — traces, metrics,
  *   infrastructure resources
+ * - **Cloud cost collector**: {@link CloudCostCollector} — AWS/GCP/Azure cost reports,
+ *   budgets, resource allocations
+ * - **Error tracking collector**: {@link ErrorTrackingCollector} — Sentry/Bugsnag/Rollbar
+ *   error events, error groups, alert rules
  *
  * @packageDocumentation
  */
@@ -81,3 +85,10 @@ export { OpenTelemetryCollector } from './telemetry/index.js';
 
 export { GitLabCollector } from './gitlab/index.js';
 
+// ─── Cloud Cost Collector ───────────────────────────────────────────────────
+
+export { CloudCostCollector } from './cloud-cost/index.js';
+
+// ─── Error Tracking Collector ───────────────────────────────────────────────
+
+export { ErrorTrackingCollector } from './error-tracking/index.js';

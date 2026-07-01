@@ -6,9 +6,9 @@
 |---|---|---|
 | Core type system | ✅ Complete | 12 type files, Zod schemas with runtime validation |
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
-| Collectors | ✅ Complete | 8 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry |
+| Collectors | ✅ Complete | 10 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
-| Analyzers | ✅ Complete | 12 analyzers, 81+ rules (66 base + 8 dependency + 7 API contract), all 12 with cross-cutting finalize() logic |
+| Analyzers | ✅ Complete | 13 analyzers, 89+ rules (66 base + 8 dependency + 7 API contract + 8 AI runtime), all 13 with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (16 rules) |
@@ -37,7 +37,7 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 - [x] **CI/CD collector** — GitHub Actions, GitLab CI pipelines
 
 ### Analyzers
-- [ ] **AI Runtime analyzer** — prompt quality, token usage, model selection
+- [x] **AI Runtime analyzer** — prompt quality, token usage, model selection (8 rules)
 - [x] **Dependency vulnerability analyzer** — CVE scanning (8 rules)
 - [x] **API contract analyzer** — OpenAPI/GraphQL schema analysis (7 rules)
 
@@ -66,7 +66,7 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 
 ### Enterprise Features
 - [x] Authentication (JWT + API keys)
-- [ ] SSO/SAML integration
+- [x] SSO/SAML integration
 - [x] Fine-grained RBAC (role-based access control)
 - [x] Audit logging (who accessed what, when)
 - [ ] Data masking and PII controls
@@ -74,9 +74,9 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 - [ ] Multi-tenant deployment model
 
 ### Collectors (Enterprise)
-- [ ] **Cloud cost collector** — AWS Cost Explorer, GCP Billing, Azure Cost Management
+- [x] **Cloud cost collector** — AWS Cost Explorer, GCP Billing, Azure Cost Management
 - [ ] **APM collector** — Datadog, New Relic, Grafana Tempo
-- [ ] **Error tracking collector** — Sentry, Bugsnag
+- [x] **Error tracking collector** — Sentry, Bugsnag, Rollbar
 - [x] **CI/CD collector** — GitHub Actions, GitLab CI (now in Phase 1)
 
 ### AI Integrations
@@ -91,7 +91,7 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 
 ### Dashboard
 - [x] User authentication and sessions
-- [ ] Multi-project support
+- [x] Multi-project support
 - [x] Executive intelligence views
 - [ ] Report scheduling and export
 
@@ -115,9 +115,9 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 - [x] **A/B test integration** — validate recommendation impact with experiments
 
 ### Advanced Intelligence
-- [ ] **Evolution Graph** — record decisions, outcomes, and learning over time
-- [ ] **Forecasting** — predict maturity trajectory based on current trends
-- [ ] **What-if analysis** — simulate impact of proposed changes
+- [x] **Evolution Graph** — record decisions, outcomes, and learning over time
+- [x] **Forecasting** — predict maturity trajectory based on current trends
+- [x] **What-if analysis** — simulate impact of proposed changes
 
 ---
 
