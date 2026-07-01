@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/presentation",
-  "version": "0.2.1",
+  "version": "0.4.0",
   "private": true,
   "description": "Report generation, notifications, and terminal formatting for the Recurrsive engineering intelligence platform",
   "license": "Apache-2.0",

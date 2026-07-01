@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/mcp",
-  "version": "0.2.1",
+  "version": "0.4.0",
   "private": true,
   "description": "MCP server for Recurrsive - exposes analysis to AI assistants",
   "license": "Apache-2.0",

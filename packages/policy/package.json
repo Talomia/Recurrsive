@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/policy",
-  "version": "0.2.1",
+  "version": "0.4.0",
   "private": true,
   "description": "Policy evaluation engine with built-in governance rules for the Recurrsive engineering intelligence platform",
   "license": "Apache-2.0",
