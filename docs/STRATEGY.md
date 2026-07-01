@@ -92,7 +92,7 @@ The foundation. Free forever.
 - Opportunity management + SARIF export
 - Policy engine
 - CLI (25 commands)
-- MCP Server (42 tools, 15 prompts, 9 resources)
+- MCP Server (42 tools, 21 prompts, 16 resources)
 - REST + WebSocket API
 - Plugin SDK for custom analyzers/collectors
 

@@ -1592,7 +1592,7 @@ type Subgraph {
 | `get_benchmarks` | Get cloud benchmarking data | `provider?: string` |
 | `list_secrets` | List secrets metadata (never exposes values) | `backend?: string` |
 
-#### Resources (9)
+#### Resources (16)
 
 | Resource URI | Description |
 |---|---|
@@ -1604,9 +1604,16 @@ type Subgraph {
 | `recurrsive://webhooks/status` | Webhook integration status |
 | `recurrsive://analytics/summary` | Analysis trends summary |
 | `recurrsive://experiments/active` | Active engineering experiments |
-| `recurrsive://experiments/results` | Completed experiment results and conclusions |
+| `recurrsive://experiments/results` | Completed experiment results |
+| `recurrsive://projects/list` | All projects with health scores |
+| `recurrsive://projects/comparison` | Cross-project health comparison |
+| `recurrsive://projects/timeline` | Project evolution timeline |
+| `recurrsive://platform/status` | Platform status overview |
+| `recurrsive://plugins/installed` | Installed plugins list |
+| `recurrsive://tenants/overview` | Multi-tenant overview |
+| `recurrsive://benchmarks/latest` | Latest cloud benchmarks |
 
-#### Prompts (15)
+#### Prompts (21)
 
 | Prompt Name | Description | Arguments |
 |---|---|---|
@@ -1625,6 +1632,12 @@ type Subgraph {
 | `deep_dive_finding` | Deep analysis of a specific security finding | `findingId: string` |
 | `compare_snapshots` | Compare two snapshots and identify drift | `snapshot1?: string`, `snapshot2?: string` |
 | `generate_action_items` | Generate actionable items from analysis results | — |
+| `forecast_health` | Generate health forecast analysis | `horizon?: string` |
+| `simulation_review` | Review simulation results and recommend actions | — |
+| `confidence_analysis` | Analyze prediction confidence calibration | `lookback?: string` |
+| `plugin_evaluation` | Evaluate a plugin for installation | `plugin_name: string` |
+| `tenant_optimization` | Optimize tenant resource usage | `tenant_id: string` |
+| `security_review` | Comprehensive security posture review | — |
 
 ### 10.5 Dashboard Page Structure
 

@@ -268,7 +268,7 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `get_benchmarks` | Get cloud benchmarking data |
 | `list_secrets` | List secrets metadata (never exposes values) |
 
-### Prompts (15)
+### Prompts (21)
 
 | Prompt | Description |
 |--------|-------------|
@@ -287,8 +287,14 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `deep_dive_finding` | Deep analysis of a specific security finding |
 | `compare_snapshots` | Compare two snapshots and identify drift |
 | `generate_action_items` | Generate actionable items from analysis results |
+| `forecast_health` | Generate health forecast analysis |
+| `simulation_review` | Review simulation results and recommend actions |
+| `confidence_analysis` | Analyze prediction confidence calibration |
+| `plugin_evaluation` | Evaluate a plugin for installation |
+| `tenant_optimization` | Optimize tenant resource usage |
+| `security_review` | Comprehensive security posture review |
 
-### Resources (9)
+### Resources (16)
 
 | Resource | URI | Description |
 |----------|-----|-------------|
@@ -300,7 +306,14 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | Webhook Status | `recurrsive://webhooks/status` | Webhook integration status |
 | Analytics Summary | `recurrsive://analytics/summary` | Analysis trends summary |
 | Experiment Status | `recurrsive://experiments/active` | Active engineering experiments |
-| Experiment Results | `recurrsive://experiments/results` | Completed experiment results and conclusions |
+| Experiment Results | `recurrsive://experiments/results` | Completed experiment results |
+| Project List | `recurrsive://projects/list` | All projects with health scores |
+| Project Comparison | `recurrsive://projects/comparison` | Cross-project health comparison |
+| Project Timeline | `recurrsive://projects/timeline` | Project evolution timeline |
+| Platform Status | `recurrsive://platform/status` | Platform status overview |
+| Installed Plugins | `recurrsive://plugins/installed` | Installed plugins list |
+| Tenant Overview | `recurrsive://tenants/overview` | Multi-tenant overview |
+| Cloud Benchmarks | `recurrsive://benchmarks/latest` | Latest cloud benchmarks |
 
 ---
 
