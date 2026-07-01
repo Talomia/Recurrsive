@@ -127,7 +127,7 @@ describe('Pipeline Integration', () => {
     expect(rels.some((r) => r.target_id === mod2.id)).toBe(true);
   });
 
-  it('should run all 10 default analyzers against a populated graph', async () => {
+  it('should run all 12 default analyzers against a populated graph', async () => {
     // Populate graph with diverse entities
     const entities = [
       makeEntity('repository', 'test-project'),
@@ -163,8 +163,8 @@ describe('Pipeline Integration', () => {
     expect(result).toBeDefined();
     expect(result.findings).toBeDefined();
     expect(Array.isArray(result.findings)).toBe(true);
-    // All 10 analyzers should be accounted for
-    expect(result.analyzers_run.length + result.analyzers_failed.length).toBe(10);
+    // All 12 analyzers should be accounted for
+    expect(result.analyzers_run.length + result.analyzers_failed.length).toBe(12);
     expect(result.duration_ms).toBeGreaterThanOrEqual(0);
     // Findings should have required fields
     for (const f of result.findings) {
@@ -226,7 +226,7 @@ describe('Pipeline Integration', () => {
     const result = await runner.run('*', ctx);
 
     // 3. Verify end-to-end pipeline
-    expect(result.analyzers_run.length + result.analyzers_failed.length).toBe(10);
+    expect(result.analyzers_run.length + result.analyzers_failed.length).toBe(12);
     expect(result.findings).toBeDefined();
 
     // Verify graph has expected data
@@ -243,16 +243,16 @@ describe('Pipeline Integration', () => {
     }
   });
 
-  it('should correctly register all 10 default analyzers', () => {
+  it('should correctly register all 12 default analyzers', () => {
     const analyzers = createDefaultAnalyzers();
-    expect(analyzers.length).toBe(10);
+    expect(analyzers.length).toBe(12);
 
     const registry = new AnalyzerRegistry();
     for (const a of analyzers) {
       registry.register(a);
     }
 
-    expect(registry.getAll().length).toBe(10);
+    expect(registry.getAll().length).toBe(12);
 
     // Verify each analyzer has required fields
     for (const a of analyzers) {

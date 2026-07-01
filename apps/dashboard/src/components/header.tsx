@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Bell, Sparkles } from "lucide-react";
+import { useWebSocket } from "../hooks/useWebSocket";
+import { LiveIndicator } from "./LiveIndicator";
 
 interface HeaderProps {
   title: string;
@@ -12,6 +14,7 @@ interface HeaderProps {
 export default function Header({ title, subtitle }: HeaderProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const { status, clientCount } = useWebSocket({ autoConnect: true });
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery.trim()) {
@@ -47,6 +50,9 @@ export default function Header({ title, subtitle }: HeaderProps) {
             ⌘K
           </kbd>
         </div>
+
+        {/* Live status */}
+        <LiveIndicator status={status} clientCount={clientCount} showClientCount size="sm" />
 
         {/* AI chip */}
         <button

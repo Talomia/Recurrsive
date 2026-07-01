@@ -1,23 +1,24 @@
 # Recurrsive — Product Roadmap
 
-## Current State (v0.2.1)
+## Current State (v0.3.0)
 
 | Component | Status | Evidence |
 |---|---|---|
 | Core type system | ✅ Complete | 12 type files, Zod schemas with runtime validation |
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
-| Collectors | ✅ Complete | 5 collectors: Git, Doc, Environment, CI/CD, Database. More planned. |
+| Collectors | ✅ Complete | 7 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, OpenTelemetry |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
-| Analyzers | ✅ Complete | 10 analyzers, 66+ rules, all 10 with cross-cutting finalize() logic |
+| Analyzers | ✅ Complete | 12 analyzers, 81+ rules (66 base + 8 dependency + 7 API contract), all 12 with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (16 rules) |
 | Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
 | CLI | ✅ Complete | 19 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export) |
 | MCP Server | ✅ Complete | 28 tools, 9 resources, 15 prompts |
-| REST API | ✅ Complete | 56 endpoints, WebSocket streaming |
-| Dashboard | ✅ Complete | Next.js, 26 pages (incl. detail pages), 8+ components |
-| Tests | ✅ Complete | 80+ test files, 2,203+ individual tests (incl. integration tests) |
+| REST API | ✅ Complete | 62+ endpoints, WebSocket streaming, JWT/API key auth, RBAC |
+| Dashboard | ✅ Complete | Next.js, 26 pages (incl. detail pages), 8+ components, real-time WebSocket |
+| Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
+| Tests | ✅ Complete | 80+ test files, integration tests for full pipeline |
 
 ---
 
@@ -27,9 +28,9 @@
 Make Recurrsive useful for a single AI engineering team analyzing a single repository. Deliver immediate value from `recurrsive analyze .`
 
 ### Collectors
-- [ ] **GitHub App collector** — PRs, issues, reviews, actions, deployments
+- [x] **GitHub App collector** — PRs, issues, reviews, actions, deployments
 - [ ] **GitLab collector** — MRs, issues, pipelines
-- [ ] **OpenTelemetry collector** — ingest OTLP traces and metrics
+- [x] **OpenTelemetry collector** — ingest OTLP traces and metrics
 - [x] **Database schema collector** — SQL, Prisma, Drizzle ORM parsing
 - [x] **Dockerfile/Compose collector** — container topology
 - [x] **Kubernetes collector** — manifests, deployments, services
@@ -37,24 +38,24 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 
 ### Analyzers
 - [ ] **AI Runtime analyzer** — prompt quality, token usage, model selection
-- [ ] **Dependency vulnerability analyzer** — CVE scanning
-- [ ] **API contract analyzer** — OpenAPI/GraphQL schema analysis
+- [x] **Dependency vulnerability analyzer** — CVE scanning (8 rules)
+- [x] **API contract analyzer** — OpenAPI/GraphQL schema analysis (7 rules)
 
 ### Dashboard
 - [x] Connect dashboard to live API (replace mock data)
 - [x] Add dashboard detail pages (batch/[id], experiments/[id], notifications/[id], opportunities/[id], policies/[id], insights/[id], system-map/[id])
-- [ ] Add real-time WebSocket updates
+- [x] Add real-time WebSocket updates (LiveIndicator, useWebSocket hook)
 - [x] Implement settings persistence
 
 ### Quality
 - [x] Reconcile ARCHITECTURE.md with actual code (8 discrepancies fixed)
-- [ ] Add integration tests for full pipeline (collect → analyze → reason)
+- [x] Add integration tests for full pipeline (collect → analyze → reason)
 - [ ] TypeScript strict mode across all packages
 
 ### Documentation
 - [x] Contributor guide (CONTRIBUTING.md)
-- [ ] Plugin/SDK development guide
-- [ ] Deployment guide (DEPLOYMENT.md)
+- [x] Plugin/SDK development guide (PLUGIN_SDK.md)
+- [x] Deployment guide (DEPLOYMENT.md)
 
 ---
 
@@ -64,9 +65,9 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 Make Recurrsive deployable in enterprise environments with governance, security, and compliance.
 
 ### Enterprise Features
-- [ ] Authentication (JWT + API keys)
+- [x] Authentication (JWT + API keys)
 - [ ] SSO/SAML integration
-- [ ] Fine-grained RBAC (role-based access control)
+- [x] Fine-grained RBAC (role-based access control)
 - [ ] Audit logging (who accessed what, when)
 - [ ] Data masking and PII controls
 - [ ] Secret management integration (Vault, AWS Secrets Manager)

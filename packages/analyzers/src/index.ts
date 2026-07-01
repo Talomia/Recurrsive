@@ -36,6 +36,8 @@ export { DataAnalyzer } from './data/index.js';
 export { DocsAnalyzer } from './docs/index.js';
 export { UXAnalyzer } from './ux/index.js';
 export { ProductAnalyzer } from './product/index.js';
+export { DependencyAnalyzer } from './dependency/index.js';
+export { APIContractAnalyzer } from './api-contract/index.js';
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
 

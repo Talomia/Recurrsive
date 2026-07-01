@@ -18,6 +18,8 @@ import { DataAnalyzer } from './data/index.js';
 import { DocsAnalyzer } from './docs/index.js';
 import { UXAnalyzer } from './ux/index.js';
 import { ProductAnalyzer } from './product/index.js';
+import { DependencyAnalyzer } from './dependency/index.js';
+import { APIContractAnalyzer } from './api-contract/index.js';
 
 /**
  * Create an array containing one instance of every built-in analyzer.
@@ -50,5 +52,7 @@ export function createDefaultAnalyzers(): Analyzer[] {
     new DocsAnalyzer(),
     new UXAnalyzer(),
     new ProductAnalyzer(),
+    new DependencyAnalyzer(),
+    new APIContractAnalyzer(),
   ];
 }

@@ -327,7 +327,39 @@ recurrsive export          # Export data (create, history)
 
 ## Authentication
 
-The API server supports optional API key authentication via the `X-API-Key` header. Configure with the `RECURRSIVE_API_KEY` environment variable. Health endpoints are excluded from auth.
+The API server supports JWT and API key authentication:
+
+- **JWT tokens** — `Authorization: Bearer <token>` header
+- **API keys** — `X-API-Key: <key>` header
+
+Login with demo credentials to obtain a JWT token:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin"}'
+```
+
+### Auth Endpoints
+
+| Method | Endpoint | Auth Required | Description |
+|--------|----------|:---:|-------------|
+| `POST` | `/api/v1/auth/login` | No | Login with credentials → JWT token |
+| `POST` | `/api/v1/auth/refresh` | Yes | Refresh JWT token |
+| `GET` | `/api/v1/auth/me` | Yes | Get current user info |
+| `POST` | `/api/v1/api-keys` | Admin | Create API key |
+| `GET` | `/api/v1/api-keys` | Yes | List API keys |
+| `DELETE` | `/api/v1/api-keys/:id` | Admin | Revoke API key |
+
+### Roles (RBAC)
+
+| Role | Level | Permissions |
+|------|:-----:|-------------|
+| `admin` | 3 | Full access — all endpoints, API key management |
+| `analyst` | 2 | Read/write — analysis, findings, opportunities |
+| `viewer` | 1 | Read-only — view data, cannot trigger analysis |
+
+Health endpoints are excluded from authentication.
 
 ## Rate Limiting
 
@@ -337,6 +369,9 @@ All API endpoints are rate-limited using a token-bucket algorithm. Responses inc
 
 | Middleware | Description |
 |-----------|-------------|
+| JWT Auth | HMAC-SHA256 JWT token verification |
+| API Key Auth | SHA-256 hashed API key validation |
+| RBAC | Role-based access control (admin/analyst/viewer) |
 | Rate Limiter | Token-bucket rate limiting with configurable window |
 | Request Logger | Circular buffer logging (last 500 requests) |
-| API Key Auth | Header-based auth with path exclusions |
+

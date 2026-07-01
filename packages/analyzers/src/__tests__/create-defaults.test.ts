@@ -1,7 +1,7 @@
 /**
  * Tests for createDefaultAnalyzers factory function.
  *
- * Verifies: returns 10 analyzers, each has unique id,
+ * Verifies: returns 12 analyzers, each has unique id,
  * each implements the Analyzer interface (has analyze method).
  */
 
@@ -13,8 +13,8 @@ describe('createDefaultAnalyzers', () => {
 
   // ── Returns correct count ──────────────────────────────────────────────
 
-  it('returns an array of 10 analyzers', () => {
-    expect(analyzers).toHaveLength(10);
+  it('returns an array of 12 analyzers', () => {
+    expect(analyzers).toHaveLength(12);
   });
 
   it('returns an array (not null or undefined)', () => {
@@ -127,10 +127,10 @@ describe('createDefaultAnalyzers', () => {
   it('includes all expected domain analyzers', () => {
     const ids = analyzers.map((a) => a.id);
 
-    // We don't enforce exact ids but check there are 10 unique ones
+    // We don't enforce exact ids but check there are 12 unique ones
     // Each domain is represented
-    expect(ids.length).toBe(10);
-    expect(new Set(ids).size).toBe(10);
+    expect(ids.length).toBe(12);
+    expect(new Set(ids).size).toBe(12);
   });
 
   // ── Fresh instances each call ────────────────────────────────────────────

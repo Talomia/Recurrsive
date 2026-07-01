@@ -42,3 +42,4 @@ pnpm-debug.log*
 *.tgz
 .cache/
 # GitHub Actions workflows excluded until OAuth token has workflow scope
+.github/
