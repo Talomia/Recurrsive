@@ -58,10 +58,10 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 | 📡 Server REST endpoints | 138 |
 | ⌨️ CLI commands | 25 |
 | 🔌 MCP tools | 42 |
-| 💬 MCP prompts | 15 |
-| 📦 MCP resources | 9 |
+| 💬 MCP prompts | 21 |
+| 📦 MCP resources | 16 |
 | 🖥️ Dashboard pages | 40 |
-| ✅ Tests | 2,881+ |
+| ✅ Tests | 2,920+ |
 | 📁 Packages | 13 (9 core + 4 apps) |
 
 ---
@@ -315,7 +315,7 @@ recurrsive/
 │   └── presentation/   # Reports + notifications + terminal
 ├── apps/
 │   ├── cli/            # Commander.js CLI — 25 commands
-│   ├── mcp/            # MCP server — 42 tools, 9 resources, 15 prompts
+│   ├── mcp/            # MCP server — 42 tools, 16 resources, 21 prompts
 │   ├── server/         # Fastify REST + WebSocket + GraphQL API — 138 endpoints
 │   └── dashboard/      # Next.js dashboard — 40 pages
 ├── docker/             # Dockerfile + docker-compose

@@ -11,6 +11,8 @@ import { registerReportResources } from './reports.js';
 import { registerGovernanceResources } from './governance.js';
 import { registerAnalyticsResources } from './analytics.js';
 import { registerExperimentResources } from './experiments.js';
+import { registerProjectResources } from './projects.js';
+import { registerPlatformResources } from './platform.js';
 
 /**
  * Register all MCP resources with the server.
@@ -22,5 +24,7 @@ export function registerResources(server: McpServer): void {
   registerGovernanceResources(server);
   registerAnalyticsResources(server);
   registerExperimentResources(server);
+  registerProjectResources(server);
+  registerPlatformResources(server);
 }
 
