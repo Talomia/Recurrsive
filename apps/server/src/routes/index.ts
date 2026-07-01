@@ -33,6 +33,8 @@ import { registerSSORoutes } from './sso.js';
 import { registerSchedulingRoutes } from './scheduling.js';
 import { registerDataMaskingRoutes } from '../middleware/data-masking.js';
 import { registerPluginRoutes } from './plugins.js';
+import { registerSecretRoutes } from './secrets.js';
+import { registerConfidenceRoutes } from './confidence.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -88,4 +90,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerSchedulingRoutes(app);
   await registerDataMaskingRoutes(app);
   await registerPluginRoutes(app);
+  await registerSecretRoutes(app);
+  await registerConfidenceRoutes(app);
 }

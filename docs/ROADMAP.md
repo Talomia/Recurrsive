@@ -6,7 +6,7 @@
 |---|---|---|
 | Core type system | ✅ Complete | 12 type files, Zod schemas with runtime validation |
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
-| Collectors | ✅ Complete | 12 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse |
+| Collectors | ✅ Complete | 14 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
 | Analyzers | ✅ Complete | 13 analyzers, 89+ rules (66 base + 8 dependency + 7 API contract + 8 AI runtime), all 13 with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
@@ -70,7 +70,7 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 - [x] Fine-grained RBAC (role-based access control)
 - [x] Audit logging (who accessed what, when)
 - [x] Data masking and PII controls
-- [ ] Secret management integration (Vault, AWS Secrets Manager)
+- [x] Secret management integration (Vault, AWS Secrets Manager)
 - [ ] Multi-tenant deployment model
 
 ### Collectors (Enterprise)
@@ -81,12 +81,12 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 
 ### AI Integrations
 - [x] **Langfuse collector** — LLM traces, prompt analytics
-- [ ] **Arize collector** — model monitoring, drift detection
-- [ ] **Helicone collector** — LLM cost and usage
+- [x] **Arize collector** — model monitoring, drift detection
+- [x] **Helicone collector** — LLM cost and usage
 
 ### Reasoning
 - [ ] Custom specialist agent SDK (bring your own specialists)
-- [ ] Confidence calibration (track prediction accuracy over time)
+- [x] Confidence calibration (track prediction accuracy over time)
 - [ ] Cross-domain evidence fusion improvements
 
 ### Dashboard

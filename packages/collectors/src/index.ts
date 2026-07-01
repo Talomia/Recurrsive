@@ -100,3 +100,11 @@ export { APMCollector } from './apm/index.js';
 // ─── Langfuse Collector ─────────────────────────────────────────────────────
 
 export { LangfuseCollector } from './langfuse/index.js';
+
+// ─── Arize Collector ────────────────────────────────────────────────────────
+
+export { ArizeCollector } from './arize/index.js';
+
+// ─── Helicone Collector ─────────────────────────────────────────────────────
+
+export { HeliconeCollector } from './helicone/index.js';
