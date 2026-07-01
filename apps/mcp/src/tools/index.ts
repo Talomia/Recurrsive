@@ -16,6 +16,10 @@ import { registerExperimentTools } from './experiments.js';
 import { registerSearchTools } from './search.js';
 import { registerSnapshotTools } from './snapshots.js';
 import { registerExportTools } from './export.js';
+import { registerProjectTools } from './projects.js';
+import { registerForecastTools } from './forecasting.js';
+import { registerIntelligenceTools } from './intelligence.js';
+import { registerPlatformTools } from './platform.js';
 
 /**
  * Register all MCP tools with the server.
@@ -32,4 +36,8 @@ export function registerTools(server: McpServer): void {
   registerSearchTools(server);
   registerSnapshotTools(server);
   registerExportTools(server);
+  registerProjectTools(server);
+  registerForecastTools(server);
+  registerIntelligenceTools(server);
+  registerPlatformTools(server);
 }

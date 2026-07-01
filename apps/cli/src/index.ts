@@ -22,6 +22,13 @@
  * - `analytics` — View analytics summaries and categories
  * - `experiments` — Manage analysis experiments
  * - `comparisons` — Compare analysis runs side-by-side
+ * - `export` — Export analysis data
+ * - `projects` — Multi-project management
+ * - `forecast` — Health forecasting and what-if analysis
+ * - `plugins` — Plugin marketplace and management
+ * - `secrets` — Secret rotation and audit
+ * - `simulate` — Simulation engine
+ * - `cloud` — Cloud benchmarks and patterns
  *
  * @packageDocumentation
  */
@@ -48,6 +55,12 @@ import { registerAnalyticsCommand } from './commands/analytics.js';
 import { registerExperimentsCommand } from './commands/experiments.js';
 import { registerComparisonsCommand } from './commands/comparisons.js';
 import { registerExportCommand } from './commands/export.js';
+import { registerProjectsCommand } from './commands/projects.js';
+import { registerForecastCommand } from './commands/forecasting.js';
+import { registerPluginsCommand } from './commands/plugins.js';
+import { registerSecretsCommand } from './commands/secrets.js';
+import { registerSimulationCommand } from './commands/simulation.js';
+import { registerCloudCommand } from './commands/cloud.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -90,6 +103,12 @@ export function createProgram(): Command {
   registerExperimentsCommand(program);
   registerComparisonsCommand(program);
   registerExportCommand(program);
+  registerProjectsCommand(program);
+  registerForecastCommand(program);
+  registerPluginsCommand(program);
+  registerSecretsCommand(program);
+  registerSimulationCommand(program);
+  registerCloudCommand(program);
 
   return program;
 }

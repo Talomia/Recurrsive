@@ -3,7 +3,7 @@
  *
  * Tests cover:
  * - Server has correct name and version
- * - All 28 tools are registered
+ * - All 42 tools are registered
  * - All 9 resources are registered
  * - All 12 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
@@ -115,6 +115,9 @@ vi.mock('zod', () => {
       number: vi.fn().mockReturnValue(mockSchema),
       array: vi.fn().mockReturnValue(mockSchema),
       enum: vi.fn().mockReturnValue(mockSchema),
+      unknown: vi.fn().mockReturnValue(mockSchema),
+      object: vi.fn().mockReturnValue(mockSchema),
+      record: vi.fn().mockReturnValue(mockSchema),
     },
   };
 });
@@ -176,9 +179,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 28 tools', () => {
+    it('registers exactly 42 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(28);
+      expect(mockTool).toHaveBeenCalledTimes(42);
     });
 
     it('registers "analyze_project" tool', () => {
@@ -405,13 +408,13 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('compare_analysis_runs');
     });
 
-    it('all 28 tool names are unique', () => {
+    it('all 42 tool names are unique', () => {
       createServer();
       const toolNames = mockTool.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(toolNames);
-      expect(uniqueNames.size).toBe(28);
+      expect(uniqueNames.size).toBe(42);
     });
 
     it('each tool has a description string as second argument', () => {
