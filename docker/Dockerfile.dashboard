@@ -63,6 +63,15 @@ COPY --from=builder /app/apps/dashboard/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/dashboard/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/dashboard/.next/static ./.next/static
 
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/dashboard/ ./apps/dashboard/
+
+WORKDIR /app/apps/dashboard
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+RUN pnpm exec next build
 USER nextjs
 
 EXPOSE 3100
