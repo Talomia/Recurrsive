@@ -6,7 +6,7 @@
 |---|---|---|
 | Core type system | ✅ Complete | 12 type files, Zod schemas with runtime validation |
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
-| Collectors | ✅ Complete | 10 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking |
+| Collectors | ✅ Complete | 12 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
 | Analyzers | ✅ Complete | 13 analyzers, 89+ rules (66 base + 8 dependency + 7 API contract + 8 AI runtime), all 13 with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
@@ -69,18 +69,18 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 - [x] SSO/SAML integration
 - [x] Fine-grained RBAC (role-based access control)
 - [x] Audit logging (who accessed what, when)
-- [ ] Data masking and PII controls
+- [x] Data masking and PII controls
 - [ ] Secret management integration (Vault, AWS Secrets Manager)
 - [ ] Multi-tenant deployment model
 
 ### Collectors (Enterprise)
 - [x] **Cloud cost collector** — AWS Cost Explorer, GCP Billing, Azure Cost Management
-- [ ] **APM collector** — Datadog, New Relic, Grafana Tempo
+- [x] **APM collector** — Datadog, New Relic, Grafana Tempo
 - [x] **Error tracking collector** — Sentry, Bugsnag, Rollbar
 - [x] **CI/CD collector** — GitHub Actions, GitLab CI (now in Phase 1)
 
 ### AI Integrations
-- [ ] **Langfuse collector** — LLM traces, prompt analytics
+- [x] **Langfuse collector** — LLM traces, prompt analytics
 - [ ] **Arize collector** — model monitoring, drift detection
 - [ ] **Helicone collector** — LLM cost and usage
 
@@ -93,7 +93,7 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 - [x] User authentication and sessions
 - [x] Multi-project support
 - [x] Executive intelligence views
-- [ ] Report scheduling and export
+- [x] Report scheduling and export
 
 ---
 
@@ -103,8 +103,8 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 Build a platform that others can extend. Open the SDK, enable third-party analyzers, and explore managed services.
 
 ### Platform
-- [ ] **Plugin SDK** — documented, versioned API for custom collectors and analyzers
-- [ ] **Analyzer marketplace** — discover and install community analyzers
+- [x] **Plugin SDK** — documented, versioned API for custom collectors and analyzers
+- [x] **Analyzer marketplace** — discover and install community analyzers
 - [ ] **Domain intelligence packs** — Healthcare, Finance, Kubernetes, AI Safety
 - [ ] **GraphQL API** — flexible querying for advanced integrations
 

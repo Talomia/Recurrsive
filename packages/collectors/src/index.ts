@@ -92,3 +92,11 @@ export { CloudCostCollector } from './cloud-cost/index.js';
 // ─── Error Tracking Collector ───────────────────────────────────────────────
 
 export { ErrorTrackingCollector } from './error-tracking/index.js';
+
+// ─── APM Collector ──────────────────────────────────────────────────────────
+
+export { APMCollector } from './apm/index.js';
+
+// ─── Langfuse Collector ─────────────────────────────────────────────────────
+
+export { LangfuseCollector } from './langfuse/index.js';
