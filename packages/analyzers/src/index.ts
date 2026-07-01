@@ -38,6 +38,7 @@ export { UXAnalyzer } from './ux/index.js';
 export { ProductAnalyzer } from './product/index.js';
 export { DependencyAnalyzer } from './dependency/index.js';
 export { APIContractAnalyzer } from './api-contract/index.js';
+export { AIRuntimeAnalyzer } from './ai-runtime/index.js';
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
 

@@ -8,7 +8,7 @@
  */
 
 /** Current version of the @recurrsive/core package. */
-export const VERSION = '0.2.1';
+export const VERSION = '0.4.0';
 
 /** Current config schema version. */
 export const CONFIG_VERSION = '1';

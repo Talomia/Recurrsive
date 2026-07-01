@@ -18,8 +18,10 @@ export { TreeSitterParser, type ParseTree } from './tree-sitter/index.js';
 
 export { ExtractorRegistry, createDefaultRegistry } from './extractors/index.js';
 export type { LanguageExtractor, ExtractedEntity, ImportInfo } from './extractors/base.js';
+export type { ExtractedRelationship, SourceLocation } from './extractors/base.js';
 export { TypeScriptExtractor } from './extractors/typescript.js';
 export { PythonExtractor } from './extractors/python.js';
+export { GoExtractor } from './extractors/go.js';
 
 // ─── AI Pattern Detection ─────────────────────────────────────────────────────
 

@@ -53,6 +53,7 @@ export { ReasoningEngine } from './engine.js';
 export {
   createLLMAdapter,
   OpenAIAdapter,
+  AnthropicAdapter,
 } from './llm/index.js';
 export type {
   LLMAdapter,
@@ -61,12 +62,14 @@ export type {
   LLMResponse,
   TokenUsage,
   OpenAIAdapterConfig,
+  AnthropicAdapterConfig,
 } from './llm/index.js';
 
 // ── Specialist agents ────────────────────────────────────────────────────────
 export {
   BaseSpecialist,
   createDefaultSpecialists,
+  // 19 specialist classes
   ArchitectureEngineer,
   PerformanceEngineer,
   SecurityEngineer,
@@ -75,8 +78,32 @@ export {
   ProductManager,
   ReliabilityEngineer,
   DeveloperExperienceEngineer,
+  UXResearcher,
+  AccessibilityExpert,
+  PrivacyEngineer,
+  ComplianceEngineer,
+  BackendEngineer,
+  FrontendEngineer,
+  MLEngineer,
+  PromptEngineer,
+  DatabaseEngineer,
+  DocumentationEngineer,
+  ReleaseManager,
+  // SDK
+  createCustomSpecialist,
+  SpecialistRegistry,
+  SpecialistTemplate,
+  validateConfig,
+  validateSpecialist,
+  getSDKInfo,
 } from './specialists/index.js';
-export type { Specialist } from './specialists/index.js';
+export type {
+  Specialist,
+  SpecialistConfig,
+  CustomAnalysisFn,
+  ValidationResult,
+  SpecialistSDKInfoData,
+} from './specialists/index.js';
 
 // ── Debate protocol ──────────────────────────────────────────────────────────
 export { DebateProtocol } from './debate/index.js';
