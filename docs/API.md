@@ -221,7 +221,7 @@ Connect to `ws://localhost:3000/ws` for real-time events.
 
 The MCP server exposes Recurrsive as an AI tool provider compatible with the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-### Tools (28)
+### Tools (42)
 
 | Tool | Description |
 |------|-------------|
@@ -253,6 +253,20 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 | `get_timeline` | Get intelligence timeline with trend data |
 | `export_report` | Export analysis data in various formats |
 | `compare_analysis_runs` | Compare two analysis runs to identify changes |
+| `list_projects` | List all projects with health scores |
+| `get_project` | Get detailed project info with dimensions |
+| `compare_project_health` | Compare health across projects |
+| `forecast_health` | Predict health trajectory with confidence intervals |
+| `what_if_analysis` | Simulate impact of hypothetical actions |
+| `get_evolution` | Get evolution graph with trends and milestones |
+| `list_simulations` | List simulations with status and risk level |
+| `run_simulation` | Run a simulation (chaos, stress_test, etc.) |
+| `get_confidence` | Get confidence calibration with Brier scores |
+| `list_intelligence_packs` | List domain intelligence packs |
+| `list_plugins` | List installed plugins with status |
+| `list_tenants` | List tenants with tier and quota info |
+| `get_benchmarks` | Get cloud benchmarking data |
+| `list_secrets` | List secrets metadata (never exposes values) |
 
 ### Prompts (15)
 
@@ -290,7 +304,7 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 
 ---
 
-## CLI Commands (19)
+## CLI Commands (25)
 
 ```bash
 recurrsive init            # Initialize a project for analysis
@@ -312,6 +326,12 @@ recurrsive analytics       # View analysis trends and categories
 recurrsive experiments     # Manage A/B testing experiments
 recurrsive comparisons     # Compare analysis runs (list, diff)
 recurrsive export          # Export data (create, history)
+recurrsive projects        # Multi-project management (list, show, compare)
+recurrsive forecast        # Health forecasting (health, what-if)
+recurrsive plugins         # Plugin management (list, marketplace, install)
+recurrsive secrets         # Secret management (list, rotate, audit-log)
+recurrsive simulate        # Simulation engine (list, run, show)
+recurrsive cloud           # Cloud platform (benchmarks, patterns, partners)
 ```
 
 ### Global Flags

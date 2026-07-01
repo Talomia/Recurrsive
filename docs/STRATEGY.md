@@ -54,8 +54,8 @@ This graph, continuously updated, IS the digital twin.
 
 | Phase | Package | Status |
 |---|---|---|
-| **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (Git, Doc collectors) |
-| **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (10 analyzers, 66+ rules) |
+| **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (14 collectors: Git, Docs, Environment, CICD, Database, GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone) |
+| **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (13 analyzers, 66+ rules) |
 | **Reason** | `@recurrsive/reasoning` | ✅ Built (19 specialists, debate protocol) |
 | **Evolve** | `@recurrsive/opportunities` | ✅ Built (lifecycle, SARIF, reports) |
 
@@ -87,12 +87,12 @@ The foundation. Free forever.
 
 - Collectors (Git, docs, AI patterns)
 - Knowledge graph (Apache AGE / SQLite)
-- 10 built-in analyzers
+- 13 built-in analyzers
 - Multi-agent reasoning engine
 - Opportunity management + SARIF export
 - Policy engine
-- CLI (19 commands)
-- MCP Server (28 tools, 15 prompts, 9 resources)
+- CLI (25 commands)
+- MCP Server (42 tools, 15 prompts, 9 resources)
 - REST + WebSocket API
 - Plugin SDK for custom analyzers/collectors
 
@@ -202,9 +202,9 @@ That synthesis — connecting code, architecture, runtime, AI behavior, cost, an
 |---|---|---|
 | Repository analysis | Very High | ✅ Built |
 | Architecture understanding | High | ✅ Built |
-| AI application understanding | High | ⚠️ Types ready, collectors needed |
-| Production telemetry | Very High | ⚠️ Types ready, collectors needed |
-| Database/schema analysis | Very High | ⚠️ Types ready, collectors needed |
+| AI application understanding | High | ✅ Built (Langfuse, Arize, Helicone collectors) |
+| Production telemetry | Very High | ✅ Built (OpenTelemetry, APM, ErrorTracking collectors) |
+| Database/schema analysis | Very High | ✅ Built (Database collector) |
 | Cost optimization | High | ⚠️ Analyzer exists, billing integration needed |
 | Performance recommendations | High | ✅ Built |
 | Security recommendations | High | ✅ Built |

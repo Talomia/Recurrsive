@@ -27,7 +27,7 @@ What actually happened.
 
 - **Node.js**: (e.g., 20.x)
 - **OS**: (e.g., macOS 14, Ubuntu 22.04)
-- **Recurrsive version**: (e.g., 0.1.0)
+- **Recurrsive version**: (e.g., 0.4.0)
 - **Graph backend**: (sqlite / postgresql_age)
 
 ## Additional Context

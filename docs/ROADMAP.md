@@ -1,6 +1,6 @@
 # Recurrsive — Product Roadmap
 
-## Current State (v0.3.0)
+## Current State (v0.4.0)
 
 | Component | Status | Evidence |
 |---|---|---|
@@ -13,12 +13,12 @@
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (16 rules) |
 | Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
-| CLI | ✅ Complete | 19 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export) |
-| MCP Server | ✅ Complete | 28 tools, 9 resources, 15 prompts |
-| REST API | ✅ Complete | 62+ endpoints, WebSocket streaming, JWT/API key auth, RBAC |
-| Dashboard | ✅ Complete | Next.js, 26 pages (incl. detail pages), 8+ components, real-time WebSocket |
+| CLI | ✅ Complete | 25 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export, projects, forecast, plugins, secrets, simulate, cloud) |
+| MCP Server | ✅ Complete | 42 tools, 9 resources, 15 prompts |
+| REST API | ✅ Complete | 138 endpoints, WebSocket streaming, JWT/API key auth, RBAC |
+| Dashboard | ✅ Complete | Next.js, 40 pages (incl. detail pages), 8+ components, real-time WebSocket |
 | Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
-| Tests | ✅ Complete | 80+ test files, integration tests for full pipeline |
+| Tests | ✅ Complete | 100 test files, 2,881+ individual tests, integration tests for full pipeline |
 
 ---
 

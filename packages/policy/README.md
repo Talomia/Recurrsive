@@ -38,7 +38,7 @@ Example: `severity == "critical" && confidence > 0.8`
 | Change Management | 3 | Require approval for breaking changes |
 | Cost Governance | 3 | Flag high-cost opportunities |
 | Compliance | 3 | Enforce regulatory requirements |
-| Quality Gates | 3 | Minimum quality thresholds |
+| Quality Gates | 4 | Minimum quality thresholds |
 
 ## License
 

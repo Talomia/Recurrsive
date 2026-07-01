@@ -1,6 +1,6 @@
 # @recurrsive/analyzers
 
-10 built-in analyzers with 66+ analysis rules for comprehensive software system evaluation.
+13 built-in analyzers with 89+ analysis rules for comprehensive software system evaluation.
 
 ## Installation
 
@@ -36,6 +36,9 @@ const findings = await runner.run(analysisContext);
 | Documentation | 6 | Missing docs, stale content, API drift |
 | UX | 5 | Missing loading/error/empty states |
 | Product | 5 | Dead feature flags, missing analytics |
+| Dependency | 8 | Dependency health, version staleness, license compliance |
+| API Contract | 7 | API versioning, breaking changes, OpenAPI compliance |
+| AI Runtime | 8 | Model monitoring, prompt injection, LLM cost optimization |
 
 ## License
 

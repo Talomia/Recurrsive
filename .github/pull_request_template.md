@@ -26,6 +26,7 @@
 - [ ] `apps/cli`
 - [ ] `apps/mcp`
 - [ ] `apps/server`
+- [ ] `apps/dashboard`
 
 ## Checklist
 

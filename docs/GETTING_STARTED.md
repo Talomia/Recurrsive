@@ -232,7 +232,7 @@ Add Recurrsive as an MCP server for Claude, Cursor, or Copilot:
 }
 ```
 
-This gives your AI assistant 28 tools, 15 prompts, and 9 resources to analyze, query, and reason about your codebase.
+This gives your AI assistant 42 tools, 15 prompts, and 9 resources to analyze, query, and reason about your codebase.
 
 ---
 

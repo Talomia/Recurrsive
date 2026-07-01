@@ -128,19 +128,19 @@ Recurrsive/
 │   ├── core/                    # Type system — 43 entity types, 43 relationship types,
 │   │                            #   Zod schemas, structured logger, 7 error classes
 │   ├── graph/                   # Knowledge graph — dual-backend (SQLite + Apache AGE)
-│   ├── collectors/              # Data ingestion — 5 collectors with PII detection
-│   │                            #   (Git, Documentation, Environment, CI/CD, Database)
+│   ├── collectors/              # Data ingestion — 14 collectors with PII detection
+│   │                            #   (Git, Docs, Environment, CICD, Database, GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone)
 │   ├── parsers/                 # Code analysis — Tree-sitter + AI pattern detection
-│   ├── analyzers/               # 10 built-in analyzers, 66+ rules
+│   ├── analyzers/               # 13 built-in analyzers, 89+ rules
 │   ├── reasoning/               # Multi-agent reasoning — 19 specialists, debate protocol
 │   ├── opportunities/           # Opportunity lifecycle — SARIF export, roadmap generation
 │   ├── policy/                  # Policy engine — 5 built-in policy sets (15 rules)
 │   └── presentation/            # Reports — Markdown, HTML, JSON, SARIF + notifications
 ├── apps/                        # Applications (4 apps)
-│   ├── cli/                     # Commander.js CLI — 12 commands
-│   ├── server/                  # Fastify REST API — 35 endpoints + WebSocket
-│   ├── mcp/                     # MCP server — 11 tools, 4 resources, 6 prompts
-│   └── dashboard/               # Next.js 16 dashboard — 12 pages
+│   ├── cli/                     # Commander.js CLI — 25 commands
+│   ├── server/                  # Fastify REST API — 138 endpoints + WebSocket + GraphQL
+│   ├── mcp/                     # MCP server — 42 tools, 9 resources, 15 prompts
+│   └── dashboard/               # Next.js 16 dashboard — 40 pages
 ├── docker/                      # Dockerfile + docker-compose
 ├── docs/                        # Documentation
 │   ├── PRD.md                   # Product Requirements (2,096 lines)
@@ -180,8 +180,8 @@ Recurrsive follows a four-phase pipeline where the LLM is **never the source of 
    ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
    │   COLLECT     │────▶│  UNDERSTAND   │────▶│    REASON     │────▶│    EVOLVE     │
    │              │     │              │     │              │     │              │
-   │ 5 Collectors │     │ Graph Engine │     │ 19 Specialists│     │ CLI · Server │
-   │ Governance   │     │ 10 Analyzers │     │ Debate Proto. │     │ MCP · Dash   │
+   │ 14 Collectors│     │ Graph Engine │     │ 19 Specialists│     │ CLI · Server │
+   │ Governance   │     │ 13 Analyzers │     │ Debate Proto. │     │ MCP · Dash   │
    │ PII Detection│     │ 66+ Rules    │     │ Judge · Memory│     │ Reports      │
    └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
 ```

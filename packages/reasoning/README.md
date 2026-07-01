@@ -1,6 +1,6 @@
 # @recurrsive/reasoning
 
-Multi-agent reasoning engine with 8 specialist AI agents, debate protocol, and decision memory.
+Multi-agent reasoning engine with 19 specialist AI agents, debate protocol, and decision memory.
 
 ## Installation
 
@@ -11,7 +11,7 @@ pnpm add @recurrsive/reasoning
 ## Architecture
 
 ```
-Findings → 8 Specialists → Debate Protocol → Synthesizer → Judge → Opportunities
+Findings → 19 Specialists → Debate Protocol → Synthesizer → Judge → Opportunities
                                                               ↕
                                                          Memory Store
 ```
@@ -28,6 +28,17 @@ Findings → 8 Specialists → Debate Protocol → Synthesizer → Judge → Opp
 | Product | Feature impact, user value, business alignment |
 | Reliability | Failure modes, resilience patterns |
 | Developer Experience | API ergonomics, tooling, documentation |
+| Backend | API design, microservices, distributed systems |
+| Frontend | UI/UX implementation, component architecture |
+| ML | Machine learning pipelines, model quality |
+| Prompt | Prompt engineering, LLM integration patterns |
+| Database | Schema design, query optimization |
+| Documentation | Documentation quality, API docs coverage |
+| Release Manager | Release processes, versioning strategy |
+| Accessibility | WCAG compliance, a11y patterns |
+| Privacy | Data privacy, GDPR, PII handling |
+| Compliance | Regulatory compliance, audit requirements |
+| UX Research | Usability patterns, user journey analysis |
 
 ## LLM Adapters
 

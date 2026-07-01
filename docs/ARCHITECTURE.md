@@ -905,6 +905,9 @@ const CostAnalyzerConfigSchema = z.object({
 | `docs.completeness` | Documentation | Undocumented exports, stale README, missing API docs, changelog gaps |
 | `ux.quality` | UX | Inconsistent API patterns, missing docs, breaking changes, pagination issues |
 | `product.health` | Product | Stale feature flags, experiment conclusions, unused features |
+| `dependency.health` | Dependency | Version staleness, license compliance, update risk, transitive vulnerabilities |
+| `api-contract.quality` | API Contract | Breaking changes, versioning gaps, OpenAPI compliance, schema drift |
+| `ai-runtime.monitoring` | AI Runtime | Model monitoring, prompt injection detection, LLM cost optimization, output quality |
 
 ---
 
@@ -1542,7 +1545,7 @@ type Subgraph {
 
 **Package**: `apps/mcp` — implements an MCP server using `@modelcontextprotocol/sdk`.
 
-#### Tools (28)
+#### Tools (42)
 
 | Tool Name | Description | Parameters |
 |---|---|---|
@@ -1574,6 +1577,20 @@ type Subgraph {
 | `get_timeline` | Get intelligence timeline with trend data | `limit?: number` |
 | `export_report` | Export analysis data in various formats | `format: string`, `scope: string` |
 | `compare_analysis_runs` | Compare two analysis runs to identify changes | `baseline_run: number`, `target_run: number` |
+| `list_projects` | List all projects with health scores and status | `status?: string` |
+| `get_project` | Get detailed project info with dimensions and findings | `id: string` |
+| `compare_project_health` | Compare health across multiple projects | `project_ids?: string[]` |
+| `forecast_health` | Predict health trajectory with confidence intervals | `horizon?: number` |
+| `what_if_analysis` | Simulate impact of hypothetical actions | `actions: string[]` |
+| `get_evolution` | Get evolution graph with trends and milestones | `period?: string` |
+| `list_simulations` | List simulations with status and risk level | `status?: string` |
+| `run_simulation` | Run a simulation (chaos, stress_test, etc.) | `type: string`, `name: string` |
+| `get_confidence` | Get confidence calibration with Brier scores | — |
+| `list_intelligence_packs` | List domain intelligence packs | `status?: string` |
+| `list_plugins` | List installed plugins with status | `status?: string` |
+| `list_tenants` | List tenants with tier and quota info | `tier?: string` |
+| `get_benchmarks` | Get cloud benchmarking data | `provider?: string` |
+| `list_secrets` | List secrets metadata (never exposes values) | `backend?: string` |
 
 #### Resources (9)
 

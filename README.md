@@ -90,7 +90,7 @@ pnpm build
 pnpm test
 ```
 
-### CLI Usage (19 commands)
+### CLI Usage (25 commands)
 
 ```bash
 # Link the CLI globally (after building)
@@ -176,7 +176,7 @@ Add to your MCP configuration:
 }
 ```
 
-**Available MCP tools (28), prompts (15), resources (9):**
+**Available MCP tools (42), prompts (15), resources (9):**
 
 *Tools — Analysis:*
 - `analyze_project` — Run the full analysis pipeline
@@ -221,6 +221,26 @@ Add to your MCP configuration:
 *Tools — Export:*
 - `export_report` — Export analysis data in various formats
 - `compare_analysis_runs` — Compare two analysis runs to identify changes
+
+*Tools — Projects & Health:*
+- `list_projects` — List all projects with health scores
+- `get_project` — Get detailed project info
+- `compare_project_health` — Compare health across projects
+- `forecast_health` — Predict health trajectory
+- `what_if_analysis` — What-if impact simulation
+
+*Tools — Intelligence & Simulation:*
+- `get_evolution` — Get evolution graph data
+- `list_simulations` — List simulations
+- `run_simulation` — Run a simulation
+- `get_confidence` — Get confidence calibration
+- `list_intelligence_packs` — List domain intelligence packs
+
+*Tools — Administration:*
+- `list_plugins` — List installed plugins
+- `list_tenants` — List tenants
+- `get_benchmarks` — Cloud benchmarking data
+- `list_secrets` — List secrets metadata
 
 ### Docker
 
@@ -288,7 +308,7 @@ recurrsive/
 │   ├── graph/          # Dual-backend knowledge graph — AGE + SQLite
 │   ├── collectors/     # Data ingestion with privacy governance
 │   ├── parsers/        # Tree-sitter + AI pattern detection
-│   ├── analyzers/      # 12 built-in analyzers, 81+ rules
+│   ├── analyzers/      # 13 built-in analyzers, 89+ rules
 │   ├── reasoning/      # Multi-agent debate engine
 │   ├── opportunities/  # Lifecycle + SARIF export
 │   ├── policy/         # Policy engine + 5 built-in policies

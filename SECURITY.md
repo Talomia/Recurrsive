@@ -19,7 +19,8 @@ We will acknowledge receipt within 48 hours and aim to provide a fix within 7 da
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | ✅ Current |
+| 0.4.x   | ✅ Current |
+| 0.1.x-0.3.x   | ⚠️ Security patches only |
 
 ## Security Design Principles
 

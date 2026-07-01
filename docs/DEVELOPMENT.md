@@ -41,9 +41,9 @@ Recurrsive/
 ├── packages/
 │   ├── core/                   # Shared types, schemas, utilities
 │   ├── graph/                  # Knowledge graph (SQLite/AGE)
-│   ├── collectors/             # Data collectors (git, docs)
+│   ├── collectors/             # Data collectors (14 collectors)
 │   ├── parsers/                # Language parsers (TypeScript, Python)
-│   ├── analyzers/              # 10 analysis engines
+│   ├── analyzers/              # 13 analysis engines
 │   ├── reasoning/              # Multi-agent reasoning engine
 │   ├── opportunities/          # Opportunity management & export
 │   ├── policy/                 # Governance policy engine
@@ -181,7 +181,7 @@ Supported providers: OpenAI, Anthropic (native), Azure, Ollama, vLLM, LiteLLM, O
 Tests use **Vitest** with the following patterns:
 - Unit tests: `src/__tests__/*.test.ts`
 - Integration tests: `src/__tests__/integration/*.test.ts`
-- **Expected**: 2,203+ tests passing across all 13 packages (9 core + 4 apps)
+- **Expected**: 2,881+ tests passing across all 13 packages (9 core + 4 apps)
 
 ```bash
 # Run with coverage

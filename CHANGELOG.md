@@ -5,7 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - Unreleased
+## [0.4.0] - 2026-07-01
+
+### Added
+
+#### Enterprise Collectors (8 new → 14 total)
+- **GitHub collector**: Issues, PRs, workflows, releases via GitHub API
+- **GitLab collector**: Merge requests, pipelines, CI configs via GitLab API
+- **OpenTelemetry collector**: Traces, spans, service maps from OTLP endpoints
+- **Cloud Cost collector**: Cloud spend analysis across AWS/GCP/Azure
+- **Error Tracking collector**: Error rates, crash reports, Sentry/Bugsnag integration
+- **APM collector**: Application performance metrics (latency, throughput, errors)
+- **Langfuse collector**: LLM observability — traces, generations, prompt analytics
+- **Arize collector**: ML model monitoring — drift, performance, explanations
+- **Helicone collector**: LLM cost tracking — usage, latency, token consumption
+
+#### Enterprise Analyzers (3 new → 13 total)
+- **Dependency analyzer**: Dependency health, version staleness, license compliance
+- **API Contract analyzer**: API versioning, breaking changes, OpenAPI compliance
+- **AI Runtime analyzer**: Model monitoring, prompt injection detection, LLM cost optimization
+
+#### Reasoning Engine Expansion (19 specialists)
+- **Custom Specialist Agent SDK**: Factory, registry, lifecycle management for custom specialist creation
+- **11 new specialist agents**: Backend, Frontend, ML, Prompt, Database, Documentation, Release Manager, Accessibility, Privacy, Compliance, UX Research
+
+#### Server (138 endpoints across 30 route files)
+- **GraphQL API**: Hand-rolled parser with field selection, variables, introspection
+- **Multi-tenant routes**: Tenant CRUD, tier management, quota tracking
+- **Plugin routes**: Marketplace, install/uninstall, plugin health, SDK info
+- **Secrets routes**: Secret CRUD, rotation, audit log, rotation health
+- **Simulation routes**: Simulation CRUD, intelligence packs, results
+- **Cloud routes**: Benchmarks, patterns, partners, service tiers
+- **Confidence routes**: Calibration overview, predictions, outcome recording
+- **SSO routes**: Provider management, session management, SAML/OIDC
+- **Scheduling routes**: Schedule CRUD, cron, run history, trigger
+- **Forecasting routes**: Health prediction, what-if analysis, evolution graph
+- **Auth routes**: Login, register, token refresh, SSO callback
+- **Data masking routes**: Masking rules, preview, scanning
+
+#### CLI (6 new → 25 total)
+- **`recurrsive projects`**: Multi-project management (list, show, health-compare)
+- **`recurrsive forecast`**: Health forecasting (health, what-if)
+- **`recurrsive plugins`**: Plugin management (list, marketplace, install, uninstall, info)
+- **`recurrsive secrets`**: Secret management (list, rotate, audit-log)
+- **`recurrsive simulate`**: Simulation engine (list, run, show)
+- **`recurrsive cloud`**: Cloud platform (benchmarks, patterns, partners, status)
+
+#### Dashboard (22 new → 40 total pages)
+- **Plugins page**: Installed plugins, marketplace, install/uninstall
+- **Secrets page**: Secret management with rotation status
+- **SSO page**: Provider configuration and session management
+- **Tenants page**: Multi-tenant management with tier comparison
+- **Scheduling page**: Schedule management with run history
+- **Simulation page**: Simulation engine with results visualization
+- **Cloud page**: Cloud benchmarks and industry comparisons
+- **Confidence page**: Confidence calibration with Brier scores
+- **Intelligence Packs page**: Domain intelligence pack management
+- **Data Masking page**: PII masking rules and scanning
+- **Findings, Projects, Forecasting pages**: Core intelligence features
+- Plus: auth pages, settings, comparisons, and more
+
+#### MCP (14 new → 42 total tools)
+- **Project tools**: `list_projects`, `get_project`, `compare_project_health`
+- **Forecast tools**: `forecast_health`, `what_if_analysis`, `get_evolution`
+- **Intelligence tools**: `list_simulations`, `run_simulation`, `get_confidence`, `list_intelligence_packs`
+- **Platform tools**: `list_plugins`, `list_tenants`, `get_benchmarks`, `list_secrets`
+
+#### Testing
+- **84 new server route integration tests**: Comprehensive coverage for all v0.4.0 routes
+- **66+ specialist agent tests**: Custom SDK test coverage
+- **Collector test suites**: GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone
+
+### Changed
+- Server endpoints expanded from 52+ to **138** across 30 route files
+- CLI commands expanded from 19 to **25**
+- MCP tools expanded from 28 to **42**, prompts to 15, resources to 9
+- Dashboard pages expanded from 18 to **40**
+- Test suite expanded from 2,095+ to **2,881+** individual tests
+- Analyzers expanded from 10 to **13** with 89+ rules
+- Collectors expanded from 5 to **14** with enterprise integrations
+- Specialist agents expanded from 8 to **19** with Custom SDK
+- Source codebase grew to **125K+ lines** across 275 source files
+
+## [0.3.0] - 2026-06-30
 
 ### Added
 
@@ -52,8 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Server endpoints expanded from 38 to 52+
-- CLI commands expanded from 12 to 17+
-- MCP tools expanded from 18 to 22+, prompts from 9 to 12, resources from 4 to 7
+- CLI commands expanded from 12 to 19
+- MCP tools expanded from 18 to 28, prompts from 9 to 15, resources from 4 to 9
 - Dashboard pages expanded from 12 to 18
 - Test suite expanded from 1,948 to 2,095+
 - README overhauled with platform overview, notification channels, webhook events
