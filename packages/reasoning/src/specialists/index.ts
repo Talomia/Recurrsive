@@ -7,6 +7,20 @@
 export { BaseSpecialist } from './base.js';
 export type { Specialist } from './base.js';
 export {
+  createCustomSpecialist,
+  SpecialistRegistry,
+  SpecialistTemplate,
+  validateConfig,
+  validateSpecialist,
+  getSDKInfo,
+} from './sdk.js';
+export type {
+  SpecialistConfig,
+  CustomAnalysisFn,
+  ValidationResult,
+  SpecialistSDKInfoData,
+} from './sdk.js';
+export {
   ArchitectureEngineer,
   PerformanceEngineer,
   SecurityEngineer,

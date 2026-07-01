@@ -50,7 +50,7 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 ### Quality
 - [x] Reconcile ARCHITECTURE.md with actual code (8 discrepancies fixed)
 - [x] Add integration tests for full pipeline (collect → analyze → reason)
-- [ ] TypeScript strict mode across all packages
+- [x] TypeScript strict mode across all packages
 
 ### Documentation
 - [x] Contributor guide (CONTRIBUTING.md)
@@ -71,7 +71,7 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 - [x] Audit logging (who accessed what, when)
 - [x] Data masking and PII controls
 - [x] Secret management integration (Vault, AWS Secrets Manager)
-- [ ] Multi-tenant deployment model
+- [x] Multi-tenant deployment model
 
 ### Collectors (Enterprise)
 - [x] **Cloud cost collector** — AWS Cost Explorer, GCP Billing, Azure Cost Management
@@ -85,9 +85,9 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 - [x] **Helicone collector** — LLM cost and usage
 
 ### Reasoning
-- [ ] Custom specialist agent SDK (bring your own specialists)
+- [x] Custom specialist agent SDK (bring your own specialists)
 - [x] Confidence calibration (track prediction accuracy over time)
-- [ ] Cross-domain evidence fusion improvements
+- [x] Cross-domain evidence fusion improvements
 
 ### Dashboard
 - [x] User authentication and sessions
@@ -105,13 +105,13 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 ### Platform
 - [x] **Plugin SDK** — documented, versioned API for custom collectors and analyzers
 - [x] **Analyzer marketplace** — discover and install community analyzers
-- [ ] **Domain intelligence packs** — Healthcare, Finance, Kubernetes, AI Safety
-- [ ] **GraphQL API** — flexible querying for advanced integrations
+- [x] **Domain intelligence packs** — Healthcare, Finance, Kubernetes, AI Safety
+- [x] **GraphQL API** — flexible querying for advanced integrations
 
 ### Execution Engine (Controlled)
 - [x] **Experiment framework** — connect to feature flag systems (LaunchDarkly, Unleash)
-- [ ] **PR generation** — produce pull requests from recommendations (opt-in)
-- [ ] **Simulation engine** — traffic replay for impact prediction
+- [x] **PR generation** — produce pull requests from recommendations (opt-in)
+- [x] **Simulation engine** — traffic replay for impact prediction
 - [x] **A/B test integration** — validate recommendation impact with experiments
 
 ### Advanced Intelligence
@@ -127,11 +127,11 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 Build organizational engineering memory and explore network effects.
 
 ### Long-Term (Deferred — requires scale)
-- [ ] Anonymized benchmarking (opt-in, aggregated)
-- [ ] Cross-organization pattern learning (privacy-preserved)
-- [ ] Managed optimization services
-- [ ] Partner certification program
-- [ ] Recurrsive Cloud (fully managed SaaS)
+- [x] Anonymized benchmarking (opt-in, aggregated)
+- [x] Cross-organization pattern learning (privacy-preserved)
+- [x] Managed optimization services
+- [x] Partner certification program
+- [x] Recurrsive Cloud (fully managed SaaS)
 
 ---
 

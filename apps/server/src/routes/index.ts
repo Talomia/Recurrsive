@@ -35,6 +35,10 @@ import { registerDataMaskingRoutes } from '../middleware/data-masking.js';
 import { registerPluginRoutes } from './plugins.js';
 import { registerSecretRoutes } from './secrets.js';
 import { registerConfidenceRoutes } from './confidence.js';
+import { registerMultiTenantRoutes } from './multi-tenant.js';
+import { registerSimulationRoutes } from './simulation.js';
+import { registerCloudRoutes } from './cloud.js';
+import { registerGraphQLRoutes } from './graphql.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -92,4 +96,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerPluginRoutes(app);
   await registerSecretRoutes(app);
   await registerConfidenceRoutes(app);
+  await registerMultiTenantRoutes(app);
+  await registerSimulationRoutes(app);
+  await registerCloudRoutes(app);
+  await registerGraphQLRoutes(app);
 }
