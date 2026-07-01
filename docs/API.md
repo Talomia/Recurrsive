@@ -431,3 +431,102 @@ All API endpoints are rate-limited using a token-bucket algorithm. Responses inc
 | `DELETE` | `/api/v1/sso/sessions/:id` | Revoke SSO session |
 
 Supported identity providers: Okta, Auth0, Azure AD, Google Workspace, Custom.
+
+### Secret Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/secrets` | List secrets (metadata only, never values) |
+| `GET` | `/api/v1/secrets/:id` | Get secret metadata |
+| `POST` | `/api/v1/secrets` | Create secret |
+| `POST` | `/api/v1/secrets/:id/rotate` | Rotate secret (increment version) |
+| `DELETE` | `/api/v1/secrets/:id` | Delete secret |
+| `GET` | `/api/v1/secrets/audit/log` | Get secret access audit log |
+| `GET` | `/api/v1/secrets/health/rotation` | Check rotation health status |
+
+Supported backends: HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, Local.
+
+### Confidence Calibration
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/confidence/overview` | Overall calibration: Brier scores, accuracy, calibration curves |
+| `GET` | `/api/v1/confidence/predictions` | List predictions (filter by analyzer, status, severity) |
+| `POST` | `/api/v1/confidence/predictions/:id/outcome` | Record prediction outcome |
+| `GET` | `/api/v1/confidence/calibration/:analyzerId` | Per-analyzer calibration curve |
+
+### Multi-Tenant
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/tenants` | List all tenants |
+| `GET` | `/api/v1/tenants/:id` | Get tenant details |
+| `POST` | `/api/v1/tenants` | Create tenant |
+| `PUT` | `/api/v1/tenants/:id` | Update tenant (tier, status, domain) |
+| `DELETE` | `/api/v1/tenants/:id` | Delete tenant |
+| `GET` | `/api/v1/tenants/:id/quotas` | Get quota usage and limits |
+| `GET` | `/api/v1/tenants/tiers/info` | Tier comparison (free/team/enterprise) |
+
+### Simulation Engine
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/simulations` | List simulations |
+| `GET` | `/api/v1/simulations/:id` | Get simulation with results |
+| `POST` | `/api/v1/simulations` | Create and run simulation |
+
+Simulation types: `traffic-replay`, `load-test`, `failure-injection`, `dependency-change`, `architecture-change`.
+
+### PR Generation
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/pull-requests` | List generated PRs |
+| `GET` | `/api/v1/pull-requests/:id` | Get PR details with changes |
+| `POST` | `/api/v1/pull-requests/generate` | Generate PR from recommendation |
+| `POST` | `/api/v1/pull-requests/:id/submit` | Submit PR for review |
+
+### Domain Intelligence Packs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/intelligence-packs` | List all packs (Healthcare, Finance, K8s, AI Safety) |
+| `GET` | `/api/v1/intelligence-packs/:id` | Get pack details (analyzers, frameworks, rules) |
+| `POST` | `/api/v1/intelligence-packs/:id/install` | Install pack |
+| `DELETE` | `/api/v1/intelligence-packs/:id/uninstall` | Uninstall pack |
+
+### Recurrsive Cloud
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/cloud/benchmarks` | Submit anonymized benchmark (opt-in) |
+| `GET` | `/api/v1/cloud/benchmarks/report` | Get benchmark report with percentiles |
+| `GET` | `/api/v1/cloud/patterns` | Cross-org learned patterns |
+| `GET` | `/api/v1/cloud/patterns/:id` | Pattern details |
+| `GET` | `/api/v1/cloud/partners` | Partner directory |
+| `GET` | `/api/v1/cloud/partners/:id` | Partner details |
+| `POST` | `/api/v1/cloud/partners/apply` | Apply for partner program |
+| `GET` | `/api/v1/cloud/services` | Managed service tiers |
+| `GET` | `/api/v1/cloud/info` | Platform info and status |
+
+### GraphQL API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/graphql` | Execute GraphQL query |
+| `GET` | `/api/v1/graphql/schema` | Get SDL schema (text/plain) |
+| `GET` | `/api/v1/graphql/introspection` | Schema introspection metadata |
+
+#### `POST /api/v1/graphql`
+
+**Body:**
+```json
+{
+  "query": "{ projects { id name healthScore } }",
+  "variables": {}
+}
+```
+
+**Supported queries:** `projects`, `project(id)`, `findings(severity, analyzerId, limit)`, `analyzers`, `collectors`, `healthScore`, `opportunities(limit)`.
+
+**Response format:** `{ "data": { ... }, "errors": [...] }`

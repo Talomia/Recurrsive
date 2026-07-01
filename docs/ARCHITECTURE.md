@@ -1,8 +1,8 @@
 # Recurrsive — Architecture Specification
 
-> **Version**: 1.0.0-draft  
-> **Last Updated**: 2026-06-29  
-> **Status**: Implementation-Ready  
+> **Version**: 0.4.0  
+> **Last Updated**: 2026-07-01  
+> **Status**: Implementation-Complete  
 > **Audience**: Engineers implementing the system
 
 ---
