@@ -55,13 +55,13 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 
 | Surface | Count |
 |---------|-------|
-| 📡 Server REST endpoints | 120+ |
+| 📡 Server REST endpoints | 138 |
 | ⌨️ CLI commands | 19 |
 | 🔌 MCP tools | 28 |
 | 💬 MCP prompts | 15 |
 | 📦 MCP resources | 9 |
 | 🖥️ Dashboard pages | 40 |
-| ✅ Tests | 2,203+ |
+| ✅ Tests | 2,797+ |
 | 📁 Packages | 13 (9 core + 4 apps) |
 
 ---
@@ -296,7 +296,7 @@ recurrsive/
 ├── apps/
 │   ├── cli/            # Commander.js CLI — 19 commands
 │   ├── mcp/            # MCP server — 28 tools, 9 resources, 15 prompts
-│   ├── server/         # Fastify REST + WebSocket + GraphQL API — 120+ endpoints
+│   ├── server/         # Fastify REST + WebSocket + GraphQL API — 138 endpoints
 │   └── dashboard/      # Next.js dashboard — 40 pages
 ├── docker/             # Dockerfile + docker-compose
 ├── docs/
@@ -331,6 +331,12 @@ Pluggable data collection with built-in **PII detection**, field masking, and au
 - **GitHub Collector** — PRs, issues, reviews, workflows, deployments
 - **GitLab Collector** — MRs, issues, pipelines, jobs, environments, deployments
 - **OpenTelemetry Collector** — OTLP traces, metrics, infrastructure resources
+- **Cloud Cost Collector** — AWS Cost Explorer, GCP Billing, Azure Cost Management
+- **Error Tracking Collector** — Sentry, Bugsnag, Rollbar error events and alerting
+- **APM Collector** — Datadog, New Relic, Grafana application performance monitoring
+- **Langfuse Collector** — LLM observability, prompt management, trace analysis
+- **Arize Collector** — ML model monitoring, drift detection, evaluation datasets
+- **Helicone Collector** — LLM cost tracking, usage analytics, rate limiting
 
 ### `@recurrsive/parsers`
 Multi-language code analysis:
