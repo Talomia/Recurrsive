@@ -43,7 +43,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 |---|---|
 | 🔍 **Evidence Collection** | Git repos, docs, ADRs, API contracts with PII detection & governance |
 | 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 43 relationship types |
-| 🔬 **10 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product |
+| 🔬 **12 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product, Dependency, API Contract |
 | 🤖 **Multi-Agent Reasoning** | 19 specialist AI agents debate and rank improvement opportunities |
 | 📊 **Opportunity Management** | Prioritized roadmap with evidence, validation plans, rollback plans |
 | 🛡️ **Policy Engine** | Governance rules with recursive descent expression evaluation |
@@ -270,7 +270,7 @@ Recurrsive follows a four-phase pipeline — **Collect → Understand → Reason
 │  Opportunities  ·  Policy  ·  Experiments        │
 ├─────────────────────────────────────────────────┤
 │                 UNDERSTAND                        │
-│  Graph Engine  ·  10 Analyzers  ·  66+ Rules     │
+│  Graph Engine  ·  12 Analyzers  ·  81+ Rules     │
 │  Parsers  ·  AI Pattern Detection                │
 ├─────────────────────────────────────────────────┤
 │                   COLLECT                         │
@@ -288,7 +288,7 @@ recurrsive/
 │   ├── graph/          # Dual-backend knowledge graph — AGE + SQLite
 │   ├── collectors/     # Data ingestion with privacy governance
 │   ├── parsers/        # Tree-sitter + AI pattern detection
-│   ├── analyzers/      # 10 built-in analyzers, 66+ rules
+│   ├── analyzers/      # 12 built-in analyzers, 81+ rules
 │   ├── reasoning/      # Multi-agent debate engine
 │   ├── opportunities/  # Lifecycle + SARIF export
 │   ├── policy/         # Policy engine + 5 built-in policies
@@ -328,6 +328,9 @@ Pluggable data collection with built-in **PII detection**, field masking, and au
 - **Environment Collector** — Docker, Docker Compose, Kubernetes infrastructure topology
 - **CI/CD Collector** — GitHub Actions workflows, GitLab CI pipelines
 - **Database Collector** — SQL schemas, Prisma models, Drizzle ORM definitions
+- **GitHub Collector** — PRs, issues, reviews, workflows, deployments
+- **GitLab Collector** — MRs, issues, pipelines, jobs, environments, deployments
+- **OpenTelemetry Collector** — OTLP traces, metrics, infrastructure resources
 
 ### `@recurrsive/parsers`
 Multi-language code analysis:
@@ -337,7 +340,7 @@ Multi-language code analysis:
 - **Cross-file resolver** for import/dependency tracking
 
 ### `@recurrsive/analyzers`
-10 specialized analyzers with 66+ analysis rules:
+12 specialized analyzers with 81+ analysis rules:
 
 | Analyzer | Focus |
 |----------|-------|
@@ -351,6 +354,8 @@ Multi-language code analysis:
 | Documentation | Missing docs, stale content, API drift |
 | UX | Missing loading/error/empty states |
 | Product | Dead feature flags, missing analytics |
+| Dependency | Outdated deps, CVEs, unpinned versions, missing lockfiles |
+| API Contract | Missing docs, pagination, rate limits, naming inconsistencies |
 
 ### `@recurrsive/reasoning`
 Multi-agent reasoning engine:

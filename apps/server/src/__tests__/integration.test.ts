@@ -574,45 +574,42 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
 // ===========================================================================
 
 describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
-  it('26. GET /api/v1/audit returns existing audit events', async () => {
+  it('26. GET /api/v1/audit requires auth, returns 401 without token', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/audit' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('27. GET /api/v1/audit returns auto-captured events with auth', async () => {
+    const { createToken } = await import('../middleware/auth.js');
+    const token = createToken('integ-admin', 'admin');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/audit',
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
     expect(body).toHaveProperty('total');
     expect(Array.isArray(body.data)).toBe(true);
-    expect(body.total).toBeGreaterThan(0);
   });
 
-  it('27. POST /api/v1/audit creates a new audit event', async () => {
+  it('28. GET /api/v1/audit/stats returns aggregated statistics', async () => {
+    const { createToken } = await import('../middleware/auth.js');
+    const token = createToken('integ-admin', 'admin');
+
     const res = await app.inject({
-      method: 'POST',
-      url: '/api/v1/audit',
-      payload: {
-        type: 'config',
-        action: 'created',
-        target: 'integration-suite',
-        details: 'Integration test audit event',
-      },
+      method: 'GET',
+      url: '/api/v1/audit/stats',
+      headers: { Authorization: `Bearer ${token}` },
     });
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body.data).toHaveProperty('id');
-    expect(body.data.type).toBe('config');
-    expect(body.data.action).toBe('created');
-  });
-
-  it('28. GET /api/v1/audit verifies new event appears', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/audit' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    const found = body.data.find(
-      (e: { target: string; details: string }) =>
-        e.target === 'integration-suite' && e.details === 'Integration test audit event',
-    );
-    expect(found).toBeDefined();
-    expect(found.target).toBe('integration-suite');
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('total');
+    expect(body.data).toHaveProperty('byAction');
+    expect(body.data).toHaveProperty('byStatusGroup');
   });
 
   it('29. GET /api/v1/analytics/summary returns trend data', async () => {

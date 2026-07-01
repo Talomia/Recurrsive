@@ -6,7 +6,7 @@
 |---|---|---|
 | Core type system | ✅ Complete | 12 type files, Zod schemas with runtime validation |
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
-| Collectors | ✅ Complete | 7 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, OpenTelemetry |
+| Collectors | ✅ Complete | 8 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
 | Analyzers | ✅ Complete | 12 analyzers, 81+ rules (66 base + 8 dependency + 7 API contract), all 12 with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
@@ -29,7 +29,7 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 
 ### Collectors
 - [x] **GitHub App collector** — PRs, issues, reviews, actions, deployments
-- [ ] **GitLab collector** — MRs, issues, pipelines
+- [x] **GitLab collector** — MRs, issues, pipelines
 - [x] **OpenTelemetry collector** — ingest OTLP traces and metrics
 - [x] **Database schema collector** — SQL, Prisma, Drizzle ORM parsing
 - [x] **Dockerfile/Compose collector** — container topology
@@ -68,7 +68,7 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 - [x] Authentication (JWT + API keys)
 - [ ] SSO/SAML integration
 - [x] Fine-grained RBAC (role-based access control)
-- [ ] Audit logging (who accessed what, when)
+- [x] Audit logging (who accessed what, when)
 - [ ] Data masking and PII controls
 - [ ] Secret management integration (Vault, AWS Secrets Manager)
 - [ ] Multi-tenant deployment model
@@ -90,9 +90,9 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 - [ ] Cross-domain evidence fusion improvements
 
 ### Dashboard
-- [ ] User authentication and sessions
+- [x] User authentication and sessions
 - [ ] Multi-project support
-- [ ] Executive intelligence views
+- [x] Executive intelligence views
 - [ ] Report scheduling and export
 
 ---

@@ -10,6 +10,8 @@
  *   detects project types / frameworks / AI providers
  * - **GitHub collector**: {@link GitHubCollector} — PRs, issues, reviews, workflows,
  *   deployments
+ * - **GitLab collector**: {@link GitLabCollector} — MRs, issues, pipelines, jobs,
+ *   environments, deployments
  * - **Documentation collector**: {@link DocumentationCollector} — discovers READMEs,
  *   ADRs, RFCs, API contracts
  * - **Environment collector**: {@link EnvironmentCollector} — Docker, Compose, K8s
@@ -74,3 +76,8 @@ export { GitHubCollector } from './github/index.js';
 // ─── OpenTelemetry Collector ─────────────────────────────────────────────────
 
 export { OpenTelemetryCollector } from './telemetry/index.js';
+
+// ─── GitLab Collector ────────────────────────────────────────────────────────
+
+export { GitLabCollector } from './gitlab/index.js';
+

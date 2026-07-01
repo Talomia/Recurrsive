@@ -46,7 +46,7 @@ recurrsive init
 ```
 
 This creates a `.recurrsive/` directory with:
-- `config.json` — Configuration file
+- `config.json` (or `config.yaml`) — Configuration file
 - `graph.db` — SQLite knowledge graph database
 - `snapshots/` — Intelligence timeline data
 

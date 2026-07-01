@@ -1674,129 +1674,157 @@ recurrsive/
 ├── pnpm-workspace.yaml       # pnpm workspace config
 ├── turbo.json                # Turborepo pipeline config
 ├── tsconfig.base.json        # Shared TypeScript config
-├── .env.example              # Environment variable template
-├── docker-compose.yml        # Local dev stack
+├── eslint.config.mjs         # ESLint flat config
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md       # ← This document
-│   └── API.md
+│   ├── API.md
+│   ├── DEPLOYMENT.md
+│   ├── DEVELOPMENT.md
+│   ├── GETTING_STARTED.md
+│   ├── PLUGIN_SDK.md
+│   ├── ROADMAP.md
+│   ├── STRATEGY.md
+│   └── openapi.yaml
 │
 ├── packages/
 │   ├── core/                 # Shared types, schemas, utilities
 │   │   ├── src/
-│   │   │   ├── schema/       # Zod schemas for all entities, relationships, configs
-│   │   │   ├── interfaces/   # Collector, Analyzer, LLMProvider interfaces
+│   │   │   ├── types/        # TypeScript type definitions
+│   │   │   ├── schemas/      # Zod schemas for all entities, relationships, configs
 │   │   │   ├── utils/        # Hashing, ID generation, date helpers, LRU cache
-│   │   │   ├── errors/       # Typed error hierarchy
-│   │   │   └── constants/    # Entity types, relationship types, defaults
+│   │   │   ├── constants/    # Entity types, relationship types, defaults
+│   │   │   └── index.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
 │   ├── graph/                # Knowledge graph operations
 │   │   ├── src/
-│   │   │   ├── client.ts     # Apache AGE client wrapper
-│   │   │   ├── schema.ts     # DDL execution and migrations
-│   │   │   ├── sync.ts       # Incremental sync engine
-│   │   │   ├── query.ts      # Query builder and executor
-│   │   │   ├── gc.ts         # Garbage collection (stale entity cleanup)
-│   │   │   └── migrations/   # SQL migration files
+│   │   │   ├── client.ts     # Graph client wrapper
+│   │   │   ├── providers/    # Graph backend providers
+│   │   │   │   ├── age.ts        # Apache AGE provider
+│   │   │   │   ├── sqlite.ts     # SQLite provider
+│   │   │   │   └── index.ts
+│   │   │   ├── queries/      # Query builder and executor
+│   │   │   │   ├── builders.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── migrations/   # Database migration files
+│   │   │   │   ├── 001_initial_schema.ts
+│   │   │   │   └── index.ts
+│   │   │   └── index.ts
 │   │   ├── package.json      # depends on: @recurrsive/core
 │   │   └── tsconfig.json
 │   │
 │   ├── collectors/           # Data collection from external systems
 │   │   ├── src/
-│   │   │   ├── registry.ts   # Collector registry
-│   │   │   ├── scheduler.ts  # BullMQ scheduler integration
-│   │   │   ├── governance.ts # Masking, filtering, audit hooks
-│   │   │   └── builtins/
-│   │   │       ├── git/      # Git repository collector
-│   │   │       ├── github/   # GitHub API collector (PRs, issues, actions)
-│   │   │       ├── cicd/     # CI/CD collector (GitHub Actions, GitLab CI)
-│   │   │       ├── infra/    # Infrastructure collector (Terraform, K8s)
-│   │   │       ├── observability/ # Logs, traces, incidents
-│   │   │       ├── mcp/      # MCP server discovery collector
-│   │   │       ├── cost/     # Cloud billing collector
-│   │   │       └── product/  # Analytics, experiments, feature flags
+│   │   │   ├── base/         # Collector framework
+│   │   │   │   ├── registry.ts   # Collector registry
+│   │   │   │   ├── scheduler.ts  # BullMQ scheduler integration
+│   │   │   │   ├── governance.ts # Masking, filtering, audit hooks
+│   │   │   │   └── index.ts
+│   │   │   ├── git/          # Git repository collector
+│   │   │   ├── github/       # GitHub API collector (PRs, issues, actions)
+│   │   │   ├── gitlab/       # GitLab API collector
+│   │   │   ├── cicd/         # CI/CD collector (GitHub Actions, GitLab CI)
+│   │   │   ├── database/     # Database collector
+│   │   │   ├── docs/         # Documentation collector
+│   │   │   ├── environment/  # Environment collector
+│   │   │   ├── telemetry/    # Telemetry collector
+│   │   │   └── index.ts
 │   │   ├── package.json      # depends on: @recurrsive/core, @recurrsive/graph
 │   │   └── tsconfig.json
 │   │
 │   ├── parsers/              # Code analysis and entity extraction
 │   │   ├── src/
-│   │   │   ├── engine.ts     # Tree-sitter initialization, grammar loading
-│   │   │   ├── resolver.ts   # Cross-file reference resolution
-│   │   │   ├── detector.ts   # AI pattern detection coordinator
-│   │   │   └── languages/
-│   │   │       ├── typescript.ts
-│   │   │       ├── python.ts
-│   │   │       ├── go.ts
-│   │   │       ├── rust.ts
-│   │   │       ├── java.ts
-│   │   │       ├── sql.ts
-│   │   │       ├── hcl.ts    # Terraform
-│   │   │       └── config.ts # YAML, JSON, TOML
+│   │   │   ├── tree-sitter/  # Tree-sitter initialization, grammar loading
+│   │   │   │   ├── parser.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── extractors/   # Language-specific entity extractors
+│   │   │   │   ├── base.ts
+│   │   │   │   ├── typescript.ts
+│   │   │   │   ├── python.ts
+│   │   │   │   ├── go.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── ai-patterns/  # AI pattern detection
+│   │   │   │   ├── detector.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── resolvers/    # Cross-file reference resolution
+│   │   │   │   ├── cross-file.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── pipeline.ts   # Parser pipeline orchestrator
+│   │   │   └── index.ts
 │   │   ├── package.json      # depends on: @recurrsive/core, @recurrsive/graph
 │   │   └── tsconfig.json
 │   │
 │   ├── analyzers/            # Analysis plugins
 │   │   ├── src/
-│   │   │   ├── registry.ts   # Analyzer registry
-│   │   │   ├── runner.ts     # Parallel analyzer execution engine
-│   │   │   ├── context.ts    # AnalysisContext implementation
-│   │   │   └── builtins/
-│   │   │       ├── architecture/  # arch-complexity, arch-dependencies
-│   │   │       ├── ai/           # ai-prompt-quality, ai-model-usage, ai-agent-health, ai-mcp-analysis
-│   │   │       ├── performance/  # perf-bottleneck
-│   │   │       ├── cost/         # cost-optimization
-│   │   │       ├── reliability/  # rel-resilience
-│   │   │       ├── security/     # sec-vulnerability
-│   │   │       ├── ux/           # ux-api-consistency
-│   │   │       ├── product/      # prod-feature-health
-│   │   │       ├── data/         # data-quality
-│   │   │       └── documentation/ # doc-coverage
+│   │   │   ├── base/         # Analyzer framework
+│   │   │   │   ├── helpers.ts    # Shared analysis helpers
+│   │   │   │   ├── registry.ts   # Analyzer registry
+│   │   │   │   ├── runner.ts     # Parallel analyzer execution engine
+│   │   │   │   └── index.ts
+│   │   │   ├── architecture/     # arch-complexity, arch-dependencies
+│   │   │   ├── ai/              # ai-prompt-quality, ai-model-usage, ai-agent-health, ai-mcp-analysis
+│   │   │   ├── performance/     # perf-bottleneck
+│   │   │   ├── cost/            # cost-optimization
+│   │   │   ├── reliability/     # rel-resilience
+│   │   │   ├── security/        # sec-vulnerability
+│   │   │   ├── data/            # data-quality
+│   │   │   ├── docs/            # doc-coverage
+│   │   │   ├── ux/              # ux-api-consistency
+│   │   │   ├── product/         # prod-feature-health
+│   │   │   ├── dependency/      # dependency analysis
+│   │   │   ├── api-contract/    # API contract analysis
+│   │   │   ├── create-defaults.ts # Default analyzer configuration
+│   │   │   └── index.ts
 │   │   ├── package.json      # depends on: @recurrsive/core, @recurrsive/graph
 │   │   └── tsconfig.json
 │   │
 │   ├── reasoning/            # Multi-agent reasoning engine
 │   │   ├── src/
-│   │   │   ├── supervisor.ts # Supervisor state machine
+│   │   │   ├── engine.ts     # Reasoning engine coordinator
 │   │   │   ├── specialists/  # Specialist agent definitions (prompts + logic)
-│   │   │   ├── debate.ts     # Debate protocol orchestration
-│   │   │   ├── judge.ts      # Judge scoring
+│   │   │   │   ├── base.ts
+│   │   │   │   ├── definitions.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── debate/       # Debate protocol orchestration
+│   │   │   │   ├── protocol.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── judge/        # Judge scoring
+│   │   │   │   ├── judge.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── memory/       # Learning persistence
+│   │   │   │   ├── store.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── synthesizer/  # Result synthesis
+│   │   │   │   ├── synthesizer.ts
+│   │   │   │   └── index.ts
 │   │   │   ├── llm/          # LLM provider adapters
-│   │   │   │   ├── provider.ts   # Provider interface
-│   │   │   │   ├── openai.ts
-│   │   │   │   ├── anthropic.ts
-│   │   │   │   ├── gemini.ts
-│   │   │   │   ├── ollama.ts
-│   │   │   │   └── azure.ts
-│   │   │   ├── memory.ts     # Learning persistence
-│   │   │   └── hallucination.ts # Hallucination detector
+│   │   │   │   ├── adapter.ts        # Provider adapter interface
+│   │   │   │   ├── openai-adapter.ts
+│   │   │   │   ├── anthropic-adapter.ts
+│   │   │   │   └── index.ts
+│   │   │   └── index.ts
 │   │   ├── package.json      # depends on: @recurrsive/core, @recurrsive/graph, @recurrsive/analyzers
 │   │   └── tsconfig.json
 │   │
-│   ├── opportunities/        # Evolution and execution engines
+│   ├── opportunities/        # Opportunity management and output
 │   │   ├── src/
-│   │   │   ├── evolution.ts  # Hypothesis → Opportunity pipeline
+│   │   │   ├── manager.ts    # Opportunity lifecycle manager
 │   │   │   ├── ranking.ts    # Priority scoring algorithm
-│   │   │   ├── simulation.ts # Statistical simulation engine
-│   │   │   ├── execution/
-│   │   │   │   ├── adapter.ts     # Execution adapter interface
-│   │   │   │   ├── pr.ts          # Pull request adapter
-│   │   │   │   ├── issue.ts       # Issue creation adapter
-│   │   │   │   ├── rfc.ts         # RFC generation adapter
-│   │   │   │   ├── experiment.ts  # Experiment adapter
-│   │   │   │   └── config.ts      # Config change adapter
-│   │   │   ├── approval.ts  # Approval gate logic
-│   │   │   └── rollback.ts  # Rollback mechanisms
+│   │   │   ├── sarif.ts      # SARIF output formatter
+│   │   │   ├── markdown.ts   # Markdown report generator
+│   │   │   ├── roadmap.ts    # Roadmap generation
+│   │   │   └── index.ts
 │   │   ├── package.json      # depends on: @recurrsive/core, @recurrsive/graph, @recurrsive/reasoning
 │   │   └── tsconfig.json
 │   │
 │   ├── policy/               # Policy engine
 │   │   ├── src/
 │   │   │   ├── engine.ts     # Policy evaluation engine
-│   │   │   ├── cel.ts        # CEL expression evaluator
-│   │   │   ├── builtins/     # Built-in policy definitions
-│   │   │   └── types.ts      # Policy types
+│   │   │   ├── evaluator.ts  # Rule evaluator
+│   │   │   ├── builtin.ts    # Built-in policy definitions
+│   │   │   └── index.ts
 │   │   ├── package.json      # depends on: @recurrsive/core
 │   │   └── tsconfig.json
 │   │
@@ -1804,36 +1832,52 @@ recurrsive/
 │       ├── src/
 │       │   ├── reports/      # Report generators (markdown, HTML, SARIF, PDF, JSON)
 │       │   ├── notifications/ # Notification channel integrations
-│       │   └── formatters/   # Entity and finding formatters
+│       │   ├── formatters/   # Entity and finding formatters
+│       │   └── index.ts
 │       ├── package.json      # depends on: @recurrsive/core, @recurrsive/opportunities
 │       └── tsconfig.json
 │
 ├── apps/
 │   ├── cli/                  # CLI application
 │   │   ├── src/
-│   │   │   ├── index.ts      # Commander.js entry point
+│   │   │   ├── bin.ts        # CLI entry point
 │   │   │   ├── commands/     # scan, analyze, reason, report, config, etc.
-│   │   │   └── output/       # Terminal formatters (tables, progress bars)
+│   │   │   ├── config/       # CLI configuration
+│   │   │   ├── output/       # Terminal formatters (tables, progress bars)
+│   │   │   └── index.ts
 │   │   ├── package.json      # depends on: all packages
 │   │   └── tsconfig.json
 │   │
 │   ├── server/               # API server
 │   │   ├── src/
+│   │   │   ├── bin.ts        # Server entry point
 │   │   │   ├── index.ts      # Fastify application setup
 │   │   │   ├── routes/       # REST route handlers
-│   │   │   ├── graphql/      # GraphQL schema, resolvers
-│   │   │   ├── websocket/    # WebSocket event handlers
-│   │   │   ├── middleware/   # Auth, rate limiting, error handling
-│   │   │   └── jobs/         # BullMQ worker definitions
+│   │   │   ├── middleware/   # Middleware stack
+│   │   │   │   ├── auth.ts
+│   │   │   │   ├── api-keys.ts
+│   │   │   │   ├── rbac.ts
+│   │   │   │   ├── rate-limit.ts
+│   │   │   │   ├── validate.ts
+│   │   │   │   ├── error-handler.ts
+│   │   │   │   └── audit.ts
+│   │   │   ├── ws/           # WebSocket event handlers
+│   │   │   │   ├── events.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── middleware.ts  # Middleware registration
+│   │   │   └── state.ts      # Server state management
 │   │   ├── package.json      # depends on: all packages
 │   │   └── tsconfig.json
 │   │
 │   ├── mcp/                  # MCP server application
 │   │   ├── src/
+│   │   │   ├── bin.ts        # MCP server entry point
 │   │   │   ├── index.ts      # MCP server setup
+│   │   │   ├── server.ts     # MCP server core
 │   │   │   ├── tools/        # MCP tool handlers
 │   │   │   ├── resources/    # MCP resource providers
-│   │   │   └── prompts/      # MCP prompt definitions
+│   │   │   ├── prompts/      # MCP prompt definitions
+│   │   │   └── state.ts      # MCP server state
 │   │   ├── package.json      # depends on: @recurrsive/core, @recurrsive/graph, @recurrsive/opportunities, @recurrsive/analyzers
 │   │   └── tsconfig.json
 │   │
@@ -1842,20 +1886,13 @@ recurrsive/
 │       │   ├── app/          # App Router pages
 │       │   ├── components/   # React components
 │       │   ├── hooks/        # Custom hooks
-│       │   ├── lib/          # API client, utilities
-│       │   └── styles/       # Tailwind CSS
+│       │   └── lib/          # API client, utilities
 │       ├── package.json      # depends on: server (API client)
 │       └── tsconfig.json
 │
-├── configs/
-│   ├── eslint.config.js
-│   ├── prettier.config.js
-│   └── vitest.config.ts
+├── docker/                   # Docker configuration
 │
-└── scripts/
-    ├── setup.sh              # Initial setup script
-    ├── seed-graph.ts         # Seed graph with sample data
-    └── migrate.ts            # Database migration runner
+└── examples/                 # Example configurations and usage
 ```
 
 ### 11.2 Package Dependency Graph

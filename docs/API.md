@@ -136,8 +136,8 @@ Base URL: `http://localhost:3000`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/audit` | List audit events (query: `?limit=&type=`) |
-| `POST` | `/api/v1/audit` | Record a new audit event |
+| `GET` | `/api/v1/audit` | List audit events (auto-captured by middleware). Filters: `?action=`, `?userId=`, `?method=`, `?status=`, `?from=`, `?to=`, `?limit=`, `?offset=` |
+| `GET` | `/api/v1/audit/stats` | Aggregated audit statistics (byAction, byUser, byStatusGroup, recentErrors) |
 
 ### Analytics
 

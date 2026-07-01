@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/sidebar";
+import { Providers } from "@/components/providers";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,16 +38,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${inter.variable}`}>
       <body className="bg-base text-text-primary font-sans">
-        <a href="#main-content" className="skip-nav">
-          Skip to main content
-        </a>
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main id="main-content" className="flex-1 min-w-0 overflow-y-auto">
-            {children}
-          </main>
-        </div>
+        <Providers>
+          <a href="#main-content" className="skip-nav">
+            Skip to main content
+          </a>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <main id="main-content" className="flex-1 min-w-0 overflow-y-auto">
+              {children}
+            </main>
+          </div>
+        </Providers>
       </body>
     </html>
   );
 }
+

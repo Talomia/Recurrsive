@@ -1090,64 +1090,57 @@ describe('Batch endpoints', () => {
 // ---------------------------------------------------------------------------
 
 describe('Audit Routes', () => {
-  it('GET /api/v1/audit returns audit events', async () => {
+  it('GET /api/v1/audit requires authentication', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/audit' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('GET /api/v1/audit returns audit events with auth', async () => {
+    // Import createToken to generate a valid JWT for testing
+    const { createToken } = await import('../middleware/auth.js');
+    const token = createToken('test-admin', 'admin');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/audit',
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
     expect(body).toHaveProperty('total');
     expect(Array.isArray(body.data)).toBe(true);
-    expect(body.data.length).toBeGreaterThan(0);
-    expect(typeof body.total).toBe('number');
   });
 
   it('GET /api/v1/audit respects limit param', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/audit?limit=3' });
+    const { createToken } = await import('../middleware/auth.js');
+    const token = createToken('test-admin', 'admin');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/audit?limit=3',
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body.data.length).toBeLessThanOrEqual(3);
   });
 
-  it('GET /api/v1/audit filters by type param', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/audit?type=analysis' });
+  it('GET /api/v1/audit/stats returns audit statistics', async () => {
+    const { createToken } = await import('../middleware/auth.js');
+    const token = createToken('test-admin', 'admin');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/audit/stats',
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.data.length).toBeGreaterThan(0);
-    for (const event of body.data) {
-      expect(event.type).toBe('analysis');
-    }
-  });
-
-  it('POST /api/v1/audit creates new event', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/v1/audit',
-      payload: {
-        type: 'config',
-        action: 'updated',
-        target: 'test-target',
-        details: 'test detail',
-      },
-    });
-    expect(res.statusCode).toBe(201);
-    const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
-    expect(body.data).toHaveProperty('id');
-    expect(body.data.type).toBe('config');
-    expect(body.data.action).toBe('updated');
-    expect(body.data.target).toBe('test-target');
-    expect(body.data.details).toBe('test detail');
-  });
-
-  it('POST /api/v1/audit validates required fields', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/v1/audit',
-      payload: {},
-    });
-    expect(res.statusCode).toBe(400);
-    const body = JSON.parse(res.payload);
-    expect(body.error).toBe('Invalid request');
+    expect(body.data).toHaveProperty('total');
+    expect(body.data).toHaveProperty('byAction');
+    expect(body.data).toHaveProperty('byStatusGroup');
   });
 });
 

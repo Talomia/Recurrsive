@@ -30,10 +30,12 @@ import {
   ShieldAlert,
   HeartPulse,
   Camera,
+  Crown,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Intelligence Overview", icon: LayoutDashboard },
+  { href: "/executive", label: "Executive View", icon: Crown },
   { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
   { href: "/findings", label: "Findings", icon: ShieldAlert },
   { href: "/insights", label: "Insights", icon: Sparkles },
@@ -67,6 +69,9 @@ export default function Sidebar() {
       .then((data) => setOpportunityCount(data.data?.length ?? 23))
       .catch(() => {});
   }, []);
+
+  // Hide sidebar on the login page
+  if (pathname === '/login') return null;
 
   return (
     <>

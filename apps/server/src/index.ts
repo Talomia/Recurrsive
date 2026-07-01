@@ -15,6 +15,7 @@ import { registerRoutes } from './routes/index.js';
 import { registerWebSocket } from './ws/index.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
+import { registerAuditMiddleware } from './middleware/audit.js';
 
 // ---------------------------------------------------------------------------
 // Server options
@@ -73,6 +74,9 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
   if (rateLimitMax > 0) {
     await registerRateLimit(app, { max: rateLimitMax });
   }
+
+  // Register audit logging (before routes, to capture all requests)
+  registerAuditMiddleware(app);
 
   // Register all REST routes
   await registerRoutes(app);
