@@ -13,6 +13,11 @@ import {
   Users,
   BookOpen,
   DollarSign,
+  Rocket,
+  Terminal,
+  Code,
+  Shield,
+  Award,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -26,14 +31,34 @@ const NAV_ITEMS = [
     ],
   },
   { label: 'Pricing', href: '/pricing' },
-  { label: 'Partners', href: '/partners' },
   {
-    label: 'Resources',
+    label: 'Partners',
+    href: '/partners',
+    items: [
+      { label: 'Partner Program', href: '/partners', icon: Users, desc: 'Join our partner ecosystem' },
+      { label: 'Directory', href: '/partners/directory', icon: Shield, desc: 'Find a certified partner' },
+      { label: 'Certification', href: '/partners/certification', icon: Award, desc: 'Get certified on Recurrsive' },
+    ],
+  },
+  {
+    label: 'Docs',
     href: '/docs',
     items: [
-      { label: 'Documentation', href: '/docs', icon: BookOpen, desc: 'Guides, API reference & SDK' },
+      { label: 'Getting Started', href: '/docs/getting-started', icon: Rocket, desc: '5-minute quickstart guide' },
+      { label: 'API Reference', href: '/docs/api-reference', icon: Code, desc: '148 REST endpoints' },
+      { label: 'CLI Reference', href: '/docs/cli-reference', icon: Terminal, desc: '25 CLI commands' },
+      { label: 'Plugin SDK', href: '/docs/plugin-sdk', icon: Store, desc: 'Build custom extensions' },
+      { label: 'All Documentation', href: '/docs', icon: BookOpen, desc: 'Guides, API & architecture' },
+    ],
+  },
+  {
+    label: 'Community',
+    href: '/blog',
+    items: [
       { label: 'Blog', href: '/blog', icon: ExternalLink, desc: 'Technical articles & updates' },
-      { label: 'Changelog', href: '/changelog', icon: ExternalLink, desc: 'Release notes & updates' },
+      { label: 'Changelog', href: '/changelog', icon: ExternalLink, desc: 'Release notes & history' },
+      { label: 'About', href: '/about', icon: Users, desc: 'Our team & mission' },
+      { label: 'Contact', href: '/contact', icon: ExternalLink, desc: 'Get in touch' },
     ],
   },
 ];

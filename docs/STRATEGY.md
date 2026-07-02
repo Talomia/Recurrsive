@@ -212,6 +212,10 @@ That synthesis — connecting code, architecture, runtime, AI behavior, cost, an
 | Digital twin | Medium-High | ✅ Knowledge graph IS the twin |
 | Business reasoning | Medium | 🔶 Deferred — requires business data collectors |
 | Fully autonomous evolution | Low today | 🔶 Deferred — execution is Phase 3+ |
+| Marketing website | High | ✅ Built (23 pages, glassmorphism design) |
+| Marketplace | High | ✅ Built (UI + API, 33 seeded extensions) |
+| Cloud offering | High | ✅ Built (landing + dashboard + billing pages) |
+| Partner program | High | ✅ Built (directory + certifications + application) |
 
 ---
 
@@ -219,7 +223,7 @@ That synthesis — connecting code, architecture, runtime, AI behavior, cost, an
 
 1. **Cross-organization learning** — Valid at scale but raises privacy/trust concerns. Deferred.
 2. **Full lifecycle execution** (auto-PRs, auto-deploys) — Types ready, but trust must be earned before automation.
-3. **Marketplace** — Needs liquidity. Own all analyzers first.
+3. **Marketplace backend** — UI and API exist (33 extensions). Backend for real submissions/reviews at scale deferred.
 4. **Network effects** — Premature. Build single-tenant value first.
 5. **Benchmarking** — Needs scale. Interesting at 1000+ customers.
 

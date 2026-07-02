@@ -4,11 +4,12 @@
  * Plugin Marketplace page.
  *
  * Lists installed plugins, marketplace plugins, health indicators, and SDK info.
+ * Fetches data from both legacy plugin endpoints and the new marketplace extensions API.
  */
 
 import { useState, useEffect } from 'react';
 import { Package, Download, Power, Shield, Star, Search, Loader2 } from 'lucide-react';
-import { getInstalledPlugins, getMarketplacePlugins } from '@/lib/api';
+import { getInstalledPlugins, getMarketplacePlugins, getMarketplaceExtensions } from '@/lib/api';
 import type { InstalledPlugin, MarketplacePlugin } from '@/lib/api';
 
 
@@ -43,12 +44,35 @@ export default function PluginsPage() {
   const [filterType, setFilterType] = useState<string>('all');
 
   useEffect(() => {
-    Promise.all([getInstalledPlugins(), getMarketplacePlugins()])
-      .then(([inst, mkt]) => {
-        setInstalled(inst);
-        setMarketplace(mkt);
-      })
-      .finally(() => setLoading(false));
+    async function load() {
+      // Fetch from both legacy plugin endpoints and new marketplace extensions API
+      const [inst, mkt, mktExt] = await Promise.all([
+        getInstalledPlugins(),
+        getMarketplacePlugins(),
+        getMarketplaceExtensions(),
+      ]);
+
+      setInstalled(inst);
+
+      // Merge marketplace data: start with legacy plugins, then add any new
+      // extensions from the marketplace API that aren't already present
+      const existingIds = new Set(mkt.map(p => p.id));
+      const extraPlugins: MarketplacePlugin[] = mktExt.data
+        .filter(ext => !existingIds.has(ext.id) && ext.category !== 'intelligence-pack')
+        .map(ext => ({
+          id: ext.id,
+          name: ext.name,
+          version: ext.version ?? '1.0.0',
+          author: ext.author ?? 'Unknown',
+          description: ext.description ?? '',
+          stars: ext.stars ?? 0,
+          downloads: ext.downloads ?? 0,
+          type: (ext.category as MarketplacePlugin['type']) ?? 'analyzer',
+          verified: ext.verified ?? false,
+        }));
+      setMarketplace([...mkt, ...extraPlugins]);
+    }
+    load().finally(() => setLoading(false));
   }, []);
 
   const togglePlugin = (id: string) => {

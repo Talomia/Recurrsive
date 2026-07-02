@@ -306,6 +306,77 @@ const MOCK_INTELLIGENCE_PACKS: DashboardIntelligencePack[] = [
   },
 ];
 
+// ─── Marketplace Mock Data ───────────────────────────────────────────────────
+
+const MOCK_MARKETPLACE_EXTENSIONS: { data: any[]; total: number; categories: Record<string, number> } = {
+  data: [
+    { id: 'ext-1', name: 'Semgrep Analyzer', version: '2.1.0', author: 'r2c', description: 'Lightweight static analysis with custom rules', category: 'analyzer', stars: 482, downloads: 12400, verified: true, icon: '🔍', status: 'available' },
+    { id: 'ext-2', name: 'GitHub Collector', version: '1.5.2', author: 'Recurrsive', description: 'Sync issues and PRs from GitHub repos', category: 'collector', stars: 314, downloads: 8900, verified: true, icon: '🔗', status: 'available' },
+    { id: 'ext-3', name: 'Jira Integration', version: '3.0.1', author: 'Atlassian', description: 'Two-way sync with Jira tickets', category: 'integration', stars: 256, downloads: 7200, verified: true, icon: '🎫', status: 'installed' },
+    { id: 'ext-4', name: 'HTML Reporter', version: '1.0.3', author: 'Community', description: 'Interactive HTML dashboards for reports', category: 'reporter', stars: 89, downloads: 2100, verified: false, icon: '📊', status: 'available' },
+    { id: 'ext-5', name: 'Terraform Scanner', version: '0.9.0', author: 'Community', description: 'IaC security scanning for Terraform files', category: 'analyzer', stars: 134, downloads: 3400, verified: false, icon: '🏗️', status: 'available' },
+    { id: 'ext-6', name: 'Healthcare Intelligence Pack', version: '2.4.1', author: 'Recurrsive', description: 'HIPAA compliance, PHI detection, medical device security', category: 'intelligence-pack', stars: 298, downloads: 5600, verified: true, icon: '❤️', status: 'installed' },
+    { id: 'ext-7', name: 'Finance Intelligence Pack', version: '3.1.0', author: 'Recurrsive', description: 'SOX compliance, PCI-DSS, fraud detection patterns', category: 'intelligence-pack', stars: 342, downloads: 6100, verified: true, icon: '💰', status: 'installed' },
+    { id: 'ext-8', name: 'Kubernetes Intelligence Pack', version: '1.8.3', author: 'Recurrsive', description: 'K8s security policies, CIS benchmark checks', category: 'intelligence-pack', stars: 415, downloads: 9200, verified: true, icon: '📦', status: 'available' },
+    { id: 'ext-9', name: 'AI Safety Intelligence Pack', version: '0.9.0', author: 'Recurrsive', description: 'Model bias detection, prompt injection guards', category: 'intelligence-pack', stars: 187, downloads: 3200, verified: true, icon: '🧠', status: 'available' },
+  ],
+  total: 9,
+  categories: { analyzer: 2, collector: 1, integration: 1, reporter: 1, 'intelligence-pack': 4 },
+};
+
+const MOCK_MARKETPLACE_STATS: { data: any } = {
+  data: {
+    totalExtensions: 156,
+    totalDownloads: 284000,
+    totalAuthors: 42,
+    averageRating: 4.3,
+    newThisMonth: 8,
+  },
+};
+
+const MOCK_MARKETPLACE_CATEGORIES: { data: any[] } = {
+  data: [
+    { id: 'analyzer', name: 'Analyzers', count: 45, description: 'Static and dynamic analysis tools' },
+    { id: 'collector', name: 'Collectors', count: 28, description: 'Data collection integrations' },
+    { id: 'reporter', name: 'Reporters', count: 22, description: 'Report generation plugins' },
+    { id: 'integration', name: 'Integrations', count: 38, description: 'Third-party service integrations' },
+    { id: 'intelligence-pack', name: 'Intelligence Packs', count: 23, description: 'Domain-specific rule packs' },
+  ],
+};
+
+// ─── Partner Mock Data ───────────────────────────────────────────────────────
+
+const MOCK_PARTNERS: { data: any[]; total: number; tierCounts: Record<string, number> } = {
+  data: [
+    { id: 'ptr-1', name: 'NovaSec', tier: 'platinum', type: 'security', specialty: 'Security Auditing', projects: 48, logo: '🛡️', website: 'https://novasec.io', certifications: ['ISO 27001', 'SOC 2'] },
+    { id: 'ptr-2', name: 'ScaleOps', tier: 'gold', type: 'infrastructure', specialty: 'Infrastructure', projects: 32, logo: '⚙️', website: 'https://scaleops.dev', certifications: ['AWS Partner', 'K8s Certified'] },
+    { id: 'ptr-3', name: 'DataPulse', tier: 'gold', type: 'analytics', specialty: 'Analytics', projects: 27, logo: '📊', website: 'https://datapulse.ai', certifications: ['Data Privacy Certified'] },
+    { id: 'ptr-4', name: 'CloudForge', tier: 'silver', type: 'consulting', specialty: 'Migration', projects: 15, logo: '☁️', website: 'https://cloudforge.co', certifications: ['Azure Partner'] },
+    { id: 'ptr-5', name: 'DevStream', tier: 'silver', type: 'tooling', specialty: 'Developer Tooling', projects: 11, logo: '🔧', website: 'https://devstream.io', certifications: [] },
+  ],
+  total: 5,
+  tierCounts: { platinum: 1, gold: 2, silver: 2 },
+};
+
+const MOCK_PARTNER_CERTIFICATIONS: { data: any[] } = {
+  data: [
+    { id: 'cert-1', name: 'Recurrsive Certified Partner', level: 'platinum', requirements: ['50+ projects', 'SOC 2', '99.9% SLA'], partners: 4 },
+    { id: 'cert-2', name: 'Security Specialist', level: 'gold', requirements: ['ISO 27001', '25+ security audits'], partners: 8 },
+    { id: 'cert-3', name: 'Integration Expert', level: 'silver', requirements: ['5+ published integrations', 'API certification'], partners: 15 },
+  ],
+};
+
+const MOCK_PARTNER_STATS: { data: any } = {
+  data: {
+    totalPartners: 42,
+    platinumPartners: 4,
+    goldPartners: 12,
+    silverPartners: 26,
+    totalProjects: 580,
+    averageSatisfaction: 4.7,
+  },
+};
+
 // ─── Plugin API ──────────────────────────────────────────────────────────────
 
 export async function getInstalledPlugins(): Promise<InstalledPlugin[]> {
@@ -522,4 +593,47 @@ export async function getIntelligencePacks(): Promise<DashboardIntelligencePack[
     }
   } catch { /* fall through */ }
   return MOCK_INTELLIGENCE_PACKS;
+}
+
+// ─── Marketplace API ─────────────────────────────────────────────────────────
+
+export async function getMarketplaceExtensions(params?: { category?: string; search?: string; sort?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.category) searchParams.set('category', params.category);
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.sort) searchParams.set('sort', params.sort);
+  const query = searchParams.toString();
+  return apiFetch<{ data: any[]; total: number; categories: Record<string, number> }>(
+    `/api/v1/marketplace/extensions${query ? `?${query}` : ''}`,
+    MOCK_MARKETPLACE_EXTENSIONS
+  );
+}
+
+export async function getMarketplaceStats() {
+  return apiFetch<{ data: any }>('/api/v1/marketplace/stats', MOCK_MARKETPLACE_STATS);
+}
+
+export async function getMarketplaceCategories() {
+  return apiFetch<{ data: any[] }>('/api/v1/marketplace/categories', MOCK_MARKETPLACE_CATEGORIES);
+}
+
+// ─── Partners API ────────────────────────────────────────────────────────────
+
+export async function getPartners(params?: { tier?: string; type?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.tier) searchParams.set('tier', params.tier);
+  if (params?.type) searchParams.set('type', params.type);
+  const query = searchParams.toString();
+  return apiFetch<{ data: any[]; total: number; tierCounts: Record<string, number> }>(
+    `/api/v1/partners${query ? `?${query}` : ''}`,
+    MOCK_PARTNERS
+  );
+}
+
+export async function getPartnerCertifications() {
+  return apiFetch<{ data: any[] }>('/api/v1/partners/certifications', MOCK_PARTNER_CERTIFICATIONS);
+}
+
+export async function getPartnerStats() {
+  return apiFetch<{ data: any }>('/api/v1/partners/stats', MOCK_PARTNER_STATS);
 }

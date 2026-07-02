@@ -11,21 +11,24 @@ const FOOTER_LINKS = {
   ],
   Resources: [
     { label: 'Documentation', href: '/docs' },
-    { label: 'Getting Started', href: '/docs' },
-    { label: 'API Reference', href: '/docs' },
-    { label: 'Plugin SDK', href: '/docs' },
+    { label: 'Getting Started', href: '/docs/getting-started' },
+    { label: 'API Reference', href: '/docs/api-reference' },
+    { label: 'CLI Reference', href: '/docs/cli-reference' },
+    { label: 'Plugin SDK', href: '/docs/plugin-sdk' },
+    { label: 'Deployment', href: '/docs/deployment' },
+    { label: 'Architecture', href: '/docs/architecture' },
     { label: 'Blog', href: '/blog' },
+  ],
+  Partners: [
+    { label: 'Partner Program', href: '/partners' },
+    { label: 'Partner Directory', href: '/partners/directory' },
+    { label: 'Certification', href: '/partners/certification' },
+    { label: 'Apply', href: '/partners/apply' },
   ],
   Company: [
     { label: 'About', href: '/about' },
-    { label: 'Partners', href: '/partners' },
     { label: 'Contact', href: '/contact' },
     { label: 'Careers', href: '/about' },
-  ],
-  Legal: [
-    { label: 'Privacy Policy', href: '/privacy' },
-    { label: 'Terms of Service', href: '/terms' },
-    { label: 'Security', href: '/security' },
     { label: 'Apache 2.0 License', href: 'https://github.com/Talomia/Recurrsive/blob/main/LICENSE' },
   ],
 };
