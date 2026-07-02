@@ -27,6 +27,7 @@
 - [ ] `apps/mcp`
 - [ ] `apps/server`
 - [ ] `apps/dashboard`
+- [ ] `apps/website`
 
 ## Checklist
 

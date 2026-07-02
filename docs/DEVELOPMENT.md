@@ -217,7 +217,8 @@ pnpm dev --filter @recurrsive/website
 - Glass cards: `rgba(255,255,255,0.03)` with backdrop blur
 - Gradients: CSS variables `var(--gradient-brand)`, `var(--gradient-secondary)`
 - Animations: `animate-fade-in`, `animate-slide-up`, glow orbs
-- No Tailwind — vanilla CSS with CSS variables
+- Website: Vanilla CSS with CSS custom properties (no Tailwind)
+- Dashboard: Tailwind CSS with custom dark theme utilities
 
 ## Docker Development
 

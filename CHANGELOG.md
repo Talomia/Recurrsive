@@ -20,15 +20,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Registered all 25 CLI commands in `commands/index.ts` (was only 12)
 - Added barrel exports for: analytics, audit, batch, cloud, comparisons, experiments, export, forecasting, notifications, plugins, projects, secrets, simulation
 
+#### SEO Metadata
+- Homepage (`/`): Added title, description, OpenGraph, and Twitter Card metadata
+- Added `layout.tsx` with metadata for client-component pages: contact, marketplace, cloud/dashboard
+
+#### Server Route → State Wiring
+- `analytics.ts`: Summary and top-categories routes now read from `state.getAnalysisCache()` when live data exists
+- `search.ts`: Search route now queries live findings and opportunities from analysis cache
+- `health.ts`: Version now imported from `@recurrsive/core` VERSION constant
+
 ### Fixed
+
+#### Security
+- **SQL injection in `graph.ts`** (CRITICAL): Replaced raw SQL string interpolation in graph search endpoint with safe `getStats()` + `getEntities()` based filtering
 
 #### Dashboard
 - Confidence page KPI row now renders from API data (`getConfidenceData()`) instead of hardcoded inline constants
 - Brier score, total predictions, correct rate, and analyzer count all derived from live API response
+- `apiFetch` now logs `console.warn()` in development when using fallback (mock) data
 
 #### Documentation
-- **ROADMAP.md**: Updated test count to 140 files / 3,087+ tests, GraphQL marked as wired to live data
+- **ROADMAP.md**: Updated test count to 140 files / 3,395 tests
 - **ARCHITECTURE.md**: Updated GraphQL schema to match actual implementation (flat schema, not aspirational Connection types)
+- **DEVELOPMENT.md**, **README.md**: Updated test count references to 3,395
+
+#### Version Consistency
+- Core `VERSION` constant: 0.4.0 → 0.5.4
+- `SDK_VERSION`: 0.1.0 → 0.5.4
+- `SNAPSHOT_VERSION`: 0.2.0 → 0.5.4
+- Server snapshot route version: 0.2.0 → 0.5.4
+- Updated all test assertions for version changes
 
 ## [0.5.3] - 2026-07-02
 

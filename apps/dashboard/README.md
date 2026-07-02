@@ -23,7 +23,7 @@ The Recurrsive Dashboard is the visual interface for the Engineering Intelligenc
 
 ### Tech Stack
 
-- **Next.js 15** with App Router
+- **Next.js 16** with App Router
 - **React 19** with Server Components
 - **TypeScript 5.7+**
 - **Tailwind CSS** with custom dark theme and glassmorphism utilities
@@ -41,7 +41,7 @@ pnpm build
 pnpm --filter @recurrsive/dashboard dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) to view the dashboard.
+Open [http://localhost:3100](http://localhost:3100) to view the dashboard.
 
 ## Pages (40)
 
