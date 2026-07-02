@@ -1916,7 +1916,23 @@ recurrsive/
 │       │   ├── app/          # App Router pages
 │       │   ├── components/   # React components
 │       │   ├── hooks/        # Custom hooks
-│       │   └── lib/          # API client, utilities
+│       │   └── lib/          # Utilities
+│       │       ├── api/      # Domain-specific API modules
+│       │       │   ├── client.ts       # Base fetch + URL
+│       │       │   ├── health.ts       # Health metrics
+│       │       │   ├── analysis.ts     # Analysis runs
+│       │       │   ├── opportunities.ts # Opportunity CRUD
+│       │       │   ├── graph.ts        # Knowledge graph
+│       │       │   ├── projects.ts     # Project mgmt
+│       │       │   ├── intelligence.ts # Forecasting
+│       │       │   ├── platform.ts     # Plugins, SSO
+│       │       │   ├── governance.ts   # Policies, audit
+│       │       │   ├── experiments.ts  # Experiments
+│       │       │   ├── reports.ts      # Timeline, export
+│       │       │   ├── settings.ts     # Settings
+│       │       │   └── index.ts        # Barrel re-export
+│       │       ├── api.ts    # Re-exports api/index
+│       │       └── auth-context.tsx
 │       ├── package.json      # depends on: server (API client)
 │       └── tsconfig.json
 │

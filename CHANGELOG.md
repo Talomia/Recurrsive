@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-07-02
+
+### Changed
+
+#### API Modularization
+- Split 4,041-line `api.ts` monolith into 13 domain-specific modules under `lib/api/`
+- New modules: client, health, analysis, opportunities, graph, projects, intelligence, platform, governance, experiments, reports, settings
+- Barrel re-export preserves all existing imports — zero breaking changes
+
+#### Docker Improvements
+- Fixed double-build bug in `Dockerfile.dashboard` (runner stage was rebuilding unnecessarily)
+- Pinned pnpm to v9 in server Dockerfile to match lockfile
+
+#### Dashboard Hardening
+- Enhanced `next.config.ts` with security headers, lucide-react tree-shaking, static asset caching
+- Disabled `X-Powered-By` header
+- Updated `ARCHITECTURE.md` to reflect modular API structure
+
+### Removed
+- Dead components: `shared.tsx` (256 lines), `activity-log.tsx` (140 lines) — not imported
+- Dead middleware: `middleware.ts` (200 lines) — superseded by `middleware/` directory
+- Legacy `rate-limit.test.ts` — tested deleted middleware
+
+### Added
+
+#### Test Coverage
+- 7 new component test files: AuthGuard, Header, HealthChart, LiveIndicator, OpportunitiesList, Providers, TrendChart
+- Dashboard: 13 test files, 81 tests (100% component coverage)
+
+#### Developer Experience
+- Root `.env.example` documenting all environment variables
+
 ## [0.4.0] - 2026-07-01
 
 ### Added

@@ -68,6 +68,12 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 
 ## Quick Start
 
+> **Note**: Recurrsive ships with deterministic mock data so the entire platform
+> works out-of-the-box without external services. The dashboard and API
+> return realistic synthetic data (analytics trends, experiments, forecasts)
+> that automatically upgrades to real data as you connect live sources via
+> collectors. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
+
 ### Prerequisites
 
 - **Node.js** ≥ 20.0.0

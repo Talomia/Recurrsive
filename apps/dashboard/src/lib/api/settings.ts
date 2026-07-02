@@ -122,9 +122,14 @@ const MOCK_MASKING_STRATEGIES: DashboardMaskingStrategy[] = [
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
- * Get settings sections (pure mock — no server route).
+ * Get settings sections. Falls back to client-side mock when server
+ * does not have a settings route.
  */
 export async function getSettingsSections(): Promise<SettingsSection[]> {
+  try {
+    const data = await apiFetch<SettingsSection[] | null>('/api/v1/settings/sections', null);
+    if (data?.length) return data;
+  } catch { /* fall through */ }
   return MOCK_SETTINGS_SECTIONS;
 }
 
@@ -150,9 +155,18 @@ export async function getMaskingPolicies(): Promise<DashboardMaskingPolicy[]> {
 }
 
 export async function getPiiDistribution(): Promise<DashboardPiiDistribution[]> {
+  try {
+    const data = await apiFetch<DashboardPiiDistribution[] | null>('/api/v1/data-masking/pii-distribution', null);
+    if (data?.length) return data;
+  } catch { /* fall through */ }
   return MOCK_PII_DISTRIBUTION;
 }
 
 export async function getMaskingStrategies(): Promise<DashboardMaskingStrategy[]> {
+  try {
+    const data = await apiFetch<DashboardMaskingStrategy[] | null>('/api/v1/data-masking/strategies', null);
+    if (data?.length) return data;
+  } catch { /* fall through */ }
   return MOCK_MASKING_STRATEGIES;
 }
+
