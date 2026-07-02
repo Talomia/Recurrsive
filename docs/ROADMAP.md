@@ -1,6 +1,6 @@
 # Recurrsive — Product Roadmap
 
-## Current State (v0.5.2)
+## Current State (v0.5.3)
 
 | Component | Status | Evidence |
 |---|---|---|
@@ -19,7 +19,7 @@
 | Dashboard | ✅ Complete | Next.js, 40 pages (incl. detail pages), 8+ components, real-time WebSocket |
 | Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
-| Tests | ✅ Complete | 112 test files, integration tests for full pipeline |
+| Tests | ✅ Complete | 119 test files, 573 tests (423 server + 81 dashboard + 69 website), integration tests for full pipeline |
 
 > [!NOTE]
 > Enterprise platform routes (SSO, secrets, multi-tenant, simulation, cloud) are fully

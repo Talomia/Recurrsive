@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-07-02
+
+### Added
+
+#### Website Test Suite
+- 69 new tests across 7 test files (Navbar, Footer, Landing, Pricing, Product, Sitemap, Robots)
+- Vitest + React Testing Library infrastructure for `@recurrsive/website`
+- SEO tests: sitemap validates all 23 routes, robots validates disallow patterns
+
+#### CI/CD Improvements
+- Website build verification in CI pipeline
+- Docker build for all 3 images (server, dashboard, website) in CI
+- Website Docker image build/push in release workflow
+- Updated CI summary stats (14 packages, 150 endpoints, 504+ tests)
+
+### Fixed
+
+#### Documentation Alignment (18 discrepancies resolved)
+- **ARCHITECTURE.md**: 16 fixes including Docker compose rewrite, RBAC correction (4→3 roles), infrastructure diagram cleanup (removed non-existent Redis/S3/SMTP), dependency table fixes (removed Drizzle/BullMQ/graphql-yoga), and 40-route dashboard table
+- **DEPLOYMENT.md**: Added website service (port 3200), updated to 4-service docker-compose
+- **DEVELOPMENT.md**: Added website dev section, updated project structure
+- **GETTING_STARTED.md**: Added Swagger UI, website port, updated stats
+- **API.md**: Added OpenAPI, Marketplace, Partner endpoint documentation
+- **STRATEGY.md**: Fixed analyzer rule count (66+ → 89+)
+
+### Stats
+- Total automated tests: 573 (423 server + 81 dashboard + 69 website)
+- Build: 14/14 packages passing
+- Documentation: 8 files updated, all 18 audit discrepancies resolved
+
 ## [0.5.2] - 2026-07-02
 
 ### Added
