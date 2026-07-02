@@ -25,8 +25,15 @@ export async function apiFetch<T>(path: string, fallback: T): Promise<T> {
     });
     if (!res.ok) throw new Error(`API ${res.status}`);
     return (await res.json()) as T;
-  } catch {
-    // Return mock data when the API server is unreachable
+  } catch (err) {
+    // Log the error in development so developers know the dashboard is
+    // displaying fallback (mock) data instead of live API responses.
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(
+        `[apiFetch] ${path} → using fallback data:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
     return fallback;
   }
 }

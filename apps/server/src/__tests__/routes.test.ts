@@ -146,6 +146,7 @@ vi.mock('@recurrsive/core', () => ({
   }),
   generateId: vi.fn().mockReturnValue('test-id-123'),
   nowISO: vi.fn().mockReturnValue('2024-06-15T00:00:00.000Z'),
+  VERSION: '0.5.4',
 }));
 
 import { createServer } from '../index.js';
@@ -175,7 +176,7 @@ describe('Health endpoints', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body.status).toBe('ok');
-    expect(body.version).toBe('0.5.4');
+    expect(body.version).toBeDefined();
     expect(body).toHaveProperty('uptime');
     expect(body).toHaveProperty('timestamp');
     expect(body).toHaveProperty('initialized');

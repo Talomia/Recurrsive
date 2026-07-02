@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import {
   Zap,
   Brain,
@@ -22,6 +23,27 @@ import {
   Award,
   TrendingUp,
 } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Recurrsive — Engineering Intelligence Platform',
+  description:
+    'Understand your entire software system. 13 analyzers, knowledge graph, ' +
+    'multi-agent reasoning, and evidence-based recommendations ranked by business impact.',
+  openGraph: {
+    title: 'Recurrsive — Engineering Intelligence Platform',
+    description:
+      'From code and architecture to AI components, infrastructure, and costs — ' +
+      'get a living digital twin of your software system.',
+    type: 'website',
+    url: 'https://recurrsive.dev',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Recurrsive — Engineering Intelligence Platform',
+    description:
+      'Evidence-based engineering recommendations powered by knowledge graphs and multi-agent reasoning.',
+  },
+};
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 /*  Recurrsive Landing Page — Server Component                               */

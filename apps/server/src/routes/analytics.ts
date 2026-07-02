@@ -10,6 +10,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { state } from '../state.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -128,8 +129,31 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
    * GET /api/v1/analytics/summary
    *
    * Return analysis trends over time with aggregate statistics.
+   * Uses live analysis data when available, falls back to demo data.
    */
   app.get('/api/v1/analytics/summary', async (_request, reply) => {
+    const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+
+    if (cache?.findings?.length) {
+      const totalFindings = cache.findings.length;
+      // Findings don't have a status field — all represent open observations.
+      // Resolved findings are promoted to opportunities, so we approximate.
+      const totalResolved = cache.opportunities?.length ?? 0;
+      const resolutionRate =
+        totalFindings > 0
+          ? Math.round((totalResolved / totalFindings) * 1000) / 10
+          : 0;
+
+      return reply.status(200).send({
+        analysis_runs: 1,
+        total_findings: totalFindings,
+        findings_resolved: totalResolved,
+        resolution_rate: resolutionRate,
+        avg_health_score: MOCK_SUMMARY.avg_health_score,
+        trends: MOCK_TRENDS, // trend history requires multiple runs
+      });
+    }
+
     return reply.status(200).send(MOCK_SUMMARY);
   });
 
@@ -137,8 +161,29 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
    * GET /api/v1/analytics/top-categories
    *
    * Return findings broken down by category.
+   * Uses live analysis data when available, falls back to demo data.
    */
   app.get('/api/v1/analytics/top-categories', async (_request, reply) => {
+    const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+
+    if (cache?.findings?.length) {
+      const counts: Record<string, number> = {};
+      for (const f of cache.findings) {
+        const cat = f.category ?? 'other';
+        counts[cat] = (counts[cat] ?? 0) + 1;
+      }
+      const total = cache.findings.length;
+      const categories = Object.entries(counts)
+        .map(([name, count]) => ({
+          name,
+          count,
+          percentage: Math.round((count / total) * 1000) / 10,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      return reply.status(200).send({ categories });
+    }
+
     return reply.status(200).send({
       categories: MOCK_CATEGORIES,
     });

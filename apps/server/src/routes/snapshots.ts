@@ -96,7 +96,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
       }
 
       const snapshot: Snapshot = {
-        version: '0.2.0',
+        version: '0.5.4',
         exported_at: nowISO(),
         project: state.getProjectPath() ?? 'unknown',
         entities: allEntities,

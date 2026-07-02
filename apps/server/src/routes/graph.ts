@@ -319,13 +319,31 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           });
         }
 
-        // No type specified with fallback — use raw query
-        const allEntities = await graph.query(
-          `SELECT * FROM entities WHERE name LIKE '%${q.replace(/'/g, "''")}%' OR qualified_name LIKE '%${q.replace(/'/g, "''")}%' LIMIT ${limit}`,
-        );
+        // No type specified — search across the most common entity types
+        // to avoid raw SQL string interpolation (prevents injection).
+        const stats = await graph.getStats();
+        const searchLower = q.trim().toLowerCase();
+        const entityTypes = Object.keys(stats.entityCountsByType ?? {});
+        const allResults: unknown[] = [];
+
+        for (const et of entityTypes) {
+          try {
+            const entities = await graph.getEntities(et as EntityType);
+            const matches = entities.filter(
+              (e) =>
+                e.name.toLowerCase().includes(searchLower) ||
+                e.qualified_name.toLowerCase().includes(searchLower),
+            );
+            allResults.push(...matches);
+            if (allResults.length >= limit) break;
+          } catch {
+            // Skip entity types that fail to query
+          }
+        }
 
         return reply.status(200).send({
-          data: allEntities,
+          data: allResults.slice(0, limit),
+          total: allResults.length,
           limit,
           query: q.trim(),
         });

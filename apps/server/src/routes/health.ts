@@ -7,6 +7,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { VERSION } from '@recurrsive/core';
 import { state } from '../state.js';
 
 /**
@@ -28,7 +29,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       initialized,
-      version: '0.5.4',
+      version: VERSION,
     });
   });
 

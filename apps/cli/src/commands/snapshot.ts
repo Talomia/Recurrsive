@@ -38,7 +38,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Current snapshot format version. */
-const SNAPSHOT_VERSION = '0.2.0';
+const SNAPSHOT_VERSION = '0.5.4';
 
 // ---------------------------------------------------------------------------
 // Snapshot Shape

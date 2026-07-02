@@ -8,6 +8,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { createLogger } from '@recurrsive/core';
+import { state } from '../state.js';
 
 const logger = createLogger({ context: { component: 'server:routes:search' } });
 
@@ -71,10 +72,48 @@ const SEARCH_ITEMS: SearchItem[] = [
 // Helpers
 // ---------------------------------------------------------------------------
 
+function getSearchableItems(): SearchItem[] {
+  const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+  const items: SearchItem[] = [];
+
+  // Add live findings if available, otherwise use demo items
+  if (cache?.findings?.length) {
+    for (const f of cache.findings) {
+      items.push({
+        type: 'finding',
+        id: f.id,
+        name: f.title,
+        description: f.description,
+      });
+    }
+  } else {
+    items.push(...SEARCH_ITEMS.filter((i) => i.type === 'finding'));
+  }
+
+  // Add live opportunities if available
+  if (cache?.opportunities?.length) {
+    for (const o of cache.opportunities) {
+      items.push({
+        type: 'opportunity',
+        id: o.id,
+        name: o.title,
+        description: o.problem,
+      });
+    }
+  } else {
+    items.push(...SEARCH_ITEMS.filter((i) => i.type === 'opportunity'));
+  }
+
+  // Always include entity demo items (entities come from graph, not analysis cache)
+  items.push(...SEARCH_ITEMS.filter((i) => i.type === 'entity'));
+
+  return items;
+}
+
 function searchItems(query: string, scope: string): SearchResult[] {
   const q = query.toLowerCase();
 
-  let items = SEARCH_ITEMS;
+  let items = getSearchableItems();
   if (scope !== 'all') {
     // Map plural scope names to singular type names
     const scopeMap: Record<string, string> = {
