@@ -3359,3 +3359,61 @@ export async function getProject(id: string): Promise<Project | null> {
   }
   return MOCK_PROJECTS.find((p) => p.id === id) ?? null;
 }
+
+// ─── Scheduling ──────────────────────────────────────────────────────────────
+
+export interface ReportSchedule {
+  id: string;
+  name: string;
+  reportType: 'executive' | 'technical' | 'compliance' | 'custom';
+  cron: string;
+  cronHuman: string;
+  status: 'active' | 'paused';
+  nextRun: string;
+  recipients: string[];
+  format: 'pdf' | 'html' | 'csv';
+  createdBy: string;
+}
+
+export interface ScheduleRunHistory {
+  id: string;
+  scheduleId: string;
+  scheduleName: string;
+  status: 'success' | 'failed' | 'running';
+  startedAt: string;
+  completedAt: string | null;
+  fileSize: string;
+  downloadUrl: string;
+}
+
+const MOCK_SCHEDULES: ReportSchedule[] = [
+  { id: 'sc1', name: 'Weekly Executive Summary', reportType: 'executive', cron: '0 9 * * 1', cronHuman: 'Every Monday at 9:00 AM', status: 'active', nextRun: '2026-07-07T09:00:00Z', recipients: ['ceo@acme.com', 'cto@acme.com'], format: 'pdf', createdBy: 'admin@recurrsive.dev' },
+  { id: 'sc2', name: 'Daily Technical Report', reportType: 'technical', cron: '0 6 * * *', cronHuman: 'Every day at 6:00 AM', status: 'active', nextRun: '2026-07-02T06:00:00Z', recipients: ['team@recurrsive.dev'], format: 'html', createdBy: 'alice@recurrsive.dev' },
+  { id: 'sc3', name: 'Monthly Compliance Audit', reportType: 'compliance', cron: '0 8 1 * *', cronHuman: '1st of every month at 8:00 AM', status: 'active', nextRun: '2026-08-01T08:00:00Z', recipients: ['compliance@acme.com'], format: 'pdf', createdBy: 'admin@recurrsive.dev' },
+  { id: 'sc4', name: 'Bi-weekly Metrics Export', reportType: 'custom', cron: '0 10 1,15 * *', cronHuman: '1st & 15th at 10:00 AM', status: 'paused', nextRun: '2026-07-15T10:00:00Z', recipients: ['data@recurrsive.dev'], format: 'csv', createdBy: 'bob@recurrsive.dev' },
+];
+
+const MOCK_SCHEDULE_HISTORY: ScheduleRunHistory[] = [
+  { id: 'r1', scheduleId: 'sc1', scheduleName: 'Weekly Executive Summary', status: 'success', startedAt: '2026-06-30T09:00:00Z', completedAt: '2026-06-30T09:02:15Z', fileSize: '2.4 MB', downloadUrl: '#' },
+  { id: 'r2', scheduleId: 'sc2', scheduleName: 'Daily Technical Report', status: 'success', startedAt: '2026-07-01T06:00:00Z', completedAt: '2026-07-01T06:01:30Z', fileSize: '1.1 MB', downloadUrl: '#' },
+  { id: 'r3', scheduleId: 'sc3', scheduleName: 'Monthly Compliance Audit', status: 'success', startedAt: '2026-07-01T08:00:00Z', completedAt: '2026-07-01T08:05:42Z', fileSize: '5.8 MB', downloadUrl: '#' },
+  { id: 'r4', scheduleId: 'sc2', scheduleName: 'Daily Technical Report', status: 'failed', startedAt: '2026-06-30T06:00:00Z', completedAt: '2026-06-30T06:00:45Z', fileSize: '—', downloadUrl: '' },
+  { id: 'r5', scheduleId: 'sc1', scheduleName: 'Weekly Executive Summary', status: 'success', startedAt: '2026-06-23T09:00:00Z', completedAt: '2026-06-23T09:02:00Z', fileSize: '2.3 MB', downloadUrl: '#' },
+];
+
+export async function getSchedules(): Promise<ReportSchedule[]> {
+  try {
+    const res = await apiFetch<{ schedules: ReportSchedule[] } | null>('/api/v1/schedules', null);
+    if (res?.schedules) return res.schedules;
+  } catch { /* fall through */ }
+  return MOCK_SCHEDULES;
+}
+
+export async function getScheduleHistory(): Promise<ScheduleRunHistory[]> {
+  try {
+    const res = await apiFetch<{ runs: ScheduleRunHistory[] } | null>('/api/v1/schedules/history', null);
+    if (res?.runs) return res.runs;
+  } catch { /* fall through */ }
+  return MOCK_SCHEDULE_HISTORY;
+}
+
