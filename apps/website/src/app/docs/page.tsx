@@ -37,7 +37,7 @@ const QUICK_START = [
     description: '5-minute setup guide. Install Recurrsive, connect your repositories, and run your first analysis.',
     tag: '5 min',
     tagColor: 'var(--green)',
-    href: '#',
+    href: '/docs/getting-started',
   },
   {
     icon: Code2,
@@ -45,7 +45,7 @@ const QUICK_START = [
     description: 'Complete REST API documentation with 138 endpoints covering analysis, policies, and management.',
     tag: '138 endpoints',
     tagColor: 'var(--blue)',
-    href: '#',
+    href: '/docs/api-reference',
   },
   {
     icon: Terminal,
@@ -53,7 +53,7 @@ const QUICK_START = [
     description: 'Command-line interface for automation, scripting, and CI/CD integration with 25 commands.',
     tag: '25 commands',
     tagColor: 'var(--cyan)',
-    href: '#',
+    href: '/docs/cli-reference',
   },
   {
     icon: Puzzle,
@@ -61,7 +61,7 @@ const QUICK_START = [
     description: 'Build custom analyzers, collectors, and intelligence packs with our TypeScript SDK.',
     tag: 'SDK',
     tagColor: 'var(--purple)',
-    href: '#',
+    href: '/docs/plugin-sdk',
   },
   {
     icon: Server,
@@ -77,7 +77,7 @@ const QUICK_START = [
     description: 'Deep-dive into Recurrsive internals: knowledge graph, reasoning engine, and analysis pipeline.',
     tag: 'Advanced',
     tagColor: 'var(--red)',
-    href: '#',
+    href: '/docs/architecture',
   },
 ];
 
@@ -86,9 +86,9 @@ const POPULAR_GUIDES = [
     category: 'Setup & Configuration',
     color: 'var(--green)',
     guides: [
-      { title: 'Docker Compose Deployment', duration: '10 min', href: '#' },
-      { title: 'Kubernetes Helm Chart', duration: '15 min', href: '#' },
-      { title: 'Environment Variables Reference', duration: '5 min', href: '#' },
+      { title: 'Docker Compose Deployment', duration: '10 min', href: '/docs/deployment' },
+      { title: 'Kubernetes Helm Chart', duration: '15 min', href: '/docs/deployment' },
+      { title: 'Environment Variables Reference', duration: '5 min', href: '/docs/deployment' },
       { title: 'SSO / SAML Configuration', duration: '12 min', href: '#' },
     ],
   },
@@ -96,9 +96,9 @@ const POPULAR_GUIDES = [
     category: 'Analysis & Insights',
     color: 'var(--blue)',
     guides: [
-      { title: 'Understanding the Knowledge Graph', duration: '8 min', href: '#' },
+      { title: 'Understanding the Knowledge Graph', duration: '8 min', href: '/docs/architecture' },
       { title: 'Creating Custom Policies', duration: '15 min', href: '#' },
-      { title: 'Interpreting Risk Scores', duration: '6 min', href: '#' },
+      { title: 'Interpreting Risk Scores', duration: '6 min', href: '/docs/api-reference' },
       { title: 'Building Executive Dashboards', duration: '12 min', href: '#' },
     ],
   },

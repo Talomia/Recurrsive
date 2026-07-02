@@ -57,14 +57,14 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 
 | Surface | Count |
 |---------|-------|
-| 📡 Server REST endpoints | 138 |
+| 📡 Server REST endpoints | 148 |
 | ⌨️ CLI commands | 25 |
 | 🔌 MCP tools | 42 |
 | 💬 MCP prompts | 21 |
 | 📦 MCP resources | 16 |
 | 🖥️ Dashboard pages | 40 |
-| 🌐 Website pages | 11 |
-| ✅ Tests | 2,920+ |
+| 🌐 Website pages | 23 |
+| ✅ Tests | 3,000+ |
 | 📁 Packages | 14 (9 core + 5 apps) |
 
 ---

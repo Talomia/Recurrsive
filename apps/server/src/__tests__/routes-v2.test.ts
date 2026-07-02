@@ -1390,3 +1390,192 @@ describe('Scheduling endpoints', () => {
     expect(body.data).toHaveProperty('totalRuns');
   });
 });
+
+// ==========================================================================
+// Marketplace Routes (10 tests)
+// ==========================================================================
+
+describe('Marketplace Routes', () => {
+  it('GET /api/v1/marketplace/extensions returns extension list', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/marketplace/extensions' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body).toHaveProperty('total');
+    expect(body).toHaveProperty('categories');
+  });
+
+  it('GET /api/v1/marketplace/extensions supports category filter', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/marketplace/extensions?category=analyzer' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    body.data.forEach((ext: any) => {
+      expect(ext.category).toBe('analyzer');
+    });
+  });
+
+  it('GET /api/v1/marketplace/extensions supports source filter', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/marketplace/extensions?source=built-in' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    body.data.forEach((ext: any) => {
+      expect(ext.source).toBe('built-in');
+    });
+  });
+
+  it('GET /api/v1/marketplace/extensions supports search', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/marketplace/extensions?search=security' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.length).toBeGreaterThan(0);
+  });
+
+  it('GET /api/v1/marketplace/extensions supports sorting', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/marketplace/extensions?sort=rating' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    for (let i = 1; i < body.data.length; i++) {
+      expect(body.data[i - 1].rating).toBeGreaterThanOrEqual(body.data[i].rating);
+    }
+  });
+
+  it('GET /api/v1/marketplace/extensions/:id returns extension detail', async () => {
+    const listRes = await app.inject({ method: 'GET', url: '/api/v1/marketplace/extensions' });
+    const firstExt = listRes.json().data[0];
+    const res = await app.inject({ method: 'GET', url: `/api/v1/marketplace/extensions/${firstExt.id}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.id).toBe(firstExt.id);
+  });
+
+  it('GET /api/v1/marketplace/extensions/:id returns 404 for unknown', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/marketplace/extensions/nonexistent' });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('POST /api/v1/marketplace/extensions submits new extension', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/marketplace/extensions',
+      payload: { name: 'Test Analyzer', category: 'analyzer', description: 'Test extension', repositoryUrl: 'https://github.com/test/test', author: 'Test', version: '1.0.0' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data.status).toBe('review');
+  });
+
+  it('GET /api/v1/marketplace/categories returns category list', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/marketplace/categories' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBe(4);
+  });
+
+  it('GET /api/v1/marketplace/stats returns statistics', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/marketplace/stats' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toHaveProperty('totalExtensions');
+    expect(body.data).toHaveProperty('totalDownloads');
+    expect(body.data).toHaveProperty('averageRating');
+    expect(body.data).toHaveProperty('categoryCounts');
+    expect(body.data).toHaveProperty('sourceCounts');
+  });
+});
+
+// ==========================================================================
+// Partner Routes (10 tests)
+// ==========================================================================
+
+describe('Partner Routes', () => {
+  it('GET /api/v1/partners returns partner list', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/partners' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body).toHaveProperty('total');
+    expect(body).toHaveProperty('tierCounts');
+  });
+
+  it('GET /api/v1/partners supports tier filter', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/partners?tier=platinum' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    body.data.forEach((p: any) => {
+      expect(p.tier).toBe('platinum');
+    });
+  });
+
+  it('GET /api/v1/partners supports type filter', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/partners?type=consulting' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    body.data.forEach((p: any) => {
+      expect(p.type).toBe('consulting');
+    });
+  });
+
+  it('GET /api/v1/partners supports region filter', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/partners?region=europe' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    body.data.forEach((p: any) => {
+      expect(p.regions.some((r: string) => r.toLowerCase().includes('europe'))).toBe(true);
+    });
+  });
+
+  it('GET /api/v1/partners/:id returns partner detail', async () => {
+    const listRes = await app.inject({ method: 'GET', url: '/api/v1/partners' });
+    const firstPartner = listRes.json().data[0];
+    const res = await app.inject({ method: 'GET', url: `/api/v1/partners/${firstPartner.id}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.id).toBe(firstPartner.id);
+  });
+
+  it('GET /api/v1/partners/:id returns 404 for unknown', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/partners/nonexistent' });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('POST /api/v1/partners/apply submits application', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/partners/apply',
+      payload: { companyName: 'Test Corp', contactEmail: 'test@example.com', partnerType: 'consulting', website: 'https://test.com', contactName: 'John Doe', companySize: '50-200', description: 'Test application' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data.status).toBe('pending');
+  });
+
+  it('POST /api/v1/partners/apply validates required fields', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/partners/apply',
+      payload: { companyName: 'Test Corp' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/v1/partners/certifications returns certification tracks', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/partners/certifications' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBe(3);
+    expect(body.data[0]).toHaveProperty('level');
+    expect(body.data[0]).toHaveProperty('name');
+    expect(body.data[0]).toHaveProperty('cost');
+  });
+
+  it('GET /api/v1/partners/stats returns program statistics', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/partners/stats' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toHaveProperty('totalPartners');
+    expect(body.data).toHaveProperty('totalCertifiedEngineers');
+    expect(body.data).toHaveProperty('totalCustomersServed');
+    expect(body.data).toHaveProperty('tierDistribution');
+  });
+});
+

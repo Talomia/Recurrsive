@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-07-02
+
+### Added
+
+#### Server Routes
+- **Marketplace API** — 5 new endpoints: list/search/filter extensions, submit extension, categories, stats (`/api/v1/marketplace/*`)
+- **Partner API** — 5 new endpoints: list/filter partners, partner detail, apply, certifications, stats (`/api/v1/partners/*`)
+- Seeded with 27 built-in + 6 community marketplace extensions
+- Seeded with 8 partners and 3 certification tracks
+
+#### Website Sub-Pages (12 new pages → 23 total)
+- `/docs/getting-started` — 5-minute quickstart guide with code blocks
+- `/docs/api-reference` — 148 REST endpoints documentation
+- `/docs/cli-reference` — 25 CLI commands reference
+- `/docs/plugin-sdk` — Custom analyzer and collector development guide
+- `/docs/deployment` — Docker, Kubernetes, and cloud deployment guides
+- `/docs/architecture` — System design and pipeline overview
+- `/cloud/dashboard` — Mock cloud management console
+- `/cloud/billing` — Billing, usage breakdown, and invoice history
+- `/partners/directory` — 8-partner directory with tier filtering
+- `/partners/apply` — Partner application form
+- `/partners/certification` — 3 certification tracks (Analyst, Architect, Administrator)
+- `/marketplace/submit` — Extension submission form with guidelines
+
+#### Tests
+- 20 new route tests (10 marketplace + 10 partner)
+- Total: 420 server tests + 81 dashboard tests = 501 automated tests
+
+### Changed
+- Updated README: 148 endpoints, 23 website pages, 3,000+ tests
+- Bumped version to 0.5.1
+
 ## [0.5.0] - 2026-07-02
 
 ### Added

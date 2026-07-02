@@ -39,6 +39,8 @@ import { registerMultiTenantRoutes } from './multi-tenant.js';
 import { registerSimulationRoutes } from './simulation.js';
 import { registerCloudRoutes } from './cloud.js';
 import { registerGraphQLRoutes } from './graphql.js';
+import { registerMarketplaceRoutes } from './marketplace.js';
+import { registerPartnerRoutes } from './partners.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -100,4 +102,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerSimulationRoutes(app);
   await registerCloudRoutes(app);
   await registerGraphQLRoutes(app);
+  await registerMarketplaceRoutes(app);
+  await registerPartnerRoutes(app);
 }
