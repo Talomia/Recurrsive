@@ -81,7 +81,7 @@ export function createProgram(): Command {
   program
     .name('recurrsive')
     .description('Engineering Intelligence Platform')
-    .version('0.2.1');
+    .version('0.5.4');
 
   // Register all commands
   registerInitCommand(program);

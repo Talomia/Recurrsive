@@ -28,7 +28,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       initialized,
-      version: '0.1.0',
+      version: '0.5.4',
     });
   });
 
