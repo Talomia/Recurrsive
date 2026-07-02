@@ -40,6 +40,19 @@ Example: `severity == "critical" && confidence > 0.8`
 | Compliance | 3 | Enforce regulatory requirements |
 | Quality Gates | 4 | Minimum quality thresholds |
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/policy
+
+# Build
+pnpm build --filter @recurrsive/policy
+
+# Lint
+pnpm lint --filter @recurrsive/policy
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

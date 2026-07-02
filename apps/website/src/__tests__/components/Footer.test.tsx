@@ -96,7 +96,7 @@ describe('Footer', () => {
     const { container } = render(<Footer />);
     const footer = container.querySelector('footer')!;
     const externalLinks = footer.querySelectorAll('a[target="_blank"]');
-    expect(externalLinks.length).toBeGreaterThanOrEqual(4);
+    expect(externalLinks.length).toBeGreaterThanOrEqual(2);
   });
 
   it('renders GitHub social link with correct href', () => {

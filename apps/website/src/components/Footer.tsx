@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Github, Twitter, Linkedin, Mail, Heart } from 'lucide-react';
+import { Github, Mail, Heart } from 'lucide-react';
 
 const FOOTER_LINKS = {
   Product: [
@@ -35,8 +35,6 @@ const FOOTER_LINKS = {
 
 const SOCIAL_LINKS = [
   { icon: Github, href: 'https://github.com/Talomia/Recurrsive', label: 'GitHub' },
-  { icon: Twitter, href: '#', label: 'Twitter' },
-  { icon: Linkedin, href: '#', label: 'LinkedIn' },
   { icon: Mail, href: 'mailto:hello@recurrsive.dev', label: 'Email' },
 ];
 

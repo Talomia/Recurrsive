@@ -44,6 +44,19 @@ Findings → 19 Specialists → Debate Protocol → Synthesizer → Judge → Op
 
 Provider-agnostic with support for: OpenAI, Anthropic, Ollama, vLLM, LiteLLM, OpenRouter.
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/reasoning
+
+# Build
+pnpm build --filter @recurrsive/reasoning
+
+# Lint
+pnpm lint --filter @recurrsive/reasoning
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

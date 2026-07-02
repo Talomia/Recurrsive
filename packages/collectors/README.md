@@ -55,6 +55,19 @@ const result = await collector.collect();
 | Path Exclusion | Glob-based directory filtering |
 | Audit Logging | Records all governance actions |
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/collectors
+
+# Build
+pnpm build --filter @recurrsive/collectors
+
+# Lint
+pnpm lint --filter @recurrsive/collectors
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

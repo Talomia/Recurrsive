@@ -40,6 +40,19 @@ const findings = await runner.run(analysisContext);
 | API Contract | 7 | API versioning, breaking changes, OpenAPI compliance |
 | AI Runtime | 8 | Model monitoring, prompt injection, LLM cost optimization |
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/analyzers
+
+# Build
+pnpm build --filter @recurrsive/analyzers
+
+# Lint
+pnpm lint --filter @recurrsive/analyzers
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

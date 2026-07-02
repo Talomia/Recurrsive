@@ -40,6 +40,19 @@ const stats = await client.getStats();
 | `findAIWorkflow()` | Discover agent-tool-prompt workflows |
 | `findEntitiesByPattern()` | Name/pattern matching |
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/graph
+
+# Build
+pnpm build --filter @recurrsive/graph
+
+# Lint
+pnpm lint --filter @recurrsive/graph
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

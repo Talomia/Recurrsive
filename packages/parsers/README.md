@@ -32,6 +32,19 @@ Detects **13 AI pattern types**:
 | Evaluations | `evaluate()` calls |
 | Guardrails | NeMo, safety_settings |
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/parsers
+
+# Build
+pnpm build --filter @recurrsive/parsers
+
+# Lint
+pnpm lint --filter @recurrsive/parsers
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

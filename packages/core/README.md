@@ -41,6 +41,19 @@ pnpm add @recurrsive/core
 | `RecurrsiveConfigSchema` | Zod schema for validating configuration |
 | `EntityTypeSchema` | Zod schema for entity type literals |
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/core
+
+# Build
+pnpm build --filter @recurrsive/core
+
+# Lint
+pnpm lint --filter @recurrsive/core
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

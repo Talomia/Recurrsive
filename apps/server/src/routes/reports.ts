@@ -56,8 +56,8 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
       try {
         const info = state.getProjectInfo();
         projectName = info.name;
-      } catch {
-        // Server may not be initialized yet
+      } catch (err) {
+        logger.warn('Could not fetch project info for report', { error: err instanceof Error ? err.message : String(err) });
       }
 
       logger.info(`Generating ${format} report`);

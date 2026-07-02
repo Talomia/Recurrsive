@@ -90,7 +90,11 @@ export default function Sidebar() {
     fetch('/api/v1/opportunities')
       .then((r) => r.json())
       .then((data) => setOpportunityCount(data.data?.length ?? 23))
-      .catch(() => {});
+      .catch((err) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[Sidebar] Failed to fetch opportunity count:', err);
+        }
+      });
   }, []);
 
   // Hide sidebar on the login page

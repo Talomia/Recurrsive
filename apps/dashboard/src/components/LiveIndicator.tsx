@@ -93,6 +93,9 @@ export function LiveIndicator({
 
   return (
     <div
+      role="status"
+      aria-live="polite"
+      aria-label={`Connection status: ${config.label}${showClientCount && clientCount > 0 ? `, ${clientCount} clients` : ''}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

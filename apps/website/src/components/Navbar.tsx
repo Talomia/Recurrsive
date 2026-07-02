@@ -45,7 +45,7 @@ const NAV_ITEMS = [
     href: '/docs',
     items: [
       { label: 'Getting Started', href: '/docs/getting-started', icon: Rocket, desc: '5-minute quickstart guide' },
-      { label: 'API Reference', href: '/docs/api-reference', icon: Code, desc: '148 REST endpoints' },
+      { label: 'API Reference', href: '/docs/api-reference', icon: Code, desc: '150 REST endpoints' },
       { label: 'CLI Reference', href: '/docs/cli-reference', icon: Terminal, desc: '25 CLI commands' },
       { label: 'Plugin SDK', href: '/docs/plugin-sdk', icon: Store, desc: 'Build custom extensions' },
       { label: 'All Documentation', href: '/docs', icon: BookOpen, desc: 'Guides, API & architecture' },
@@ -84,6 +84,7 @@ export function Navbar() {
     >
       <nav
         className="container"
+        aria-label="Main navigation"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -138,6 +139,8 @@ export function Navbar() {
             >
               <Link
                 href={item.href}
+                aria-expanded={item.items ? openDropdown === item.label : undefined}
+                aria-haspopup={item.items ? 'true' : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -155,9 +158,19 @@ export function Navbar() {
                 onMouseLeave={(e) =>
                   (e.currentTarget.style.color = 'var(--text-secondary)')
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setOpenDropdown(null);
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    if (item.items) {
+                      e.preventDefault();
+                      setOpenDropdown(openDropdown === item.label ? null : item.label);
+                    }
+                  }
+                }}
+                onFocus={() => item.items && setOpenDropdown(item.label)}
               >
                 {item.label}
-                {item.items && <ChevronDown size={14} />}
+                {item.items && <ChevronDown size={14} aria-hidden="true" />}
               </Link>
 
               {/* Dropdown */}
@@ -267,6 +280,7 @@ export function Navbar() {
             padding: 8,
           }}
           aria-label="Toggle menu"
+          aria-expanded={mobileOpen}
         >
           {mobileOpen ? <X size={24} /> : <Menu size={24} />}
         </button>

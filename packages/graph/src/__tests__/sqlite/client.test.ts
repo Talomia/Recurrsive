@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SqliteGraphClient, createSqliteClient } from '../../providers/sqlite.js';
+import type { SqliteGraphClient} from '../../providers/sqlite.js';
+import { createSqliteClient } from '../../providers/sqlite.js';
 import type { Entity, Relationship, EntityType } from '@recurrsive/core';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

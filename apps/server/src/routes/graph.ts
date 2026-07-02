@@ -9,7 +9,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { EntityType } from '@recurrsive/core';
+import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+
+const logger = createLogger({ context: { component: 'server:routes:graph' } });
 
 // ---------------------------------------------------------------------------
 // Request types
@@ -67,6 +70,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to fetch graph stats', { error: message });
       return reply.status(500).send({
         error: 'Graph query failed',
         message,
@@ -134,6 +138,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to list graph entities', { error: message });
         return reply.status(500).send({
           error: 'Graph query failed',
           message,
@@ -180,6 +185,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to fetch entity by ID', { error: message });
         return reply.status(500).send({
           error: 'Graph query failed',
           message,
@@ -240,6 +246,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to fetch entity neighbors', { error: message });
         return reply.status(500).send({
           error: 'Graph query failed',
           message,
@@ -336,8 +343,8 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
             );
             allResults.push(...matches);
             if (allResults.length >= limit) break;
-          } catch {
-            // Skip entity types that fail to query
+          } catch (err) {
+            logger.warn('Skipping entity type query during search', { error: err instanceof Error ? err.message : String(err), entityType: et });
           }
         }
 
@@ -349,6 +356,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to search graph entities', { error: message });
         return reply.status(500).send({
           error: 'Graph search failed',
           message,

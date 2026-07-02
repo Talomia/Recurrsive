@@ -10,8 +10,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { Entity, Relationship } from '@recurrsive/core';
-import { nowISO } from '@recurrsive/core';
+import { nowISO, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+
+const logger = createLogger({ context: { component: 'server:routes:snapshots' } });
 
 // ---------------------------------------------------------------------------
 // Types
@@ -119,6 +121,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
         .send(snapshot);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to export snapshot', { error: message });
       return reply.status(500).send({
         error: 'Export failed',
         message,
@@ -179,6 +182,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to import snapshot', { error: message });
       return reply.status(500).send({
         error: 'Import failed',
         message,

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
+import { SkipToContent } from '@/components/SkipToContent';
 
 export const metadata: Metadata = {
   title: {
@@ -41,8 +42,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <SkipToContent />
         <Navbar />
-        <main>{children}</main>
+        <main id="main-content">{children}</main>
         <Footer />
       </body>
     </html>

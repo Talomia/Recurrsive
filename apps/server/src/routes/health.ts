@@ -7,8 +7,10 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { VERSION } from '@recurrsive/core';
+import { VERSION, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+
+const logger = createLogger({ context: { component: 'server:routes:health' } });
 
 /**
  * Register health check routes.
@@ -112,52 +114,61 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       });
     }
 
-    const graph = state.getGraph();
-    const stats = await graph.getStats();
-    const totalEntities = stats.totalEntities;
-    const totalRelationships = stats.totalRelationships;
-    const fileCount = stats.entityCountsByType['file'] ?? 1;
+    try {
+      const graph = state.getGraph();
+      const stats = await graph.getStats();
+      const totalEntities = stats.totalEntities;
+      const totalRelationships = stats.totalRelationships;
+      const fileCount = stats.entityCountsByType['file'] ?? 1;
 
-    const analysisTimeSec = (cache.durationMs / 1000).toFixed(1);
-    const entityDensity = fileCount > 0 ? (totalEntities / fileCount).toFixed(1) : '0';
-    const issueDensity = totalEntities > 0
-      ? ((cache.findings.length / totalEntities) * 1000).toFixed(1)
-      : '0';
-    const coverageRatio = totalEntities > 0
-      ? (totalRelationships / totalEntities).toFixed(2)
-      : '0';
+      const analysisTimeSec = (cache.durationMs / 1000).toFixed(1);
+      const entityDensity = fileCount > 0 ? (totalEntities / fileCount).toFixed(1) : '0';
+      const issueDensity = totalEntities > 0
+        ? ((cache.findings.length / totalEntities) * 1000).toFixed(1)
+        : '0';
+      const coverageRatio = totalEntities > 0
+        ? (totalRelationships / totalEntities).toFixed(2)
+        : '0';
 
-    const metrics = [
-      {
-        label: 'Analysis Time',
-        value: analysisTimeSec,
-        unit: 's',
-        trend: 0,
-        data: [{ value: parseFloat(analysisTimeSec) }],
-      },
-      {
-        label: 'Entity Density',
-        value: entityDensity,
-        unit: 'per file',
-        trend: 0,
-        data: [{ value: parseFloat(entityDensity) }],
-      },
-      {
-        label: 'Issue Density',
-        value: issueDensity,
-        unit: 'per 1K',
-        trend: 0,
-        data: [{ value: parseFloat(issueDensity) }],
-      },
-      {
-        label: 'Graph Coverage',
-        value: coverageRatio,
-        unit: 'ratio',
-        trend: 0,
-        data: [{ value: parseFloat(coverageRatio) }],
-      },
-    ];
+      const metrics = [
+        {
+          label: 'Analysis Time',
+          value: analysisTimeSec,
+          unit: 's',
+          trend: 0,
+          data: [{ value: parseFloat(analysisTimeSec) }],
+        },
+        {
+          label: 'Entity Density',
+          value: entityDensity,
+          unit: 'per file',
+          trend: 0,
+          data: [{ value: parseFloat(entityDensity) }],
+        },
+        {
+          label: 'Issue Density',
+          value: issueDensity,
+          unit: 'per 1K',
+          trend: 0,
+          data: [{ value: parseFloat(issueDensity) }],
+        },
+        {
+          label: 'Graph Coverage',
+          value: coverageRatio,
+          unit: 'ratio',
+          trend: 0,
+          data: [{ value: parseFloat(coverageRatio) }],
+        },
+      ];
 
-    return reply.status(200).send({ data: metrics });
+      return reply.status(200).send({ data: metrics });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to compute performance metrics', { error: message });
+      return reply.status(500).send({
+        error: 'Metrics computation failed',
+        message,
+      });
+    }
   });
 }

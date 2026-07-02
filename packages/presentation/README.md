@@ -31,6 +31,19 @@ pnpm add @recurrsive/presentation
 | `formatHealthScore()` | Health score with status labels |
 | `formatOpportunities()` | Opportunity table with truncation |
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/presentation
+
+# Build
+pnpm build --filter @recurrsive/presentation
+
+# Lint
+pnpm lint --filter @recurrsive/presentation
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

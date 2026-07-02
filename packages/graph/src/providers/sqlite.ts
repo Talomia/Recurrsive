@@ -14,7 +14,7 @@
 import Database from 'better-sqlite3';
 import type { Entity, EntityType, Relationship } from '@recurrsive/core';
 import { GraphError } from '@recurrsive/core';
-import type { GraphClient } from '@recurrsive/core';
+// GraphClient interface is implemented via ExtendedGraphClient
 import type { ExtendedGraphClient, GraphStats } from './age.js';
 import { migrate } from '../migrations/001_initial_schema.js';
 
@@ -46,15 +46,15 @@ function rowToEntity(row: Record<string, unknown>): Entity {
     type: String(row['type']) as EntityType,
     name: String(row['name']),
     qualified_name: String(row['qualified_name']),
-    description: row['description'] != null ? String(row['description']) : undefined,
+    description: row['description'] !== null ? String(row['description']) : undefined,
     source: String(row['source']),
-    source_location: row['source_location'] != null
+    source_location: row['source_location'] !== null
       ? JSON.parse(String(row['source_location']))
       : undefined,
-    properties: row['properties'] != null
+    properties: row['properties'] !== null
       ? JSON.parse(String(row['properties']))
       : {},
-    tags: row['tags'] != null
+    tags: row['tags'] !== null
       ? JSON.parse(String(row['tags']))
       : [],
     created_at: String(row['created_at']),
@@ -75,7 +75,7 @@ function rowToRelationship(row: Record<string, unknown>): Relationship {
     type: String(row['type']) as Relationship['type'],
     source_id: String(row['source_id']),
     target_id: String(row['target_id']),
-    properties: row['properties'] != null
+    properties: row['properties'] !== null
       ? JSON.parse(String(row['properties']))
       : {},
     confidence: typeof row['confidence'] === 'number' ? row['confidence'] : 1,
@@ -414,7 +414,7 @@ export class SqliteGraphClient implements ExtendedGraphClient {
         entity.qualified_name,
         entity.description ?? null,
         entity.source,
-        entity.source_location != null ? JSON.stringify(entity.source_location) : null,
+        entity.source_location !== null ? JSON.stringify(entity.source_location) : null,
         JSON.stringify(entity.properties),
         JSON.stringify(entity.tags),
         entity.created_at,
@@ -645,7 +645,7 @@ export class SqliteGraphClient implements ExtendedGraphClient {
         qualified_name: String(row['qualified_name']),
         description: row['description'] ? String(row['description']) : undefined,
         source: String(row['source']),
-        source_location: row['source_location'] != null
+        source_location: row['source_location'] !== null
           ? JSON.parse(String(row['source_location']))
           : undefined,
         properties: JSON.parse(String(row['properties'] ?? '{}')),

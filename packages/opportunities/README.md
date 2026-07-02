@@ -32,6 +32,19 @@ const roadmap = manager.generateRoadmap();
 | Roadmap | 3-phase grouping: Quick Wins → Strategic → Long-term |
 | Persistence | JSON save/load with import validation |
 
+## Development
+
+```bash
+# Run tests
+pnpm test --filter @recurrsive/opportunities
+
+# Build
+pnpm build --filter @recurrsive/opportunities
+
+# Lint
+pnpm lint --filter @recurrsive/opportunities
+```
+
 ## License
 
 [Apache-2.0](../../LICENSE)

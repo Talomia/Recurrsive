@@ -9,7 +9,10 @@
 import type { FastifyInstance } from 'fastify';
 import type { OpportunityCategory, OpportunityStatus, Severity } from '@recurrsive/core';
 import type { ExportFormat } from '@recurrsive/opportunities';
+import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+
+const logger = createLogger({ context: { component: 'server:routes:opportunities' } });
 
 // ---------------------------------------------------------------------------
 // Query / Param schemas (type-safe request typing)
@@ -143,6 +146,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
         return reply.status(200).send({ data: updated });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to update opportunity status', { error: message, id });
         return reply.status(404).send({
           error: 'Not found',
           message,
@@ -199,6 +203,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
           .send(exported);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to export opportunities', { error: message, format });
         return reply.status(500).send({
           error: 'Export failed',
           message,
