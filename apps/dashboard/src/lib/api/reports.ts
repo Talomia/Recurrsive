@@ -394,3 +394,33 @@ export async function getScheduleHistory(): Promise<ScheduleRunHistory[]> {
   } catch { /* fall through */ }
   return MOCK_SCHEDULE_HISTORY;
 }
+
+// ─── Reports Page Analysis History ───────────────────────────────────────────
+
+export interface ReportsAnalysisHistoryEntry {
+  id: string;
+  startedAt: string;
+  completedAt: string;
+  findingCount: number;
+  opportunityCount: number;
+  status: string;
+}
+
+const MOCK_REPORTS_ANALYSIS_HISTORY: ReportsAnalysisHistoryEntry[] = [
+  { id: 'run-001', startedAt: '2026-06-30T10:00:00Z', completedAt: '2026-06-30T10:02:34Z', findingCount: 47, opportunityCount: 23, status: 'success' },
+  { id: 'run-002', startedAt: '2026-06-29T09:00:00Z', completedAt: '2026-06-29T09:01:48Z', findingCount: 42, opportunityCount: 19, status: 'success' },
+  { id: 'run-003', startedAt: '2026-06-28T14:30:00Z', completedAt: '2026-06-28T14:32:12Z', findingCount: 51, opportunityCount: 25, status: 'success' },
+  { id: 'run-004', startedAt: '2026-06-27T08:15:00Z', completedAt: '2026-06-27T08:16:55Z', findingCount: 38, opportunityCount: 17, status: 'success' },
+  { id: 'run-005', startedAt: '2026-06-25T16:00:00Z', completedAt: '2026-06-25T16:02:20Z', findingCount: 55, opportunityCount: 28, status: 'success' },
+];
+
+/**
+ * Get analysis history for the reports page from `GET /api/v1/analysis/history`.
+ */
+export async function getReportsAnalysisHistory(): Promise<ReportsAnalysisHistoryEntry[]> {
+  try {
+    const raw = await apiFetch<{ data: ReportsAnalysisHistoryEntry[] } | null>('/api/v1/analysis/history', null);
+    if (raw?.data?.length) return raw.data;
+  } catch { /* fall through */ }
+  return MOCK_REPORTS_ANALYSIS_HISTORY;
+}

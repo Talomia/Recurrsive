@@ -1,6 +1,6 @@
 # Recurrsive — Product Roadmap
 
-## Current State (v0.4.0)
+## Current State (v0.5.2)
 
 | Component | Status | Evidence |
 |---|---|---|
@@ -15,8 +15,9 @@
 | Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
 | CLI | ✅ Complete | 25 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export, projects, forecast, plugins, secrets, simulate, cloud) |
 | MCP Server | ✅ Complete | 42 tools, 16 resources, 21 prompts |
-| REST API | ✅ Complete | 138 endpoints, WebSocket streaming, JWT/API key auth, RBAC |
+| REST API | ✅ Complete | 150 endpoints, OpenAPI 3.1 spec, WebSocket streaming, JWT/API key auth, RBAC |
 | Dashboard | ✅ Complete | Next.js, 40 pages (incl. detail pages), 8+ components, real-time WebSocket |
+| Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
 | Tests | ✅ Complete | 112 test files, integration tests for full pipeline |
 
@@ -141,11 +142,18 @@ Build organizational engineering memory and explore network effects.
 - [x] Recurrsive Cloud *(v0.5.0 — marketing site with managed cloud pages, pricing, and regions)*
 
 ### Marketing & Ecosystem (v0.5.0)
-- [x] **Marketing website** — 11-page Next.js site (landing, product, pricing, marketplace, cloud, partners, docs, about, blog, contact, changelog)
-- [x] **Marketplace UI** — Browse, filter, and discover analyzers, collectors, policies, and intelligence packs
-- [x] **Cloud product pages** — Managed SaaS offering with 3 tiers and multi-region
-- [x] **Partner portal** — Partner program, directory, certification tracks, application
-- [x] **Documentation hub** — Centralized docs landing with quick-start guides
+- [x] **Marketing website** — 23-page Next.js site with 5 areas:
+  - Core: landing, product, pricing, about, blog, contact, changelog
+  - Marketplace: browse + submit extensions
+  - Cloud: overview + dashboard + billing
+  - Partners: overview + directory + apply + certification
+  - Docs: getting-started, API reference, CLI, plugin SDK, deployment, architecture
+- [x] **Marketplace API** — 5 server endpoints (extensions CRUD, categories, stats)
+- [x] **Partner API** — 5 server endpoints (directory, apply, certifications, stats)
+- [x] **OpenAPI 3.1 spec** — Auto-generated spec at /api/v1/openapi.json + Swagger UI at /api/docs
+- [x] **SEO** — sitemap.xml, robots.txt, not-found, loading, error pages
+- [x] **Dashboard wiring** — 9 dashboard pages wired to server APIs with mock fallback
+- [x] **Navigation** — 5 dropdown menus with 17+ quick-access links
 
 ---
 

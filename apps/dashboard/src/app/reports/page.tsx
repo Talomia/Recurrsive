@@ -1,6 +1,7 @@
 import Header from "@/components/header";
 import { FileText, Download, Calendar, BarChart3, FileJson, Code2, Shield, Clock } from "lucide-react";
-import { getReportUrl } from "@/lib/api";
+import { getReportUrl, getReportsAnalysisHistory } from "@/lib/api";
+import type { ReportsAnalysisHistoryEntry } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Report format definitions
@@ -42,32 +43,8 @@ const REPORT_FORMATS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Analysis history for recent reports (fetched from server)
+// Helpers
 // ---------------------------------------------------------------------------
-
-interface AnalysisHistoryEntry {
-  id: string;
-  startedAt: string;
-  completedAt: string;
-  findingCount: number;
-  opportunityCount: number;
-  status: string;
-}
-
-const API_BASE = process.env.RECURRSIVE_API_URL ?? "http://localhost:3200";
-
-async function getAnalysisHistory(): Promise<AnalysisHistoryEntry[]> {
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/analysis/history`, {
-      next: { revalidate: 60 },
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.data ?? [];
-  } catch {
-    return [];
-  }
-}
 
 function formatDate(iso: string): string {
   try {
@@ -84,7 +61,7 @@ function formatDate(iso: string): string {
 }
 
 export default async function ReportsPage() {
-  const history = await getAnalysisHistory();
+  const history = await getReportsAnalysisHistory();
 
   return (
     <div className="flex flex-col min-h-screen">

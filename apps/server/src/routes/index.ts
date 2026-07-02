@@ -41,6 +41,7 @@ import { registerCloudRoutes } from './cloud.js';
 import { registerGraphQLRoutes } from './graphql.js';
 import { registerMarketplaceRoutes } from './marketplace.js';
 import { registerPartnerRoutes } from './partners.js';
+import { registerOpenAPIRoutes } from './openapi.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -104,4 +105,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerGraphQLRoutes(app);
   await registerMarketplaceRoutes(app);
   await registerPartnerRoutes(app);
+  await registerOpenAPIRoutes(app);
 }

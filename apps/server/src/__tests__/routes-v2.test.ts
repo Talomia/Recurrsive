@@ -1579,3 +1579,37 @@ describe('Partner Routes', () => {
   });
 });
 
+// ==========================================================================
+// OpenAPI Routes (3 tests)
+// ==========================================================================
+
+describe('OpenAPI Routes', () => {
+  it('GET /api/v1/openapi.json returns valid OpenAPI spec', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/openapi.json' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.openapi).toBe('3.1.0');
+    expect(body.info.title).toBe('Recurrsive API');
+    expect(body).toHaveProperty('paths');
+    expect(body).toHaveProperty('components');
+    expect(body).toHaveProperty('tags');
+  });
+
+  it('GET /api/v1/openapi.json contains expected paths', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/openapi.json' });
+    const body = res.json();
+    expect(body.paths).toHaveProperty('/api/v1/health');
+    expect(body.paths).toHaveProperty('/api/v1/findings');
+    expect(body.paths).toHaveProperty('/api/v1/marketplace/extensions');
+    expect(body.paths).toHaveProperty('/api/v1/partners');
+  });
+
+  it('GET /api/docs returns HTML documentation page', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/docs' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    const html = res.body;
+    expect(html).toContain('swagger-ui');
+    expect(html).toContain('Recurrsive API');
+  });
+});

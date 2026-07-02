@@ -7,7 +7,7 @@ import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shie
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
-import { getMockOpportunities, type Opportunity } from "@/lib/api";
+import { getOpportunities, type Opportunity } from "@/lib/api";
 import clsx from "clsx";
 
 type TabKey = "overview" | "evidence" | "analysis" | "implementation";
@@ -43,59 +43,29 @@ function getMetricBarColor(label: string, value: number): string {
   return "bg-red-500";
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
 
 const CATEGORY_OPTIONS = ["All Categories", "Security", "Performance", "Cost", "DevOps", "Architecture", "Database", "Reliability", "Frontend"] as const;
 const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low"] as const;
 
 export default function OpportunitiesPage() {
   const searchParams = useSearchParams();
-  const [opportunities, setOpportunities] = useState<Opportunity[]>(() => getMockOpportunities());
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [categoryFilter, setCategoryFilter] = useState<string>("All Categories");
   const [severityFilter, setSeverityFilter] = useState<string>("All Severities");
 
-  // Attempt to fetch from API on mount, fall back to mock on failure
+  // Fetch from API on mount, falls back to mock data automatically
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/v1/opportunities?limit=50`);
-        if (!res.ok) throw new Error(`API ${res.status}`);
-        const json = await res.json();
-        if (!cancelled && json?.data?.length) {
-          // Transform server snake_case to dashboard shape
-          const mapped: Opportunity[] = json.data.map((raw: Record<string, unknown>, idx: number) => ({
-            id: (raw.id as string) || `OPP-${1000 + idx}`,
-            title: raw.title as string,
-            description: raw.description as string,
-            categories: [raw.category as string].filter(Boolean),
-            severity: raw.severity as Opportunity["severity"],
-            score: (raw.score as number) ?? 70,
-            impact: (raw.impact as number) ?? 70,
-            confidence: (raw.confidence as number) ?? 80,
-            effort: parseInt(String(raw.effort_estimate ?? "50"), 10) || 50,
-            risk: 30,
-            roi: Math.round(((raw.impact as number) ?? 70) * ((raw.confidence as number) ?? 80) / 100),
-            rootCauses: (raw.root_causes as string[]) ?? [],
-            evidence: ((raw.evidence as Array<Record<string, string>>) ?? []).map((e) => ({
-              type: e.type, description: e.description, source: e.source, value: e.value ?? "",
-            })),
-            affectedComponents: (raw.affected_entities as string[]) ?? [],
-            solution: ((raw.recommendations as Array<Record<string, string>>) ?? []).map((r, i) => ({
-              step: i + 1, title: r.title, description: r.description, effort: r.effort ?? "TBD",
-            })),
-            createdAt: (raw.created_at as string) ?? new Date().toISOString(),
-          }));
-          setOpportunities(mapped);
-          setSelectedId(mapped[0]?.id ?? "");
-        }
-      } catch {
-        // Keep mock data on API failure
+    getOpportunities().then((data) => {
+      if (!cancelled) {
+        setOpportunities(data);
+        if (data.length > 0) setSelectedId(data[0]!.id);
       }
-    })();
+    });
     return () => { cancelled = true; };
   }, []);
 
