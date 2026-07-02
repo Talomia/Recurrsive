@@ -7,44 +7,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { KeyRound, Users, Shield, Globe, LogIn } from 'lucide-react';
-
-interface SSOProvider {
-  id: string;
-  name: string;
-  type: 'okta' | 'auth0' | 'azure_ad' | 'google';
-  status: 'configured' | 'pending' | 'error';
-  domain: string;
-  protocol: 'SAML' | 'OIDC';
-  usersCount: number;
-  lastSync: string;
-}
-
-interface SSOSession {
-  id: string;
-  user: string;
-  email: string;
-  provider: string;
-  ip: string;
-  loginAt: string;
-  expiresAt: string;
-  active: boolean;
-}
-
-const demoProviders: SSOProvider[] = [
-  { id: 'pr1', name: 'Okta Production', type: 'okta', status: 'configured', domain: 'recurrsive.okta.com', protocol: 'SAML', usersCount: 142, lastSync: '2026-07-01T18:00:00Z' },
-  { id: 'pr2', name: 'Auth0 Staging', type: 'auth0', status: 'configured', domain: 'recurrsive-staging.auth0.com', protocol: 'OIDC', usersCount: 38, lastSync: '2026-07-01T17:30:00Z' },
-  { id: 'pr3', name: 'Azure AD', type: 'azure_ad', status: 'pending', domain: 'recurrsive.onmicrosoft.com', protocol: 'SAML', usersCount: 0, lastSync: '' },
-  { id: 'pr4', name: 'Google Workspace', type: 'google', status: 'configured', domain: 'recurrsive.dev', protocol: 'OIDC', usersCount: 89, lastSync: '2026-07-01T16:45:00Z' },
-];
-
-const demoSessions: SSOSession[] = [
-  { id: 'se1', user: 'Alice Chen', email: 'alice@recurrsive.dev', provider: 'Okta Production', ip: '192.168.1.42', loginAt: '2026-07-01T08:12:00Z', expiresAt: '2026-07-01T20:12:00Z', active: true },
-  { id: 'se2', user: 'Bob Martinez', email: 'bob@recurrsive.dev', provider: 'Google Workspace', ip: '10.0.0.15', loginAt: '2026-07-01T09:30:00Z', expiresAt: '2026-07-01T21:30:00Z', active: true },
-  { id: 'se3', user: 'Carol Liu', email: 'carol@recurrsive.dev', provider: 'Okta Production', ip: '172.16.0.8', loginAt: '2026-07-01T07:00:00Z', expiresAt: '2026-07-01T19:00:00Z', active: false },
-  { id: 'se4', user: 'Dan Okafor', email: 'dan@recurrsive.dev', provider: 'Auth0 Staging', ip: '192.168.2.100', loginAt: '2026-07-01T10:45:00Z', expiresAt: '2026-07-01T22:45:00Z', active: true },
-  { id: 'se5', user: 'Eve Nakamura', email: 'eve@recurrsive.dev', provider: 'Google Workspace', ip: '10.0.1.22', loginAt: '2026-07-01T11:00:00Z', expiresAt: '2026-07-01T23:00:00Z', active: true },
-];
+import { KeyRound, Users, Shield, Globe, LogIn, Loader2 } from 'lucide-react';
+import { getSSOProviders, getSSOSessions } from '@/lib/api';
+import type { SSOProvider, SSOSession } from '@/lib/api';
 
 function ProviderStatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -70,11 +35,12 @@ export default function SSOPage() {
   const [newType, setNewType] = useState<string>('okta');
 
   useEffect(() => {
-    setTimeout(() => {
-      setProviders(demoProviders);
-      setSessions(demoSessions);
-      setLoading(false);
-    }, 300);
+    Promise.all([getSSOProviders(), getSSOSessions()])
+      .then(([p, s]) => {
+        setProviders(p);
+        setSessions(s);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const revokeSession = (id: string) => {
@@ -84,7 +50,7 @@ export default function SSOPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-accent)' }} />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
       </div>
     );
   }

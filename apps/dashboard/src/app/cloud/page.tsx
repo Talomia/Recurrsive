@@ -6,75 +6,10 @@
  * Benchmarking, learned patterns, partner directory, and managed service tiers.
  */
 
-import { useState } from 'react';
-import { Cloud, BarChart3, Users, Award, Rocket, Globe } from 'lucide-react';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Benchmark {
-  dimension: string;
-  yourScore: number;
-  p50: number;
-  p75: number;
-  p90: number;
-  percentile: number;
-}
-
-interface LearnedPattern {
-  id: string;
-  name: string;
-  category: string;
-  occurrences: number;
-  successRate: number;
-  lastSeen: string;
-}
-
-interface Partner {
-  id: string;
-  name: string;
-  tier: 'platinum' | 'gold' | 'silver';
-  specialty: string;
-  projects: number;
-  logo: string;
-}
-
-interface ServiceTier {
-  name: string;
-  price: string;
-  features: string[];
-  highlighted: boolean;
-}
-
-// ─── Demo Data ───────────────────────────────────────────────────────────────
-
-const BENCHMARKS: Benchmark[] = [
-  { dimension: 'Security Posture', yourScore: 88, p50: 62, p75: 74, p90: 89, percentile: 89 },
-  { dimension: 'Code Quality', yourScore: 76, p50: 58, p75: 70, p90: 83, percentile: 78 },
-  { dimension: 'Dependency Health', yourScore: 91, p50: 55, p75: 68, p90: 85, percentile: 94 },
-  { dimension: 'Test Coverage', yourScore: 64, p50: 50, p75: 65, p90: 80, percentile: 51 },
-  { dimension: 'Operational Readiness', yourScore: 82, p50: 60, p75: 72, p90: 86, percentile: 80 },
-];
-
-const PATTERNS: LearnedPattern[] = [
-  { id: 'p1', name: 'Retry-with-backoff', category: 'Resilience', occurrences: 342, successRate: 94, lastSeen: '2h ago' },
-  { id: 'p2', name: 'Circuit Breaker', category: 'Resilience', occurrences: 218, successRate: 89, lastSeen: '5h ago' },
-  { id: 'p3', name: 'Blue-Green Deploy', category: 'Deployment', occurrences: 187, successRate: 97, lastSeen: '1d ago' },
-  { id: 'p4', name: 'Canary Release', category: 'Deployment', occurrences: 156, successRate: 91, lastSeen: '3h ago' },
-  { id: 'p5', name: 'Secrets Rotation', category: 'Security', occurrences: 134, successRate: 99, lastSeen: '12h ago' },
-];
-
-const PARTNERS: Partner[] = [
-  { id: 'pr1', name: 'NovaSec', tier: 'platinum', specialty: 'Security Auditing', projects: 48, logo: '🛡️' },
-  { id: 'pr2', name: 'ScaleOps', tier: 'gold', specialty: 'Infrastructure', projects: 32, logo: '⚙️' },
-  { id: 'pr3', name: 'DataPulse', tier: 'gold', specialty: 'Analytics', projects: 27, logo: '📊' },
-  { id: 'pr4', name: 'CloudForge', tier: 'silver', specialty: 'Migration', projects: 15, logo: '☁️' },
-];
-
-const SERVICE_TIERS: ServiceTier[] = [
-  { name: 'Starter', price: '$0', features: ['5 projects', 'Community support', 'Basic analytics'], highlighted: false },
-  { name: 'Pro', price: '$49/mo', features: ['Unlimited projects', 'Priority support', 'Advanced analytics', 'Benchmarking'], highlighted: true },
-  { name: 'Enterprise', price: 'Custom', features: ['Everything in Pro', 'SSO / SAML', 'Dedicated CSM', 'SLA guarantee', 'Custom integrations'], highlighted: false },
-];
+import { useState, useEffect } from 'react';
+import { Cloud, BarChart3, Users, Award, Rocket, Globe, Loader2 } from 'lucide-react';
+import type { CloudBenchmark, CloudLearnedPattern, CloudPartner, CloudServiceTier } from '@/lib/api';
+import { getCloudBenchmarks, getCloudPatterns, getCloudPartners, getCloudServices } from '@/lib/api';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -91,6 +26,28 @@ function TierBadge({ tier }: { tier: string }) {
 
 export default function CloudPage() {
   const [activeTab, setActiveTab] = useState<'benchmarks' | 'patterns' | 'partners' | 'services'>('benchmarks');
+  const [loading, setLoading] = useState(true);
+  const [benchmarks, setBenchmarks] = useState<CloudBenchmark[]>([]);
+  const [patterns, setPatterns] = useState<CloudLearnedPattern[]>([]);
+  const [partners, setPartners] = useState<CloudPartner[]>([]);
+  const [services, setServices] = useState<CloudServiceTier[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      const [b, p, pr, s] = await Promise.all([
+        getCloudBenchmarks(),
+        getCloudPatterns(),
+        getCloudPartners(),
+        getCloudServices(),
+      ]);
+      setBenchmarks(b);
+      setPatterns(p);
+      setPartners(pr);
+      setServices(s);
+      setLoading(false);
+    }
+    load();
+  }, []);
 
   const tabs = [
     { key: 'benchmarks' as const, label: 'Benchmarks', icon: BarChart3 },
@@ -98,6 +55,14 @@ export default function CloudPage() {
     { key: 'partners' as const, label: 'Partners', icon: Users },
     { key: 'services' as const, label: 'Services', icon: Globe },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -138,7 +103,7 @@ export default function CloudPage() {
                 <th className="pb-3">Dimension</th><th className="pb-3">Your Score</th><th className="pb-3">P50</th><th className="pb-3">P75</th><th className="pb-3">P90</th><th className="pb-3">Percentile</th>
               </tr></thead>
               <tbody className="divide-y divide-white/5">
-                {BENCHMARKS.map(b => (
+                {benchmarks.map(b => (
                   <tr key={b.dimension}>
                     <td className="py-3 text-text-primary font-medium">{b.dimension}</td>
                     <td className="py-3 text-text-primary font-bold">{b.yourScore}</td>
@@ -173,7 +138,7 @@ export default function CloudPage() {
               <th className="pb-3">Pattern</th><th className="pb-3">Category</th><th className="pb-3">Occurrences</th><th className="pb-3">Success Rate</th><th className="pb-3">Last Seen</th>
             </tr></thead>
             <tbody className="divide-y divide-white/5">
-              {PATTERNS.map(p => (
+              {patterns.map(p => (
                 <tr key={p.id}>
                   <td className="py-3 text-text-primary font-medium">{p.name}</td>
                   <td className="py-3"><span className="px-2 py-0.5 rounded-full text-xs border bg-blue-500/20 text-blue-400 border-blue-500/30">{p.category}</span></td>
@@ -190,7 +155,7 @@ export default function CloudPage() {
       {/* Partners */}
       {activeTab === 'partners' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {PARTNERS.map(p => (
+          {partners.map(p => (
             <div key={p.id} className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-2xl">{p.logo}</span>
@@ -209,7 +174,7 @@ export default function CloudPage() {
       {/* Services */}
       {activeTab === 'services' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {SERVICE_TIERS.map(s => (
+          {services.map(s => (
             <div key={s.name} className="rounded-2xl p-6 flex flex-col"
               style={{
                 background: 'var(--color-surface)',

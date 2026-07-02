@@ -2,86 +2,24 @@
 
 import { useState, useCallback, useId, useEffect } from 'react';
 import Header from "@/components/header";
-import { Globe, Bell, Shield, Palette } from "lucide-react";
+import { Globe, Bell, Shield, Palette, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { getSettingsSections } from '@/lib/api';
+import type { SettingsSection, SettingsField } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
-// Types
+// Icon map — resolve icon name strings from the API to Lucide components
 // ---------------------------------------------------------------------------
 
-interface ToggleSetting {
-  label: string;
-  key: string;
-  type: 'toggle';
-  defaultValue: boolean;
-}
-
-interface TextSetting {
-  label: string;
-  key: string;
-  type: 'text' | 'password' | 'number';
-  defaultValue: string;
-}
-
-type Setting = ToggleSetting | TextSetting;
-
-interface Section {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  settings: Setting[];
-}
-
-// ---------------------------------------------------------------------------
-// Section definitions
-// ---------------------------------------------------------------------------
-
-const SECTIONS: Section[] = [
-  {
-    icon: Globe,
-    title: "API Connection",
-    description: "Configure the Recurrsive API server endpoint",
-    settings: [
-      { label: "API Base URL", key: "api_url", type: "text", defaultValue: "http://localhost:3000" },
-      { label: "API Key", key: "api_key", type: "password", defaultValue: "" },
-    ],
-  },
-  {
-    icon: Bell,
-    title: "Notifications",
-    description: "Configure alert thresholds and notification preferences",
-    settings: [
-      { label: "Health Score Alert Threshold", key: "health_threshold", type: "number", defaultValue: "70" },
-      { label: "Email Notifications", key: "email_notifications", type: "toggle", defaultValue: true },
-    ],
-  },
-  {
-    icon: Shield,
-    title: "Security",
-    description: "Security scanning and vulnerability detection settings",
-    settings: [
-      { label: "Auto-scan on Push", key: "auto_scan", type: "toggle", defaultValue: true },
-      { label: "CVE Alert Level", key: "cve_level", type: "text", defaultValue: "High" },
-    ],
-  },
-  {
-    icon: Palette,
-    title: "Appearance",
-    description: "Customize dashboard look and feel",
-    settings: [
-      { label: "Theme", key: "theme", type: "text", defaultValue: "Dark" },
-      { label: "Compact Mode", key: "compact_mode", type: "toggle", defaultValue: false },
-    ],
-  },
-];
+const ICON_MAP: Record<string, LucideIcon> = { Globe, Bell, Shield, Palette };
 
 // ---------------------------------------------------------------------------
 // Defaults map
 // ---------------------------------------------------------------------------
 
-function buildDefaults(): Record<string, string | boolean> {
+function buildDefaults(sections: SettingsSection[]): Record<string, string | boolean> {
   const defaults: Record<string, string | boolean> = {};
-  for (const section of SECTIONS) {
+  for (const section of sections) {
     for (const setting of section.settings) {
       defaults[setting.key] = setting.defaultValue;
     }
@@ -130,11 +68,24 @@ function Toggle({
 
 export default function SettingsPage() {
   const baseId = useId();
-  const [values, setValues] = useState<Record<string, string | boolean>>(buildDefaults);
+  const [sections, setSections] = useState<SettingsSection[]>([]);
+  const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Hydrate from localStorage on mount
+  // Load settings sections from API (pure mock fallback)
   useEffect(() => {
+    getSettingsSections()
+      .then((s) => {
+        setSections(s);
+        setValues(buildDefaults(s));
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Hydrate from localStorage on mount (after sections are loaded)
+  useEffect(() => {
+    if (sections.length === 0) return;
     try {
       const stored = localStorage.getItem('recurrsive-settings');
       if (stored) {
@@ -144,7 +95,7 @@ export default function SettingsPage() {
     } catch {
       // localStorage unavailable or corrupt — use defaults
     }
-  }, []);
+  }, [sections]);
 
   const handleChange = useCallback((key: string, value: string | boolean) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -164,21 +115,32 @@ export default function SettingsPage() {
   }, [values]);
 
   const handleReset = useCallback(() => {
-    setValues(buildDefaults());
+    setValues(buildDefaults(sections));
     setSaved(false);
     try {
       localStorage.removeItem('recurrsive-settings');
     } catch {
       // no-op
     }
-  }, []);
+  }, [sections]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header title="Settings" subtitle="Configure your Recurrsive dashboard" />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header title="Settings" subtitle="Configure your Recurrsive dashboard" />
       <div className="flex-1 p-6 space-y-6 max-w-3xl">
-        {SECTIONS.map((section, i) => {
-          const Icon = section.icon;
+        {sections.map((section, i) => {
+          const Icon = ICON_MAP[section.icon] ?? Globe;
           return (
             <fieldset
               key={section.title}
@@ -196,7 +158,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="space-y-3 pl-12">
-                {section.settings.map((setting) => {
+                {section.settings.map((setting: SettingsField) => {
                   const inputId = `${baseId}-${setting.key}`;
                   return (
                     <div key={setting.key} className="flex items-center justify-between gap-4">

@@ -7,45 +7,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Key, Lock, RefreshCcw, Shield, AlertTriangle } from 'lucide-react';
-
-interface Secret {
-  id: string;
-  key: string;
-  backend: 'vault' | 'aws' | 'azure' | 'local';
-  version: number;
-  createdAt: string;
-  lastRotated: string;
-  rotationDays: number;
-  maxAgeDays: number;
-  status: 'current' | 'expiring' | 'needs_rotation';
-  usedBy: string[];
-}
-
-interface AuditEntry {
-  id: string;
-  secretKey: string;
-  action: 'rotated' | 'created' | 'accessed' | 'deleted';
-  actor: string;
-  timestamp: string;
-}
-
-const demoSecrets: Secret[] = [
-  { id: 's1', key: 'DATABASE_URL', backend: 'vault', version: 5, createdAt: '2025-11-01', lastRotated: '2026-06-28', rotationDays: 3, maxAgeDays: 30, status: 'current', usedBy: ['api-server', 'worker'] },
-  { id: 's2', key: 'AWS_ACCESS_KEY_ID', backend: 'aws', version: 3, createdAt: '2026-01-15', lastRotated: '2026-06-15', rotationDays: 16, maxAgeDays: 30, status: 'expiring', usedBy: ['s3-uploader'] },
-  { id: 's3', key: 'STRIPE_SECRET_KEY', backend: 'vault', version: 2, createdAt: '2026-02-01', lastRotated: '2026-04-10', rotationDays: 82, maxAgeDays: 60, status: 'needs_rotation', usedBy: ['billing-svc'] },
-  { id: 's4', key: 'AZURE_STORAGE_KEY', backend: 'azure', version: 4, createdAt: '2025-12-01', lastRotated: '2026-06-25', rotationDays: 6, maxAgeDays: 90, status: 'current', usedBy: ['blob-worker'] },
-  { id: 's5', key: 'JWT_SIGNING_KEY', backend: 'local', version: 1, createdAt: '2026-03-01', lastRotated: '2026-03-01', rotationDays: 122, maxAgeDays: 90, status: 'needs_rotation', usedBy: ['auth-service'] },
-  { id: 's6', key: 'SENDGRID_API_KEY', backend: 'local', version: 2, createdAt: '2026-01-10', lastRotated: '2026-06-20', rotationDays: 11, maxAgeDays: 60, status: 'current', usedBy: ['mailer'] },
-];
-
-const demoAudit: AuditEntry[] = [
-  { id: 'a1', secretKey: 'DATABASE_URL', action: 'rotated', actor: 'auto-rotator', timestamp: '2026-06-28T14:30:00Z' },
-  { id: 'a2', secretKey: 'AZURE_STORAGE_KEY', action: 'rotated', actor: 'admin@recurrsive.dev', timestamp: '2026-06-25T09:15:00Z' },
-  { id: 'a3', secretKey: 'SENDGRID_API_KEY', action: 'rotated', actor: 'admin@recurrsive.dev', timestamp: '2026-06-20T11:00:00Z' },
-  { id: 'a4', secretKey: 'AWS_ACCESS_KEY_ID', action: 'accessed', actor: 's3-uploader', timestamp: '2026-06-18T08:45:00Z' },
-  { id: 'a5', secretKey: 'STRIPE_SECRET_KEY', action: 'accessed', actor: 'billing-svc', timestamp: '2026-06-15T16:20:00Z' },
-];
+import { Key, Lock, RefreshCcw, Shield, AlertTriangle, Loader2 } from 'lucide-react';
+import type { DashboardSecret, DashboardAuditEntry } from '@/lib/api';
+import { getSecrets, getSecretAuditLog } from '@/lib/api';
 
 function BackendBadge({ backend }: { backend: string }) {
   const colors: Record<string, string> = {
@@ -78,16 +42,18 @@ function ActionBadge({ action }: { action: string }) {
 }
 
 export default function SecretsPage() {
-  const [secrets, setSecrets] = useState<Secret[]>([]);
-  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [secrets, setSecrets] = useState<DashboardSecret[]>([]);
+  const [audit, setAudit] = useState<DashboardAuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setTimeout(() => {
-      setSecrets(demoSecrets);
-      setAudit(demoAudit);
+    async function load() {
+      const [s, a] = await Promise.all([getSecrets(), getSecretAuditLog()]);
+      setSecrets(s);
+      setAudit(a);
       setLoading(false);
-    }, 300);
+    }
+    load();
   }, []);
 
   const needsRotation = secrets.filter(s => s.status === 'needs_rotation').length;
@@ -95,7 +61,7 @@ export default function SecretsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-accent)' }} />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
       </div>
     );
   }

@@ -7,30 +7,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Building2, Users, CreditCard, Shield, BarChart3 } from 'lucide-react';
-
-interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  tier: 'free' | 'team' | 'enterprise';
-  status: 'active' | 'suspended' | 'trial';
-  createdAt: string;
-  owner: string;
-  quotas: {
-    projects: { used: number; max: number };
-    users: { used: number; max: number };
-    storageMb: { used: number; max: number };
-  };
-}
-
-const demoTenants: Tenant[] = [
-  { id: 't1', name: 'Acme Corp', slug: 'acme', tier: 'enterprise', status: 'active', createdAt: '2025-06-01', owner: 'ceo@acme.com', quotas: { projects: { used: 24, max: 100 }, users: { used: 87, max: 500 }, storageMb: { used: 4200, max: 10240 } } },
-  { id: 't2', name: 'StartupIO', slug: 'startupio', tier: 'team', status: 'active', createdAt: '2026-01-15', owner: 'founder@startupio.com', quotas: { projects: { used: 8, max: 20 }, users: { used: 12, max: 50 }, storageMb: { used: 850, max: 2048 } } },
-  { id: 't3', name: 'DevShop', slug: 'devshop', tier: 'free', status: 'active', createdAt: '2026-04-01', owner: 'dev@devshop.io', quotas: { projects: { used: 2, max: 3 }, users: { used: 3, max: 5 }, storageMb: { used: 120, max: 512 } } },
-  { id: 't4', name: 'MegaTech', slug: 'megatech', tier: 'enterprise', status: 'trial', createdAt: '2026-06-15', owner: 'it@megatech.co', quotas: { projects: { used: 5, max: 100 }, users: { used: 15, max: 500 }, storageMb: { used: 300, max: 10240 } } },
-  { id: 't5', name: 'Indie Dev', slug: 'indiedev', tier: 'free', status: 'suspended', createdAt: '2026-02-20', owner: 'solo@indiedev.xyz', quotas: { projects: { used: 3, max: 3 }, users: { used: 1, max: 5 }, storageMb: { used: 510, max: 512 } } },
-];
+import { Building2, Users, CreditCard, Shield, BarChart3, Loader2 } from 'lucide-react';
+import { getTenants } from '@/lib/api';
+import type { DashboardTenant } from '@/lib/api';
 
 const featureMatrix = [
   { feature: 'Projects', free: '3', team: '20', enterprise: 'Unlimited' },
@@ -78,23 +57,22 @@ function QuotaBar({ label, used, max }: { label: string; used: number; max: numb
 }
 
 export default function TenantsPage() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenants, setTenants] = useState<DashboardTenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTier, setNewTier] = useState<string>('free');
 
   useEffect(() => {
-    setTimeout(() => {
-      setTenants(demoTenants);
-      setLoading(false);
-    }, 300);
+    getTenants()
+      .then(setTenants)
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-accent)' }} />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
       </div>
     );
   }

@@ -6,92 +6,14 @@
  * Browse, install, and manage domain-specific intelligence packs.
  */
 
-import { useState } from 'react';
-import { Package, Shield, Heart, DollarSign, Container, Brain } from 'lucide-react';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Analyzer {
-  name: string;
-  description: string;
-  ruleCount: number;
-}
-
-interface IntelligencePack {
-  id: string;
-  name: string;
-  domain: string;
-  icon: keyof typeof ICON_MAP;
-  version: string;
-  status: 'installed' | 'available' | 'updating';
-  description: string;
-  analyzers: Analyzer[];
-  frameworks: string[];
-  entityTypes: string[];
-  totalRules: number;
-  lastUpdated: string;
-}
+import { useState, useEffect } from 'react';
+import { Package, Shield, Heart, DollarSign, Container, Brain, Loader2 } from 'lucide-react';
+import type { DashboardIntelligencePack } from '@/lib/api';
+import { getIntelligencePacks } from '@/lib/api';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
 const ICON_MAP = { Heart, DollarSign, Container, Brain } as const;
-
-// ─── Demo Data ───────────────────────────────────────────────────────────────
-
-const PACKS: IntelligencePack[] = [
-  {
-    id: 'pack-healthcare', name: 'Healthcare', domain: 'healthcare', icon: 'Heart',
-    version: '2.4.1', status: 'installed',
-    description: 'HIPAA compliance, PHI detection, medical device security, and clinical data governance rules.',
-    analyzers: [
-      { name: 'HIPAA Compliance', description: 'Checks for HIPAA safeguard requirements', ruleCount: 48 },
-      { name: 'PHI Detector', description: 'Identifies protected health information in code and configs', ruleCount: 32 },
-      { name: 'Medical Device Security', description: 'FDA pre/post-market cybersecurity guidance', ruleCount: 27 },
-    ],
-    frameworks: ['HIPAA', 'HITRUST', 'FDA 21 CFR Part 11'],
-    entityTypes: ['Patient Record', 'PHI Field', 'Medical Device', 'Clinical Trial'],
-    totalRules: 107, lastUpdated: '2026-06-28',
-  },
-  {
-    id: 'pack-finance', name: 'Finance', domain: 'finance', icon: 'DollarSign',
-    version: '3.1.0', status: 'installed',
-    description: 'SOX compliance, PCI-DSS, fraud detection patterns, and financial data classification.',
-    analyzers: [
-      { name: 'PCI-DSS Scanner', description: 'Payment card industry data security standard checks', ruleCount: 56 },
-      { name: 'SOX Controls', description: 'Sarbanes-Oxley internal control validation', ruleCount: 41 },
-      { name: 'Fraud Pattern Detector', description: 'Identifies common fraud-enabling code patterns', ruleCount: 23 },
-    ],
-    frameworks: ['PCI-DSS v4.0', 'SOX', 'GLBA', 'Basel III'],
-    entityTypes: ['Cardholder Data', 'Transaction', 'Account', 'Financial Report'],
-    totalRules: 120, lastUpdated: '2026-06-25',
-  },
-  {
-    id: 'pack-kubernetes', name: 'Kubernetes', domain: 'infrastructure', icon: 'Container',
-    version: '1.8.3', status: 'available',
-    description: 'K8s security policies, resource limits, network policies, and CIS benchmark checks.',
-    analyzers: [
-      { name: 'CIS K8s Benchmark', description: 'Center for Internet Security Kubernetes benchmark', ruleCount: 74 },
-      { name: 'Resource Policy', description: 'Validates resource limits, requests, and quotas', ruleCount: 28 },
-      { name: 'Network Policy Analyzer', description: 'Detects missing or overly permissive network policies', ruleCount: 19 },
-    ],
-    frameworks: ['CIS Kubernetes Benchmark', 'NSA K8s Hardening'],
-    entityTypes: ['Pod', 'Deployment', 'Service', 'NetworkPolicy', 'RBAC Role'],
-    totalRules: 121, lastUpdated: '2026-06-30',
-  },
-  {
-    id: 'pack-ai-safety', name: 'AI Safety', domain: 'ai-ml', icon: 'Brain',
-    version: '0.9.0', status: 'available',
-    description: 'Model bias detection, data poisoning checks, prompt injection guards, and AI governance.',
-    analyzers: [
-      { name: 'Bias Detector', description: 'Scans training pipelines for bias indicators', ruleCount: 34 },
-      { name: 'Prompt Injection Guard', description: 'Identifies prompt injection vulnerabilities', ruleCount: 21 },
-      { name: 'Data Provenance', description: 'Validates data lineage and consent chains', ruleCount: 18 },
-    ],
-    frameworks: ['NIST AI RMF', 'EU AI Act', 'ISO 42001'],
-    entityTypes: ['Model', 'Training Dataset', 'Prompt Template', 'Evaluation Suite'],
-    totalRules: 73, lastUpdated: '2026-07-01',
-  },
-];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -107,14 +29,33 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function IntelligencePacksPage() {
-  const [packs, setPacks] = useState(PACKS);
-  const [expanded, setExpanded] = useState<string | null>(PACKS[0].id);
+  const [packs, setPacks] = useState<DashboardIntelligencePack[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const data = await getIntelligencePacks();
+      setPacks(data);
+      setExpanded(data[0]?.id ?? null);
+      setLoading(false);
+    }
+    load();
+  }, []);
 
   const toggleInstall = (id: string) => {
     setPacks(prev => prev.map(p =>
       p.id === id ? { ...p, status: p.status === 'installed' ? 'available' : 'installed' } : p
     ));
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -150,7 +91,7 @@ export default function IntelligencePacksPage() {
       {/* Pack Cards */}
       <div className="space-y-4">
         {packs.map(pack => {
-          const Icon = ICON_MAP[pack.icon];
+          const Icon = ICON_MAP[pack.icon as keyof typeof ICON_MAP] ?? Brain;
           const isExpanded = expanded === pack.id;
           return (
             <div key={pack.id} className="rounded-2xl overflow-hidden" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
