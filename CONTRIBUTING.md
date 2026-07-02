@@ -134,7 +134,7 @@ Recurrsive/
 │   ├── analyzers/               # 13 built-in analyzers, 89+ rules
 │   ├── reasoning/               # Multi-agent reasoning — 19 specialists, debate protocol
 │   ├── opportunities/           # Opportunity lifecycle — SARIF export, roadmap generation
-│   ├── policy/                  # Policy engine — 5 built-in policy sets (15 rules)
+│   ├── policy/                  # Policy engine — 5 built-in policy sets (16 rules)
 │   └── presentation/            # Reports — Markdown, HTML, JSON, SARIF + notifications
 ├── apps/                        # Applications (5 apps)
 │   ├── cli/                     # Commander.js CLI — 25 commands
@@ -183,7 +183,7 @@ Recurrsive follows a four-phase pipeline where the LLM is **never the source of 
    │              │     │              │     │              │     │              │
    │ 14 Collectors│     │ Graph Engine │     │ 19 Specialists│     │ CLI · Server │
    │ Governance   │     │ 13 Analyzers │     │ Debate Proto. │     │ MCP · Dash   │
-   │ PII Detection│     │ 66+ Rules    │     │ Judge · Memory│     │ Reports      │
+   │ PII Detection│     │ 89+ Rules    │     │ Judge · Memory│     │ Reports      │
    └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
