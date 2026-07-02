@@ -1,10 +1,10 @@
 /**
  * @module Graph API
  *
- * Knowledge graph queries, entity search, and graph statistics.
+ * Knowledge graph queries and entity operations.
  */
 
-import { apiFetch } from "./client.js";
+import { apiFetch } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -24,6 +24,14 @@ export interface GraphEntity {
   properties?: Record<string, unknown>;
 }
 
+export interface SystemNode {
+  id: string;
+  name: string;
+  type: string;
+  health: number;
+  connections: string[];
+}
+
 // ─── Mock Data ───────────────────────────────────────────────────────────────
 
 const MOCK_GRAPH_STATS: GraphStats = {
@@ -39,7 +47,7 @@ const MOCK_GRAPH_STATS: GraphStats = {
   },
 };
 
-// ─── API Functions ───────────────────────────────────────────────────────────
+// ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
  * Get graph statistics from `GET /api/v1/graph/stats`.

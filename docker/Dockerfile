@@ -9,7 +9,7 @@
 FROM node:20-alpine AS builder
 
 # Install pnpm globally
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # Install build dependencies (some native modules need python3/make/g++)
 RUN apk add --no-cache python3 make g++ git
@@ -48,7 +48,7 @@ RUN pnpm prune --prod --no-optional
 FROM node:20-alpine AS runner
 
 # Install pnpm for workspace resolution at runtime
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # Security: run as non-root
 RUN addgroup --system --gid 1001 recurrsive && \

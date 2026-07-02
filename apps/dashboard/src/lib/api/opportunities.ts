@@ -1,10 +1,10 @@
 /**
  * @module Opportunities API
  *
- * Opportunity fetching and management.
+ * Opportunity CRUD operations.
  */
 
-import { apiFetch } from "./client.js";
+import { apiFetch } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -39,28 +39,6 @@ export interface Opportunity {
   affectedComponents: string[];
   solution: SolutionStep[];
   createdAt: string;
-}
-
-/**
- * Server shape for opportunities (snake_case from the API).
- */
-interface ServerOpportunity {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  severity: string;
-  status: string;
-  score?: number;
-  impact?: number;
-  confidence?: number;
-  effort_estimate?: string;
-  risk_assessment?: { risk_level?: string };
-  root_causes?: string[];
-  evidence?: Array<{ type: string; description: string; source: string; value?: string }>;
-  affected_entities?: string[];
-  recommendations?: Array<{ title: string; description: string; effort?: string }>;
-  created_at?: string;
 }
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
@@ -225,7 +203,29 @@ const MOCK_OPPORTUNITIES: Opportunity[] = [
   },
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Internal Types ──────────────────────────────────────────────────────────
+
+/**
+ * Server shape for opportunities (snake_case from the API).
+ */
+interface ServerOpportunity {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  severity: string;
+  status: string;
+  score?: number;
+  impact?: number;
+  confidence?: number;
+  effort_estimate?: string;
+  risk_assessment?: { risk_level?: string };
+  root_causes?: string[];
+  evidence?: Array<{ type: string; description: string; source: string; value?: string }>;
+  affected_entities?: string[];
+  recommendations?: Array<{ title: string; description: string; effort?: string }>;
+  created_at?: string;
+}
 
 /** Transform a server opportunity into the dashboard shape. */
 function transformOpportunity(raw: ServerOpportunity, idx: number): Opportunity {
@@ -262,7 +262,7 @@ function transformOpportunity(raw: ServerOpportunity, idx: number): Opportunity 
   };
 }
 
-// ─── API Functions ───────────────────────────────────────────────────────────
+// ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
  * Get opportunities from `GET /api/v1/opportunities`.

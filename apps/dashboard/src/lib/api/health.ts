@@ -1,10 +1,10 @@
 /**
  * @module Health API
  *
- * Health score, dimension data, performance metrics, and system health dashboard.
+ * Health score metrics, performance metrics, and dimension data.
  */
 
-import { apiFetch, miniSparkline } from "./client.js";
+import { apiFetch, seededRandom } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,14 +29,6 @@ export interface PerformanceMetric {
   data: { value: number }[];
 }
 
-export interface SystemNode {
-  id: string;
-  name: string;
-  type: string;
-  health: number;
-  connections: string[];
-}
-
 export interface ServiceStatus {
   name: string;
   status: "healthy" | "degraded" | "down";
@@ -55,6 +47,12 @@ export interface HealthDashboardData {
 }
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
+
+function miniSparkline(base: number, count = 14, volatility = 5): { value: number }[] {
+  return Array.from({ length: count }, (_, i) => ({
+    value: Math.round(base + Math.sin(i * 0.7) * volatility + (seededRandom(i * 31 + base) - 0.5) * volatility),
+  }));
+}
 
 const MOCK_HEALTH: HealthMetrics = {
   healthScore: 87,
@@ -114,7 +112,7 @@ const MOCK_HEALTH_DASHBOARD: HealthDashboardData = {
   ],
 };
 
-// ─── API Functions ───────────────────────────────────────────────────────────
+// ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
  * Get health metrics from `GET /api/v1/health-score`.
