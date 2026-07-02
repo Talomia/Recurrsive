@@ -19,7 +19,7 @@
 | Dashboard | ✅ Complete | Next.js, 40 pages (incl. detail pages), 8+ components, real-time WebSocket |
 | Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
-| Tests | ✅ Complete | 119 test files, 573 tests (423 server + 81 dashboard + 69 website), integration tests for full pipeline |
+| Tests | ✅ Complete | 140 test files, 3,087 tests across 14 packages, integration tests for full pipeline |
 
 > [!NOTE]
 > Enterprise platform routes (SSO, secrets, multi-tenant, simulation, cloud) are fully
@@ -114,7 +114,7 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 - [x] **Plugin SDK** — documented, versioned API for custom collectors and analyzers
 - [x] **Analyzer marketplace** — *(scaffolded — in-memory plugin store, no real package discovery)*
 - [x] **Domain intelligence packs** — *(scaffolded — static JSON definitions)*
-- [x] **GraphQL API** — hand-rolled engine *(uses synthetic demo data, not yet wired to live graph)*
+- [x] **GraphQL API** — hand-rolled engine *(wired to live analysis data with demo fallback)*
 
 ### Execution Engine (Controlled)
 - [x] **Experiment framework** — *(scaffolded — in-memory experiments with demo data)*

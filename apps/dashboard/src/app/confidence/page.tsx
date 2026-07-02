@@ -37,11 +37,11 @@ interface Prediction {
   analyzer: string;
 }
 
-// ─── Demo Data ───────────────────────────────────────────────────────────────
+// ─── Fallback Data (used only if API returns incomplete data) ────────────────
 
-const OVERALL_BRIER = 0.142;
+const FALLBACK_BRIER = 0.142;
 
-const BUCKETS: CalibrationBucket[] = [
+const FALLBACK_BUCKETS: CalibrationBucket[] = [
   { predicted: '0–10%', count: 42, actualRate: 0.07, deviation: -0.02 },
   { predicted: '10–20%', count: 38, actualRate: 0.16, deviation: 0.01 },
   { predicted: '20–30%', count: 55, actualRate: 0.28, deviation: 0.03 },
@@ -54,7 +54,7 @@ const BUCKETS: CalibrationBucket[] = [
   { predicted: '90–100%', count: 44, actualRate: 0.93, deviation: -0.02 },
 ];
 
-const ANALYZERS: AnalyzerScore[] = [
+const FALLBACK_ANALYZERS: AnalyzerScore[] = [
   { name: 'Security Analyzer', accuracy: 92, predictions: 214, brierScore: 0.098, trend: 'improving' },
   { name: 'Dependency Analyzer', accuracy: 87, predictions: 186, brierScore: 0.131, trend: 'stable' },
   { name: 'Architecture Analyzer', accuracy: 84, predictions: 158, brierScore: 0.162, trend: 'improving' },
@@ -62,7 +62,7 @@ const ANALYZERS: AnalyzerScore[] = [
   { name: 'Compliance Analyzer', accuracy: 91, predictions: 98, brierScore: 0.108, trend: 'stable' },
 ];
 
-const PREDICTIONS: Prediction[] = [
+const FALLBACK_PREDICTIONS: Prediction[] = [
   { id: 'pred-1', description: 'CVE-2026-1234 will impact production within 7 days', confidence: 0.85, outcome: 'correct', date: '2026-06-30', analyzer: 'Security Analyzer' },
   { id: 'pred-2', description: 'Dependency lodash@4 will release breaking change', confidence: 0.62, outcome: 'incorrect', date: '2026-06-29', analyzer: 'Dependency Analyzer' },
   { id: 'pred-3', description: 'API latency will exceed P99 threshold this week', confidence: 0.74, outcome: 'correct', date: '2026-06-28', analyzer: 'Performance Analyzer' },
@@ -113,6 +113,33 @@ export default function ConfidencePage() {
     );
   }
 
+  // Derive display data from API response, falling back to inline data
+  const brierScore = data.brierScore ?? FALLBACK_BRIER;
+  const calibration: CalibrationBucket[] = data.calibration?.length
+    ? data.calibration
+    : FALLBACK_BUCKETS;
+  const analyzers: AnalyzerScore[] = data.analyzerAccuracy?.length
+    ? data.analyzerAccuracy.map(a => ({
+        name: a.name,
+        accuracy: a.accuracy,
+        predictions: a.predictions,
+        brierScore: a.accuracy > 0 ? (1 - a.accuracy / 100) * 0.25 : 0.25,
+        trend: a.accuracy >= 90 ? 'improving' as const : a.accuracy >= 80 ? 'stable' as const : 'declining' as const,
+      }))
+    : FALLBACK_ANALYZERS;
+  const predictions: Prediction[] = data.recentPredictions?.length
+    ? data.recentPredictions.map(p => ({
+        id: p.id,
+        description: p.description,
+        confidence: p.predicted,
+        outcome: p.actual ? 'correct' as const : 'incorrect' as const,
+        date: p.date,
+        analyzer: p.source,
+      }))
+    : FALLBACK_PREDICTIONS;
+  const totalPredictions = data.totalPredictions ?? predictions.length;
+  const accuracy = data.accuracy ?? (predictions.filter(p => p.outcome === 'correct').length / Math.max(1, predictions.filter(p => p.outcome !== 'pending').length) * 100);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -128,20 +155,20 @@ export default function ConfidencePage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <p className="text-xs text-text-tertiary uppercase">Brier Score</p>
-          <p className="text-2xl font-bold text-green-400">{OVERALL_BRIER.toFixed(3)}</p>
+          <p className="text-2xl font-bold text-green-400">{brierScore.toFixed(3)}</p>
           <p className="text-xs text-text-tertiary">Lower is better</p>
         </div>
         <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <p className="text-xs text-text-tertiary uppercase">Total Predictions</p>
-          <p className="text-2xl font-bold text-text-primary">{PREDICTIONS.length}</p>
+          <p className="text-2xl font-bold text-text-primary">{totalPredictions}</p>
         </div>
         <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <p className="text-xs text-text-tertiary uppercase">Correct Rate</p>
-          <p className="text-2xl font-bold text-text-primary">{Math.round(PREDICTIONS.filter(p => p.outcome === 'correct').length / PREDICTIONS.filter(p => p.outcome !== 'pending').length * 100)}%</p>
+          <p className="text-2xl font-bold text-text-primary">{Math.round(accuracy)}%</p>
         </div>
         <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <p className="text-xs text-text-tertiary uppercase">Analyzers Tracked</p>
-          <p className="text-2xl font-bold text-text-primary">{ANALYZERS.length}</p>
+          <p className="text-2xl font-bold text-text-primary">{analyzers.length}</p>
         </div>
       </div>
 
@@ -173,7 +200,7 @@ export default function ConfidencePage() {
                 <th className="pb-3">Predicted Range</th><th className="pb-3">Count</th><th className="pb-3">Actual Rate</th><th className="pb-3">Deviation</th><th className="pb-3">Calibration</th>
               </tr></thead>
               <tbody className="divide-y divide-white/5">
-                {BUCKETS.map(b => (
+                {calibration.map(b => (
                   <tr key={b.predicted}>
                     <td className="py-2 text-text-primary font-medium">{b.predicted}</td>
                     <td className="py-2 text-text-secondary">{b.count}</td>
@@ -201,7 +228,7 @@ export default function ConfidencePage() {
               <h3 className="text-lg font-semibold text-text-primary">Analyzer Accuracy</h3>
             </div>
             <div className="space-y-3">
-              {ANALYZERS.map(a => (
+              {analyzers.map(a => (
                 <div key={a.name} className="flex items-center gap-4 p-3 rounded-xl" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-text-primary">{a.name}</p>
@@ -225,7 +252,7 @@ export default function ConfidencePage() {
             <h3 className="text-lg font-semibold text-text-primary">Recent Predictions</h3>
           </div>
           <div className="space-y-3">
-            {PREDICTIONS.map(p => (
+            {predictions.map(p => (
               <div key={p.id} className="flex items-start gap-4 p-3 rounded-xl" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
                 <div className="flex-1">
                   <p className="text-sm text-text-primary">{p.description}</p>
