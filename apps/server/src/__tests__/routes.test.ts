@@ -175,7 +175,7 @@ describe('Health endpoints', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body.status).toBe('ok');
-    expect(body.version).toBe('0.1.0');
+    expect(body.version).toBe('0.5.4');
     expect(body).toHaveProperty('uptime');
     expect(body).toHaveProperty('timestamp');
     expect(body).toHaveProperty('initialized');
