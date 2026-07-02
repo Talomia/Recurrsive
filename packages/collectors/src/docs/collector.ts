@@ -9,6 +9,7 @@
  */
 
 import * as fs from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
 import type {
   Collector,
@@ -379,7 +380,7 @@ export class DocumentationCollector implements Collector {
   private async findReadmeFiles(dirPath: string, relativeBase: string): Promise<DocFileInfo[]> {
     const results: DocFileInfo[] = [];
 
-    let entries: import('node:fs').Dirent[];
+    let entries: Dirent[];
     try {
       entries = await fs.readdir(dirPath, { withFileTypes: true });
     } catch (err: unknown) {
@@ -431,7 +432,7 @@ export class DocumentationCollector implements Collector {
     const results: DocFileInfo[] = [];
     const absoluteDir = path.join(this.rootPath, relativeDir);
 
-    let entries: import('node:fs').Dirent[];
+    let entries: Dirent[];
     try {
       entries = await fs.readdir(absoluteDir, { withFileTypes: true });
     } catch (err: unknown) {
@@ -484,7 +485,7 @@ export class DocumentationCollector implements Collector {
         return;
       }
 
-      let entries: import('node:fs').Dirent[];
+      let entries: Dirent[];
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
       } catch (err: unknown) {

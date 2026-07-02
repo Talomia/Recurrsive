@@ -217,13 +217,26 @@ export default function AuditPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    getAuditLog(filter === "all" ? undefined : filter)
-      .then(setEvents)
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Failed to load audit log");
-      })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const fetchData = async () => {
+      try {
+        const data = await getAuditLog(filter === "all" ? undefined : filter);
+        if (!cancelled) {
+          setEvents(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load audit log");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchData();
+    return () => { cancelled = true; };
   }, [filter]);
 
   const filteredEvents =

@@ -366,7 +366,7 @@ function parseArguments(
 
   while ((match = argRegex.exec(raw)) !== null) {
     const key = match[1]!;
-    let rawValue = match[2]!;
+    const rawValue = match[2]!;
 
     // Variable substitution
     if (rawValue.startsWith('$')) {

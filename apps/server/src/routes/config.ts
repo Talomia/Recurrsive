@@ -73,7 +73,7 @@ interface ConfigOverrides {
   activePolicySets?: string[];
 }
 
-let overrides: ConfigOverrides = {};
+const overrides: ConfigOverrides = {};
 
 /**
  * Register configuration management routes.

@@ -11,10 +11,10 @@
 
 import { resolve } from 'node:path';
 import type { Command } from 'commander';
+import type { SqliteGraphClient } from '@recurrsive/graph';
 import {
   createGraphClient,
   type ExtendedGraphClient,
-  SqliteGraphClient,
 } from '@recurrsive/graph';
 import { loadConfig } from '../config/loader.js';
 import {

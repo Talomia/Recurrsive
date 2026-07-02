@@ -12,6 +12,7 @@
  */
 
 import * as fs from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
 import type {
   Collector,
@@ -302,7 +303,7 @@ export class GitCollector implements Collector {
     const files: FileInfo[] = [];
 
     const walk = async (dir: string, relativeBase: string): Promise<void> => {
-      let entries: import('node:fs').Dirent[];
+      let entries: Dirent[];
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
       } catch (err: unknown) {

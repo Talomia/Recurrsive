@@ -225,8 +225,9 @@ describe('registerSnapshotCommand', () => {
     (loadConfig as Mock).mockResolvedValue(defaultConfigResult);
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('entities')) return Promise.resolve(sampleEntities);
-      if (sql.includes('relationships'))
+      if (sql.includes('relationships')) {
         return Promise.resolve(sampleRelationships);
+      }
       return Promise.resolve([]);
     });
     mockUpsertEntity.mockImplementation((e: unknown) => Promise.resolve(e));

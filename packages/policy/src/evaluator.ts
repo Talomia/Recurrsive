@@ -313,7 +313,7 @@ class Parser {
 
   /** Grammar: comparison → primary ( compOp primary )? */
   private parseComparison(): ExprValue {
-    let left = this.parsePrimary();
+    const left = this.parsePrimary();
     const token = this.peek();
 
     switch (token.type) {
