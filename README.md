@@ -57,7 +57,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 
 | Surface | Count |
 |---------|-------|
-| 📡 Server REST endpoints | 148 |
+| 📡 Server REST endpoints | 150 |
 | ⌨️ CLI commands | 25 |
 | 🔌 MCP tools | 42 |
 | 💬 MCP prompts | 21 |
