@@ -191,10 +191,28 @@ export default function ComparisonsPage() {
 
   // Auto-compare when selections change
   useEffect(() => {
-    if (selectedA && selectedB && selectedA !== selectedB) {
-      handleCompare();
-    }
-  }, [selectedA, selectedB, handleCompare]);
+    if (!selectedA || !selectedB || selectedA === selectedB) return;
+    let cancelled = false;
+    const compare = async () => {
+      try {
+        const data = await getComparisonData(selectedA, selectedB);
+        if (!cancelled) {
+          setComparison(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Failed to compare runs");
+        }
+      } finally {
+        if (!cancelled) {
+          setComparing(false);
+        }
+      }
+    };
+    setComparing(true);
+    compare();
+    return () => { cancelled = true; };
+  }, [selectedA, selectedB]);
 
   // Get max category count for bar chart scaling
   const maxCategoryCount = comparison

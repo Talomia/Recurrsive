@@ -10,7 +10,7 @@
 import type { CollectorResult, CollectorSchedule } from '@recurrsive/core';
 import { CollectorError, createLogger } from '@recurrsive/core';
 import { watch as chokidarWatch, type FSWatcher } from 'chokidar';
-import { CollectorRegistry } from './registry.js';
+import type { CollectorRegistry } from './registry.js';
 
 const logger = createLogger({ context: { module: 'collector-scheduler' } });
 

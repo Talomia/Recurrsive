@@ -10,7 +10,7 @@
 
 import type { Analyzer, AnalysisContext, Finding } from '@recurrsive/core';
 import { AnalyzerError } from '@recurrsive/core';
-import { AnalyzerRegistry } from './registry.js';
+import type { AnalyzerRegistry } from './registry.js';
 
 // ---------------------------------------------------------------------------
 // Types

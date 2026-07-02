@@ -12,7 +12,8 @@
 import type { Entity, Relationship } from '@recurrsive/core';
 import { generateId, nowISO } from '@recurrsive/core';
 import { TreeSitterParser } from './tree-sitter/parser.js';
-import { ExtractorRegistry, createDefaultRegistry } from './extractors/index.js';
+import type { ExtractorRegistry } from './extractors/index.js';
+import { createDefaultRegistry } from './extractors/index.js';
 import { AIPatternDetector } from './ai-patterns/detector.js';
 import { CrossFileResolver } from './resolvers/cross-file.js';
 import type { ExtractedEntity, ImportInfo } from './extractors/base.js';

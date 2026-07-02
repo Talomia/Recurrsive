@@ -41,7 +41,7 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'prefer-const': 'error',
       'no-var': 'error',
-      'eqeqeq': ['error', 'always'],
+      'eqeqeq': ['error', 'always', { null: 'ignore' }],
       'curly': ['error', 'multi-line'],
       'no-throw-literal': 'error',
     },
