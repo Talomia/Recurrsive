@@ -40,6 +40,9 @@ COPY apps/dashboard/ ./apps/dashboard/
 
 WORKDIR /app/apps/dashboard
 
+# Ensure public dir exists (may be empty / missing from archive)
+RUN mkdir -p public
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
