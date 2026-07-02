@@ -7,27 +7,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { FolderGit2, Plus, ArrowUpDown, ExternalLink, Settings, Trash2, ChevronRight } from 'lucide-react';
-
-interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  repository: string;
-  language: string;
-  framework: string;
-  healthScore: number;
-  lastAnalysis: string | null;
-  createdAt: string;
-  updatedAt: string;
-  settings: {
-    analyzers: string[];
-    collectors: string[];
-    autoAnalyze: boolean;
-    notifyOnCritical: boolean;
-  };
-}
+import { FolderGit2, Plus, ArrowUpDown, ExternalLink, Settings, Trash2, ChevronRight, Loader2 } from 'lucide-react';
+import { getProjects } from '@/lib/api';
+import type { Project } from '@/lib/api';
 
 function HealthBadge({ score }: { score: number }) {
   const color = score >= 80 ? 'bg-green-500/20 text-green-400 border-green-500/30'
@@ -66,10 +48,8 @@ export default function ProjectsPage() {
   const [sortBy, setSortBy] = useState<'name' | 'health' | 'updated'>('health');
 
   useEffect(() => {
-    fetch('/api/v1/projects')
-      .then(r => r.json())
-      .then(d => setProjects(d.data))
-      .catch(() => {})
+    getProjects()
+      .then(setProjects)
       .finally(() => setLoading(false));
   }, []);
 
@@ -103,7 +83,7 @@ export default function ProjectsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-accent)' }} />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
       </div>
     );
   }

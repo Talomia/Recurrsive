@@ -6,8 +6,10 @@
  * Brier score, calibration curve, analyzer accuracy, and recent predictions.
  */
 
-import { useState } from 'react';
-import { Target, TrendingUp, CheckCircle, XCircle, BarChart3, Brain } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Target, TrendingUp, CheckCircle, XCircle, BarChart3, Brain, Loader2 } from 'lucide-react';
+import { getConfidenceData } from '@/lib/api';
+import type { ConfidenceData } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -94,6 +96,22 @@ function TrendLabel({ trend }: { trend: string }) {
 
 export default function ConfidencePage() {
   const [view, setView] = useState<'overview' | 'predictions'>('overview');
+  const [data, setData] = useState<ConfidenceData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getConfidenceData()
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !data) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

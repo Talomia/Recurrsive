@@ -2850,3 +2850,512 @@ export async function createSimulation(params: {
   if (!res.ok) throw new Error(`Failed to create simulation: ${res.status}`);
   return (await res.json()) as SimulationScenario;
 }
+
+// ─── Forecasting Types ───────────────────────────────────────────────────────
+
+export interface ForecastData {
+  currentScore: number;
+  trend: 'improving' | 'declining' | 'stable';
+  trendStrength: number;
+  confidence: number;
+  history: Array<{ date: string; score: number }>;
+  forecast: Array<{ date: string; predicted: number; lowerBound: number; upperBound: number }>;
+  targets: Array<{ target: number; daysToReach: number | null; reachable: boolean }>;
+  regression: { slope: number; intercept: number; r2: number };
+}
+
+export interface EvolutionEvent {
+  id: string;
+  date: string;
+  type: 'decision' | 'milestone' | 'incident' | 'experiment';
+  title: string;
+  description: string;
+  outcome: string;
+  healthImpact: number;
+  learnings: string[];
+}
+
+export interface EvolutionData {
+  events: EvolutionEvent[];
+  trajectory: Array<{ date: string; score: number; event: string }>;
+  currentScore: number;
+  totalDecisions: number;
+  totalMilestones: number;
+  totalIncidents: number;
+  totalExperiments: number;
+  netHealthImpact: number;
+  allLearnings: string[];
+}
+
+export interface WhatIfResult {
+  currentScore: number;
+  projectedScore: number;
+  totalImpact: number;
+  actions: Array<{
+    id: string;
+    type: string;
+    description: string;
+    impact: {
+      healthScoreDelta: number;
+      confidence: number;
+      timeToRealize: string;
+      affectedDimensions: string[];
+    };
+  }>;
+  summary: {
+    highestImpact: string | null;
+    totalActions: number;
+    avgConfidence: number;
+    recommendation: string;
+  };
+}
+
+// ─── Forecasting Mock Data ───────────────────────────────────────────────────
+
+const MOCK_FORECAST: ForecastData = {
+  currentScore: 84,
+  trend: 'improving',
+  trendStrength: 0.32,
+  confidence: 0.78,
+  history: Array.from({ length: 30 }, (_, i) => ({
+    date: `2026-06-${String(i + 1).padStart(2, '0')}`,
+    score: Math.round((72 + i * 0.4 + (seededRandom(i * 137) * 6 - 3)) * 10) / 10,
+  })),
+  forecast: Array.from({ length: 30 }, (_, i) => {
+    const predicted = Math.min(100, 84 + (i + 1) * 0.32);
+    const uncertainty = Math.min(15, (i + 1) * 0.25);
+    return {
+      date: `2026-07-${String(i + 1).padStart(2, '0')}`,
+      predicted: Math.round(predicted * 10) / 10,
+      lowerBound: Math.round(Math.max(0, predicted - uncertainty) * 10) / 10,
+      upperBound: Math.round(Math.min(100, predicted + uncertainty) * 10) / 10,
+    };
+  }),
+  targets: [
+    { target: 90, daysToReach: 19, reachable: true },
+    { target: 80, daysToReach: 0, reachable: true },
+    { target: 70, daysToReach: 0, reachable: true },
+    { target: 60, daysToReach: 0, reachable: true },
+  ],
+  regression: { slope: 0.32, intercept: 71.5, r2: 0.78 },
+};
+
+const MOCK_EVOLUTION: EvolutionData = {
+  events: [
+    {
+      id: 'evo-001', date: '2026-01-15', type: 'decision',
+      title: 'Adopt multi-agent reasoning architecture',
+      description: 'Replaced single-pass analysis with 19-specialist debate engine.',
+      outcome: 'positive', healthImpact: 12,
+      learnings: ['Debate protocol significantly improved finding accuracy', 'Specialist diversity matters more than count'],
+    },
+    {
+      id: 'evo-002', date: '2026-02-20', type: 'milestone',
+      title: 'Knowledge graph migration to dual-backend',
+      description: 'Added SQLite alongside Apache AGE for development workflows.',
+      outcome: 'positive', healthImpact: 5,
+      learnings: ['SQLite backend eliminates PostgreSQL dependency for dev', 'Query interface abstraction was key to clean migration'],
+    },
+    {
+      id: 'evo-003', date: '2026-03-10', type: 'incident',
+      title: 'Dependency vulnerability in oauth-lib v3',
+      description: 'OWASP A07:2021 flagged during automated scan.',
+      outcome: 'resolved', healthImpact: -8,
+      learnings: ['Automated dependency scanning caught this early', 'Need policy for mandatory lockfile updates'],
+    },
+    {
+      id: 'evo-004', date: '2026-04-05', type: 'decision',
+      title: 'Add JWT auth + RBAC to REST API',
+      description: 'Enterprise-grade authentication with role-based access control.',
+      outcome: 'positive', healthImpact: 7,
+      learnings: ['API key support essential for CI/CD integration', 'Three-tier RBAC (admin/analyst/viewer) covers most use cases'],
+    },
+    {
+      id: 'evo-005', date: '2026-05-15', type: 'experiment',
+      title: 'TypeScript strict mode trial',
+      description: 'Enabled strict mode in @recurrsive/core as a pilot.',
+      outcome: 'positive', healthImpact: 3,
+      learnings: ['Found 12 type-safety issues', 'strictNullChecks was the highest-value flag'],
+    },
+    {
+      id: 'evo-006', date: '2026-06-01', type: 'decision',
+      title: 'Expand collectors to GitLab + telemetry',
+      description: 'Added GitLab CI/CD and OpenTelemetry data collection.',
+      outcome: 'positive', healthImpact: 6,
+      learnings: ['Collector interface abstraction makes new integrations fast', 'Governance filtering is critical for enterprise adoption'],
+    },
+    {
+      id: 'evo-007', date: '2026-06-20', type: 'milestone',
+      title: 'Dashboard executive intelligence view',
+      description: 'Added KPI dashboards, risk assessment, and trend visualization.',
+      outcome: 'positive', healthImpact: 4,
+      learnings: ['Executive stakeholders need different data than engineers', 'Health score trend is the single most-watched metric'],
+    },
+  ],
+  trajectory: [
+    { date: '2026-01-15', score: 67, event: 'Adopt multi-agent reasoning architecture' },
+    { date: '2026-02-20', score: 72, event: 'Knowledge graph migration to dual-backend' },
+    { date: '2026-03-10', score: 64, event: 'Dependency vulnerability in oauth-lib v3' },
+    { date: '2026-04-05', score: 71, event: 'Add JWT auth + RBAC to REST API' },
+    { date: '2026-05-15', score: 74, event: 'TypeScript strict mode trial' },
+    { date: '2026-06-01', score: 80, event: 'Expand collectors to GitLab + telemetry' },
+    { date: '2026-06-20', score: 84, event: 'Dashboard executive intelligence view' },
+  ],
+  currentScore: 84,
+  totalDecisions: 3,
+  totalMilestones: 2,
+  totalIncidents: 1,
+  totalExperiments: 1,
+  netHealthImpact: 29,
+  allLearnings: [
+    'Debate protocol significantly improved finding accuracy',
+    'Specialist diversity matters more than count',
+    'SQLite backend eliminates PostgreSQL dependency for dev',
+    'Query interface abstraction was key to clean migration',
+    'Automated dependency scanning caught this early',
+    'Need policy for mandatory lockfile updates',
+    'API key support essential for CI/CD integration',
+    'Three-tier RBAC (admin/analyst/viewer) covers most use cases',
+    'Found 12 type-safety issues',
+    'strictNullChecks was the highest-value flag',
+    'Collector interface abstraction makes new integrations fast',
+    'Governance filtering is critical for enterprise adoption',
+    'Executive stakeholders need different data than engineers',
+    'Health score trend is the single most-watched metric',
+  ],
+};
+
+const MOCK_WHAT_IF: WhatIfResult = {
+  currentScore: 78,
+  projectedScore: 89.5,
+  totalImpact: 11.5,
+  actions: [
+    {
+      id: 'wia-001', type: 'fix-critical-findings', description: 'Fix Critical Findings',
+      impact: { healthScoreDelta: 8.5, confidence: 0.9, timeToRealize: '7 days', affectedDimensions: ['security', 'reliability'] },
+    },
+    {
+      id: 'wia-002', type: 'add-tests', description: 'Add Test Coverage',
+      impact: { healthScoreDelta: 4.2, confidence: 0.85, timeToRealize: '14 days', affectedDimensions: ['testing', 'reliability', 'developer_experience'] },
+    },
+  ],
+  summary: {
+    highestImpact: 'fix-critical-findings',
+    totalActions: 2,
+    avgConfidence: 0.88,
+    recommendation: 'Strong improvement potential. Prioritize the highest-confidence actions first.',
+  },
+};
+
+// ─── Forecasting API ─────────────────────────────────────────────────────────
+
+/**
+ * Get health forecast data from `GET /api/v1/forecasting/health`.
+ *
+ * Server returns: `{ data: ForecastData, generatedAt }`
+ * Falls back to mock data when the server is unavailable.
+ */
+export async function getForecast(): Promise<ForecastData> {
+  try {
+    const raw = await apiFetch<{ data: ForecastData } | null>(
+      "/api/v1/forecasting/health",
+      null,
+    );
+    if (raw?.data) return raw.data;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_FORECAST;
+}
+
+/**
+ * Get evolution graph data from `GET /api/v1/forecasting/evolution`.
+ *
+ * Server returns: `{ data: EvolutionData, generatedAt }`
+ * Falls back to mock data when the server is unavailable.
+ */
+export async function getEvolution(): Promise<EvolutionData> {
+  try {
+    const raw = await apiFetch<{ data: EvolutionData } | null>(
+      "/api/v1/forecasting/evolution",
+      null,
+    );
+    if (raw?.data) return raw.data;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_EVOLUTION;
+}
+
+/**
+ * Simulate what-if impact via `POST /api/v1/forecasting/what-if`.
+ *
+ * Server returns: `{ data: WhatIfResult, generatedAt }`
+ * Falls back to mock data when the server is unavailable.
+ */
+export async function getWhatIfAnalysis(params: {
+  actions: Array<{ type: string; description: string }>;
+}): Promise<WhatIfResult> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/forecasting/what-if`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const json = (await res.json()) as { data: WhatIfResult };
+    if (json?.data) return json.data;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_WHAT_IF;
+}
+
+// ─── Plugins ─────────────────────────────────────────────────────────────────
+
+export interface InstalledPlugin {
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  description: string;
+  enabled: boolean;
+  health: 'healthy' | 'degraded' | 'error';
+  type: 'analyzer' | 'collector' | 'reporter' | 'integration';
+  installedAt: string;
+}
+
+export interface MarketplacePlugin {
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  description: string;
+  stars: number;
+  downloads: number;
+  type: 'analyzer' | 'collector' | 'reporter' | 'integration';
+  verified: boolean;
+}
+
+const MOCK_INSTALLED_PLUGINS: InstalledPlugin[] = [
+  { id: 'p1', name: 'ESLint Analyzer', version: '3.2.1', author: 'Recurrsive', description: 'Static analysis via ESLint rules', enabled: true, health: 'healthy', type: 'analyzer', installedAt: '2026-05-10' },
+  { id: 'p2', name: 'Sonar Collector', version: '1.8.0', author: 'Community', description: 'Import findings from SonarQube', enabled: true, health: 'degraded', type: 'collector', installedAt: '2026-04-22' },
+  { id: 'p3', name: 'Slack Notifier', version: '2.0.4', author: 'Recurrsive', description: 'Push notifications to Slack channels', enabled: false, health: 'healthy', type: 'integration', installedAt: '2026-06-01' },
+  { id: 'p4', name: 'PDF Reporter', version: '1.3.0', author: 'Community', description: 'Generate PDF executive reports', enabled: true, health: 'error', type: 'reporter', installedAt: '2026-03-15' },
+];
+
+const MOCK_MARKETPLACE_PLUGINS: MarketplacePlugin[] = [
+  { id: 'm1', name: 'Semgrep Analyzer', version: '2.1.0', author: 'r2c', description: 'Lightweight static analysis with custom rules', stars: 482, downloads: 12400, type: 'analyzer', verified: true },
+  { id: 'm2', name: 'GitHub Collector', version: '1.5.2', author: 'Recurrsive', description: 'Sync issues and PRs from GitHub repos', stars: 314, downloads: 8900, type: 'collector', verified: true },
+  { id: 'm3', name: 'Jira Integration', version: '3.0.1', author: 'Atlassian', description: 'Two-way sync with Jira tickets', stars: 256, downloads: 7200, type: 'integration', verified: true },
+  { id: 'm4', name: 'HTML Reporter', version: '1.0.3', author: 'Community', description: 'Interactive HTML dashboards for reports', stars: 89, downloads: 2100, type: 'reporter', verified: false },
+  { id: 'm5', name: 'Terraform Scanner', version: '0.9.0', author: 'Community', description: 'IaC security scanning for Terraform files', stars: 134, downloads: 3400, type: 'analyzer', verified: false },
+];
+
+export async function getInstalledPlugins(): Promise<InstalledPlugin[]> {
+  try {
+    const res = await apiFetch<{ plugins: InstalledPlugin[] } | null>('/api/v1/plugins', null);
+    if (res?.plugins) return res.plugins;
+  } catch { /* fall through */ }
+  return MOCK_INSTALLED_PLUGINS;
+}
+
+export async function getMarketplacePlugins(): Promise<MarketplacePlugin[]> {
+  try {
+    const res = await apiFetch<{ plugins: MarketplacePlugin[] } | null>('/api/v1/plugins/marketplace', null);
+    if (res?.plugins) return res.plugins;
+  } catch { /* fall through */ }
+  return MOCK_MARKETPLACE_PLUGINS;
+}
+
+// ─── Confidence ──────────────────────────────────────────────────────────────
+
+export interface ConfidenceData {
+  brierScore: number;
+  brierTrend: number;
+  totalPredictions: number;
+  accuracy: number;
+  calibration: { predicted: string; count: number; actualRate: number; deviation: number }[];
+  analyzerAccuracy: { name: string; accuracy: number; predictions: number }[];
+  recentPredictions: { id: string; description: string; predicted: number; actual: boolean; date: string; source: string }[];
+}
+
+const MOCK_CONFIDENCE: ConfidenceData = {
+  brierScore: 0.142,
+  brierTrend: -0.018,
+  totalPredictions: 2847,
+  accuracy: 87.3,
+  calibration: [
+    { predicted: '0-10%', count: 312, actualRate: 4.2, deviation: -3.8 },
+    { predicted: '10-20%', count: 198, actualRate: 14.1, deviation: -0.9 },
+    { predicted: '20-30%', count: 245, actualRate: 26.5, deviation: 1.5 },
+    { predicted: '30-40%', count: 187, actualRate: 33.2, deviation: -1.8 },
+    { predicted: '40-50%', count: 156, actualRate: 46.8, deviation: 1.8 },
+    { predicted: '50-60%', count: 289, actualRate: 54.3, deviation: -0.7 },
+    { predicted: '60-70%', count: 334, actualRate: 67.1, deviation: 2.1 },
+    { predicted: '70-80%', count: 412, actualRate: 73.8, deviation: -1.2 },
+    { predicted: '80-90%', count: 398, actualRate: 86.4, deviation: 1.4 },
+    { predicted: '90-100%', count: 316, actualRate: 94.6, deviation: 0.6 },
+  ],
+  analyzerAccuracy: [
+    { name: 'DependencyAnalyzer', accuracy: 94.2, predictions: 412 },
+    { name: 'SecurityAnalyzer', accuracy: 91.8, predictions: 356 },
+    { name: 'PerformanceAnalyzer', accuracy: 88.5, predictions: 289 },
+    { name: 'CodeQualityAnalyzer', accuracy: 86.1, predictions: 534 },
+    { name: 'AIRuntimeAnalyzer', accuracy: 82.4, predictions: 178 },
+  ],
+  recentPredictions: [
+    { id: 'pred-1', description: 'CVE-2026-1234 exploitable in production', predicted: 0.89, actual: true, date: '2026-06-30', source: 'SecurityAnalyzer' },
+    { id: 'pred-2', description: 'Memory leak in auth service', predicted: 0.72, actual: true, date: '2026-06-29', source: 'PerformanceAnalyzer' },
+    { id: 'pred-3', description: 'Breaking API change in v3.2', predicted: 0.45, actual: false, date: '2026-06-28', source: 'APIContractAnalyzer' },
+  ],
+};
+
+export async function getConfidenceData(): Promise<ConfidenceData> {
+  try {
+    const res = await apiFetch<ConfidenceData | null>('/api/v1/confidence', null);
+    if (res) return res;
+  } catch { /* fall through */ }
+  return MOCK_CONFIDENCE;
+}
+
+// ─── Project Types ───────────────────────────────────────────────────────────
+
+export interface Project {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  repository: string;
+  language: string;
+  framework: string;
+  healthScore: number;
+  lastAnalysis: string | null;
+  createdAt: string;
+  updatedAt: string;
+  settings: {
+    analyzers: string[];
+    collectors: string[];
+    autoAnalyze: boolean;
+    notifyOnCritical: boolean;
+  };
+}
+
+// ─── Project Mock Data ───────────────────────────────────────────────────────
+
+const MOCK_PROJECTS: Project[] = [
+  {
+    id: "proj-001",
+    name: "Recurrsive Engine",
+    slug: "recurrsive-engine",
+    description: "Core analysis engine powering recursive code intelligence and opportunity detection.",
+    repository: "https://github.com/recurrsive/engine",
+    language: "TypeScript",
+    framework: "Node.js",
+    healthScore: 87,
+    lastAnalysis: "2026-06-30T10:02:34Z",
+    createdAt: "2026-03-15T08:00:00Z",
+    updatedAt: "2026-06-30T10:02:34Z",
+    settings: {
+      analyzers: ["architecture", "security", "performance", "documentation"],
+      collectors: ["git", "npm", "eslint"],
+      autoAnalyze: true,
+      notifyOnCritical: true,
+    },
+  },
+  {
+    id: "proj-002",
+    name: "Dashboard UI",
+    slug: "dashboard-ui",
+    description: "Next.js dashboard for visualizing analysis results and managing projects.",
+    repository: "https://github.com/recurrsive/dashboard",
+    language: "TypeScript",
+    framework: "Next.js",
+    healthScore: 92,
+    lastAnalysis: "2026-06-29T14:30:00Z",
+    createdAt: "2026-04-01T09:00:00Z",
+    updatedAt: "2026-06-29T14:30:00Z",
+    settings: {
+      analyzers: ["architecture", "performance", "documentation"],
+      collectors: ["git", "npm"],
+      autoAnalyze: true,
+      notifyOnCritical: false,
+    },
+  },
+  {
+    id: "proj-003",
+    name: "API Gateway",
+    slug: "api-gateway",
+    description: "Central API gateway handling authentication, rate limiting, and request routing.",
+    repository: "https://github.com/recurrsive/api-gateway",
+    language: "Go",
+    framework: "Gin",
+    healthScore: 78,
+    lastAnalysis: "2026-06-28T09:15:00Z",
+    createdAt: "2026-02-20T10:00:00Z",
+    updatedAt: "2026-06-28T09:15:00Z",
+    settings: {
+      analyzers: ["architecture", "security", "reliability"],
+      collectors: ["git", "go-vet"],
+      autoAnalyze: false,
+      notifyOnCritical: true,
+    },
+  },
+  {
+    id: "proj-004",
+    name: "ML Pipeline",
+    slug: "ml-pipeline",
+    description: "Machine learning pipeline for code pattern recognition and anomaly detection.",
+    repository: "https://github.com/recurrsive/ml-pipeline",
+    language: "Python",
+    framework: "FastAPI",
+    healthScore: 65,
+    lastAnalysis: "2026-06-25T11:20:00Z",
+    createdAt: "2026-05-10T14:00:00Z",
+    updatedAt: "2026-06-25T11:20:00Z",
+    settings: {
+      analyzers: ["architecture", "performance"],
+      collectors: ["git", "pip-audit"],
+      autoAnalyze: true,
+      notifyOnCritical: true,
+    },
+  },
+];
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+
+/**
+ * Get all projects from `GET /api/v1/projects`.
+ *
+ * Server returns: `{ data: Project[] }`
+ */
+export async function getProjects(): Promise<Project[]> {
+  try {
+    const raw = await apiFetch<{ data: Project[] } | null>(
+      "/api/v1/projects",
+      null,
+    );
+    if (raw?.data?.length) return raw.data;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_PROJECTS;
+}
+
+/**
+ * Get a single project by ID from `GET /api/v1/projects/:id`.
+ *
+ * Server returns: `{ data: Project }`
+ */
+export async function getProject(id: string): Promise<Project | null> {
+  try {
+    const raw = await apiFetch<{ data: Project } | null>(
+      `/api/v1/projects/${encodeURIComponent(id)}`,
+      null,
+    );
+    if (raw?.data) return raw.data;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_PROJECTS.find((p) => p.id === id) ?? null;
+}

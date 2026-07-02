@@ -8,65 +8,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, Zap, GitBranch, ChevronRight, ArrowUp, ArrowDown, Minus, Target, Brain } from 'lucide-react';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface ForecastData {
-  currentScore: number;
-  trend: 'improving' | 'declining' | 'stable';
-  trendStrength: number;
-  confidence: number;
-  history: Array<{ date: string; score: number }>;
-  forecast: Array<{ date: string; predicted: number; lowerBound: number; upperBound: number }>;
-  targets: Array<{ target: number; daysToReach: number | null; reachable: boolean }>;
-  regression: { slope: number; intercept: number; r2: number };
-}
-
-interface EvolutionEvent {
-  id: string;
-  date: string;
-  type: 'decision' | 'milestone' | 'incident' | 'experiment';
-  title: string;
-  description: string;
-  outcome: string;
-  healthImpact: number;
-  learnings: string[];
-}
-
-interface EvolutionData {
-  events: EvolutionEvent[];
-  trajectory: Array<{ date: string; score: number; event: string }>;
-  currentScore: number;
-  totalDecisions: number;
-  totalMilestones: number;
-  totalIncidents: number;
-  totalExperiments: number;
-  netHealthImpact: number;
-  allLearnings: string[];
-}
-
-interface WhatIfResult {
-  currentScore: number;
-  projectedScore: number;
-  totalImpact: number;
-  actions: Array<{
-    id: string;
-    type: string;
-    description: string;
-    impact: {
-      healthScoreDelta: number;
-      confidence: number;
-      timeToRealize: string;
-      affectedDimensions: string[];
-    };
-  }>;
-  summary: {
-    highestImpact: string | null;
-    totalActions: number;
-    avgConfidence: number;
-    recommendation: string;
-  };
-}
+import {
+  getForecast,
+  getEvolution,
+  getWhatIfAnalysis,
+  type ForecastData,
+  type EvolutionData,
+  type WhatIfResult,
+} from '@/lib/api';
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
@@ -117,12 +66,8 @@ function WhatIfPanel() {
         type,
         description: ACTION_TYPES.find(a => a.type === type)?.label ?? type,
       }));
-      const res = await fetch('/api/v1/forecasting/what-if', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actions }),
-      });
-      if (res.ok) setResult((await res.json()).data);
+      const data = await getWhatIfAnalysis({ actions });
+      setResult(data);
     } catch { /* ignore */ }
     setLoading(false);
   }, [selected]);
@@ -201,11 +146,8 @@ export default function ForecastingPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/v1/forecasting/health').then(r => r.json()),
-      fetch('/api/v1/forecasting/evolution').then(r => r.json()),
-    ])
-      .then(([f, e]) => { setForecast(f.data); setEvolution(e.data); })
+    Promise.all([getForecast(), getEvolution()])
+      .then(([f, e]) => { setForecast(f); setEvolution(e); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

@@ -7,46 +7,10 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Package, Download, Power, Shield, Star, Search } from 'lucide-react';
+import { Package, Download, Power, Shield, Star, Search, Loader2 } from 'lucide-react';
+import { getInstalledPlugins, getMarketplacePlugins } from '@/lib/api';
+import type { InstalledPlugin, MarketplacePlugin } from '@/lib/api';
 
-interface InstalledPlugin {
-  id: string;
-  name: string;
-  version: string;
-  author: string;
-  description: string;
-  enabled: boolean;
-  health: 'healthy' | 'degraded' | 'error';
-  type: 'analyzer' | 'collector' | 'reporter' | 'integration';
-  installedAt: string;
-}
-
-interface MarketplacePlugin {
-  id: string;
-  name: string;
-  version: string;
-  author: string;
-  description: string;
-  stars: number;
-  downloads: number;
-  type: 'analyzer' | 'collector' | 'reporter' | 'integration';
-  verified: boolean;
-}
-
-const demoInstalled: InstalledPlugin[] = [
-  { id: 'p1', name: 'ESLint Analyzer', version: '3.2.1', author: 'Recurrsive', description: 'Static analysis via ESLint rules', enabled: true, health: 'healthy', type: 'analyzer', installedAt: '2026-05-10' },
-  { id: 'p2', name: 'Sonar Collector', version: '1.8.0', author: 'Community', description: 'Import findings from SonarQube', enabled: true, health: 'degraded', type: 'collector', installedAt: '2026-04-22' },
-  { id: 'p3', name: 'Slack Notifier', version: '2.0.4', author: 'Recurrsive', description: 'Push notifications to Slack channels', enabled: false, health: 'healthy', type: 'integration', installedAt: '2026-06-01' },
-  { id: 'p4', name: 'PDF Reporter', version: '1.3.0', author: 'Community', description: 'Generate PDF executive reports', enabled: true, health: 'error', type: 'reporter', installedAt: '2026-03-15' },
-];
-
-const demoMarketplace: MarketplacePlugin[] = [
-  { id: 'm1', name: 'Semgrep Analyzer', version: '2.1.0', author: 'r2c', description: 'Lightweight static analysis with custom rules', stars: 482, downloads: 12400, type: 'analyzer', verified: true },
-  { id: 'm2', name: 'GitHub Collector', version: '1.5.2', author: 'Recurrsive', description: 'Sync issues and PRs from GitHub repos', stars: 314, downloads: 8900, type: 'collector', verified: true },
-  { id: 'm3', name: 'Jira Integration', version: '3.0.1', author: 'Atlassian', description: 'Two-way sync with Jira tickets', stars: 256, downloads: 7200, type: 'integration', verified: true },
-  { id: 'm4', name: 'HTML Reporter', version: '1.0.3', author: 'Community', description: 'Interactive HTML dashboards for reports', stars: 89, downloads: 2100, type: 'reporter', verified: false },
-  { id: 'm5', name: 'Terraform Scanner', version: '0.9.0', author: 'Community', description: 'IaC security scanning for Terraform files', stars: 134, downloads: 3400, type: 'analyzer', verified: false },
-];
 
 function StatusBadge({ enabled }: { enabled: boolean }) {
   return (
@@ -79,12 +43,12 @@ export default function PluginsPage() {
   const [filterType, setFilterType] = useState<string>('all');
 
   useEffect(() => {
-    // Synthetic data — no real fetch
-    setTimeout(() => {
-      setInstalled(demoInstalled);
-      setMarketplace(demoMarketplace);
-      setLoading(false);
-    }, 300);
+    Promise.all([getInstalledPlugins(), getMarketplacePlugins()])
+      .then(([inst, mkt]) => {
+        setInstalled(inst);
+        setMarketplace(mkt);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const togglePlugin = (id: string) => {
