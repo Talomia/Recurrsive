@@ -1,0 +1,316 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import {
+  Menu,
+  X,
+  ChevronDown,
+  ExternalLink,
+  Sparkles,
+  Store,
+  Cloud,
+  Users,
+  BookOpen,
+  DollarSign,
+} from 'lucide-react';
+
+const NAV_ITEMS = [
+  {
+    label: 'Product',
+    href: '/product',
+    items: [
+      { label: 'Features', href: '/product', icon: Sparkles, desc: 'Full-system engineering intelligence' },
+      { label: 'Marketplace', href: '/marketplace', icon: Store, desc: 'Analyzers, collectors & more' },
+      { label: 'Cloud', href: '/cloud', icon: Cloud, desc: 'Managed SaaS deployment' },
+    ],
+  },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'Partners', href: '/partners' },
+  {
+    label: 'Resources',
+    href: '/docs',
+    items: [
+      { label: 'Documentation', href: '/docs', icon: BookOpen, desc: 'Guides, API reference & SDK' },
+      { label: 'Blog', href: '/blog', icon: ExternalLink, desc: 'Technical articles & updates' },
+      { label: 'Changelog', href: '/changelog', icon: ExternalLink, desc: 'Release notes & updates' },
+    ],
+  },
+];
+
+export function Navbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
+  return (
+    <header
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 'var(--nav-height)',
+        zIndex: 100,
+        background: 'rgba(10, 10, 15, 0.8)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid var(--border-subtle)',
+      }}
+    >
+      <nav
+        className="container"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          height: '100%',
+        }}
+      >
+        {/* Logo */}
+        <Link
+          href="/"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontWeight: 800,
+            fontSize: '1.25rem',
+            letterSpacing: '-0.03em',
+          }}
+        >
+          <span
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'var(--gradient-brand)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.9rem',
+            }}
+          >
+            R
+          </span>
+          <span>Recurrsive</span>
+        </Link>
+
+        {/* Desktop Nav */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+          className="desktop-nav"
+        >
+          {NAV_ITEMS.map((item) => (
+            <div
+              key={item.label}
+              style={{ position: 'relative' }}
+              onMouseEnter={() => item.items && setOpenDropdown(item.label)}
+              onMouseLeave={() => setOpenDropdown(null)}
+            >
+              <Link
+                href={item.href}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '8px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.9rem',
+                  fontWeight: 500,
+                  transition: 'color var(--transition-fast)',
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.color = 'var(--text-primary)')
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = 'var(--text-secondary)')
+                }
+              >
+                {item.label}
+                {item.items && <ChevronDown size={14} />}
+              </Link>
+
+              {/* Dropdown */}
+              {item.items && openDropdown === item.label && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    paddingTop: '8px',
+                    zIndex: 50,
+                  }}
+                >
+                  <div
+                    style={{
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '8px',
+                      minWidth: '280px',
+                      boxShadow: 'var(--shadow-lg)',
+                    }}
+                  >
+                    {item.items.map((sub) => (
+                      <Link
+                        key={sub.label}
+                        href={sub.href}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                          padding: '12px',
+                          borderRadius: 'var(--radius-md)',
+                          transition: 'background var(--transition-fast)',
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background =
+                            'var(--bg-glass-strong)')
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = 'transparent')
+                        }
+                      >
+                        <sub.icon
+                          size={20}
+                          style={{ color: 'var(--text-accent)', marginTop: 2 }}
+                        />
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: '0.9rem',
+                              marginBottom: 2,
+                            }}
+                          >
+                            {sub.label}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '0.8rem',
+                              color: 'var(--text-tertiary)',
+                            }}
+                          >
+                            {sub.desc}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* CTA Buttons */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+          className="desktop-nav"
+        >
+          <Link
+            href="https://github.com/Talomia/Recurrsive"
+            className="btn btn-secondary btn-sm"
+            target="_blank"
+          >
+            GitHub
+          </Link>
+          <Link href="/cloud" className="btn btn-primary btn-sm">
+            Get Started
+          </Link>
+        </div>
+
+        {/* Mobile Toggle */}
+        <button
+          className="mobile-toggle"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          style={{
+            display: 'none',
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            padding: 8,
+          }}
+          aria-label="Toggle menu"
+        >
+          {mobileOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </nav>
+
+      {/* Mobile Menu */}
+      {mobileOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 'var(--nav-height)',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'var(--bg-primary)',
+            padding: 'var(--space-lg)',
+            overflowY: 'auto',
+            zIndex: 99,
+          }}
+        >
+          {NAV_ITEMS.map((item) => (
+            <div key={item.label} style={{ marginBottom: 'var(--space-md)' }}>
+              <Link
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                style={{
+                  display: 'block',
+                  padding: '12px 0',
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                  borderBottom: '1px solid var(--border-subtle)',
+                }}
+              >
+                {item.label}
+              </Link>
+              {item.items?.map((sub) => (
+                <Link
+                  key={sub.label}
+                  href={sub.href}
+                  onClick={() => setMobileOpen(false)}
+                  style={{
+                    display: 'block',
+                    padding: '10px 0 10px 20px',
+                    fontSize: '0.95rem',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  {sub.label}
+                </Link>
+              ))}
+            </div>
+          ))}
+          <div style={{ marginTop: 'var(--space-xl)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <Link href="https://github.com/Talomia/Recurrsive" className="btn btn-secondary" target="_blank">
+              GitHub
+            </Link>
+            <Link href="/cloud" className="btn btn-primary">
+              Get Started
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @media (max-width: 768px) {
+          .desktop-nav { display: none !important; }
+          .mobile-toggle { display: block !important; }
+        }
+      `}</style>
+    </header>
+  );
+}

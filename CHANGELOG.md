@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-02
+
+### Added
+
+#### Marketing Website (`apps/website`)
+- **11 pages**: Landing, Product, Pricing, Marketplace, Cloud, Partners, Docs, About, Blog, Contact, Changelog
+- **Design system**: Dark theme with glassmorphism, gradient accents, micro-animations, and responsive layout
+- **Shared components**: Navbar with dropdown menus, Footer with multi-column links
+- **SEO**: Proper meta tags, Open Graph, semantic HTML, descriptive titles
+
+#### Marketplace (`/marketplace`)
+- Browse page with filter tabs (All, Analyzers, Collectors, Policies, Intelligence Packs)
+- 16+ extension cards including 13 built-in analyzers and 3 community extensions
+- Extension detail cards with download counts, ratings, and install status
+
+#### Managed Cloud (`/cloud`)
+- Cloud product page with benefits grid (6 managed features)
+- Three pricing tiers: Starter ($199/mo), Growth ($599/mo), Enterprise (custom)
+- Region availability and feature comparison vs self-hosted
+
+#### Partner Portal (`/partners`)
+- Partner program overview with Platinum/Gold/Silver tiers
+- Partner directory with 5 certified partner cards
+- Certification tracks: Analyst, Architect, Administrator
+
+#### Documentation Hub (`/docs`)
+- Documentation landing page with quick-start cards
+- Links to Getting Started, API Reference, CLI Reference, Plugin SDK, MCP Server, Architecture
+
+#### Infrastructure
+- `docker/Dockerfile.website` — Multi-stage production build
+- Website service added to `docker/docker-compose.yml`
+- `apps/website/public/.gitkeep` for Docker compatibility
+
+### Changed
+- Updated README with website links and updated package count (14 packages, 5 apps)
+- Bumped version to 0.5.0
+
 ## [0.4.1] - 2026-07-02
 
 ### Changed

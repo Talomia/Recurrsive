@@ -6,6 +6,8 @@
 
 Understand your entire software system. Make better engineering decisions.
 
+[Website](https://recurrsive.dev) · [Documentation](https://recurrsive.dev/docs) · [Marketplace](https://recurrsive.dev/marketplace) · [Cloud](https://recurrsive.dev/cloud) · [Blog](https://recurrsive.dev/blog)
+
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
@@ -61,8 +63,9 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 | 💬 MCP prompts | 21 |
 | 📦 MCP resources | 16 |
 | 🖥️ Dashboard pages | 40 |
+| 🌐 Website pages | 11 |
 | ✅ Tests | 2,920+ |
-| 📁 Packages | 13 (9 core + 4 apps) |
+| 📁 Packages | 14 (9 core + 5 apps) |
 
 ---
 

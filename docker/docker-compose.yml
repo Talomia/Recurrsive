@@ -82,8 +82,22 @@ services:
       - "3100:3100"
     restart: unless-stopped
 
+  # ── Recurrsive Marketing Website ───────────────────────────────────────────
+  website:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.website
+    container_name: recurrsive-website
+    environment:
+      PORT: "3200"
+      NODE_ENV: production
+    ports:
+      - "3200:3200"
+    restart: unless-stopped
+
 volumes:
   pgdata:
     driver: local
   server-data:
     driver: local
+

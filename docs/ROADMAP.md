@@ -137,8 +137,15 @@ Build organizational engineering memory and explore network effects.
 - [x] Anonymized benchmarking *(scaffolded — synthetic data, labeled demonstration-only)*
 - [x] Cross-organization pattern learning *(scaffolded — static pattern list)*
 - [ ] Managed optimization services
-- [ ] Partner certification program
-- [ ] Recurrsive Cloud (fully managed SaaS)
+- [x] Partner certification program *(v0.5.0 — partner portal with 3 certification tracks)*
+- [x] Recurrsive Cloud *(v0.5.0 — marketing site with managed cloud pages, pricing, and regions)*
+
+### Marketing & Ecosystem (v0.5.0)
+- [x] **Marketing website** — 11-page Next.js site (landing, product, pricing, marketplace, cloud, partners, docs, about, blog, contact, changelog)
+- [x] **Marketplace UI** — Browse, filter, and discover analyzers, collectors, policies, and intelligence packs
+- [x] **Cloud product pages** — Managed SaaS offering with 3 tiers and multi-region
+- [x] **Partner portal** — Partner program, directory, certification tracks, application
+- [x] **Documentation hub** — Centralized docs landing with quick-start guides
 
 ---
 
@@ -150,7 +157,6 @@ These are valid ideas that are premature to build now:
 |---|---|---|
 | Cross-org learning | Privacy/trust barrier too high | 1000+ customers |
 | Network effects | Need single-tenant value first | Product-market fit |
-| Marketplace | Needs liquidity | 50+ analyzers exist |
+| Marketplace backend | Needs liquidity — UI is built | 50+ analyzers exist |
 | Full autonomous execution | Trust must be earned | Experiment framework proven |
 | Benchmarking-as-a-service | Needs statistical scale | 100+ organizations |
-| Education/certification | Premature | Active partner ecosystem |
