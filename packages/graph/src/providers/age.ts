@@ -35,6 +35,23 @@ export interface AgeConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Cypher Sanitisation
+// ---------------------------------------------------------------------------
+
+/**
+ * Escape a string for safe embedding in a Cypher literal wrapped in single
+ * quotes.  Handles backslashes, single quotes, and null bytes.
+ *
+ * @example escapeCypher("it's a \"test\"") → "it\\'s a \"test\""
+ */
+function escapeCypher(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')        // escape backslashes first
+    .replace(/'/g, "\\'")          // escape single quotes
+    .replace(/\0/g, '');           // strip null bytes
+}
+
+// ---------------------------------------------------------------------------
 // Graph Statistics
 // ---------------------------------------------------------------------------
 
@@ -211,8 +228,7 @@ function entityToAgeProps(entity: Entity): string {
   // Build a Cypher map literal
   const parts = Object.entries(props).map(([k, v]) => {
     if (typeof v === 'string') {
-      // Escape single quotes for Cypher
-      return `${k}: '${v.replace(/'/g, "\\'")}'`;
+      return `${k}: '${escapeCypher(v)}'`;
     }
     return `${k}: ${JSON.stringify(v)}`;
   });
@@ -240,7 +256,7 @@ function relationshipToAgeProps(rel: Relationship): string {
 
   const parts = Object.entries(props).map(([k, v]) => {
     if (typeof v === 'string') {
-      return `${k}: '${v.replace(/'/g, "\\'")}'`;
+      return `${k}: '${escapeCypher(v)}'`;
     }
     return `${k}: ${JSON.stringify(v)}`;
   });
@@ -355,7 +371,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
   async getEntity(id: string): Promise<Entity | null> {
     try {
       const rows = await this.executeCypher(
-        `MATCH (n {id: '${id.replace(/'/g, "\\'")}'}) RETURN n`,
+        `MATCH (n {id: '${escapeCypher(id)}'}) RETURN n`,
         'n agtype',
       );
       if (rows.length === 0) return null;
@@ -383,7 +399,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
       let whereClause = '';
       if (filter && Object.keys(filter).length > 0) {
         const conditions = Object.entries(filter).map(([k, v]) => {
-          const val = typeof v === 'string' ? `'${v.replace(/'/g, "\\'")}'` : JSON.stringify(v);
+          const val = typeof v === 'string' ? `'${escapeCypher(v)}'` : JSON.stringify(v);
           return `n.${k} = ${val}`;
         });
         whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -419,7 +435,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
     direction: 'in' | 'out' | 'both' = 'both',
   ): Promise<Relationship[]> {
     try {
-      const safeId = entityId.replace(/'/g, "\\'");
+      const safeId = escapeCypher(entityId);
       let cypher: string;
 
       switch (direction) {
@@ -482,7 +498,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
     depth: number = 1,
   ): Promise<{ entities: Entity[]; relationships: Relationship[] }> {
     try {
-      const safeId = entityId.replace(/'/g, "\\'");
+      const safeId = escapeCypher(entityId);
       const rows = await this.executeCypher(
         `MATCH (start {id: '${safeId}'})-[r*1..${depth}]-(neighbor) RETURN DISTINCT neighbor, r`,
         'neighbor agtype, r agtype',
@@ -543,7 +559,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
     try {
       const props = entityToAgeProps(entity);
       await this.executeCypher(
-        `MERGE (n:${entity.type} {id: '${entity.id.replace(/'/g, "\\'")}'}) SET n += ${props} RETURN n`,
+        `MERGE (n:${entity.type} {id: '${escapeCypher(entity.id)}'}) SET n += ${props} RETURN n`,
         'n agtype',
       );
       return entity;
@@ -566,10 +582,10 @@ export class AgeGraphClient implements ExtendedGraphClient {
   async upsertRelationship(relationship: Relationship): Promise<Relationship> {
     try {
       const props = relationshipToAgeProps(relationship);
-      const safeSrcId = relationship.source_id.replace(/'/g, "\\'");
-      const safeTgtId = relationship.target_id.replace(/'/g, "\\'");
+      const safeSrcId = escapeCypher(relationship.source_id);
+      const safeTgtId = escapeCypher(relationship.target_id);
       await this.executeCypher(
-        `MATCH (a {id: '${safeSrcId}'}), (b {id: '${safeTgtId}'}) MERGE (a)-[r:${relationship.type} {id: '${relationship.id.replace(/'/g, "\\'")}'}]->(b) SET r += ${props} RETURN r`,
+        `MATCH (a {id: '${safeSrcId}'}), (b {id: '${safeTgtId}'}) MERGE (a)-[r:${relationship.type} {id: '${escapeCypher(relationship.id)}'}]->(b) SET r += ${props} RETURN r`,
         'r agtype',
       );
       return relationship;
@@ -591,7 +607,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
    */
   async deleteEntity(id: string): Promise<boolean> {
     try {
-      const safeId = id.replace(/'/g, "\\'");
+      const safeId = escapeCypher(id);
       const rows = await this.executeCypher(
         `MATCH (n {id: '${safeId}'}) DETACH DELETE n RETURN count(n) AS deleted`,
         'deleted agtype',
@@ -617,7 +633,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
    */
   async deleteRelationship(id: string): Promise<boolean> {
     try {
-      const safeId = id.replace(/'/g, "\\'");
+      const safeId = escapeCypher(id);
       const rows = await this.executeCypher(
         `MATCH ()-[r {id: '${safeId}'}]-() DELETE r RETURN count(r) AS deleted`,
         'deleted agtype',

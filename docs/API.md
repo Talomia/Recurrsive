@@ -563,3 +563,20 @@ Simulation types: `traffic-replay`, `load-test`, `failure-injection`, `dependenc
 **Supported queries:** `projects`, `project(id)`, `findings(severity, analyzerId, limit)`, `analyzers`, `collectors`, `healthScore`, `opportunities(limit)`.
 
 **Response format:** `{ "data": { ... }, "errors": [...] }`
+
+---
+
+### Scheduling
+
+Report scheduling and automated export routes.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/schedules` | List all schedules |
+| `GET` | `/api/v1/schedules/:id` | Get schedule details |
+| `POST` | `/api/v1/schedules` | Create a new schedule |
+| `PUT` | `/api/v1/schedules/:id` | Update an existing schedule |
+| `DELETE` | `/api/v1/schedules/:id` | Delete a schedule |
+| `POST` | `/api/v1/schedules/:id/run` | Trigger an immediate run |
+| `GET` | `/api/v1/schedules/:id/runs` | List previous runs |
+| `POST` | `/api/v1/schedules/:id/toggle` | Enable/disable a schedule |

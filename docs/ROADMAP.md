@@ -18,7 +18,14 @@
 | REST API | ✅ Complete | 138 endpoints, WebSocket streaming, JWT/API key auth, RBAC |
 | Dashboard | ✅ Complete | Next.js, 40 pages (incl. detail pages), 8+ components, real-time WebSocket |
 | Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
-| Tests | ✅ Complete | 100 test files, 2,881+ individual tests, integration tests for full pipeline |
+| Tests | ✅ Complete | 112 test files, integration tests for full pipeline |
+
+> [!NOTE]
+> Enterprise platform routes (SSO, secrets, multi-tenant, simulation, cloud) are fully
+> scaffolded with working API endpoints that return realistic demo data. They use
+> in-memory storage and do not yet integrate with external services (IdPs, Vault,
+> cloud APIs). The core analysis pipeline (collect → parse → analyze → reason)
+> is fully implemented with real logic.
 
 ---
 
@@ -66,12 +73,12 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 
 ### Enterprise Features
 - [x] Authentication (JWT + API keys)
-- [x] SSO/SAML integration
+- [x] SSO/SAML integration *(scaffolded — demo provider, no real IdP)*
 - [x] Fine-grained RBAC (role-based access control)
 - [x] Audit logging (who accessed what, when)
 - [x] Data masking and PII controls
-- [x] Secret management integration (Vault, AWS Secrets Manager)
-- [x] Multi-tenant deployment model
+- [x] Secret management integration *(scaffolded — in-memory store, no real Vault/AWS)*
+- [x] Multi-tenant deployment model *(scaffolded — demo tenants, no real isolation)*
 
 ### Collectors (Enterprise)
 - [x] **Cloud cost collector** — AWS Cost Explorer, GCP Billing, Azure Cost Management
@@ -104,15 +111,15 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 
 ### Platform
 - [x] **Plugin SDK** — documented, versioned API for custom collectors and analyzers
-- [x] **Analyzer marketplace** — discover and install community analyzers
-- [x] **Domain intelligence packs** — Healthcare, Finance, Kubernetes, AI Safety
-- [x] **GraphQL API** — flexible querying for advanced integrations
+- [x] **Analyzer marketplace** — *(scaffolded — in-memory plugin store, no real package discovery)*
+- [x] **Domain intelligence packs** — *(scaffolded — static JSON definitions)*
+- [x] **GraphQL API** — hand-rolled engine *(uses synthetic demo data, not yet wired to live graph)*
 
 ### Execution Engine (Controlled)
-- [x] **Experiment framework** — connect to feature flag systems (LaunchDarkly, Unleash)
-- [x] **PR generation** — produce pull requests from recommendations (opt-in)
-- [x] **Simulation engine** — traffic replay for impact prediction
-- [x] **A/B test integration** — validate recommendation impact with experiments
+- [x] **Experiment framework** — *(scaffolded — in-memory experiments with demo data)*
+- [x] **PR generation** — *(scaffolded — produces synthetic PR data, no real git integration)*
+- [x] **Simulation engine** — *(scaffolded — in-memory scenarios, no real traffic replay)*
+- [x] **A/B test integration** — *(scaffolded — in-memory experiment tracking)*
 
 ### Advanced Intelligence
 - [x] **Evolution Graph** — record decisions, outcomes, and learning over time
@@ -126,12 +133,12 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 ### Objective
 Build organizational engineering memory and explore network effects.
 
-### Long-Term (Deferred — requires scale)
-- [x] Anonymized benchmarking (opt-in, aggregated)
-- [x] Cross-organization pattern learning (privacy-preserved)
-- [x] Managed optimization services
-- [x] Partner certification program
-- [x] Recurrsive Cloud (fully managed SaaS)
+### Long-Term (Scaffolded — requires scale for real implementation)
+- [x] Anonymized benchmarking *(scaffolded — synthetic data, labeled demonstration-only)*
+- [x] Cross-organization pattern learning *(scaffolded — static pattern list)*
+- [ ] Managed optimization services
+- [ ] Partner certification program
+- [ ] Recurrsive Cloud (fully managed SaaS)
 
 ---
 

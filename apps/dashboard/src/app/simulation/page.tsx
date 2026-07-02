@@ -6,64 +6,12 @@
  * Run and review simulations with impact scores, risk levels, and event timelines.
  */
 
-import { useState } from 'react';
-import { FlaskConical, Play, AlertTriangle, TrendingUp, Clock, Zap } from 'lucide-react';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface SimulationEvent {
-  time: string;
-  label: string;
-  impact: number;
-}
-
-interface Simulation {
-  id: string;
-  name: string;
-  type: 'monte-carlo' | 'stress-test' | 'what-if' | 'chaos';
-  status: 'completed' | 'running' | 'queued' | 'failed';
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-  impactScore: number;
-  duration: string;
-  createdAt: string;
-  metrics: { label: string; value: string }[];
-  timeline: SimulationEvent[];
-}
-
-// ─── Demo Data ───────────────────────────────────────────────────────────────
-
-const SIMULATIONS: Simulation[] = [
-  {
-    id: 'sim-001', name: 'Dependency Cascade Failure', type: 'chaos',
-    status: 'completed', riskLevel: 'critical', impactScore: 92, duration: '4m 12s',
-    createdAt: '2026-06-30', metrics: [{ label: 'Affected Services', value: '14' }, { label: 'Recovery Time', value: '38m' }],
-    timeline: [{ time: '0:00', label: 'Inject failure', impact: -5 }, { time: '0:45', label: 'Cascade begins', impact: -32 }, { time: '2:10', label: 'Alert triggered', impact: 0 }, { time: '4:12', label: 'Recovery complete', impact: 18 }],
-  },
-  {
-    id: 'sim-002', name: 'Traffic Spike 10x', type: 'stress-test',
-    status: 'completed', riskLevel: 'high', impactScore: 74, duration: '8m 03s',
-    createdAt: '2026-06-29', metrics: [{ label: 'P99 Latency', value: '2.4s' }, { label: 'Error Rate', value: '3.1%' }],
-    timeline: [{ time: '0:00', label: 'Ramp up traffic', impact: -2 }, { time: '3:00', label: 'Peak load', impact: -28 }, { time: '6:00', label: 'Auto-scale kicks in', impact: 12 }, { time: '8:03', label: 'Stabilized', impact: 5 }],
-  },
-  {
-    id: 'sim-003', name: 'Config Drift Projection', type: 'what-if',
-    status: 'completed', riskLevel: 'medium', impactScore: 45, duration: '1m 58s',
-    createdAt: '2026-06-28', metrics: [{ label: 'Drift Items', value: '7' }, { label: 'Compliance Gap', value: '12%' }],
-    timeline: [{ time: '0:00', label: 'Baseline captured', impact: 0 }, { time: '0:30', label: 'Drift injected', impact: -15 }, { time: '1:58', label: 'Report generated', impact: 0 }],
-  },
-  {
-    id: 'sim-004', name: 'Cost Optimization Model', type: 'monte-carlo',
-    status: 'running', riskLevel: 'low', impactScore: 28, duration: '—',
-    createdAt: '2026-07-01', metrics: [{ label: 'Iterations', value: '4,200 / 10,000' }, { label: 'Est. Savings', value: '$12.4k/mo' }],
-    timeline: [{ time: '0:00', label: 'Sampling started', impact: 0 }],
-  },
-  {
-    id: 'sim-005', name: 'Security Posture Breach', type: 'chaos',
-    status: 'queued', riskLevel: 'high', impactScore: 0, duration: '—',
-    createdAt: '2026-07-01', metrics: [],
-    timeline: [],
-  },
-];
+import { useState, useEffect } from 'react';
+import { FlaskConical, Play, AlertTriangle, TrendingUp, Clock, Zap, Loader2 } from 'lucide-react';
+import { getSimulations } from '@/lib/api';
+import type { SimulationScenario } from '@/lib/api';
+// Types reuse SimulationScenario from api.ts
+type Simulation = SimulationScenario;
 
 const SIM_TYPES = ['monte-carlo', 'stress-test', 'what-if', 'chaos'] as const;
 
@@ -87,8 +35,27 @@ function RiskDot({ level }: { level: string }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function SimulationPage() {
-  const [selected, setSelected] = useState<Simulation | null>(SIMULATIONS[0]);
+  const [simulations, setSimulations] = useState<Simulation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Simulation | null>(null);
   const [newType, setNewType] = useState<string>(SIM_TYPES[0]);
+
+  useEffect(() => {
+    getSimulations()
+      .then(data => {
+        setSimulations(data);
+        if (data.length > 0) setSelected(data[0]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -104,10 +71,10 @@ export default function SimulationPage() {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Simulations', value: SIMULATIONS.length, icon: FlaskConical },
-          { label: 'Running', value: SIMULATIONS.filter(s => s.status === 'running').length, icon: Play },
-          { label: 'Avg Impact', value: Math.round(SIMULATIONS.filter(s => s.impactScore > 0).reduce((a, s) => a + s.impactScore, 0) / SIMULATIONS.filter(s => s.impactScore > 0).length), icon: TrendingUp },
-          { label: 'Critical Risk', value: SIMULATIONS.filter(s => s.riskLevel === 'critical').length, icon: AlertTriangle },
+          { label: 'Total Simulations', value: simulations.length, icon: FlaskConical },
+          { label: 'Running', value: simulations.filter(s => s.status === 'running').length, icon: Play },
+          { label: 'Avg Impact', value: simulations.filter(s => s.impactScore > 0).length > 0 ? Math.round(simulations.filter(s => s.impactScore > 0).reduce((a, s) => a + s.impactScore, 0) / simulations.filter(s => s.impactScore > 0).length) : 0, icon: TrendingUp },
+          { label: 'Critical Risk', value: simulations.filter(s => s.riskLevel === 'critical').length, icon: AlertTriangle },
         ].map(k => (
           <div key={k.label} className="rounded-xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
             <p className="text-xs text-text-tertiary uppercase">{k.label}</p>
@@ -128,7 +95,7 @@ export default function SimulationPage() {
               <th className="pb-3">Name</th><th className="pb-3">Type</th><th className="pb-3">Status</th><th className="pb-3">Risk</th><th className="pb-3">Impact</th><th className="pb-3">Duration</th><th className="pb-3" />
             </tr></thead>
             <tbody className="divide-y divide-white/5">
-              {SIMULATIONS.map(s => (
+              {simulations.map(s => (
                 <tr key={s.id} className="hover:bg-white/5 cursor-pointer" onClick={() => setSelected(s)}>
                   <td className="py-3 text-text-primary font-medium">{s.name}</td>
                   <td className="py-3 text-text-secondary">{s.type}</td>

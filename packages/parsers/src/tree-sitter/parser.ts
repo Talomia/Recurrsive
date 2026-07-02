@@ -24,6 +24,7 @@ const LANGUAGE_PACKAGES: Record<string, string> = {
   typescript: 'tree-sitter-typescript',
   javascript: 'tree-sitter-javascript',
   python: 'tree-sitter-python',
+  go: 'tree-sitter-go',
 };
 
 /**

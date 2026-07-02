@@ -84,16 +84,7 @@ export default async function OverviewPage() {
             trend={health.techDebtTrend}
           >
             <TrendChart
-              data={[
-                { value: 165 },
-                { value: 160 },
-                { value: 158 },
-                { value: 155 },
-                { value: 152 },
-                { value: 148 },
-                { value: 145 },
-                { value: 143 },
-              ]}
+              data={timeline.slice(-8).map(t => ({ value: Math.round(100 - t.healthScore * 0.3) }))}
               color="#ef4444"
               height={32}
             />
@@ -108,16 +99,7 @@ export default async function OverviewPage() {
             trend={health.aiQualityTrend}
           >
             <TrendChart
-              data={[
-                { value: 88 },
-                { value: 89 },
-                { value: 90 },
-                { value: 91 },
-                { value: 91 },
-                { value: 92 },
-                { value: 93 },
-                { value: 94 },
-              ]}
+              data={timeline.slice(-8).map(t => ({ value: Math.round(t.quality * 0.95 + t.reliability * 0.05) }))}
               color="#8b5cf6"
               height={32}
             />

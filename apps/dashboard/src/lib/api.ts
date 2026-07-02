@@ -2768,3 +2768,85 @@ export async function getNotification(id: string): Promise<NotificationDetail | 
   return MOCK_NOTIFICATION_DETAILS[id] ?? null;
 }
 
+// ─── Simulations ─────────────────────────────────────────────────────────────
+
+export interface SimulationScenario {
+  id: string;
+  name: string;
+  type: 'monte-carlo' | 'stress-test' | 'what-if' | 'chaos';
+  status: 'completed' | 'running' | 'queued' | 'failed';
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  impactScore: number;
+  duration: string;
+  createdAt: string;
+  metrics: { label: string; value: string }[];
+  timeline: { time: string; label: string; impact: number }[];
+}
+
+const MOCK_SIMULATIONS: SimulationScenario[] = [
+  {
+    id: 'sim-001', name: 'Dependency Cascade Failure', type: 'chaos',
+    status: 'completed', riskLevel: 'critical', impactScore: 92, duration: '4m 12s',
+    createdAt: '2026-06-30', metrics: [{ label: 'Affected Services', value: '14' }, { label: 'Recovery Time', value: '38m' }],
+    timeline: [{ time: '0:00', label: 'Inject failure', impact: -5 }, { time: '0:45', label: 'Cascade begins', impact: -32 }, { time: '2:10', label: 'Alert triggered', impact: 0 }, { time: '4:12', label: 'Recovery complete', impact: 18 }],
+  },
+  {
+    id: 'sim-002', name: 'Traffic Spike 10x', type: 'stress-test',
+    status: 'completed', riskLevel: 'high', impactScore: 74, duration: '8m 03s',
+    createdAt: '2026-06-29', metrics: [{ label: 'P99 Latency', value: '2.4s' }, { label: 'Error Rate', value: '3.1%' }],
+    timeline: [{ time: '0:00', label: 'Ramp up traffic', impact: -2 }, { time: '3:00', label: 'Peak load', impact: -28 }, { time: '6:00', label: 'Auto-scale kicks in', impact: 12 }, { time: '8:03', label: 'Stabilized', impact: 5 }],
+  },
+  {
+    id: 'sim-003', name: 'Config Drift Projection', type: 'what-if',
+    status: 'completed', riskLevel: 'medium', impactScore: 45, duration: '1m 58s',
+    createdAt: '2026-06-28', metrics: [{ label: 'Drift Items', value: '7' }, { label: 'Compliance Gap', value: '12%' }],
+    timeline: [{ time: '0:00', label: 'Baseline captured', impact: 0 }, { time: '0:30', label: 'Drift injected', impact: -15 }, { time: '1:58', label: 'Report generated', impact: 0 }],
+  },
+  {
+    id: 'sim-004', name: 'Cost Optimization Model', type: 'monte-carlo',
+    status: 'running', riskLevel: 'low', impactScore: 28, duration: '—',
+    createdAt: '2026-07-01', metrics: [{ label: 'Iterations', value: '4,200 / 10,000' }, { label: 'Est. Savings', value: '$12.4k/mo' }],
+    timeline: [{ time: '0:00', label: 'Sampling started', impact: 0 }],
+  },
+  {
+    id: 'sim-005', name: 'Security Posture Breach', type: 'chaos',
+    status: 'queued', riskLevel: 'high', impactScore: 0, duration: '—',
+    createdAt: '2026-07-01', metrics: [],
+    timeline: [],
+  },
+];
+
+export async function getSimulations(): Promise<SimulationScenario[]> {
+  try {
+    const res = await apiFetch<{ simulations: SimulationScenario[] } | null>(
+      '/api/v1/simulations', null,
+    );
+    if (res?.simulations) return res.simulations;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_SIMULATIONS;
+}
+
+export async function getSimulation(id: string): Promise<SimulationScenario | null> {
+  try {
+    const raw = await apiFetch<SimulationScenario | null>(`/api/v1/simulations/${id}`, null);
+    if (raw) return raw;
+  } catch {
+    // Fall through to mock
+  }
+  return MOCK_SIMULATIONS.find(s => s.id === id) ?? null;
+}
+
+export async function createSimulation(params: {
+  name: string;
+  type: SimulationScenario['type'];
+}): Promise<SimulationScenario> {
+  const res = await fetch(`${API_BASE}/api/v1/simulations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(`Failed to create simulation: ${res.status}`);
+  return (await res.json()) as SimulationScenario;
+}

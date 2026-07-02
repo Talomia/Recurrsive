@@ -176,7 +176,7 @@ Add to your MCP configuration:
 }
 ```
 
-**Available MCP tools (42), prompts (15), resources (9):**
+**Available MCP tools (42), prompts (21), resources (16):**
 
 *Tools — Analysis:*
 - `analyze_project` — Run the full analysis pipeline
