@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/graph",
-  "version": "0.4.0",
+  "version": "0.5.3",
   "private": true,
   "description": "Knowledge Graph engine for Recurrsive - Digital Twin storage layer",
   "license": "Apache-2.0",

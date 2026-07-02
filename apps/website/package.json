@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/website",
-  "version": "0.5.0",
+  "version": "0.5.3",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3200",

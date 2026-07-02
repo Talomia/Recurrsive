@@ -5,6 +5,7 @@
 #   postgres   — Apache AGE graph database (PostgreSQL + Cypher)
 #   server     — Recurrsive REST + WebSocket API
 #   dashboard  — Recurrsive Dashboard (Next.js)
+#   website    — Recurrsive Marketing Website (Next.js)
 #
 # Usage:
 #   docker compose -f docker/docker-compose.yml up --build

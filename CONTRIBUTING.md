@@ -136,12 +136,13 @@ Recurrsive/
 │   ├── opportunities/           # Opportunity lifecycle — SARIF export, roadmap generation
 │   ├── policy/                  # Policy engine — 5 built-in policy sets (15 rules)
 │   └── presentation/            # Reports — Markdown, HTML, JSON, SARIF + notifications
-├── apps/                        # Applications (4 apps)
+├── apps/                        # Applications (5 apps)
 │   ├── cli/                     # Commander.js CLI — 25 commands
-│   ├── server/                  # Fastify REST API — 138 endpoints + WebSocket + GraphQL
+│   ├── server/                  # Fastify REST API — 150 endpoints + WebSocket + GraphQL
 │   ├── mcp/                     # MCP server — 42 tools, 16 resources, 21 prompts
-│   └── dashboard/               # Next.js 16 dashboard — 40 pages
-├── docker/                      # Dockerfile + docker-compose
+│   ├── dashboard/               # Next.js 16 dashboard — 40 pages
+│   └── website/                 # Marketing website — 23 pages + SEO
+├── docker/                      # Dockerfiles + docker-compose (4 services)
 ├── docs/                        # Documentation
 │   ├── PRD.md                   # Product Requirements (2,096 lines)
 │   ├── ARCHITECTURE.md          # Technical Architecture (2,304 lines)
