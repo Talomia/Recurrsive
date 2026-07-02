@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/collectors",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "description": "Data collectors for the Recurrsive knowledge graph",
   "license": "Apache-2.0",

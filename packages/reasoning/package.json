@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/reasoning",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "description": "Multi-agent reasoning engine for Recurrsive",
   "license": "Apache-2.0",

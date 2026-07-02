@@ -1,6 +1,6 @@
 # Recurrsive — Architecture Specification
 
-> **Version**: 0.5.3  
+> **Version**: 0.5.4  
 > **Last Updated**: 2026-07-02  
 > **Status**: Implementation-Complete  
 > **Audience**: Engineers implementing the system
@@ -1471,54 +1471,44 @@ Policies are evaluated at two gates:
 
 ### 10.2 GraphQL Schema Overview
 
-**Framework**: Hand-rolled GraphQL over Fastify (custom schema + resolvers).
+**Framework**: Hand-rolled GraphQL over Fastify (custom regex parser + resolvers).
+
+**Data Source**: Resolvers read from `state.getAnalysisCache()` when an analysis has
+been run, falling back to built-in demo data when the server hasn't analyzed anything.
+This means the GraphQL API returns realistic data immediately on first boot and switches
+to live analysis data after `POST /api/v1/analyze` completes.
 
 ```graphql
 type Query {
-  repository(id: ID!): Repository
-  repositories(filter: RepositoryFilter, pagination: Pagination): RepositoryConnection!
-  entity(id: ID!): Entity
-  entities(filter: EntityFilter, pagination: Pagination): EntityConnection!
-  subgraph(entityId: ID!, depth: Int = 2, edgeTypes: [String!]): Subgraph!
-  findings(filter: FindingFilter, pagination: Pagination): FindingConnection!
-  opportunities(filter: OpportunityFilter, sort: OpportunitySort, pagination: Pagination): OpportunityConnection!
-  insights(filter: InsightFilter, pagination: Pagination): InsightConnection!
-  graphQuery(cypher: String!): JSON!
+  projects: [Project!]!
+  project(id: ID!): Project
+  findings(severity: String, analyzerId: String, limit: Int): [Finding!]!
+  analyzers: [Analyzer!]!
+  collectors: [Collector!]!
+  healthScore: HealthScore!
+  opportunities(limit: Int): [Opportunity!]!
 }
 
-type Mutation {
-  addRepository(input: AddRepositoryInput!): Repository!
-  approveOpportunity(id: ID!, comment: String): Opportunity!
-  rejectOpportunity(id: ID!, reason: String!): Opportunity!
-  rollbackExecution(id: ID!): Execution!
-  triggerCollection(collectorId: String!): CollectionJob!
-  triggerAnalysis(analyzerIds: [String!]): AnalysisJob!
-}
-
-type Subscription {
-  findingCreated(severity: [Severity!]): Finding!
-  opportunityUpdated(id: ID): Opportunity!
-  executionStatusChanged(id: ID): Execution!
-  collectionCompleted(collectorId: String): CollectionEvent!
-  graphUpdated(entityTypes: [String!]): GraphUpdateEvent!
-}
-
-type Entity {
-  id: ID!
-  type: String!
-  qualifiedName: String!
-  properties: JSON!
-  neighbors(edgeType: String, direction: Direction, limit: Int): [EntityEdge!]!
-  findings: [Finding!]!
-  opportunities: [Opportunity!]!
-}
-
-type Subgraph {
-  nodes: [Entity!]!
-  edges: [Edge!]!
-  stats: SubgraphStats!
-}
+type Project { id: ID!, name: String!, slug: String!, healthScore: Float!, language: String! }
+type Finding { id: ID!, ruleId: String!, title: String!, severity: String!, analyzerId: String!, description: String! }
+type Analyzer { id: ID!, name: String!, version: String!, ruleCount: Int! }
+type Collector { id: ID!, name: String!, type: String!, version: String! }
+type HealthScore { overall: Float!, dimensions: [Dimension!]! }
+type Dimension { name: String!, score: Float! }
+type Opportunity { id: ID!, title: String!, impact: String!, effort: String!, category: String! }
 ```
+
+**Endpoints**:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/graphql` | Execute a GraphQL query |
+| `GET` | `/api/v1/graphql/schema` | Return the raw SDL schema |
+| `GET` | `/api/v1/graphql/introspection` | Return schema metadata as JSON |
+
+**Supported features**: Field selection, string/int/float/boolean/null arguments,
+variable substitution (`$var`), named queries. Does NOT support: mutations,
+subscriptions, fragments, aliases, or nested selections beyond one level.
 
 ### 10.3 WebSocket Events
 

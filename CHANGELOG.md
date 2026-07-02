@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-07-02
+
+### Added
+
+#### GraphQL Live Data
+- Wired all 7 GraphQL resolvers to read from `state.getAnalysisCache()` when analysis data is available
+- Resolvers fall back to built-in demo data when no analysis has been run
+- Projects resolver extracts unique project references from analysis findings
+- Analyzers resolver reads from `analyzers_run` in the analysis result
+- Health score resolver reads live dimensions from the analysis cache
+
+#### CLI Registration
+- Registered all 25 CLI commands in `commands/index.ts` (was only 12)
+- Added barrel exports for: analytics, audit, batch, cloud, comparisons, experiments, export, forecasting, notifications, plugins, projects, secrets, simulation
+
+### Fixed
+
+#### Dashboard
+- Confidence page KPI row now renders from API data (`getConfidenceData()`) instead of hardcoded inline constants
+- Brier score, total predictions, correct rate, and analyzer count all derived from live API response
+
+#### Documentation
+- **ROADMAP.md**: Updated test count to 140 files / 3,087+ tests, GraphQL marked as wired to live data
+- **ARCHITECTURE.md**: Updated GraphQL schema to match actual implementation (flat schema, not aspirational Connection types)
+
 ## [0.5.3] - 2026-07-02
 
 ### Added

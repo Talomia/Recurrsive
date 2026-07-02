@@ -13,7 +13,7 @@ const OPENAPI_SPEC = {
   openapi: '3.1.0',
   info: {
     title: 'Recurrsive API',
-    version: '0.5.3',
+    version: '0.5.4',
     description: 'Engineering Intelligence Platform — REST API for analysis, graph queries, opportunities, reports, and platform management.',
     license: { name: 'Apache-2.0', url: 'https://www.apache.org/licenses/LICENSE-2.0' },
     contact: { name: 'Recurrsive Team', email: 'api@recurrsive.dev', url: 'https://recurrsive.dev' },
