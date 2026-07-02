@@ -23,13 +23,14 @@ curl http://localhost:3000/health
 open http://localhost:3100
 ```
 
-This starts three services:
+This starts four services:
 
 | Service | Port | Description |
 |---------|------|-------------|
 | `postgres` | 5432 | PostgreSQL with Apache AGE graph extension |
-| `server` | 3000 | REST API + WebSocket server |
-| `dashboard` | 3100 | Next.js dashboard UI |
+| `server` | 3000 | REST API + WebSocket server (150 endpoints, Swagger UI at `/api/docs`) |
+| `dashboard` | 3100 | Next.js dashboard UI (40 pages) |
+| `website` | 3200 | Marketing website (23 pages, sitemap, robots) |
 
 ### Stopping
 
@@ -77,6 +78,15 @@ cd apps/dashboard
 pnpm start --port 3100
 ```
 
+### Run the Marketing Website
+
+```bash
+cd apps/website
+pnpm start --port 3200
+# → http://localhost:3200
+# SEO: /sitemap.xml, /robots.txt
+```
+
 ---
 
 ## Environment Variables
@@ -122,6 +132,13 @@ pnpm start --port 3100
 | `NEXT_PUBLIC_API_URL` | No | `http://localhost:3000` | API server URL |
 | `PORT` | No | `3100` | Dashboard port |
 
+### Website
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | No | `http://localhost:3000` | API server URL |
+| `PORT` | No | `3200` | Website port |
+
 ### MCP Server
 
 | Variable | Required | Default | Description |
@@ -133,17 +150,22 @@ pnpm start --port 3100
 
 ## Docker
 
-### Server Dockerfile
+### Dockerfiles
 
-The multi-stage Dockerfile at `docker/Dockerfile`:
-
-1. **Builder stage** — installs deps, builds all packages with Turbo, prunes devDeps
-2. **Runner stage** — minimal Node 20 Alpine image, non-root user, health check
+| File | Service | Description |
+|------|---------|-------------|
+| `docker/Dockerfile` | Server | Multi-stage build: installs deps, builds with Turbo, prunes devDeps, Node 20 Alpine runner |
+| `docker/Dockerfile.dashboard` | Dashboard | Next.js standalone output, Node 20 Alpine runner |
+| `docker/Dockerfile.website` | Website | Next.js 16 standalone output, Node 20 Alpine runner |
 
 ```bash
 # Build just the server image
 docker build -f docker/Dockerfile -t recurrsive-server .
 docker run -p 3000:3000 recurrsive-server
+
+# Build just the website image
+docker build -f docker/Dockerfile.website -t recurrsive-website .
+docker run -p 3200:3200 recurrsive-website
 ```
 
 ### Development Mode
@@ -240,6 +262,10 @@ upstream recurrsive_dashboard {
     server 127.0.0.1:3100;
 }
 
+upstream recurrsive_website {
+    server 127.0.0.1:3200;
+}
+
 server {
     listen 443 ssl http2;
     server_name recurrsive.example.com;
@@ -247,7 +273,7 @@ server {
     ssl_certificate /etc/ssl/certs/recurrsive.crt;
     ssl_certificate_key /etc/ssl/private/recurrsive.key;
 
-    # API
+    # API + Swagger UI
     location /api/ {
         proxy_pass http://recurrsive_api;
         proxy_set_header Host $host;
@@ -272,8 +298,15 @@ server {
     }
 
     # Dashboard
-    location / {
+    location /app/ {
         proxy_pass http://recurrsive_dashboard;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Marketing website
+    location / {
+        proxy_pass http://recurrsive_website;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }

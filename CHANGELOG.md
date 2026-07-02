@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-07-02
+
+### Added
+
+#### OpenAPI 3.1 Specification
+- `GET /api/v1/openapi.json` — Full OpenAPI 3.1 spec (27 tags, 17+ documented paths, 4 schemas)
+- `GET /api/docs` — Swagger UI documentation page
+- 3 new route tests for OpenAPI endpoints
+
+#### Website SEO & Polish
+- `sitemap.ts` — 23 routes with priorities and change frequencies
+- `robots.ts` — Search engine directives (allow all, disallow /api/)
+- `not-found.tsx` — Beautiful 404 page with gradient + glow effects
+- `loading.tsx` — Pulsing logo loading state
+- `error.tsx` — Error boundary with retry + home buttons
+
+#### Dashboard Marketplace & Partner API Wiring
+- `platform.ts` — 6 new API functions (marketplace extensions/stats/categories, partners/certs/stats)
+- `intelligence-packs/page.tsx` — Wired to marketplace API with metadata (stars, downloads, verified badge)
+- `plugins/page.tsx` — Wired to marketplace API with deduplication
+
+### Changed
+
+#### Navigation Enhancement
+- Navbar: Expanded to 5 dropdown menus (Product, Pricing, Partners, Docs, Community) with 17+ quick-access links
+- Footer: Updated to 4 columns (Product, Resources, Partners, Company) with 25+ links to all sub-pages
+
+#### Dashboard API Completion
+- `reports/page.tsx` — Replaced inline `fetch()` with centralized `getReportsAnalysisHistory()`
+- `opportunities/page.tsx` — Replaced `getMockOpportunities()` with `getOpportunities()`
+
+#### Documentation Updates
+- Updated STRATEGY.md feasibility table with website/marketplace/cloud/partner achievements
+- Updated ROADMAP.md to v0.5.2 current state
+- Updated README: 150 endpoints
+
+### Stats
+- REST endpoints: 150 (was 148)
+- Server tests: 423 (was 420, +3 OpenAPI)
+- Dashboard tests: 81 (unchanged)
+- Total: 504 automated tests
+- Website pages: 23 (unchanged) + 5 utility pages (sitemap, robots, 404, loading, error)
+
 ## [0.5.1] - 2026-07-02
 
 ### Added

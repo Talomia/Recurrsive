@@ -37,7 +37,8 @@ Recurrsive/
 │   ├── cli/                    # CLI application
 │   ├── dashboard/              # Next.js web dashboard
 │   ├── mcp/                    # MCP server for AI assistants
-│   └── server/                 # REST + WebSocket API server
+│   ├── server/                 # REST + WebSocket API server
+│   └── website/                # Marketing website (Next.js 16)
 ├── packages/
 │   ├── core/                   # Shared types, schemas, utilities
 │   ├── graph/                  # Knowledge graph (SQLite/AGE)
@@ -194,13 +195,34 @@ pnpm test -- --watch
 pnpm test -- src/__tests__/engine.test.ts
 ```
 
+## Website Development
+
+The marketing website runs on Next.js 16 at port 3200:
+
+```bash
+# Start website in development mode
+pnpm dev --filter @recurrsive/website
+# → http://localhost:3200
+```
+
+### Adding a New Page
+
+1. Create `apps/website/src/app/<route>/page.tsx`
+2. Add the route to `apps/website/src/app/sitemap.ts`
+3. Add navigation links in `Navbar.tsx` and `Footer.tsx`
+
+### Design System
+
+- Dark theme: `#0a0a0f` background
+- Glass cards: `rgba(255,255,255,0.03)` with backdrop blur
+- Gradients: CSS variables `var(--gradient-brand)`, `var(--gradient-secondary)`
+- Animations: `animate-fade-in`, `animate-slide-up`, glow orbs
+- No Tailwind — vanilla CSS with CSS variables
+
 ## Docker Development
 
 ```bash
-# Start PostgreSQL + API server
-docker compose -f docker/docker-compose.yml up --build
-
-# Start everything including dashboard
+# Start all 4 services (postgres + server + dashboard + website)
 docker compose -f docker/docker-compose.yml up --build
 
 # Development mode (with hot reload)

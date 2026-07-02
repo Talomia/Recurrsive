@@ -1,7 +1,7 @@
 # Recurrsive — Architecture Specification
 
-> **Version**: 0.4.0  
-> **Last Updated**: 2026-07-01  
+> **Version**: 0.5.2  
+> **Last Updated**: 2026-07-02  
 > **Status**: Implementation-Complete  
 > **Audience**: Engineers implementing the system
 
@@ -78,14 +78,14 @@ graph TB
         WS[WebSocket Gateway]
         MCP[MCP Server]
         DASH[Next.js Dashboard]
+        SITE[Marketing Website]
         CLI[CLI Interface]
         RPT[Report Generator]
     end
 
     subgraph Infrastructure["Infrastructure"]
-        RD[(Redis / BullMQ)]
-        S3[Object Storage]
-        SMTP[Notification Channels]
+        PGI[(PostgreSQL + Apache AGE)]
+        FS[File System Storage]
     end
 
     C1 & C2 & C3 & C4 & C5 & C6 & C7 --> NR
@@ -98,10 +98,8 @@ graph TB
     DB --> EE --> OG
     OG --> XE
     XE --> PE
-    PE --> API & GQL & WS & MCP & DASH & CLI & RPT
-    RD --> C1 & C2 & C3 & C4 & C5 & C6 & C7
-    RD --> AP
-    RD --> XE
+    PE --> API & GQL & WS & MCP & DASH & SITE & CLI & RPT
+    PGI --> PG
 ```
 
 ### 1.2 End-to-End Data Flow
@@ -1473,7 +1471,7 @@ Policies are evaluated at two gates:
 
 ### 10.2 GraphQL Schema Overview
 
-**Framework**: `graphql-yoga` or `mercurius` (Fastify plugin).
+**Framework**: Hand-rolled GraphQL over Fastify (custom schema + resolvers).
 
 ```graphql
 type Query {
@@ -1650,47 +1648,61 @@ type Subgraph {
 | `/audit` | Audit Trail | Audit event log with filtering by type and date |
 | `/batch` | Batch Analysis | Start and monitor batch analyses across projects |
 | `/batch/[id]` | Batch Detail | Status and results for a specific batch analysis |
+| `/cloud` | Cloud | Cloud deployment benchmarks, patterns, partners, and services |
 | `/comparisons` | Comparisons | Compare analysis runs side by side |
+| `/confidence` | Confidence | Confidence scoring and calibration metrics |
+| `/data-masking` | Data Masking | PII distribution, masking policies, and strategies |
+| `/executive` | Executive | Executive summary dashboards and KPIs |
 | `/experiments` | Experiments | List and manage A/B testing experiments |
 | `/experiments/[id]` | Experiment Detail | Detailed view of a specific experiment with metrics |
 | `/findings` | Findings List | Filterable/sortable table of all findings |
+| `/forecasting` | Forecasting | Predictive analytics, evolution forecasts, what-if analysis |
 | `/health` | Health Overview | Health score gauge, maturity scores, dimension breakdown |
 | `/insights` | Insights | Browse reasoning insights and debate summaries |
 | `/insights/[id]` | Insight Detail | Full insight detail with evidence chain |
+| `/intelligence-packs` | Intelligence Packs | Browse and install domain intelligence packs |
+| `/login` | Login | Authentication page (uses auth context) |
 | `/notifications` | Notifications | Notification channel management and history |
 | `/notifications/[id]` | Notification Detail | Details of a specific notification |
 | `/opportunities` | Opportunity Board | Kanban board grouped by maturity stage |
 | `/opportunities/[id]` | Opportunity Detail | Full detail, timeline, simulation results |
+| `/plugins` | Plugins | Installed plugins and marketplace extensions |
 | `/policies` | Policies | Active policy sets and compliance overview |
 | `/policies/[id]` | Policy Detail | Individual policy rules and violation history |
+| `/projects` | Projects | Project management and repository connections |
 | `/reports` | Reports | Generate and download reports in multiple formats |
+| `/scheduling` | Scheduling | Scheduled analysis runs and recurring tasks |
 | `/search` | Search | Full-text search across all entities and findings |
+| `/secrets` | Secrets | Secret management and audit log |
 | `/settings` | Settings | Collector config, analyzer config, policies, credentials |
+| `/simulation` | Simulation | Run architecture simulations and scenario planning |
 | `/snapshots` | Snapshots | Export/import knowledge graph snapshots |
+| `/sso` | SSO | Single sign-on provider management and sessions |
 | `/system-map` | System Map | Interactive knowledge graph visualization |
 | `/system-map/[id]` | Entity Detail | Entity properties, neighbors, findings, history |
+| `/tenants` | Tenants | Multi-tenant organization management |
 | `/timeline` | Timeline | Intelligence timeline with trend data |
 | `/webhooks` | Webhooks | Manage webhook integrations and delivery history |
 
 ### 10.6 Report Formats
 
-| Format | Use Case | Generator |
-|---|---|---|
-| Markdown | GitHub PR comments, CLI output | Template engine (Handlebars) |
-| HTML | Email reports, standalone viewing | Markdown → HTML pipeline |
-| SARIF | IDE integration (VS Code, JetBrains) | SARIF v2.1.0 schema |
-| PDF | Executive reports, audits | Puppeteer headless rendering of HTML |
-| JSON | Programmatic consumption | Direct serialization |
+| Format | Use Case | Generator | Status |
+|---|---|---|---|
+| Markdown | GitHub PR comments, CLI output | Template engine (Handlebars) | ✅ Implemented |
+| HTML | Email reports, standalone viewing | Markdown → HTML pipeline | ✅ Implemented |
+| SARIF | IDE integration (VS Code, JetBrains) | SARIF v2.1.0 schema | ✅ Implemented |
+| JSON | Programmatic consumption | Direct serialization | ✅ Implemented |
+| PDF | Executive reports, audits | Puppeteer headless rendering of HTML | 🔮 Planned |
 
 ### 10.7 Notification Channels
 
-| Channel | Integration | Trigger |
-|---|---|---|
-| Slack | Webhook / Bot API | Critical findings, execution completions, debate insights |
-| Email | SMTP / SendGrid | Periodic digest (daily/weekly), policy violations |
-| GitHub | Issues / PR comments | Execution results, code-specific findings |
-| PagerDuty | Events API v2 | Critical security findings, policy blocks |
-| Webhook | HTTP POST | All events (user-configurable) |
+| Channel | Integration | Trigger | Status |
+|---|---|---|---|
+| Slack | Webhook / Bot API | Critical findings, execution completions, debate insights | ✅ Implemented |
+| Webhook | HTTP POST | All events (user-configurable) | ✅ Implemented |
+| Email | SMTP / SendGrid | Periodic digest (daily/weekly), policy violations | 🔮 Planned |
+| GitHub | Issues / PR comments | Execution results, code-specific findings | 🔮 Planned |
+| PagerDuty | Events API v2 | Critical security findings, policy blocks | 🔮 Planned |
 
 ---
 
@@ -1882,7 +1894,11 @@ recurrsive/
 │   │   ├── src/
 │   │   │   ├── bin.ts        # Server entry point
 │   │   │   ├── index.ts      # Fastify application setup
-│   │   │   ├── routes/       # REST route handlers
+│   │   │   ├── routes/       # REST route handlers (34 route files)
+│   │   │   │   ├── marketplace.ts   # Marketplace extension endpoints
+│   │   │   │   ├── partners.ts      # Partner program endpoints
+│   │   │   │   ├── openapi.ts       # OpenAPI 3.1 spec + Swagger UI
+│   │   │   │   └── ...              # 31 more route files
 │   │   │   ├── middleware/   # Middleware stack
 │   │   │   │   ├── auth.ts
 │   │   │   │   ├── api-keys.ts
@@ -1890,11 +1906,11 @@ recurrsive/
 │   │   │   │   ├── rate-limit.ts
 │   │   │   │   ├── validate.ts
 │   │   │   │   ├── error-handler.ts
+│   │   │   │   ├── data-masking.ts
 │   │   │   │   └── audit.ts
 │   │   │   ├── ws/           # WebSocket event handlers
 │   │   │   │   ├── events.ts
 │   │   │   │   └── index.ts
-│   │   │   ├── middleware.ts  # Middleware registration
 │   │   │   └── state.ts      # Server state management
 │   │   ├── package.json      # depends on: all packages
 │   │   └── tsconfig.json
@@ -1911,32 +1927,60 @@ recurrsive/
 │   │   ├── package.json      # depends on: @recurrsive/core, @recurrsive/graph, @recurrsive/opportunities, @recurrsive/analyzers
 │   │   └── tsconfig.json
 │   │
-│   └── dashboard/            # Next.js dashboard
+│   ├── dashboard/            # Next.js dashboard
+│   │   ├── src/
+│   │   │   ├── app/          # App Router pages (40 pages)
+│   │   │   ├── components/   # React components
+│   │   │   ├── hooks/        # Custom hooks
+│   │   │   └── lib/          # Utilities
+│   │   │       ├── api/      # Domain-specific API modules (13 modules)
+│   │   │       │   ├── client.ts       # Base fetch + URL
+│   │   │       │   ├── health.ts       # Health metrics
+│   │   │       │   ├── analysis.ts     # Analysis runs
+│   │   │       │   ├── opportunities.ts # Opportunity CRUD
+│   │   │       │   ├── graph.ts        # Knowledge graph
+│   │   │       │   ├── projects.ts     # Project mgmt
+│   │   │       │   ├── intelligence.ts # Forecasting
+│   │   │       │   ├── platform.ts     # Plugins, SSO
+│   │   │       │   ├── governance.ts   # Policies, audit
+│   │   │       │   ├── experiments.ts  # Experiments
+│   │   │       │   ├── reports.ts      # Timeline, export
+│   │   │       │   ├── settings.ts     # Settings
+│   │   │       │   └── index.ts        # Barrel re-export
+│   │   │       ├── api.ts    # Re-exports api/index
+│   │   │       └── auth-context.tsx
+│   │   ├── package.json      # depends on: server (API client)
+│   │   └── tsconfig.json
+│   │
+│   └── website/              # Marketing website (Next.js 16)
 │       ├── src/
-│       │   ├── app/          # App Router pages
-│       │   ├── components/   # React components
-│       │   ├── hooks/        # Custom hooks
-│       │   └── lib/          # Utilities
-│       │       ├── api/      # Domain-specific API modules
-│       │       │   ├── client.ts       # Base fetch + URL
-│       │       │   ├── health.ts       # Health metrics
-│       │       │   ├── analysis.ts     # Analysis runs
-│       │       │   ├── opportunities.ts # Opportunity CRUD
-│       │       │   ├── graph.ts        # Knowledge graph
-│       │       │   ├── projects.ts     # Project mgmt
-│       │       │   ├── intelligence.ts # Forecasting
-│       │       │   ├── platform.ts     # Plugins, SSO
-│       │       │   ├── governance.ts   # Policies, audit
-│       │       │   ├── experiments.ts  # Experiments
-│       │       │   ├── reports.ts      # Timeline, export
-│       │       │   ├── settings.ts     # Settings
-│       │       │   └── index.ts        # Barrel re-export
-│       │       ├── api.ts    # Re-exports api/index
-│       │       └── auth-context.tsx
-│       ├── package.json      # depends on: server (API client)
-│       └── tsconfig.json
+│       │   ├── app/          # App Router pages (23 routes)
+│       │   │   ├── page.tsx        # Landing page
+│       │   │   ├── product/        # Product features
+│       │   │   ├── pricing/        # Pricing tiers
+│       │   │   ├── marketplace/    # Extension marketplace + submit
+│       │   │   ├── cloud/          # Cloud offering + dashboard + billing
+│       │   │   ├── partners/       # Partner program + directory + apply + certification
+│       │   │   ├── docs/           # Documentation hub (7 pages)
+│       │   │   ├── blog/           # Blog
+│       │   │   ├── about/          # About page
+│       │   │   ├── contact/        # Contact page
+│       │   │   ├── changelog/      # Changelog
+│       │   │   ├── sitemap.ts      # SEO sitemap
+│       │   │   ├── robots.ts       # SEO robots
+│       │   │   ├── not-found.tsx   # 404 page
+│       │   │   ├── loading.tsx     # Loading state
+│       │   │   └── error.tsx       # Error boundary
+│       │   └── components/   # Shared components (Navbar, Footer)
+│       ├── package.json      # Next.js 16 app
+│       └── next.config.ts    # Standalone output for Docker
 │
-├── docker/                   # Docker configuration
+├── docker/
+│   ├── Dockerfile            # Server production image
+│   ├── Dockerfile.dashboard  # Dashboard production image
+│   ├── Dockerfile.website    # Website production image
+│   ├── docker-compose.yml    # Full stack (postgres + server + dashboard + website)
+│   └── docker-compose.dev.yml # Development mode
 │
 └── examples/                 # Example configurations and usage
 ```
@@ -2048,16 +2092,15 @@ graph BT
 | REST API | OAuth 2.0 (Authorization Code + PKCE) | For dashboard and third-party integrations. Supports GitHub, Google, Azure AD. |
 | MCP Server | Transport-level auth | Stdio: inherits process permissions. SSE/Streamable HTTP: Bearer token. |
 | Dashboard | Session-based (JWT in httpOnly cookie) | Short-lived access token (15m) + refresh token (7d). |
-| CLI | Personal Access Token | Stored in OS keyring via `keytar`. |
+| CLI | Personal Access Token | Stored in configuration file (`~/.recurrsive/config`). |
 
 ### 12.2 Authorization (RBAC)
 
 | Role | Permissions |
 |---|---|
-| `viewer` | Read all entities, findings, opportunities. Cannot execute. |
-| `analyst` | Viewer + trigger analysis, approve/reject opportunities. |
-| `operator` | Analyst + manage collectors, execute opportunities, manage config. |
-| `admin` | Operator + manage users, manage policies, access audit logs, graph admin. |
+| `viewer` | Read all entities, findings, opportunities. Cannot trigger analysis or execute. |
+| `analyst` | Viewer + trigger analysis, approve/reject opportunities, manage config. |
+| `admin` | Analyst + manage users, manage policies, access audit logs, manage collectors, graph admin. |
 
 Permission checks are enforced at the API route level via Fastify `preHandler` hooks.
 
@@ -2128,31 +2171,29 @@ git clone https://github.com/recurrsive/recurrsive.git
 cd recurrsive
 pnpm install
 
-# 2. Start infrastructure (PostgreSQL + AGE, Redis)
-docker compose up -d postgres redis
+# 2. Start infrastructure (PostgreSQL + AGE)
+docker compose -f docker/docker-compose.yml up -d postgres
 
-# 3. Run database migrations
-pnpm --filter @recurrsive/graph run migrate
-
-# 4. Start development servers
+# 3. Start development servers
 pnpm dev  # Turborepo starts all packages in dev mode
 ```
 
 ### 13.2 Docker Compose Stack
 
-```yaml
-# docker-compose.yml
-version: '3.9'
+The production stack runs 4 services: PostgreSQL + Apache AGE, Recurrsive Server, Dashboard, and Marketing Website.
 
+```yaml
+# docker/docker-compose.yml
 services:
   postgres:
-    image: apache/age:latest     # PostgreSQL + Apache AGE pre-installed
+    image: apache/age:latest
+    container_name: recurrsive-postgres
     ports:
       - '5432:5432'
     environment:
       POSTGRES_DB: recurrsive
       POSTGRES_USER: recurrsive
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      POSTGRES_PASSWORD: recurrsive
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -2161,65 +2202,67 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - '6379:6379'
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   server:
     build:
-      context: .
-      dockerfile: apps/server/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: recurrsive-server
     ports:
       - '3000:3000'
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://recurrsive:${POSTGRES_PASSWORD:-dev_password}@postgres:5432/recurrsive
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://recurrsive:recurrsive@postgres:5432/recurrsive
+      GRAPH_PROVIDER: postgresql_age
+      PORT: '3000'
       NODE_ENV: production
     volumes:
-      - ./data:/app/data    # Cloned repositories, reports
-
-  mcp:
-    build:
-      context: .
-      dockerfile: apps/mcp/Dockerfile
-    ports:
-      - '3001:3001'
-    depends_on:
-      - server
-    environment:
-      SERVER_URL: http://server:3000
-      TRANSPORT: sse
+      - server-data:/app/data
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1']
+      interval: 15s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
 
   dashboard:
     build:
-      context: .
-      dockerfile: apps/dashboard/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: recurrsive-dashboard
     ports:
-      - '3002:3000'
+      - '3100:3100'
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://server:3000
+      PORT: '3100'
+      NODE_ENV: production
+
+  website:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.website
+    container_name: recurrsive-website
+    ports:
+      - '3200:3200'
+    environment:
+      PORT: '3200'
+      NODE_ENV: production
 
 volumes:
   pgdata:
-  redisdata:
+  server-data:
 ```
 
 ### 13.3 Kubernetes Deployment (Helm Chart)
+
+> [!NOTE]
+> Helm charts are a planned reference design for Kubernetes deployment.
+> The directory structure below is a target — it does not yet exist in the repository.
+> Current deployment uses Docker Compose (see § 13.2).
 
 ```
 helm/recurrsive/
@@ -2391,34 +2434,28 @@ stateDiagram-v2
 | Node.js | ≥ 20 LTS | MIT |
 | PostgreSQL | 16.x | PostgreSQL License |
 | Apache AGE | 1.5.x | Apache 2.0 |
-| Redis | 7.x | BSD 3-Clause |
 | pnpm | ≥ 9 | MIT |
 | Turborepo | 2.x | MIT |
 | Fastify | 5.x | MIT |
 | Next.js | 16.x | MIT |
 | Vitest | 2.x | MIT |
-| Drizzle ORM | 0.3x.x | Apache 2.0 |
-| BullMQ | 5.x | MIT |
 | Commander.js | 12.x | MIT |
 | Zod | 3.x | MIT |
 | Tree-sitter | 0.22.x (WASM) | MIT |
 | `@modelcontextprotocol/sdk` | latest | MIT |
-| graphql-yoga | 5.x | MIT |
 
 ## Appendix B: Environment Variables
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | Yes | — | PostgreSQL connection string |
-| `REDIS_URL` | Yes | `redis://localhost:6379` | Redis connection string |
-| `API_PORT` | No | `3000` | API server port |
-| `MCP_PORT` | No | `3001` | MCP server port (SSE mode) |
+| `DATABASE_URL` | No | — | PostgreSQL connection string (uses SQLite if unset) |
+| `GRAPH_PROVIDER` | No | `sqlite` | Graph backend: `sqlite` or `postgresql_age` |
+| `PORT` | No | `3000` | API server port |
 | `MCP_TRANSPORT` | No | `stdio` | MCP transport: `stdio` or `sse` |
-| `LLM_PROVIDER` | Yes | — | Default LLM provider: `openai`, `anthropic`, `gemini`, `ollama` |
-| `LLM_API_KEY` | Yes | — | API key for the default LLM provider |
-| `LLM_MODEL` | No | Provider default | Default model ID |
-| `VAULT_ADDR` | No | — | HashiCorp Vault address |
-| `VAULT_TOKEN` | No | — | HashiCorp Vault token |
+| `NEXT_PUBLIC_API_URL` | No | `http://localhost:3000` | Dashboard API proxy target |
+| `RECURRSIVE_LLM_PROVIDER` | No | `openai` | LLM provider: `openai`, `anthropic` |
+| `RECURRSIVE_LLM_API_KEY` | No | — | API key for the LLM provider |
+| `RECURRSIVE_LLM_MODEL` | No | Provider default | Default model ID |
 | `LOG_LEVEL` | No | `info` | Log level: `debug`, `info`, `warn`, `error` |
 | `NODE_ENV` | No | `development` | Environment: `development`, `staging`, `production` |
 | `ENCRYPTION_KEY` | Prod | — | 32-byte hex key for config encryption |
@@ -2435,7 +2472,7 @@ Architectural Decision Records referenced by this specification:
 | ADR-002 | TypeScript monorepo over polyglot | MCP SDK is TS-first; shared types eliminate serialization boundaries; strongest AI ecosystem |
 | ADR-003 | Custom supervisor over LangGraph/CrewAI | Framework-agnostic; full control over debate protocol; no vendor lock-in |
 | ADR-004 | Tree-sitter over LSP | Offline operation; language-agnostic; full AST access; no language server overhead |
-| ADR-005 | BullMQ over Temporal | Simpler operational model for initial scale; Redis-only dependency; Temporal available as future migration path |
+| ADR-005 | In-memory data store for development | Zero-dependency dev experience; progressive enhancement to BullMQ/Redis as needed |
 | ADR-006 | Visitor pattern for plugins over eval/VM | Type-safe; debuggable; testable; no security concerns of dynamic evaluation |
-| ADR-007 | Drizzle ORM over Prisma | Better raw SQL escape hatch; lighter runtime; aligns with Cypher for graph queries |
+| ADR-007 | Raw SQL over ORM | Direct Cypher and SQL queries; no ORM abstraction overhead; full AGE compatibility |
 | ADR-008 | Fastify over Express | 2–3× throughput; built-in schema validation; plugin system aligns with Recurrsive's architecture |

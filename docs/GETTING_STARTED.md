@@ -23,7 +23,7 @@ pnpm install
 pnpm build
 ```
 
-This will build 13 packages including the CLI, server, dashboard, and MCP server.
+This will build 14 packages including the CLI, server, dashboard, website, and MCP server.
 
 ## Step 2: Link the CLI
 
@@ -186,10 +186,13 @@ recurrsive report --format html
 node apps/server/dist/bin.js
 
 # Server runs at http://localhost:3000
-# API docs: http://localhost:3000/health
+# API docs (Swagger UI): http://localhost:3000/api/docs
+# OpenAPI spec: http://localhost:3000/api/v1/openapi.json
 ```
 
 ### Key API Endpoints
+
+The server exposes 150 REST endpoints. Key ones include:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -198,6 +201,8 @@ node apps/server/dist/bin.js
 | `GET` | `/api/v1/opportunities` | Prioritized opportunities |
 | `GET` | `/api/v1/graph/entities` | Browse knowledge graph |
 | `GET` | `/api/v1/reports/:format` | Download reports |
+| `GET` | `/api/docs` | Swagger UI (interactive API docs) |
+| `GET` | `/api/v1/openapi.json` | OpenAPI 3.1 specification |
 
 ## Step 7: Launch the Dashboard (Optional)
 
@@ -207,12 +212,27 @@ pnpm dev
 # Opens at http://localhost:3100
 ```
 
-The dashboard provides:
+The dashboard provides 40 pages including:
 - Health score gauge and trend charts
 - Opportunity browser with filtering
 - Knowledge graph visualization
 - Report generation and export
 - System configuration
+
+## Step 7.5: Launch the Marketing Website (Optional)
+
+```bash
+pnpm dev --filter @recurrsive/website
+# Opens at http://localhost:3200
+```
+
+The website provides 23 pages including:
+- Product features and pricing
+- Extension marketplace
+- Cloud offering and billing
+- Partner program and directory
+- Documentation hub (7 pages)
+- Blog, changelog, and contact
 
 ## Step 8: Connect AI Assistants via MCP (Optional)
 
@@ -271,5 +291,7 @@ pnpm --version  # Should be 9+
 
 - Read the [Architecture Guide](ARCHITECTURE.md) for system design details
 - Read the [API Reference](API.md) for endpoint documentation
+- Browse the [API docs](http://localhost:3000/api/docs) (Swagger UI) for interactive endpoint testing
 - Read the [Product Requirements](PRD.md) for full capability descriptions
+- Visit the [Documentation Hub](http://localhost:3200/docs) on the marketing website
 - Check the [Roadmap](ROADMAP.md) for upcoming features

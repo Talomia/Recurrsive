@@ -16,6 +16,13 @@ Base URL: `http://localhost:3000`
 | `GET` | `/api/v1/health-score` | Project health score, maturity scores, and overview |
 | `GET` | `/api/v1/metrics/performance` | Performance metrics (analyzer timing, finding trends) |
 
+### OpenAPI Specification
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/openapi.json` | Returns the full OpenAPI 3.1 specification (27 tags, 17+ paths, 4 schemas) |
+| `GET` | `/api/docs` | Swagger UI interactive documentation page |
+
 ### Analysis
 
 | Method | Endpoint | Description |
@@ -184,6 +191,43 @@ Base URL: `http://localhost:3000`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/v1/search` | Full-text search across all entities, findings, and opportunities |
+
+### Marketplace
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/marketplace/extensions` | List, search, and filter marketplace extensions |
+| `GET` | `/api/v1/marketplace/extensions/:id` | Get extension details |
+| `POST` | `/api/v1/marketplace/extensions` | Submit a new extension to the marketplace |
+| `GET` | `/api/v1/marketplace/categories` | List extension categories with counts |
+| `GET` | `/api/v1/marketplace/stats` | Marketplace statistics (total extensions, downloads, authors) |
+
+#### Query Parameters for `GET /api/v1/marketplace/extensions`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `category` | `string` | — | Filter by category: `analyzer`, `collector`, `policy`, `intelligence-pack` |
+| `source` | `string` | — | Filter by source: `built-in`, `community` |
+| `search` | `string` | — | Full-text search across name and description |
+| `sort` | `string` | `name` | Sort order: `name`, `downloads`, `rating`, `newest` |
+
+### Partners
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/partners` | List and filter partners |
+| `GET` | `/api/v1/partners/:id` | Get partner details |
+| `POST` | `/api/v1/partners/apply` | Submit a partner application |
+| `GET` | `/api/v1/partners/certifications` | List certification tracks |
+| `GET` | `/api/v1/partners/stats` | Partner program statistics |
+
+#### Query Parameters for `GET /api/v1/partners`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `tier` | `string` | — | Filter by tier: `platinum`, `gold`, `silver` |
+| `type` | `string` | — | Filter by type: `consulting`, `technology`, `training` |
+| `region` | `string` | — | Filter by region: `north-america`, `europe`, `asia-pacific` |
 
 ---
 
