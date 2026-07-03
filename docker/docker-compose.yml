@@ -28,7 +28,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U recurrsive"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      start_period: 30s
+      retries: 10
     restart: unless-stopped
 
   # ── Recurrsive API Server ──────────────────────────────────────────────────
