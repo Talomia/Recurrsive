@@ -41,8 +41,34 @@ COPY apps/server/ apps/server/
 # Build all packages using Turbo (respects dependency order)
 RUN pnpm exec turbo build --filter=@recurrsive/server...
 
-# ── Stage 2: Production ──────────────────────────────────────────────────────
+# ── Stage 2: Prune dependencies ───────────────────────────────────────────────
+FROM node:20-alpine AS deps
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+
+# Copy everything from builder and do a clean prod install
+COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/packages/core/package.json packages/core/package.json
+COPY --from=builder /app/packages/graph/package.json packages/graph/package.json
+COPY --from=builder /app/packages/collectors/package.json packages/collectors/package.json
+COPY --from=builder /app/packages/parsers/package.json packages/parsers/package.json
+COPY --from=builder /app/packages/analyzers/package.json packages/analyzers/package.json
+COPY --from=builder /app/packages/reasoning/package.json packages/reasoning/package.json
+COPY --from=builder /app/packages/opportunities/package.json packages/opportunities/package.json
+COPY --from=builder /app/packages/policy/package.json packages/policy/package.json
+COPY --from=builder /app/packages/presentation/package.json packages/presentation/package.json
+COPY --from=builder /app/apps/server/package.json apps/server/package.json
+
+RUN pnpm install --frozen-lockfile --prod
+
+# ── Stage 3: Production ──────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
+
+# Native module runtime dependencies
+RUN apk add --no-cache libstdc++
 
 # Install pnpm for workspace resolution at runtime
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -53,7 +79,7 @@ RUN addgroup --system --gid 1001 recurrsive && \
 
 WORKDIR /app
 
-# Copy workspace config + lockfile for production install
+# Copy workspace config
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 
 # Copy built packages (dist directories + package.json for resolution)
@@ -78,8 +104,8 @@ COPY --from=builder /app/packages/presentation/dist packages/presentation/dist
 COPY --from=builder /app/apps/server/package.json apps/server/package.json
 COPY --from=builder /app/apps/server/dist apps/server/dist
 
-# Install production-only dependencies (clean install, no devDependencies)
-RUN pnpm install --frozen-lockfile --prod --no-optional
+# Copy production node_modules from deps stage (has native binaries compiled)
+COPY --from=deps /app/node_modules node_modules
 
 # Set ownership to non-root user
 RUN chown -R recurrsive:recurrsive /app
