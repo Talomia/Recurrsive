@@ -16,13 +16,12 @@ services:
   # ── PostgreSQL + Apache AGE ────────────────────────────────────────────────
   postgres:
     image: apache/age:latest
-    container_name: recurrsive-postgres
     environment:
       POSTGRES_USER: recurrsive
       POSTGRES_PASSWORD: recurrsive
       POSTGRES_DB: recurrsive
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -37,7 +36,6 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: recurrsive-server
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,8 +52,8 @@ services:
       RECURRSIVE_WEBHOOK_SECRET: ${RECURRSIVE_WEBHOOK_SECRET:-}
       RECURRSIVE_WEBHOOK_TIMEOUT_MS: ${RECURRSIVE_WEBHOOK_TIMEOUT_MS:-5000}
       RECURRSIVE_WEBHOOK_MAX_RETRIES: ${RECURRSIVE_WEBHOOK_MAX_RETRIES:-3}
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     volumes:
       - server-data:/app/data
     healthcheck:
@@ -71,7 +69,6 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dashboard
-    container_name: recurrsive-dashboard
     depends_on:
       server:
         condition: service_healthy
@@ -79,8 +76,8 @@ services:
       NEXT_PUBLIC_API_URL: http://server:3000
       PORT: "3100"
       NODE_ENV: production
-    ports:
-      - "3100:3100"
+    expose:
+      - "3100"
     restart: unless-stopped
 
   # ── Recurrsive Marketing Website ───────────────────────────────────────────
@@ -88,12 +85,11 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.website
-    container_name: recurrsive-website
     environment:
       PORT: "3200"
       NODE_ENV: production
-    ports:
-      - "3200:3200"
+    expose:
+      - "3200"
     restart: unless-stopped
 
 volumes:
@@ -101,4 +97,3 @@ volumes:
     driver: local
   server-data:
     driver: local
-
