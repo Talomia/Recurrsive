@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Confidence Calibration page.
  *

@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Secret Management page.
  *

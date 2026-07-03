@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Data Masking & PII Controls page.
  *

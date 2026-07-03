@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Recurrsive Cloud page.
  *

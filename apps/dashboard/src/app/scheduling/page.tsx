@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Report Scheduling page.
  *
@@ -13,8 +12,6 @@ import type { ReportSchedule, ScheduleRunHistory } from '@/lib/api';
 
 type Schedule = ReportSchedule;
 type RunHistory = ScheduleRunHistory;
-
-
 function ScheduleStatusBadge({ status }: { status: string }) {
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>

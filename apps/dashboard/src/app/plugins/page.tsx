@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Plugin Marketplace page.
  *
@@ -11,8 +10,6 @@ import { useState, useEffect } from 'react';
 import { Package, Download, Power, Shield, Star, Search, Loader2 } from 'lucide-react';
 import { getInstalledPlugins, getMarketplacePlugins, getMarketplaceExtensions } from '@/lib/api';
 import type { InstalledPlugin, MarketplacePlugin } from '@/lib/api';
-
-
 function StatusBadge({ enabled }: { enabled: boolean }) {
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${enabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>

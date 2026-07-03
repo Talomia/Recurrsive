@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Simulation Engine page.
  *

@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useCallback, useId, useEffect } from 'react';
 import Header from "@/components/header";
 import { Globe, Bell, Shield, Palette, Loader2 } from "lucide-react";

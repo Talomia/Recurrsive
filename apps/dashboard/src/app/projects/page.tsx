@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Multi-project management page.
  *

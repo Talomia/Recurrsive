@@ -1,5 +1,4 @@
 'use client';
-
 /**
  * Domain Intelligence Packs page.
  *
