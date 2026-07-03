@@ -104,8 +104,18 @@ COPY --from=builder /app/packages/presentation/dist packages/presentation/dist
 COPY --from=builder /app/apps/server/package.json apps/server/package.json
 COPY --from=builder /app/apps/server/dist apps/server/dist
 
-# Copy production node_modules from deps stage (has native binaries compiled)
+# Copy production node_modules from deps stage (includes pnpm virtual store + per-package symlinks)
 COPY --from=deps /app/node_modules node_modules
+COPY --from=deps /app/packages/core/node_modules packages/core/node_modules
+COPY --from=deps /app/packages/graph/node_modules packages/graph/node_modules
+COPY --from=deps /app/packages/collectors/node_modules packages/collectors/node_modules
+COPY --from=deps /app/packages/parsers/node_modules packages/parsers/node_modules
+COPY --from=deps /app/packages/analyzers/node_modules packages/analyzers/node_modules
+COPY --from=deps /app/packages/reasoning/node_modules packages/reasoning/node_modules
+COPY --from=deps /app/packages/opportunities/node_modules packages/opportunities/node_modules
+COPY --from=deps /app/packages/policy/node_modules packages/policy/node_modules
+COPY --from=deps /app/packages/presentation/node_modules packages/presentation/node_modules
+COPY --from=deps /app/apps/server/node_modules apps/server/node_modules
 
 # Set ownership to non-root user
 RUN chown -R recurrsive:recurrsive /app
