@@ -307,6 +307,7 @@ const MOCK_INTELLIGENCE_PACKS: DashboardIntelligencePack[] = [
 ];
 
 // ─── Marketplace Mock Data ───────────────────────────────────────────────────
+/* eslint-disable @typescript-eslint/no-explicit-any -- mock data uses unstructured objects */
 
 const MOCK_MARKETPLACE_EXTENSIONS: { data: any[]; total: number; categories: Record<string, number> } = {
   data: [

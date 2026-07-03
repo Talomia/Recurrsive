@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff } from "lucide-react";
 import Header from "@/components/header";
-import { getFindingsPage, type FindingsPageItem, type FindingsPageData } from "@/lib/api";
+import { getFindingsPage, type FindingsPageData } from "@/lib/api";
 import clsx from "clsx";
 
 // ---------------------------------------------------------------------------
@@ -87,7 +87,7 @@ export default function FindingsPage() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        {stats.map(({ label, value, color, bg, icon: Icon, iconColor }) => (
+        {stats.map(({ label, value, color, icon: Icon, iconColor }) => (
           <div key={label} className="glass-card flex flex-col items-center justify-center p-5 gap-2">
             <Icon className={`h-5 w-5 ${iconColor}`} />
             <span className={`text-2xl font-bold tabular-nums ${color}`}>

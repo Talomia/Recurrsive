@@ -5,7 +5,6 @@ import {
   Webhook,
   Activity,
   AlertTriangle,
-  CheckCircle2,
   PauseCircle,
   Send,
   Trash2,
@@ -37,10 +36,6 @@ function getEventColor(event: string) {
 // ---------------------------------------------------------------------------
 
 function WebhookCard({ webhook }: { webhook: WebhookRegistration }) {
-  const failureRate =
-    webhook.delivery_count > 0
-      ? ((webhook.failure_count / webhook.delivery_count) * 100).toFixed(1)
-      : "0.0";
 
   const createdDate = new Date(webhook.created_at).toLocaleDateString("en-US", {
     month: "short",

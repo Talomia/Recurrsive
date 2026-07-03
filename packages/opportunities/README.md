@@ -32,6 +32,24 @@ const roadmap = manager.generateRoadmap();
 | Roadmap | 3-phase grouping: Quick Wins → Strategic → Long-term |
 | Persistence | JSON save/load with import validation |
 
+## API
+
+### Scoring & Ranking
+
+| Export | Description |
+|--------|-------------|
+| `computeScore(opportunity)` | Calculate composite opportunity score |
+| `rankOpportunities(list)` | Sort opportunities by priority |
+| `groupByDependency(list)` | Group related opportunities |
+
+### Export Formats
+
+| Export | Description |
+|--------|-------------|
+| `exportToSarif(opportunities)` | Export as SARIF v2.1.0 |
+| `exportToMarkdown(opportunities)` | Export as Markdown |
+| `renderRoadmapMarkdown(opportunities)` | Generate prioritized roadmap |
+
 ## Development
 
 ```bash

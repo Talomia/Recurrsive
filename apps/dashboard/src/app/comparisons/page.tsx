@@ -194,6 +194,7 @@ export default function ComparisonsPage() {
     if (!selectedA || !selectedB || selectedA === selectedB) return;
     let cancelled = false;
     const compare = async () => {
+      setComparing(true);
       try {
         const data = await getComparisonData(selectedA, selectedB);
         if (!cancelled) {
@@ -209,7 +210,6 @@ export default function ComparisonsPage() {
         }
       }
     };
-    setComparing(true);
     compare();
     return () => { cancelled = true; };
   }, [selectedA, selectedB]);

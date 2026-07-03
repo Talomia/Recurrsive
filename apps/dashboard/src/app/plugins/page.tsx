@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Package, Download, Power, Shield, Star, Search, Loader2 } from 'lucide-react';
+import { Package, Download, Power, Shield, Star, Search } from 'lucide-react';
 import { getInstalledPlugins, getMarketplacePlugins, getMarketplaceExtensions } from '@/lib/api';
 import type { InstalledPlugin, MarketplacePlugin } from '@/lib/api';
 function StatusBadge({ enabled }: { enabled: boolean }) {

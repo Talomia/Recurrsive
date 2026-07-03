@@ -351,7 +351,7 @@ export default function ApiReferencePage() {
             Import our OpenAPI 3.1 spec into Postman, Insomnia, or generate client SDKs in any language.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-            <Link href="#" className="btn btn-primary btn-lg">
+            <Link href="https://github.com/Talomia/Recurrsive/blob/main/docs/openapi.yaml" className="btn btn-primary btn-lg" target="_blank">
               <ExternalLink size={18} /> Download OpenAPI Spec
             </Link>
             <Link href="/docs/getting-started" className="btn btn-secondary btn-lg">

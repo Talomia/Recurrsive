@@ -69,7 +69,7 @@ const QUICK_START = [
     description: 'Model Context Protocol server with 42 tools and 21 prompts for AI-powered engineering workflows.',
     tag: '42 tools · 21 prompts',
     tagColor: 'var(--amber)',
-    href: '#',
+    href: '/docs/api-reference',
   },
   {
     icon: Map,
@@ -89,7 +89,7 @@ const POPULAR_GUIDES = [
       { title: 'Docker Compose Deployment', duration: '10 min', href: '/docs/deployment' },
       { title: 'Kubernetes Helm Chart', duration: '15 min', href: '/docs/deployment' },
       { title: 'Environment Variables Reference', duration: '5 min', href: '/docs/deployment' },
-      { title: 'SSO / SAML Configuration', duration: '12 min', href: '#' },
+      { title: 'SSO / SAML Configuration', duration: '12 min', href: '/docs/deployment' },
     ],
   },
   {
@@ -97,29 +97,29 @@ const POPULAR_GUIDES = [
     color: 'var(--blue)',
     guides: [
       { title: 'Understanding the Knowledge Graph', duration: '8 min', href: '/docs/architecture' },
-      { title: 'Creating Custom Policies', duration: '15 min', href: '#' },
+      { title: 'Creating Custom Policies', duration: '15 min', href: '/docs/plugin-sdk' },
       { title: 'Interpreting Risk Scores', duration: '6 min', href: '/docs/api-reference' },
-      { title: 'Building Executive Dashboards', duration: '12 min', href: '#' },
+      { title: 'Building Executive Dashboards', duration: '12 min', href: '/docs/architecture' },
     ],
   },
   {
     category: 'Integrations',
     color: 'var(--cyan)',
     guides: [
-      { title: 'GitHub App Installation', duration: '5 min', href: '#' },
-      { title: 'GitLab CI/CD Integration', duration: '10 min', href: '#' },
-      { title: 'Slack Notifications Setup', duration: '5 min', href: '#' },
-      { title: 'Jira Issue Sync', duration: '8 min', href: '#' },
+      { title: 'GitHub App Installation', duration: '5 min', href: '/docs/deployment' },
+      { title: 'GitLab CI/CD Integration', duration: '10 min', href: '/docs/deployment' },
+      { title: 'Slack Notifications Setup', duration: '5 min', href: '/docs/deployment' },
+      { title: 'Jira Issue Sync', duration: '8 min', href: '/docs/deployment' },
     ],
   },
   {
     category: 'AI & MCP',
     color: 'var(--purple)',
     guides: [
-      { title: 'Connecting to Claude Desktop', duration: '5 min', href: '#' },
-      { title: 'MCP Server Configuration', duration: '10 min', href: '#' },
-      { title: 'Using AI-Powered Queries', duration: '8 min', href: '#' },
-      { title: 'Custom MCP Prompt Templates', duration: '12 min', href: '#' },
+      { title: 'Connecting to Claude Desktop', duration: '5 min', href: '/docs/api-reference' },
+      { title: 'MCP Server Configuration', duration: '10 min', href: '/docs/api-reference' },
+      { title: 'Using AI-Powered Queries', duration: '8 min', href: '/docs/cli-reference' },
+      { title: 'Custom MCP Prompt Templates', duration: '12 min', href: '/docs/plugin-sdk' },
     ],
   },
 ];
@@ -413,7 +413,7 @@ export default function DocsPage() {
             {API_SECTIONS.map((section) => (
               <Link
                 key={section.name}
-                href="#"
+                href="/docs/api-reference"
                 className="glass-card"
                 style={{ textAlign: 'center', textDecoration: 'none' }}
               >
@@ -499,7 +499,7 @@ export default function DocsPage() {
             <Link href="https://github.com/Talomia/Recurrsive" className="btn btn-primary btn-lg" target="_blank">
               <ExternalLink size={18} /> GitHub Discussions
             </Link>
-            <Link href="#" className="btn btn-secondary btn-lg">
+            <Link href="https://github.com/Talomia/Recurrsive/discussions" className="btn btn-secondary btn-lg" target="_blank">
               Join Community Slack <ArrowRight size={18} />
             </Link>
           </div>

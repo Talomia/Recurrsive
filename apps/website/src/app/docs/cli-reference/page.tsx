@@ -26,33 +26,32 @@ const COMMAND_GROUPS = [
     icon: BarChart3,
     color: 'var(--blue)',
     commands: [
-      { cmd: 'analyze <path>', desc: 'Run full analysis on a project directory', example: 'recurrsive analyze . --full' },
-      { cmd: 'analyze:quick <path>', desc: 'Fast incremental analysis (changed files only)', example: 'recurrsive analyze:quick ./src' },
-      { cmd: 'analyze:diff <base> <head>', desc: 'Analyze changes between two commits or branches', example: 'recurrsive analyze:diff main feature/auth' },
-      { cmd: 'analyze:watch <path>', desc: 'Watch for file changes and re-analyze automatically', example: 'recurrsive analyze:watch . --debounce 2000' },
+      { cmd: 'init', desc: 'Initialize Recurrsive in a project', example: 'recurrsive init' },
+      { cmd: 'analyze <path>', desc: 'Run the full Recurrsive analysis pipeline', example: 'recurrsive analyze .' },
+      { cmd: 'health', desc: 'Show project health score and maturity breakdown', example: 'recurrsive health' },
+      { cmd: 'search <query>', desc: 'Full-text search across the knowledge graph (FTS5)', example: 'recurrsive search "authentication"' },
     ],
   },
   {
-    name: 'Reporting',
+    name: 'Data & Reporting',
     icon: FileText,
     color: 'var(--green)',
     commands: [
-      { cmd: 'report', desc: 'Generate analysis report in specified format', example: 'recurrsive report --format html --output ./report' },
-      { cmd: 'report:summary', desc: 'Print a compact summary to stdout', example: 'recurrsive report:summary --json' },
-      { cmd: 'report:compare <a> <b>', desc: 'Compare two analysis snapshots side-by-side', example: 'recurrsive report:compare snap_a snap_b' },
-      { cmd: 'report:export', desc: 'Export findings to CSV, SARIF, or CodeClimate', example: 'recurrsive report:export --format sarif' },
+      { cmd: 'report', desc: 'Generate a report from the latest analysis results', example: 'recurrsive report --format html' },
+      { cmd: 'export', desc: 'Export analysis data in various formats', example: 'recurrsive export --format json' },
+      { cmd: 'snapshot', desc: 'Export or import knowledge graph snapshots', example: 'recurrsive snapshot --export' },
+      { cmd: 'comparisons', desc: 'Compare analysis runs side-by-side', example: 'recurrsive comparisons' },
+      { cmd: 'analytics', desc: 'View analytics summaries and categories', example: 'recurrsive analytics' },
     ],
   },
   {
-    name: 'Graph',
+    name: 'Knowledge Graph',
     icon: Network,
     color: 'var(--purple)',
     commands: [
-      { cmd: 'graph:query <cypher>', desc: 'Run a Cypher query against the knowledge graph', example: 'recurrsive graph:query "MATCH (n:Function) RETURN n LIMIT 10"' },
-      { cmd: 'graph:export', desc: 'Export the graph in DOT, GEXF, or JSON format', example: 'recurrsive graph:export --format dot' },
-      { cmd: 'graph:visualize', desc: 'Open the interactive graph visualizer in browser', example: 'recurrsive graph:visualize --port 4000' },
-      { cmd: 'graph:stats', desc: 'Print entity and relationship counts', example: 'recurrsive graph:stats' },
-      { cmd: 'graph:prune', desc: 'Remove stale entities from the graph', example: 'recurrsive graph:prune --older-than 30d' },
+      { cmd: 'graph', desc: 'Explore the knowledge graph', example: 'recurrsive graph' },
+      { cmd: 'timeline', desc: 'Show intelligence timeline', example: 'recurrsive timeline' },
+      { cmd: 'opportunities', desc: 'View and manage opportunities', example: 'recurrsive opportunities' },
     ],
   },
   {
@@ -60,32 +59,33 @@ const COMMAND_GROUPS = [
     icon: Brain,
     color: 'var(--cyan)',
     commands: [
-      { cmd: 'reason', desc: 'Run multi-agent reasoning on latest analysis', example: 'recurrsive reason --specialists all' },
-      { cmd: 'reason:explain <id>', desc: 'Get a detailed explanation for a finding', example: 'recurrsive reason:explain finding_a1b2c3' },
-      { cmd: 'suggest', desc: 'List prioritized improvement opportunities', example: 'recurrsive suggest --top 10 --min-confidence 0.8' },
-      { cmd: 'ask <question>', desc: 'Natural language query against the knowledge graph', example: 'recurrsive ask "What are the most coupled modules?"' },
+      { cmd: 'experiments', desc: 'Manage analysis experiments', example: 'recurrsive experiments' },
+      { cmd: 'simulation', desc: 'Run and view simulations', example: 'recurrsive simulation' },
+      { cmd: 'forecast', desc: 'View trend forecasts', example: 'recurrsive forecast' },
     ],
   },
   {
-    name: 'Enterprise',
+    name: 'Governance',
     icon: Shield,
     color: 'var(--amber)',
     commands: [
-      { cmd: 'policy:check', desc: 'Validate against configured quality gate policies', example: 'recurrsive policy:check --fail-on critical' },
-      { cmd: 'policy:list', desc: 'List all configured policies and their status', example: 'recurrsive policy:list --format table' },
-      { cmd: 'audit:log', desc: 'Export audit log events to stdout or file', example: 'recurrsive audit:log --since 7d --json' },
-      { cmd: 'snapshot:create', desc: 'Create a named snapshot of the current analysis', example: 'recurrsive snapshot:create --name "v2.1-release"' },
+      { cmd: 'policy', desc: 'Evaluate policy compliance for opportunities', example: 'recurrsive policy' },
+      { cmd: 'audit', desc: 'View and search the audit trail', example: 'recurrsive audit' },
+      { cmd: 'secrets', desc: 'Manage secrets and view audit logs', example: 'recurrsive secrets' },
+      { cmd: 'batch', desc: 'Run batch analysis on multiple projects', example: 'recurrsive batch' },
     ],
   },
   {
-    name: 'Utilities',
+    name: 'Platform',
     icon: Wrench,
     color: 'var(--text-accent)',
     commands: [
-      { cmd: 'init', desc: 'Initialize a recurrsive.config.ts in the current directory', example: 'recurrsive init --template monorepo' },
-      { cmd: 'doctor', desc: 'Check system requirements and configuration health', example: 'recurrsive doctor' },
-      { cmd: 'version', desc: 'Print installed version and check for updates', example: 'recurrsive version --check-updates' },
-      { cmd: 'completion', desc: 'Generate shell completion scripts (bash/zsh/fish)', example: 'recurrsive completion --shell zsh >> ~/.zshrc' },
+      { cmd: 'config', desc: 'View, validate, and inspect Recurrsive configuration', example: 'recurrsive config' },
+      { cmd: 'webhooks', desc: 'Manage webhook integrations', example: 'recurrsive webhooks' },
+      { cmd: 'notifications', desc: 'Manage notification channels (Slack, HTTP, console)', example: 'recurrsive notifications' },
+      { cmd: 'plugins', desc: 'Manage and discover plugins', example: 'recurrsive plugins' },
+      { cmd: 'projects', desc: 'Manage and compare projects', example: 'recurrsive projects' },
+      { cmd: 'cloud', desc: 'Cloud platform insights and status', example: 'recurrsive cloud' },
     ],
   },
 ];
@@ -96,9 +96,8 @@ const GLOBAL_FLAGS = [
   { flag: '--verbose', desc: 'Enable verbose logging for debugging', default: 'false' },
   { flag: '--json', desc: 'Shorthand for --format json', default: '-' },
   { flag: '--quiet', desc: 'Suppress all output except errors', default: 'false' },
-  { flag: '--config <path>', desc: 'Path to recurrsive.config.ts', default: 'auto-detect' },
+  { flag: '--config <path>', desc: 'Path to recurrsive.config.yaml', default: 'auto-detect' },
   { flag: '--no-color', desc: 'Disable colored output', default: 'false' },
-  { flag: '--concurrency <n>', desc: 'Number of parallel analysis workers', default: '4' },
 ];
 
 export default function CliReferencePage() {
@@ -278,34 +277,21 @@ export default function CliReferencePage() {
             </h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            Create a <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>recurrsive.config.ts</span> in
+            Create a <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>recurrsive.config.yaml</span> in
             your project root. The CLI auto-detects it, or use <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>--config</span> to point elsewhere.
           </p>
           <div className="code-block">
-            <div><span className="comment">{'// recurrsive.config.ts'}</span></div>
-            <div><span className="keyword">import</span> {'{'} <span className="function">defineConfig</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/cli&apos;</span>;</div>
-            <div style={{ marginTop: 8 }}>
-              <span className="keyword">export default</span> <span className="function">defineConfig</span>({'{'}
-            </div>
-            <div>{'  '}<span className="keyword">root</span>: <span className="string">&apos;.&apos;</span>,</div>
-            <div>{'  '}<span className="keyword">analyzers</span>: [<span className="string">&apos;architecture&apos;</span>, <span className="string">&apos;security&apos;</span>, <span className="string">&apos;performance&apos;</span>],</div>
-            <div>{'  '}<span className="keyword">exclude</span>: [<span className="string">&apos;node_modules&apos;</span>, <span className="string">&apos;dist&apos;</span>, <span className="string">&apos;.next&apos;</span>],</div>
-            <div>{'  '}<span className="keyword">graph</span>: {'{'}
-            </div>
-            <div>{'    '}<span className="keyword">provider</span>: <span className="string">&apos;sqlite&apos;</span>,</div>
-            <div>{'    '}<span className="keyword">path</span>: <span className="string">&apos;./recurrsive.db&apos;</span>,</div>
-            <div>{'  '}{'}'}</div>
-            <div>{'  '}<span className="keyword">reporting</span>: {'{'}
-            </div>
-            <div>{'    '}<span className="keyword">format</span>: <span className="string">&apos;html&apos;</span>,</div>
-            <div>{'    '}<span className="keyword">outputDir</span>: <span className="string">&apos;./reports&apos;</span>,</div>
-            <div>{'  '}{'}'}</div>
-            <div>{'  '}<span className="keyword">ci</span>: {'{'}
-            </div>
-            <div>{'    '}<span className="keyword">failOnSeverity</span>: <span className="string">&apos;critical&apos;</span>,</div>
-            <div>{'    '}<span className="keyword">commentOnPR</span>: <span className="keyword">true</span>,</div>
-            <div>{'  '}{'}'}</div>
-            <div>{'}'});</div>
+            <div><span className="comment">{'# recurrsive.config.yaml'}</span></div>
+            <div style={{ marginTop: 8 }}><span className="keyword">version</span>: <span className="string">&apos;1&apos;</span></div>
+            <div style={{ marginTop: 8 }}><span className="keyword">graph</span>:</div>
+            <div>{'  '}<span className="keyword">provider</span>: <span className="string">sqlite</span></div>
+            <div>{'  '}<span className="keyword">sqlite</span>:</div>
+            <div>{'    '}<span className="keyword">path</span>: <span className="string">.recurrsive/graph.db</span></div>
+            <div style={{ marginTop: 8 }}><span className="keyword">analyzers</span>:</div>
+            <div>{'  '}<span className="keyword">enabled</span>: <span className="string">[all]</span></div>
+            <div style={{ marginTop: 8 }}><span className="keyword">output</span>:</div>
+            <div>{'  '}<span className="keyword">format</span>: <span className="string">html</span></div>
+            <div>{'  '}<span className="keyword">directory</span>: <span className="string">.recurrsive/output</span></div>
           </div>
         </div>
       </section>

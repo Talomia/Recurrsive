@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Play, Pause, Download, FileText, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Play, Pause, Download, FileText } from 'lucide-react';
 import { getSchedules, getScheduleHistory } from '@/lib/api';
 import type { ReportSchedule, ScheduleRunHistory } from '@/lib/api';
 

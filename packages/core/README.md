@@ -24,6 +24,23 @@ pnpm add @recurrsive/core
 | `MaturityScore` | Per-dimension maturity assessment |
 | `RecurrsiveConfig` | Full platform configuration schema |
 
+### Schemas (Zod)
+
+| Export | Description |
+|--------|-------------|
+| `EntityTypeSchema` | Entity type literals (43 types) |
+| `EntitySchema` | Complete entity validation |
+| `RelationTypeSchema` | Relationship type literals (43 types) |
+| `RelationshipSchema` | Complete relationship validation |
+| `OpportunitySchema` | Full opportunity with impact/effort/risk |
+| `FindingSchema` | Analysis finding validation |
+| `SeveritySchema` | Severity levels (critical, high, medium, low, info) |
+| `AnalyzerMetadataSchema` | Analyzer configuration metadata |
+| `CollectorMetadataSchema` | Collector configuration metadata |
+| `SpecialistRoleSchema` | Reasoning specialist role validation |
+| `PolicyActionSchema` | Policy action literals |
+| `RecurrsiveConfigSchema` | Full platform configuration |
+
 ### Utilities
 
 | Export | Description |
@@ -31,15 +48,47 @@ pnpm add @recurrsive/core
 | `createLogger()` | Structured JSON logger with level filtering |
 | `generateId()` | UUID v4 generator |
 | `nowISO()` | Current time as ISO-8601 string |
-| `RecurrsiveError` | Base error class with code and cause chaining |
-| `CollectorError`, `AnalyzerError`, `GraphError`, etc. | Domain-specific error classes |
+| `isValidId(id)` | Validate ID format |
+| `qualifiedName(parts)` | Build qualified entity names |
+| `toISO(date)` / `fromISO(str)` | ISO-8601 date conversion helpers |
+| `durationMs(start, end)` | Calculate duration in milliseconds |
+| `formatDuration(ms)` | Human-readable duration (e.g., "2m 30s") |
+| `isOlderThan(date, ms)` | Check if date exceeds age threshold |
+| `contentHash(content)` | SHA-256 content fingerprint |
+| `sanitizeInput(str)` | Strip dangerous characters |
+| `validateEmail(str)` | Email format validation |
+| `validateUrl(str)` | URL format validation |
+| `truncate(str, len)` | Truncate with ellipsis |
+| `slugify(str)` | URL-safe slug conversion |
+| `deepMerge(a, b)` | Deep merge two objects |
+| `debounce(fn, ms)` | Debounce function calls |
+| `retry(fn, opts)` | Retry with exponential backoff |
+| `batchProcess(items, fn)` | Process items in configurable batches |
+| `LRUCache` | Least-recently-used cache implementation |
 
-### Schemas
+### Error Classes
 
 | Export | Description |
 |--------|-------------|
-| `RecurrsiveConfigSchema` | Zod schema for validating configuration |
-| `EntityTypeSchema` | Zod schema for entity type literals |
+| `RecurrsiveError` | Base error with `code` and `cause` chaining |
+| `CollectorError` | Data collection failures |
+| `AnalyzerError` | Analysis pipeline errors |
+| `GraphError` | Knowledge graph operations |
+| `ReasoningError` | Reasoning engine failures |
+| `ConfigError` | Configuration parsing errors |
+| `ValidationError` | Schema/data validation failures |
+
+### Constants
+
+| Export | Description |
+|--------|-------------|
+| `VERSION` | Current package version (`0.5.5`) |
+| `CONFIG_VERSION` | Configuration schema version |
+| `DEFAULT_GRAPH_PROVIDER` | Default graph backend |
+| `DEFAULT_LLM_PROVIDER` | Default LLM provider |
+| `DEFAULT_LLM_MODEL` | Default LLM model |
+| `SEVERITY_WEIGHTS` | Numeric weights per severity level |
+| `CONFIG_FILE_NAMES` | Supported config file names |
 
 ## Development
 

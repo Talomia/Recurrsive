@@ -72,29 +72,27 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Load settings sections from API (pure mock fallback)
+  // Load settings sections from API (pure mock fallback) and hydrate from localStorage
   useEffect(() => {
     getSettingsSections()
       .then((s) => {
         setSections(s);
-        setValues(buildDefaults(s));
+        const defaults = buildDefaults(s);
+        try {
+          const stored = localStorage.getItem('recurrsive-settings');
+          if (stored) {
+            const parsed = JSON.parse(stored) as Record<string, string | boolean>;
+            setValues({ ...defaults, ...parsed });
+          } else {
+            setValues(defaults);
+          }
+        } catch {
+          // localStorage unavailable or corrupt — use defaults
+          setValues(defaults);
+        }
       })
       .finally(() => setLoading(false));
   }, []);
-
-  // Hydrate from localStorage on mount (after sections are loaded)
-  useEffect(() => {
-    if (sections.length === 0) return;
-    try {
-      const stored = localStorage.getItem('recurrsive-settings');
-      if (stored) {
-        const parsed = JSON.parse(stored) as Record<string, string | boolean>;
-        setValues((prev) => ({ ...prev, ...parsed }));
-      }
-    } catch {
-      // localStorage unavailable or corrupt — use defaults
-    }
-  }, [sections]);
 
   const handleChange = useCallback((key: string, value: string | boolean) => {
     setValues((prev) => ({ ...prev, [key]: value }));

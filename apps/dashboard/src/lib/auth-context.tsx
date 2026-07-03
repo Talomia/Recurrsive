@@ -14,7 +14,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+
   useMemo,
   useState,
   type ReactNode,
@@ -83,25 +83,23 @@ function parseToken(token: string): AuthUser | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Resolve stored token on mount.
-  useEffect(() => {
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    if (typeof window === 'undefined') return null;
     const stored = localStorage.getItem(TOKEN_KEY);
-    if (stored) {
-      const parsed = parseToken(stored);
-      if (parsed) {
-        setToken(stored);
-        setUser(parsed);
-      } else {
-        localStorage.removeItem(TOKEN_KEY);
-      }
-    }
-    setLoading(false);
-  }, []);
+    if (!stored) return null;
+    const parsed = parseToken(stored);
+    if (!parsed) { localStorage.removeItem(TOKEN_KEY); return null; }
+    return parsed;
+  });
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (!stored) return null;
+    const parsed = parseToken(stored);
+    return parsed ? stored : null;
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     setError(null);

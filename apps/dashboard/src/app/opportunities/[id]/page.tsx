@@ -13,7 +13,6 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { getOpportunity } from "@/lib/api";
-import type { Opportunity } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Metric helpers

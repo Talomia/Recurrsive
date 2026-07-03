@@ -1,7 +1,6 @@
 import Header from "@/components/header";
 import { FileText, Download, Calendar, BarChart3, FileJson, Code2, Shield, Clock } from "lucide-react";
 import { getReportUrl, getReportsAnalysisHistory } from "@/lib/api";
-import type { ReportsAnalysisHistoryEntry } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Report format definitions

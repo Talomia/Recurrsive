@@ -69,13 +69,6 @@ export default function OpportunitiesPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // Set initial selection when opportunities load
-  useEffect(() => {
-    if (!selectedId && opportunities.length > 0) {
-      setSelectedId(opportunities[0]!.id);
-    }
-  }, [opportunities, selectedId]);
-
   const filtered = useMemo(() => {
     let result = opportunities;
 

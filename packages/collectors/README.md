@@ -55,6 +55,33 @@ const result = await collector.collect();
 | Path Exclusion | Glob-based directory filtering |
 | Audit Logging | Records all governance actions |
 
+## API
+
+### Classes
+
+| Export | Description |
+|--------|-------------|
+| `CollectorScheduler` | Manage scheduled collection runs |
+| `GovernanceFilter` | PII/sensitive data filtering during collection |
+
+### Utility Functions
+
+| Export | Description |
+|--------|-------------|
+| `detectLanguage(file)` | Detect programming language from file extension |
+| `isSourceFile(file)` | Check if a file is a source code file |
+| `isBinaryFile(file)` | Check if a file is binary |
+| `parsePackageJson(path)` | Parse Node.js package.json |
+| `parsePyprojectToml(path)` | Parse Python pyproject.toml |
+| `parseGoMod(path)` | Parse Go go.mod |
+
+### Detection
+
+| Export | Description |
+|--------|-------------|
+| `detectFrameworks(entities)` | Auto-detect frameworks from collected entities |
+| `detectAIProviders(entities)` | Auto-detect AI/LLM providers |
+
 ## Development
 
 ```bash

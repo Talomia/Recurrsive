@@ -2,14 +2,11 @@ import Header from "@/components/header";
 import {
   Clock,
   TrendingUp,
-  TrendingDown,
   Activity,
   AlertTriangle,
   CheckCircle,
   Lightbulb,
   Layers,
-  Shield,
-  Zap,
   Camera,
   ArrowUpRight,
   ArrowDownRight,
@@ -21,11 +18,6 @@ import {
   getTimelineHistory,
   getTimelineSnapshots,
   getTimelineTrends,
-} from "@/lib/api";
-import type {
-  AnalysisHistoryEntry,
-  EvolutionSnapshot,
-  TrendData,
 } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -376,7 +368,6 @@ export default async function TimelinePage() {
                     <div className="space-y-1">
                       {history.map((entry, i) => {
                         const isSuccess = entry.status === "success";
-                        const isLeft = i % 2 === 0;
                         return (
                           <div
                             key={entry.id}

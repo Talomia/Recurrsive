@@ -20,7 +20,7 @@ Base URL: `http://localhost:3000`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/openapi.json` | Returns the full OpenAPI 3.1 specification (27 tags, 17+ paths, 4 schemas) |
+| `GET` | `/api/v1/openapi.json` | Returns the full OpenAPI 3.1 specification (34 tags, 150 endpoints) |
 | `GET` | `/api/docs` | Swagger UI interactive documentation page |
 
 ### Analysis

@@ -1,5 +1,5 @@
 import Header from "@/components/header";
-import { Search, Box, Code, FileCode, Database, GitBranch, ArrowRight, Filter, Hash } from "lucide-react";
+import { Search, ArrowRight } from "lucide-react";
 import { searchGraphEntities, getGraphStats } from "@/lib/api";
 import type { GraphEntity } from "@/lib/api";
 import Link from "next/link";

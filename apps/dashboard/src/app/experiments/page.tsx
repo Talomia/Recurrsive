@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Clock,
   TrendingUp,
-  TrendingDown,
   Minus,
   AlertTriangle,
   Plus,

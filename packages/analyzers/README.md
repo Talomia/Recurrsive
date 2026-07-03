@@ -40,6 +40,34 @@ const findings = await runner.run(analysisContext);
 | API Contract | 7 | API versioning, breaking changes, OpenAPI compliance |
 | AI Runtime | 8 | Model monitoring, prompt injection, LLM cost optimization |
 
+## API
+
+### Analyzer Classes
+
+| Class | Description |
+|-------|-------------|
+| `ArchitectureAnalyzer` | System design, modularity, coupling |
+| `AIAnalyzer` | AI/ML pattern quality |
+| `PerformanceAnalyzer` | Performance bottlenecks |
+| `CostAnalyzer` | Resource cost optimization |
+| `ReliabilityAnalyzer` | Failure modes, error handling |
+| `SecurityAnalyzer` | Security vulnerabilities |
+| `DataAnalyzer` | Data flow, schema quality |
+| `DocsAnalyzer` | Documentation coverage |
+| `UXAnalyzer` | User experience patterns |
+| `ProductAnalyzer` | Product quality signals |
+| `DependencyAnalyzer` | Dependency health, vulnerabilities |
+| `APIContractAnalyzer` | API contract conformance |
+| `AIRuntimeAnalyzer` | AI runtime behavior |
+
+### Utility Functions
+
+| Export | Description |
+|--------|-------------|
+| `createFinding(params)` | Factory for creating analysis findings |
+| `createEvidence(params)` | Factory for creating finding evidence |
+| `locationFromEntity(entity)` | Extract source location from entity |
+
 ## Development
 
 ```bash
