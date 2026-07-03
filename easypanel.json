@@ -1,0 +1,112 @@
+{
+  "services": [
+    {
+      "type": "app",
+      "data": {
+        "projectName": "recurrsive",
+        "serviceName": "postgres",
+        "source": {
+          "type": "image",
+          "image": "apache/age:latest"
+        },
+        "env": "POSTGRES_USER=recurrsive\nPOSTGRES_PASSWORD=recurrsive\nPOSTGRES_DB=recurrsive",
+        "mounts": [
+          {
+            "type": "volume",
+            "name": "pgdata",
+            "mountPath": "/var/lib/postgresql"
+          }
+        ],
+        "ports": [
+          {
+            "published": 5432,
+            "target": 5432,
+            "protocol": "tcp"
+          }
+        ]
+      }
+    },
+    {
+      "type": "app",
+      "data": {
+        "projectName": "recurrsive",
+        "serviceName": "server",
+        "source": {
+          "type": "github",
+          "owner": "Talomia",
+          "repo": "Recurrsive",
+          "ref": "main",
+          "path": "/"
+        },
+        "build": {
+          "type": "dockerfile",
+          "file": "docker/Dockerfile"
+        },
+        "env": "DATABASE_URL=postgresql://recurrsive:recurrsive@$(PROJECT_NAME)_postgres:5432/recurrsive\nGRAPH_PROVIDER=postgresql_age\nPORT=3000\nNODE_ENV=production\nRECURRSIVE_LLM_PROVIDER=openai\nRECURRSIVE_LLM_MODEL=gpt-4.1-mini\nRECURRSIVE_LLM_API_KEY=\nRECURRSIVE_WEBHOOK_SECRET=\nRECURRSIVE_WEBHOOK_TIMEOUT_MS=5000\nRECURRSIVE_WEBHOOK_MAX_RETRIES=3",
+        "mounts": [
+          {
+            "type": "volume",
+            "name": "server-data",
+            "mountPath": "/app/data"
+          }
+        ],
+        "domains": [
+          {
+            "host": "$(EASYPANEL_DOMAIN)",
+            "port": 3000
+          }
+        ]
+      }
+    },
+    {
+      "type": "app",
+      "data": {
+        "projectName": "recurrsive",
+        "serviceName": "dashboard",
+        "source": {
+          "type": "github",
+          "owner": "Talomia",
+          "repo": "Recurrsive",
+          "ref": "main",
+          "path": "/"
+        },
+        "build": {
+          "type": "dockerfile",
+          "file": "docker/Dockerfile.dashboard"
+        },
+        "env": "NEXT_PUBLIC_API_URL=http://$(PROJECT_NAME)_server:3000\nPORT=3100\nNODE_ENV=production",
+        "domains": [
+          {
+            "host": "$(EASYPANEL_DOMAIN)",
+            "port": 3100
+          }
+        ]
+      }
+    },
+    {
+      "type": "app",
+      "data": {
+        "projectName": "recurrsive",
+        "serviceName": "website",
+        "source": {
+          "type": "github",
+          "owner": "Talomia",
+          "repo": "Recurrsive",
+          "ref": "main",
+          "path": "/"
+        },
+        "build": {
+          "type": "dockerfile",
+          "file": "docker/Dockerfile.website"
+        },
+        "env": "PORT=3200\nNODE_ENV=production",
+        "domains": [
+          {
+            "host": "$(EASYPANEL_DOMAIN)",
+            "port": 3200
+          }
+        ]
+      }
+    }
+  ]
+}

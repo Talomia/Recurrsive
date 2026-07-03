@@ -217,12 +217,55 @@ export class ServerState {
     const connectionString = process.env['DATABASE_URL'];
 
     if (provider === 'postgresql_age' && connectionString) {
-      this.graphClient = await createGraphClient({
-        provider: 'postgresql_age',
-        connectionString,
-        autoMigrate: true,
-      });
+      // Retry connection with exponential backoff — postgres may not be ready
+      // immediately in Docker/container environments.
+      const MAX_RETRIES = 5;
+      let lastError: unknown;
+
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          this.graphClient = await createGraphClient({
+            provider: 'postgresql_age',
+            connectionString,
+            autoMigrate: true,
+          });
+          logger.info(`Connected to PostgreSQL/AGE (attempt ${attempt}/${MAX_RETRIES})`);
+          lastError = undefined;
+          break;
+        } catch (err) {
+          lastError = err;
+          const message = err instanceof Error ? err.message : String(err);
+          if (attempt < MAX_RETRIES) {
+            const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s, 8s, 16s
+            logger.warn(
+              `Database connection attempt ${attempt}/${MAX_RETRIES} failed: ${message}. ` +
+              `Retrying in ${delay / 1000}s…`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        }
+      }
+
+      // If all retries failed, fall back to in-memory SQLite
+      if (lastError) {
+        const message = lastError instanceof Error ? lastError.message : String(lastError);
+        logger.error(
+          `All ${MAX_RETRIES} database connection attempts failed: ${message}. ` +
+          `Falling back to in-memory SQLite.`,
+        );
+        this.graphClient = await createGraphClient({
+          provider: 'sqlite',
+          sqlitePath: ':memory:',
+          autoMigrate: true,
+        });
+      }
     } else {
+      if (provider === 'postgresql_age' && !connectionString) {
+        logger.warn(
+          'GRAPH_PROVIDER is set to "postgresql_age" but DATABASE_URL is not configured. ' +
+          'Falling back to in-memory SQLite.',
+        );
+      }
       this.graphClient = await createGraphClient({
         provider: 'sqlite',
         sqlitePath: ':memory:',

@@ -20,7 +20,7 @@ const OPENAPI_SPEC = {
     contact: { name: 'Recurrsive Team', email: 'api@recurrsive.dev', url: 'https://recurrsive.dev' },
   },
   servers: [
-    { url: 'http://localhost:3000', description: 'Local development' },
+    { url: `http://localhost:${process.env['PORT'] ?? '3000'}`, description: 'Local development' },
     { url: 'https://api.recurrsive.dev', description: 'Production' },
   ],
   tags: [

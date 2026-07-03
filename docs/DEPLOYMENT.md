@@ -43,6 +43,38 @@ docker compose -f docker/docker-compose.yml down -v
 
 ---
 
+## EasyPanel (One-Click Deploy)
+
+Deploy Recurrsive on [EasyPanel](https://easypanel.io) using the **Create from Schema** feature.
+
+### Prerequisites
+
+1. EasyPanel installed on your server
+2. GitHub repo connected (Settings → GitHub)
+3. At least **4 GB RAM** for building monorepo images
+
+### Deploy Steps
+
+1. Create a new project named `recurrsive`
+2. Go to **Templates** → **Developer** → **Create from Schema**
+3. Paste the contents of [`easypanel.json`](../easypanel.json) from the repo root
+4. Deploy services in order: **postgres** → **server** → **dashboard** + **website**
+5. Configure domains in each service's **Domains** tab:
+
+| Service | Suggested Domain | Port |
+|---------|-----------------|------|
+| server | `api.yourdomain.com` | 3000 |
+| dashboard | `app.yourdomain.com` | 3100 |
+| website | `yourdomain.com` | 3200 |
+
+> **Note:** After setting a custom domain for the server, update the dashboard's
+> `NEXT_PUBLIC_API_URL` environment variable to the public URL (e.g., `https://api.yourdomain.com`)
+> and rebuild the dashboard for the change to take effect.
+
+EasyPanel automatically provisions SSL via Let's Encrypt and handles reverse proxy routing via Traefik.
+
+---
+
 ## Manual Installation
 
 ### Prerequisites

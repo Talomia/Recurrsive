@@ -57,6 +57,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dashboard
+      args:
+        NEXT_PUBLIC_API_URL: http://server:3000
     depends_on:
       - server
     environment:

@@ -64,7 +64,19 @@ export interface UseWebSocketReturn {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_URL = 'ws://localhost:3000/ws';
+/**
+ * Derive the WebSocket URL from the API URL. Converts http(s) to ws(s)
+ * and appends /ws. Falls back to ws://localhost:3000/ws for local dev.
+ */
+function getDefaultWsUrl(): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+  const wsUrl = apiUrl
+    .replace(/^https:/, 'wss:')
+    .replace(/^http:/, 'ws:');
+  return `${wsUrl.replace(/\/$/, '')}/ws`;
+}
+
+const DEFAULT_URL = getDefaultWsUrl();
 const MAX_EVENT_BUFFER = 100;
 const DEFAULT_MAX_RECONNECT = 10;
 const DEFAULT_RECONNECT_DELAY = 1000;

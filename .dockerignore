@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Recurrsive — Docker Build Ignore
+#
+# Prevents unnecessary files from being sent to the Docker build context,
+# reducing build time and context transfer size.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Version control
+.git
+.gitignore
+
+# Dependencies (rebuilt inside Docker)
+node_modules
+.pnpm-store
+
+# Build outputs (rebuilt inside Docker)
+**/dist
+**/.next
+**/.turbo
+**/out
+
+# Development / local files
+.env
+.env.local
+.env.development
+*.log
+*.pid
+coverage/
+.nyc_output/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files (not needed in production images)
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+vitest.config.*
+
+# Lint / formatting config (not needed in images)
+eslint.config.*
+.prettierrc*
+.editorconfig
+
+# Agent / AI files
+.agents/
+.gemini/
+.recurrsive/
+
+# Docker meta (avoid recursive context issues)
+docker/docker-compose*.yml
+docker/.env*
+
+# EasyPanel schema
+easypanel.json
+
+# Documentation (keep README for reference, exclude rest)
+docs/
