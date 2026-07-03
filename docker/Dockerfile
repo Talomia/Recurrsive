@@ -41,9 +41,6 @@ COPY apps/server/ apps/server/
 # Build all packages using Turbo (respects dependency order)
 RUN pnpm exec turbo build --filter=@recurrsive/server...
 
-# Prune dev dependencies for production
-RUN pnpm prune --prod --no-optional
-
 # ── Stage 2: Production ──────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
@@ -56,7 +53,7 @@ RUN addgroup --system --gid 1001 recurrsive && \
 
 WORKDIR /app
 
-# Copy workspace config
+# Copy workspace config + lockfile for production install
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 
 # Copy built packages (dist directories + package.json for resolution)
@@ -81,18 +78,8 @@ COPY --from=builder /app/packages/presentation/dist packages/presentation/dist
 COPY --from=builder /app/apps/server/package.json apps/server/package.json
 COPY --from=builder /app/apps/server/dist apps/server/dist
 
-# Copy pruned production node_modules
-COPY --from=builder /app/node_modules node_modules
-COPY --from=builder /app/packages/core/node_modules packages/core/node_modules
-COPY --from=builder /app/packages/graph/node_modules packages/graph/node_modules
-COPY --from=builder /app/packages/collectors/node_modules packages/collectors/node_modules
-COPY --from=builder /app/packages/parsers/node_modules packages/parsers/node_modules
-COPY --from=builder /app/packages/analyzers/node_modules packages/analyzers/node_modules
-COPY --from=builder /app/packages/reasoning/node_modules packages/reasoning/node_modules
-COPY --from=builder /app/packages/opportunities/node_modules packages/opportunities/node_modules
-COPY --from=builder /app/packages/policy/node_modules packages/policy/node_modules
-COPY --from=builder /app/packages/presentation/node_modules packages/presentation/node_modules
-COPY --from=builder /app/apps/server/node_modules apps/server/node_modules
+# Install production-only dependencies (clean install, no devDependencies)
+RUN pnpm install --frozen-lockfile --prod --no-optional
 
 # Set ownership to non-root user
 RUN chown -R recurrsive:recurrsive /app
