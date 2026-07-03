@@ -7,7 +7,7 @@
         "serviceName": "postgres",
         "source": {
           "type": "image",
-          "image": "apache/age:PG16-v1.5.0-rc1"
+          "image": "apache/age:release_PG16_1.5.0"
         },
         "deploy": {},
         "env": "POSTGRES_PASSWORD=recurrsive",
