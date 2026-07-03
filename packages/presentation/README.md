@@ -14,6 +14,8 @@ pnpm add @recurrsive/presentation
 |--------|-------------|
 | Markdown | Health score, severity tables, maturity assessment |
 | HTML | Self-contained dark theme with SVG health gauge |
+| JSON | Machine-readable structured report |
+| SARIF | SARIF v2.1.0 for CI/CD integration |
 
 ## Notifications
 
@@ -21,6 +23,8 @@ pnpm add @recurrsive/presentation
 |---------|-------------|
 | Console | ANSI colors with severity icons (✘, ⚠, ●, ✔, ⓘ) |
 | Webhook | Configurable URL/headers with retry + exponential backoff |
+| Slack | Incoming webhook integration with rich formatting |
+| HTTP | POST to any custom endpoint |
 
 ## Terminal Formatter
 

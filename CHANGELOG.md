@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-07-03
+
+### Added
+
+#### EasyPanel Deployment
+- `easypanel.json` — Create from Schema config for one-click EasyPanel deploy
+- `.dockerignore` — Reduces Docker build context from ~3.4MB to ~1MB
+- EasyPanel section in `DEPLOYMENT.md` with step-by-step instructions
+- Database connection retry with exponential backoff in `state.ts` (5 retries: 1s–16s)
+- Warning log when `GRAPH_PROVIDER=postgresql_age` but `DATABASE_URL` missing
+
+#### Missing App READMEs
+- `apps/cli/README.md` — 25 CLI commands with usage examples
+- `apps/mcp/README.md` — 42 tools, 21 prompts, 16 resources
+- `apps/server/README.md` — 150 REST endpoints, WebSocket, Swagger UI
+- `apps/website/README.md` — 23 pages, SEO, Next.js 16 standalone
+
+### Fixed
+
+#### Documentation Alignment (30+ discrepancies resolved)
+- **README.md**: Updated tree diagram to list all 10 docs/ files (was missing 3), added Deployment Guide and Plugin SDK to docs table, removed stale route comment
+- **Website deployment page**: Removed non-existent Redis and JWT_SECRET references, fixed `GRAPH_PROVIDER` value (`age` → `postgresql_age`), fixed dashboard port (3001 → 3100), fixed env var name (`API_URL` → `NEXT_PUBLIC_API_URL`), updated docker-compose snippet to match actual 4-service config
+- **Website docs pages**: Updated endpoint count from 138 to 150 across 9 occurrences (getting-started, api-reference, architecture, docs index)
+- **openapi.yaml**: Fixed version (0.1.0 → 0.5.4) and license (MIT → Apache-2.0)
+- **packages/core/README.md**: Fixed relationship type count (40 → 43)
+- **packages/parsers/README.md**: Added missing `GoExtractor` to extractor table
+- **packages/presentation/README.md**: Added missing JSON and SARIF report formats, Slack and HTTP notification channels
+- **packages/policy/README.md**: Fixed `getBuiltinPolicySets` → `getBuiltinPolicySet` (singular)
+- **packages/reasoning/src/index.ts**: Fixed stale JSDoc "Eight" → "Nineteen" specialist agents
+- **Dashboard WebSocket**: Derived URL from `NEXT_PUBLIC_API_URL` instead of hardcoding `ws://localhost:3000/ws`
+- **docker-compose.yml**: Passed `NEXT_PUBLIC_API_URL` as build arg (Next.js bakes at build time)
+- **OpenAPI route**: Made server URL dynamic based on `PORT` env var
+- **dashboard/website package.json**: Added missing `description` and `license` fields
+
 ## [0.5.4] - 2026-07-02
 
 ### Added

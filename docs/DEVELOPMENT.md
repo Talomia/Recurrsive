@@ -43,7 +43,7 @@ Recurrsive/
 │   ├── core/                   # Shared types, schemas, utilities
 │   ├── graph/                  # Knowledge graph (SQLite/AGE)
 │   ├── collectors/             # Data collectors (14 collectors)
-│   ├── parsers/                # Language parsers (TypeScript, Python)
+│   ├── parsers/                # Language parsers (TypeScript, Python, Go)
 │   ├── analyzers/              # 13 analysis engines
 │   ├── reasoning/              # Multi-agent reasoning engine
 │   ├── opportunities/          # Opportunity management & export

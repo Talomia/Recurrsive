@@ -326,17 +326,21 @@ recurrsive/
 │   ├── cli/            # Commander.js CLI — 25 commands
 │   ├── mcp/            # MCP server — 42 tools, 16 resources, 21 prompts
 │   ├── server/         # Fastify REST + WebSocket + GraphQL API — 150 endpoints
-│   │                   #   Routes: openapi.ts, marketplace.ts, partners.ts + 30 existing
 │   ├── dashboard/      # Next.js dashboard — 40 pages
-│   └── website/        # Next.js marketing website — 23 pages + SEO utilities
-├── docker/             # Dockerfile + docker-compose
+│   └── website/        # Next.js marketing website — 23 pages + SEO
+├── docker/             # Dockerfiles + docker-compose
 ├── docs/
-│   ├── PRD.md          # Product Requirements
-│   ├── ARCHITECTURE.md # Technical Architecture
-│   ├── STRATEGY.md     # Product Strategy & Business Model
-│   ├── ROADMAP.md      # Phased Roadmap
-│   ├── API.md          # API Reference (REST, MCP, CLI)
-│   └── DEVELOPMENT.md  # Developer Setup Guide
+│   ├── GETTING_STARTED.md  # Step-by-step tutorial
+│   ├── ARCHITECTURE.md     # Technical architecture
+│   ├── API.md              # API reference (REST, MCP, CLI)
+│   ├── DEPLOYMENT.md       # Docker, EasyPanel, Kubernetes
+│   ├── DEVELOPMENT.md      # Developer setup guide
+│   ├── PLUGIN_SDK.md       # Custom collector/analyzer SDK
+│   ├── PRD.md              # Product requirements
+│   ├── STRATEGY.md         # Product strategy & business model
+│   ├── ROADMAP.md          # Phased roadmap
+│   └── openapi.yaml        # OpenAPI 3.0 specification
+├── easypanel.json      # EasyPanel "Create from Schema" config
 └── turbo.json          # Turborepo build orchestration
 ```
 
@@ -538,12 +542,14 @@ output:
 | Document | Description |
 |----------|-------------|
 | [Getting Started](docs/GETTING_STARTED.md) | Step-by-step tutorial for first analysis |
-| [Product Strategy](docs/STRATEGY.md) | Positioning, business model, go-to-market, and feasibility |
-| [Product Roadmap](docs/ROADMAP.md) | Phased roadmap with current status |
-| [Product Requirements](docs/PRD.md) | Vision, capabilities, and detailed specifications |
 | [Architecture Guide](docs/ARCHITECTURE.md) | Technical architecture, data model, and deployment |
 | [API Reference](docs/API.md) | REST, WebSocket, and MCP endpoints |
+| [Deployment Guide](docs/DEPLOYMENT.md) | Docker, EasyPanel, Kubernetes, and reverse proxy |
 | [Development Guide](docs/DEVELOPMENT.md) | Setup, testing, and contribution workflow |
+| [Plugin SDK](docs/PLUGIN_SDK.md) | Building custom collectors and analyzers |
+| [Product Strategy](docs/STRATEGY.md) | Positioning, business model, go-to-market |
+| [Product Roadmap](docs/ROADMAP.md) | Phased roadmap with current status |
+| [Product Requirements](docs/PRD.md) | Vision, capabilities, and detailed specifications |
 | [Examples](examples/) | Configuration examples for basic, AI, and enterprise projects |
 | [Changelog](CHANGELOG.md) | Version history and release notes |
 

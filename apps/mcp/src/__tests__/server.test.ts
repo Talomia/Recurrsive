@@ -147,12 +147,12 @@ describe('MCP Server', () => {
       );
     });
 
-    it('creates a McpServer with version 0.5.4', () => {
+    it('creates a McpServer with version 0.5.5', () => {
       createServer();
 
       expect(McpServer).toHaveBeenCalledWith(
         expect.objectContaining({
-          version: '0.5.4',
+          version: '0.5.5',
         }),
       );
     });

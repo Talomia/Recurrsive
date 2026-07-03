@@ -10,6 +10,10 @@
 # Usage:
 #   docker compose -f docker/docker-compose.yml up --build
 #   docker compose -f docker/docker-compose.yml down -v
+#
+# For managed platforms (EasyPanel, Coolify), use easypanel.json instead.
+# Managed platforms handle reverse proxy and port mapping automatically —
+# the `ports` below are only needed for local development.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -20,8 +24,8 @@ services:
       POSTGRES_USER: recurrsive
       POSTGRES_PASSWORD: recurrsive
       POSTGRES_DB: recurrsive
-    expose:
-      - "5432"
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
     restart: unless-stopped
@@ -46,8 +50,8 @@ services:
       RECURRSIVE_WEBHOOK_SECRET: ${RECURRSIVE_WEBHOOK_SECRET:-}
       RECURRSIVE_WEBHOOK_TIMEOUT_MS: ${RECURRSIVE_WEBHOOK_TIMEOUT_MS:-5000}
       RECURRSIVE_WEBHOOK_MAX_RETRIES: ${RECURRSIVE_WEBHOOK_MAX_RETRIES:-3}
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     volumes:
       - server-data:/app/data
     restart: unless-stopped
@@ -65,8 +69,8 @@ services:
       NEXT_PUBLIC_API_URL: http://server:3000
       PORT: "3100"
       NODE_ENV: production
-    expose:
-      - "3100"
+    ports:
+      - "3100:3100"
     restart: unless-stopped
 
   # ── Recurrsive Marketing Website ───────────────────────────────────────────
@@ -77,8 +81,8 @@ services:
     environment:
       PORT: "3200"
       NODE_ENV: production
-    expose:
-      - "3200"
+    ports:
+      - "3200:3200"
     restart: unless-stopped
 
 volumes:

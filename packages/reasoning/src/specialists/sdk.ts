@@ -28,7 +28,7 @@ const logger = createLogger({ context: { component: 'reasoning:sdk' } });
 // ---------------------------------------------------------------------------
 
 /** Current SDK version. */
-const SDK_VERSION = '0.5.4' as const;
+const SDK_VERSION = '0.5.5' as const;
 
 // ---------------------------------------------------------------------------
 // SpecialistConfig — declarative specialist configuration

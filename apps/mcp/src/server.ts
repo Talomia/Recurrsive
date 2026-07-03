@@ -48,7 +48,7 @@ import { state } from './state.js';
 export function createServer(): McpServer {
   const server = new McpServer({
     name: 'recurrsive',
-    version: '0.5.4',
+    version: '0.5.5',
     description:
       'Engineering Intelligence Platform — continuously analyze ' +
       'and improve software systems through knowledge graph construction, ' +

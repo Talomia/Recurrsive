@@ -15,7 +15,7 @@ pnpm add @recurrsive/core
 | Export | Description |
 |--------|-------------|
 | `Entity` | Knowledge graph entity (43 types: file, function, class, agent, prompt, tool, model, etc.) |
-| `Relationship` | Graph edge (40 types: calls, imports, defines, uses, extends, etc.) |
+| `Relationship` | Graph edge (43 types: calls, imports, defines, uses, extends, etc.) |
 | `Finding` | Analysis result from an analyzer |
 | `Opportunity` | Improvement suggestion with impact, effort, and validation plan |
 | `Analyzer` | Interface for analysis plugins |

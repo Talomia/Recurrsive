@@ -21,16 +21,16 @@ export const metadata: Metadata = {
 };
 
 const ENV_VARS = [
-  { name: 'DATABASE_URL', required: true, desc: 'PostgreSQL connection string', example: 'postgresql://user:pass@localhost:5432/recurrsive' },
-  { name: 'GRAPH_PROVIDER', required: true, desc: 'Graph database backend', example: 'age | sqlite' },
-  { name: 'JWT_SECRET', required: true, desc: '256-bit secret for JWT token signing', example: 'openssl rand -hex 32' },
-  { name: 'API_PORT', required: false, desc: 'Port for the REST API server', example: '3000' },
-  { name: 'REDIS_URL', required: false, desc: 'Redis for caching and job queues', example: 'redis://localhost:6379' },
-  { name: 'LOG_LEVEL', required: false, desc: 'Logging verbosity', example: 'info | debug | warn | error' },
-  { name: 'CORS_ORIGINS', required: false, desc: 'Allowed CORS origins (comma-separated)', example: 'https://app.example.com' },
-  { name: 'STORAGE_PATH', required: false, desc: 'Path for local file storage', example: '/data/recurrsive' },
-  { name: 'ENCRYPTION_KEY', required: false, desc: 'Key for encrypting secrets at rest', example: 'openssl rand -hex 32' },
-  { name: 'TELEMETRY_ENDPOINT', required: false, desc: 'OTLP endpoint for observability', example: 'http://localhost:4318' },
+  { name: 'DATABASE_URL', required: true, desc: 'PostgreSQL connection string', example: 'postgresql://recurrsive:recurrsive@postgres:5432/recurrsive' },
+  { name: 'GRAPH_PROVIDER', required: true, desc: 'Graph database backend', example: 'postgresql_age | sqlite' },
+  { name: 'PORT', required: false, desc: 'Port for the REST API server', example: '3000' },
+  { name: 'NODE_ENV', required: false, desc: 'Node.js environment mode', example: 'production' },
+  { name: 'RECURRSIVE_LLM_PROVIDER', required: false, desc: 'LLM provider for reasoning engine', example: 'openai' },
+  { name: 'RECURRSIVE_LLM_MODEL', required: false, desc: 'LLM model name', example: 'gpt-4.1-mini' },
+  { name: 'RECURRSIVE_LLM_API_KEY', required: false, desc: 'API key for the LLM provider', example: 'sk-...' },
+  { name: 'RECURRSIVE_WEBHOOK_SECRET', required: false, desc: 'HMAC secret for webhook signatures', example: 'openssl rand -hex 32' },
+  { name: 'NEXT_PUBLIC_API_URL', required: false, desc: 'API server URL for the dashboard', example: 'http://server:3000' },
+  { name: 'RECURRSIVE_LOG_LEVEL', required: false, desc: 'Logging verbosity', example: 'info | debug | warn | error' },
 ];
 
 export default function DeploymentPage() {
@@ -75,37 +75,33 @@ export default function DeploymentPage() {
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)', lineHeight: 1.7 }}>
             The fastest path to a production-ready deployment. Includes PostgreSQL with Apache AGE,
-            the API server, the dashboard, and Redis.
+            the API server, dashboard, and marketing website.
           </p>
           <div className="code-block" style={{ fontSize: '0.82rem' }}>
             <div><span className="comment"># docker-compose.yml</span></div>
-            <div><span className="keyword">version</span>: <span className="string">&apos;3.9&apos;</span></div>
             <div><span className="keyword">services</span>:</div>
             <div>{'  '}<span className="function">postgres</span>:</div>
             <div>{'    '}<span className="keyword">image</span>: <span className="string">apache/age:latest</span></div>
             <div>{'    '}<span className="keyword">environment</span>:</div>
             <div>{'      '}<span className="keyword">POSTGRES_DB</span>: <span className="string">recurrsive</span></div>
             <div>{'      '}<span className="keyword">POSTGRES_USER</span>: <span className="string">recurrsive</span></div>
-            <div>{'      '}<span className="keyword">POSTGRES_PASSWORD</span>: <span className="string">${'{'}<span className="keyword">DB_PASSWORD</span>{'}'}</span></div>
-            <div>{'    '}<span className="keyword">ports</span>: [<span className="string">&quot;5432:5432&quot;</span>]</div>
-            <div>{'    '}<span className="keyword">volumes</span>: [<span className="string">&quot;pgdata:/var/lib/postgresql/data&quot;</span>]</div>
-            <div style={{ marginTop: 8 }}>{'  '}<span className="function">redis</span>:</div>
-            <div>{'    '}<span className="keyword">image</span>: <span className="string">redis:7-alpine</span></div>
-            <div>{'    '}<span className="keyword">ports</span>: [<span className="string">&quot;6379:6379&quot;</span>]</div>
-            <div style={{ marginTop: 8 }}>{'  '}<span className="function">api</span>:</div>
-            <div>{'    '}<span className="keyword">image</span>: <span className="string">ghcr.io/talomia/recurrsive-api:latest</span></div>
-            <div>{'    '}<span className="keyword">ports</span>: [<span className="string">&quot;3000:3000&quot;</span>]</div>
+            <div>{'      '}<span className="keyword">POSTGRES_PASSWORD</span>: <span className="string">recurrsive</span></div>
+            <div>{'    '}<span className="keyword">volumes</span>: [<span className="string">&quot;pgdata:/var/lib/postgresql&quot;</span>]</div>
+            <div style={{ marginTop: 8 }}>{'  '}<span className="function">server</span>:</div>
+            <div>{'    '}<span className="keyword">build</span>: {'{ '}context: .., dockerfile: docker/Dockerfile{' }'}</div>
             <div>{'    '}<span className="keyword">environment</span>:</div>
-            <div>{'      '}<span className="keyword">DATABASE_URL</span>: <span className="string">postgresql://recurrsive:${'{'}<span className="keyword">DB_PASSWORD</span>{'}'}@postgres:5432/recurrsive</span></div>
-            <div>{'      '}<span className="keyword">GRAPH_PROVIDER</span>: <span className="string">age</span></div>
-            <div>{'      '}<span className="keyword">REDIS_URL</span>: <span className="string">redis://redis:6379</span></div>
-            <div>{'      '}<span className="keyword">JWT_SECRET</span>: <span className="string">${'{'}<span className="keyword">JWT_SECRET</span>{'}'}</span></div>
-            <div>{'    '}<span className="keyword">depends_on</span>: [<span className="string">postgres</span>, <span className="string">redis</span>]</div>
+            <div>{'      '}<span className="keyword">DATABASE_URL</span>: <span className="string">postgresql://recurrsive:recurrsive@postgres:5432/recurrsive</span></div>
+            <div>{'      '}<span className="keyword">GRAPH_PROVIDER</span>: <span className="string">postgresql_age</span></div>
+            <div>{'    '}<span className="keyword">depends_on</span>: [<span className="string">postgres</span>]</div>
+            <div>{'    '}<span className="keyword">expose</span>: [<span className="string">&quot;3000&quot;</span>]</div>
             <div style={{ marginTop: 8 }}>{'  '}<span className="function">dashboard</span>:</div>
-            <div>{'    '}<span className="keyword">image</span>: <span className="string">ghcr.io/talomia/recurrsive-dashboard:latest</span></div>
-            <div>{'    '}<span className="keyword">ports</span>: [<span className="string">&quot;3001:3001&quot;</span>]</div>
+            <div>{'    '}<span className="keyword">build</span>: {'{ '}context: .., dockerfile: docker/Dockerfile.dashboard{' }'}</div>
             <div>{'    '}<span className="keyword">environment</span>:</div>
-            <div>{'      '}<span className="keyword">API_URL</span>: <span className="string">http://api:3000</span></div>
+            <div>{'      '}<span className="keyword">NEXT_PUBLIC_API_URL</span>: <span className="string">http://server:3000</span></div>
+            <div>{'    '}<span className="keyword">expose</span>: [<span className="string">&quot;3100&quot;</span>]</div>
+            <div style={{ marginTop: 8 }}>{'  '}<span className="function">website</span>:</div>
+            <div>{'    '}<span className="keyword">build</span>: {'{ '}context: .., dockerfile: docker/Dockerfile.website{' }'}</div>
+            <div>{'    '}<span className="keyword">expose</span>: [<span className="string">&quot;3200&quot;</span>]</div>
             <div style={{ marginTop: 8 }}><span className="keyword">volumes</span>:</div>
             <div>{'  '}<span className="function">pgdata</span>:</div>
           </div>

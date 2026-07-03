@@ -10,7 +10,7 @@
  *
  * The reasoning pipeline has four stages:
  *
- * 1. **Analysis** — Eight specialist agents analyse raw findings through
+ * 1. **Analysis** — Nineteen specialist agents analyse raw findings through
  *    their domain-specific cognitive frameworks and propose hypotheses.
  *
  * 2. **Debate** — Specialists challenge hypotheses outside their domain.

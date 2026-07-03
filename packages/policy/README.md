@@ -11,10 +11,10 @@ pnpm add @recurrsive/policy
 ## Usage
 
 ```typescript
-import { PolicyEngine, getBuiltinPolicySets } from '@recurrsive/policy';
+import { PolicyEngine, getBuiltinPolicySet } from '@recurrsive/policy';
 
 const engine = new PolicyEngine();
-for (const policySet of getBuiltinPolicySets()) {
+for (const policySet of getBuiltinPolicySet()) {
   engine.addPolicySet(policySet);
 }
 

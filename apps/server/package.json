@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/server",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Recurrsive API server - REST + WebSocket",
   "type": "module",
   "main": "dist/index.js",

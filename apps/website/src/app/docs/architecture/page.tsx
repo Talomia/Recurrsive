@@ -72,7 +72,7 @@ const CORE_PACKAGES = [
 ];
 
 const APPS = [
-  { name: 'api', desc: 'REST API server (138 endpoints, WebSocket)', icon: Globe },
+  { name: 'api', desc: 'REST API server (150 endpoints, WebSocket)', icon: Globe },
   { name: 'dashboard', desc: 'Interactive web dashboard and graph explorer', icon: Monitor },
   { name: 'website', desc: 'Marketing and documentation website', icon: Server },
   { name: 'cli', desc: 'Standalone CLI binary distribution', icon: Terminal },

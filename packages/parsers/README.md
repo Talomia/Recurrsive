@@ -14,6 +14,7 @@ pnpm add @recurrsive/parsers
 |-----------|-----------|----------|
 | `TypeScriptExtractor` | TypeScript, JavaScript | Functions, classes, interfaces, imports, exports, decorators |
 | `PythonExtractor` | Python | Functions, classes, imports, decorators, async functions |
+| `GoExtractor` | Go | Functions, structs, interfaces, imports, methods |
 
 ## AI Pattern Detection
 

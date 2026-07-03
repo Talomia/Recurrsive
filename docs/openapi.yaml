@@ -5,10 +5,10 @@ info:
     REST API for the Recurrsive codebase intelligence engine.
     Provides analysis, knowledge-graph querying, opportunity management,
     policy enforcement, and report generation.
-  version: 0.1.0
+  version: 0.5.5
   license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
   - url: http://localhost:3000

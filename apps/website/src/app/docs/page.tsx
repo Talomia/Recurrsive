@@ -42,8 +42,8 @@ const QUICK_START = [
   {
     icon: Code2,
     title: 'API Reference',
-    description: 'Complete REST API documentation with 138 endpoints covering analysis, policies, and management.',
-    tag: '138 endpoints',
+    description: 'Complete REST API documentation with 150 endpoints covering analysis, policies, and management.',
+    tag: '150 endpoints',
     tagColor: 'var(--blue)',
     href: '/docs/api-reference',
   },
@@ -406,7 +406,7 @@ export default function DocsPage() {
               API <span className="text-gradient">Reference</span>
             </h2>
             <p style={{ color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto', fontSize: '1.05rem' }}>
-              Explore 138 REST API endpoints across 8 categories. Full request/response examples included.
+              Explore 150 REST API endpoints across 8 categories. Full request/response examples included.
             </p>
           </div>
           <div className="grid-4">

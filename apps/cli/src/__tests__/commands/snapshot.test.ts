@@ -141,7 +141,7 @@ const sampleRelationships = [
 
 /** A valid snapshot object for import tests. */
 const validSnapshot = {
-  version: '0.5.4',
+  version: '0.5.5',
   exported_at: '2026-06-30T12:00:00Z',
   project: 'test-project',
   entities: sampleEntities,
@@ -289,7 +289,7 @@ describe('registerSnapshotCommand', () => {
       expect(writeFile).toHaveBeenCalledTimes(1);
       const [, content] = (writeFile as Mock).mock.calls[0];
       const parsed = JSON.parse(content);
-      expect(parsed.version).toBe('0.5.4');
+      expect(parsed.version).toBe('0.5.5');
       expect(parsed.entities).toEqual(sampleEntities);
       expect(parsed.relationships).toEqual(sampleRelationships);
       expect(parsed.stats.entity_count).toBe(2);
@@ -409,7 +409,7 @@ describe('registerSnapshotCommand', () => {
       await runImport('/tmp/snapshot.json');
 
       expect(info).toHaveBeenCalledWith(
-        expect.stringContaining('0.5.4'),
+        expect.stringContaining('0.5.5'),
       );
     });
 
@@ -427,7 +427,7 @@ describe('registerSnapshotCommand', () => {
     });
 
     it('validates file structure — rejects missing entities', async () => {
-      const badSnapshot = { version: '0.5.4', relationships: [] };
+      const badSnapshot = { version: '0.5.5', relationships: [] };
       (readFile as Mock).mockResolvedValue(JSON.stringify(badSnapshot));
 
       const { runImport } = createFakeProgram();
@@ -439,7 +439,7 @@ describe('registerSnapshotCommand', () => {
     });
 
     it('validates file structure — rejects missing relationships', async () => {
-      const badSnapshot = { version: '0.5.4', entities: [] };
+      const badSnapshot = { version: '0.5.5', entities: [] };
       (readFile as Mock).mockResolvedValue(JSON.stringify(badSnapshot));
 
       const { runImport } = createFakeProgram();

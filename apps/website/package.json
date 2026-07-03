@@ -1,6 +1,8 @@
 {
   "name": "@recurrsive/website",
-  "version": "0.5.4",
+  "version": "0.5.5",
+  "description": "Recurrsive marketing website — 23 pages with SEO, glassmorphism design, and documentation",
+  "license": "Apache-2.0",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3200",

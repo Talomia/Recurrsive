@@ -24,7 +24,7 @@ import {
 export const metadata: Metadata = {
   title: 'API Reference — Recurrsive Docs',
   description:
-    'Complete REST API reference for Recurrsive. 138 endpoints covering analysis, graph, policies, and more.',
+    'Complete REST API reference for Recurrsive. 150 endpoints covering analysis, graph, policies, and more.',
 };
 
 const ENDPOINT_GROUPS = [
@@ -50,7 +50,7 @@ export default function ApiReferencePage() {
         <div className="glow-orb glow-blue" style={{ width: 500, height: 500, top: -200, right: '10%' }} />
         <div className="container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
           <div className="badge badge-accent" style={{ marginBottom: 'var(--space-lg)' }}>
-            <Code2 size={14} /> 138 REST endpoints
+            <Code2 size={14} /> 150 REST endpoints
           </div>
           <h1 style={{ marginBottom: 'var(--space-md)' }}>
             <span className="text-gradient">API Reference</span>
@@ -153,7 +153,7 @@ export default function ApiReferencePage() {
               Endpoint <span className="text-gradient">Groups</span>
             </h2>
             <p style={{ color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto', fontSize: '1.05rem' }}>
-              138 endpoints organized into 9 logical groups.
+              150 endpoints organized into 9 logical groups.
             </p>
           </div>
           <div className="grid-3">
