@@ -9,8 +9,12 @@
           "type": "image",
           "image": "apache/age:release_PG16_1.5.0"
         },
-        "deploy": {},
         "env": "POSTGRES_PASSWORD=recurrsive",
+        "deploy": {
+          "command": null,
+          "replicas": 1,
+          "zeroDowntime": true
+        },
         "mounts": [
           {
             "type": "volume",
@@ -27,6 +31,7 @@
         "serviceName": "server",
         "source": {
           "type": "github",
+          "autoDeploy": false,
           "owner": "Talomia",
           "repo": "Recurrsive",
           "ref": "main",
@@ -36,12 +41,22 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile"
         },
-        "deploy": {},
         "env": "DATABASE_URL=postgresql://postgres:recurrsive@$(PROJECT_NAME)_postgres:5432/postgres\nGRAPH_PROVIDER=postgresql_age\nPORT=3000\nNODE_ENV=production\nRECURRSIVE_LLM_PROVIDER=openai\nRECURRSIVE_LLM_MODEL=gpt-4.1-mini\nRECURRSIVE_LLM_API_KEY=\nRECURRSIVE_WEBHOOK_SECRET=\nRECURRSIVE_WEBHOOK_TIMEOUT_MS=5000\nRECURRSIVE_WEBHOOK_MAX_RETRIES=3",
+        "deploy": {
+          "command": null,
+          "replicas": 1,
+          "zeroDowntime": true
+        },
         "domains": [
           {
             "host": "$(EASYPANEL_DOMAIN)",
-            "port": 3000
+            "port": 3000,
+            "https": true,
+            "path": "/",
+            "internalProtocol": "http",
+            "wildcard": false,
+            "certificateResolver": "",
+            "middlewares": []
           }
         ]
       }
@@ -53,6 +68,7 @@
         "serviceName": "dashboard",
         "source": {
           "type": "github",
+          "autoDeploy": false,
           "owner": "Talomia",
           "repo": "Recurrsive",
           "ref": "main",
@@ -62,12 +78,22 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile.dashboard"
         },
-        "deploy": {},
         "env": "NEXT_PUBLIC_API_URL=http://$(PROJECT_NAME)_server:3000\nPORT=3100\nNODE_ENV=production",
+        "deploy": {
+          "command": null,
+          "replicas": 1,
+          "zeroDowntime": true
+        },
         "domains": [
           {
             "host": "$(EASYPANEL_DOMAIN)",
-            "port": 3100
+            "port": 3100,
+            "https": true,
+            "path": "/",
+            "internalProtocol": "http",
+            "wildcard": false,
+            "certificateResolver": "",
+            "middlewares": []
           }
         ]
       }
@@ -79,6 +105,7 @@
         "serviceName": "website",
         "source": {
           "type": "github",
+          "autoDeploy": false,
           "owner": "Talomia",
           "repo": "Recurrsive",
           "ref": "main",
@@ -88,12 +115,22 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile.website"
         },
-        "deploy": {},
         "env": "PORT=3200\nNODE_ENV=production",
+        "deploy": {
+          "command": null,
+          "replicas": 1,
+          "zeroDowntime": true
+        },
         "domains": [
           {
             "host": "$(EASYPANEL_DOMAIN)",
-            "port": 3200
+            "port": 3200,
+            "https": true,
+            "path": "/",
+            "internalProtocol": "http",
+            "wildcard": false,
+            "certificateResolver": "",
+            "middlewares": []
           }
         ]
       }
