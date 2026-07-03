@@ -117,21 +117,16 @@ COPY --from=deps /app/packages/policy/node_modules packages/policy/node_modules
 COPY --from=deps /app/packages/presentation/node_modules packages/presentation/node_modules
 COPY --from=deps /app/apps/server/node_modules apps/server/node_modules
 
-# Set ownership to non-root user
-RUN chown -R recurrsive:recurrsive /app
-
-USER recurrsive
-
 # Expose the default API port
 EXPOSE 3000
 
-# Health check against the liveness endpoint
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+# Disable Docker health check — let Swarm manage container lifecycle
+HEALTHCHECK NONE
 
 # Environment defaults
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV HOST=0.0.0.0
 
 # Start the API server
 CMD ["node", "apps/server/dist/bin.js"]
