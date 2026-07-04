@@ -115,7 +115,6 @@ COPY --from=builder /app/packages/opportunities/src packages/opportunities/src
 COPY --from=builder /app/packages/policy/src packages/policy/src
 COPY --from=builder /app/packages/presentation/src packages/presentation/src
 COPY --from=builder /app/apps/server/src apps/server/src
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 # Copy production node_modules from deps stage (includes pnpm virtual store + per-package symlinks)
 COPY --from=deps /app/node_modules node_modules
