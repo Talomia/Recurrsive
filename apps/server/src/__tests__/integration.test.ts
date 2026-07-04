@@ -167,12 +167,17 @@ vi.mock('@recurrsive/core', () => ({
 }));
 
 import { createServer } from '../index.js';
+import { createToken } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Test setup
 // ---------------------------------------------------------------------------
 
 let app: FastifyInstance;
+
+// Shared auth token for tests — routes now require auth middleware
+const adminToken = createToken('test-admin', 'admin');
+const authHeaders = { authorization: `Bearer ${adminToken}` };
 
 beforeAll(async () => {
   app = await createServer({ logger: false });
@@ -282,6 +287,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
   it('7. POST /api/v1/webhooks registers a webhook', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -301,7 +307,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
   });
 
   it('8. GET /api/v1/webhooks lists the registered webhook', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/webhooks' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/webhooks' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -313,6 +319,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
   it('9. POST /api/v1/webhooks/:id/test triggers a test delivery', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: `/api/v1/webhooks/${webhookId}/test`,
     });
@@ -325,6 +332,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
   it('10. GET /api/v1/webhooks/:id/deliveries returns delivery history', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: `/api/v1/webhooks/${webhookId}/deliveries`,
     });
@@ -338,6 +346,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
   it('11. DELETE /api/v1/webhooks/:id removes the webhook', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'DELETE',
       url: `/api/v1/webhooks/${webhookId}`,
     });
@@ -349,7 +358,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
   });
 
   it('12. GET /api/v1/webhooks confirms removal', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/webhooks' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/webhooks' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     const found = body.data.find((w: { id: string }) => w.id === webhookId);
@@ -415,35 +424,37 @@ describe('Flow: Batch Lifecycle (start → status → history)', () => {
 
 describe('Flow: Config + Notifications (config → features → channels → test → history)', () => {
   it('16. GET /api/v1/config returns current configuration', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/config' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/config' });
     // 200 if initialized, 503 or 404 if not (depends on route guard)
     expect([200, 404, 503]).toContain(res.statusCode);
     if (res.statusCode === 200) {
       const body = res.json();
-      expect(body).toHaveProperty('project');
-      expect(body).toHaveProperty('graph');
-      expect(body).toHaveProperty('analysis');
-      expect(body).toHaveProperty('report');
-      expect(body).toHaveProperty('features');
+      expect(body).toHaveProperty('data');
+      expect(body.data).toHaveProperty('project');
+      expect(body.data).toHaveProperty('graph');
+      expect(body.data).toHaveProperty('analysis');
+      expect(body.data).toHaveProperty('report');
+      expect(body.data).toHaveProperty('features');
     }
   });
 
   it('17. GET /api/v1/config/features returns feature inventory', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/config/features' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/config/features' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toHaveProperty('analyzers');
-    expect(body).toHaveProperty('collectors');
-    expect(body).toHaveProperty('policy_sets');
-    expect(body).toHaveProperty('summary');
-    expect(Array.isArray(body.analyzers)).toBe(true);
-    expect(body.summary).toHaveProperty('total_analyzers');
-    expect(body.summary).toHaveProperty('total_collectors');
-    expect(body.summary).toHaveProperty('total_policy_sets');
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('analyzers');
+    expect(body.data).toHaveProperty('collectors');
+    expect(body.data).toHaveProperty('policy_sets');
+    expect(body.data).toHaveProperty('summary');
+    expect(Array.isArray(body.data.analyzers)).toBe(true);
+    expect(body.data.summary).toHaveProperty('total_analyzers');
+    expect(body.data.summary).toHaveProperty('total_collectors');
+    expect(body.data.summary).toHaveProperty('total_policy_sets');
   });
 
   it('18. GET /api/v1/notifications/channels returns available channels', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/notifications/channels' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/notifications/channels' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -459,6 +470,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
 
   it('19. POST /api/v1/notifications/test sends a test notification', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: { channel: 'console' },
@@ -471,7 +483,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
   });
 
   it('20. GET /api/v1/notifications/history shows the test notification', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/notifications/history' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/notifications/history' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -500,6 +512,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
 
   it('21. POST /api/v1/experiments creates a new experiment', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: {
@@ -522,7 +535,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
   });
 
   it('22. GET /api/v1/experiments lists experiments including the new one', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/experiments' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/experiments' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -533,7 +546,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
   });
 
   it('23. GET /api/v1/experiments/:id returns experiment details', async () => {
-    const res = await app.inject({ method: 'GET', url: `/api/v1/experiments/${experimentId}` });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: `/api/v1/experiments/${experimentId}` });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -545,6 +558,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
 
   it('24. PUT /api/v1/experiments/:id/status starts the experiment', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${experimentId}/status`,
       payload: { status: 'running' },
@@ -558,6 +572,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
 
   it('25. PUT /api/v1/experiments/:id/status completes the experiment', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${experimentId}/status`,
       payload: {
@@ -620,21 +635,22 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/summary' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toHaveProperty('analysis_runs');
-    expect(body).toHaveProperty('total_findings');
-    expect(body).toHaveProperty('trends');
-    expect(Array.isArray(body.trends)).toBe(true);
-    expect(body.trends.length).toBeGreaterThan(0);
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('analysis_runs');
+    expect(body.data).toHaveProperty('total_findings');
+    expect(body.data).toHaveProperty('trends');
+    expect(Array.isArray(body.data.trends)).toBe(true);
+    expect(body.data.trends.length).toBeGreaterThan(0);
   });
 
   it('30. GET /api/v1/analytics/top-categories returns category breakdown', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/top-categories' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toHaveProperty('categories');
-    expect(Array.isArray(body.categories)).toBe(true);
-    expect(body.categories.length).toBeGreaterThan(0);
-    const cat = body.categories[0];
+    expect(body).toHaveProperty('data');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data.length).toBeGreaterThan(0);
+    const cat = body.data[0];
     expect(cat).toHaveProperty('name');
     expect(cat).toHaveProperty('count');
     expect(cat).toHaveProperty('percentage');

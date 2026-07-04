@@ -12,6 +12,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // In-memory project store (no persistence needed — no real users)
@@ -149,7 +150,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   });
 
   // Create project
-  app.post('/api/v1/projects', async (request, reply) => {
+  app.post('/api/v1/projects', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as Partial<Project>;
     if (!body.name || !body.repository) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and repository are required' });
@@ -184,7 +185,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   });
 
   // Update project
-  app.put<{ Params: { id: string } }>('/api/v1/projects/:id', async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const project = projects.get(request.params.id);
     if (!project) {
       return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
@@ -208,7 +209,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   });
 
   // Delete project
-  app.delete<{ Params: { id: string } }>('/api/v1/projects/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!projects.has(request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
     }

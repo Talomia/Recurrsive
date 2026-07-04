@@ -16,6 +16,7 @@ import { registerWebSocket } from './ws/index.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
 import { registerAuditMiddleware } from './middleware/audit.js';
+import { optionalAuth } from './middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Server options
@@ -81,6 +82,9 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
 
   // Register audit logging (before routes, to capture all requests)
   registerAuditMiddleware(app);
+
+  // Register optional auth (populates request.user if token present, never rejects)
+  app.addHook('preHandler', optionalAuth);
 
   // Register all REST routes
   await registerRoutes(app);

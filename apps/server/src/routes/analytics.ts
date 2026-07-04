@@ -145,16 +145,18 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
           : 0;
 
       return reply.status(200).send({
-        analysis_runs: 1,
-        total_findings: totalFindings,
-        findings_resolved: totalResolved,
-        resolution_rate: resolutionRate,
-        avg_health_score: MOCK_SUMMARY.avg_health_score,
-        trends: MOCK_TRENDS, // trend history requires multiple runs
+        data: {
+          analysis_runs: 1,
+          total_findings: totalFindings,
+          findings_resolved: totalResolved,
+          resolution_rate: resolutionRate,
+          avg_health_score: MOCK_SUMMARY.avg_health_score,
+          trends: MOCK_TRENDS, // trend history requires multiple runs
+        },
       });
     }
 
-    return reply.status(200).send(MOCK_SUMMARY);
+    return reply.status(200).send({ data: MOCK_SUMMARY });
   });
 
   /**
@@ -181,11 +183,11 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
         }))
         .sort((a, b) => b.count - a.count);
 
-      return reply.status(200).send({ categories });
+      return reply.status(200).send({ data: categories });
     }
 
     return reply.status(200).send({
-      categories: MOCK_CATEGORIES,
+      data: MOCK_CATEGORIES,
     });
   });
 }

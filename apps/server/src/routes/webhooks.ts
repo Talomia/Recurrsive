@@ -12,6 +12,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,7 +94,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    *
    * List all registered webhooks.
    */
-  app.get('/api/v1/webhooks', async (_request, reply) => {
+  app.get('/api/v1/webhooks', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const hooks = Array.from(webhooks.values());
 
     return reply.status(200).send({
@@ -121,7 +122,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       events: WebhookEvent[];
       secret?: string;
     };
-  }>('/api/v1/webhooks', async (request, reply) => {
+  }>('/api/v1/webhooks', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { url, events, secret } = request.body ?? {};
 
     if (!url || typeof url !== 'string') {
@@ -186,6 +187,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    */
   app.delete<{ Params: { id: string } }>(
     '/api/v1/webhooks/:id',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
 
@@ -216,7 +218,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       events?: WebhookEvent[];
       url?: string;
     };
-  }>('/api/v1/webhooks/:id', async (request, reply) => {
+  }>('/api/v1/webhooks/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params;
     const hook = webhooks.get(id);
 
@@ -248,6 +250,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    */
   app.post<{ Params: { id: string } }>(
     '/api/v1/webhooks/:id/test',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
       const hook = webhooks.get(id);
@@ -298,6 +301,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    */
   app.get<{ Params: { id: string } }>(
     '/api/v1/webhooks/:id/deliveries',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
 
@@ -322,7 +326,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    *
    * List all supported webhook event types.
    */
-  app.get('/api/v1/webhooks/events', async (_request, reply) => {
+  app.get('/api/v1/webhooks/events', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.status(200).send({
       data: [
         { event: 'analysis.complete', description: 'Triggered when an analysis run completes successfully' },

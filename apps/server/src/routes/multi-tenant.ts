@@ -12,6 +12,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,19 +108,19 @@ for (const t of demoTenants) {
 
 export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<void> {
   // List all tenants
-  app.get('/api/v1/tenants', async (_request, reply) => {
+  app.get('/api/v1/tenants', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({ data: Array.from(tenants.values()), total: tenants.size });
   });
 
   // Get tenant details
-  app.get<{ Params: { id: string } }>('/api/v1/tenants/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const tenant = tenants.get(request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     return reply.send({ data: tenant });
   });
 
   // Create tenant
-  app.post('/api/v1/tenants', async (request, reply) => {
+  app.post('/api/v1/tenants', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as { name?: string; slug?: string; tier?: TenantTier; ownerId?: string };
     if (!body.name || !body.slug) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and slug are required' });
@@ -153,7 +154,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   });
 
   // Update tenant
-  app.put<{ Params: { id: string } }>('/api/v1/tenants/:id', async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const tenant = tenants.get(request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 
@@ -172,7 +173,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   });
 
   // Delete tenant
-  app.delete<{ Params: { id: string } }>('/api/v1/tenants/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!tenants.has(request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     }
@@ -181,7 +182,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   });
 
   // Check quota usage
-  app.get<{ Params: { id: string } }>('/api/v1/tenants/:id/quotas', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/tenants/:id/quotas', { preHandler: [authMiddleware] }, async (request, reply) => {
     const tenant = tenants.get(request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 
@@ -212,7 +213,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   });
 
   // Get available tiers and pricing
-  app.get('/api/v1/tenants/tiers/info', async (_request, reply) => {
+  app.get('/api/v1/tenants/tiers/info', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({
       data: {
         tiers: [

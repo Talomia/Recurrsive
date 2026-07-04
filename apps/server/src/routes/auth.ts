@@ -112,12 +112,14 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     logger.info(`User '${user.username}' logged in successfully`);
 
     return reply.status(200).send({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        displayName: user.displayName,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          displayName: user.displayName,
+        },
       },
     });
   });
@@ -140,10 +142,12 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const token = createToken(user.id, user.role);
 
     return reply.status(200).send({
-      token,
-      user: {
-        id: user.id,
-        role: user.role,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          role: user.role,
+        },
       },
     });
   });
@@ -164,11 +168,13 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const demo = DEMO_USERS.find((u) => u.id === user.id);
 
     return reply.status(200).send({
-      id: user.id,
-      role: user.role,
-      authMethod: user.authMethod,
-      displayName: demo?.displayName ?? user.id,
-      username: demo?.username ?? user.id,
+      data: {
+        id: user.id,
+        role: user.role,
+        authMethod: user.authMethod,
+        displayName: demo?.displayName ?? user.id,
+        username: demo?.username ?? user.id,
+      },
     });
   });
 
@@ -197,9 +203,11 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const result = generateApiKey(name.trim(), user.id, user.role, expiresAt);
 
     return reply.status(201).send({
+      data: {
+        key: result.key,
+        info: result.info,
+      },
       message: 'API key created — store the key securely, it will not be shown again',
-      key: result.key,
-      info: result.info,
     });
   });
 
@@ -251,8 +259,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.status(200).send({
+      data: { id },
       message: 'API key revoked',
-      id,
     });
   });
 }

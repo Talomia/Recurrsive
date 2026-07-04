@@ -464,9 +464,10 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.token).toBeDefined();
-    expect(body.user.role).toBe('admin');
-    expect(body.user.username).toBe('admin');
+    expect(body.data).toBeDefined();
+    expect(body.data.token).toBeDefined();
+    expect(body.data.user.role).toBe('admin');
+    expect(body.data.user.username).toBe('admin');
   });
 
   it('POST /api/v1/auth/login succeeds with analyst credentials', async () => {
@@ -477,7 +478,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.user.role).toBe('analyst');
+    expect(body.data.user.role).toBe('analyst');
   });
 
   it('POST /api/v1/auth/login rejects wrong password', async () => {
@@ -517,7 +518,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'admin', password: 'admin' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     const res = await app.inject({
       method: 'POST',
@@ -526,9 +528,9 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.token).toBeDefined();
+    expect(body.data.token).toBeDefined();
     // Verify the refreshed token is valid and carries the right claims
-    const payload = verifyToken(body.token);
+    const payload = verifyToken(body.data.token);
     expect(payload).not.toBeNull();
     expect(payload!.sub).toBe('user-admin');
     expect(payload!.role).toBe('admin');
@@ -550,7 +552,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'viewer', password: 'viewer' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     const res = await app.inject({
       method: 'GET',
@@ -559,9 +562,9 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.role).toBe('viewer');
-    expect(body.username).toBe('viewer');
-    expect(body.authMethod).toBe('jwt');
+    expect(body.data.role).toBe('viewer');
+    expect(body.data.username).toBe('viewer');
+    expect(body.data.authMethod).toBe('jwt');
   });
 
   it('GET /api/v1/auth/me rejects without auth', async () => {
@@ -580,7 +583,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'admin', password: 'admin' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     const res = await app.inject({
       method: 'POST',
@@ -590,8 +594,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     });
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.payload);
-    expect(body.key).toMatch(/^rk_/);
-    expect(body.info.name).toBe('CI Pipeline Key');
+    expect(body.data.key).toMatch(/^rk_/);
+    expect(body.data.info.name).toBe('CI Pipeline Key');
   });
 
   it('POST /api/v1/api-keys rejects non-admin (403)', async () => {
@@ -600,7 +604,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'viewer', password: 'viewer' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     const res = await app.inject({
       method: 'POST',
@@ -617,7 +622,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'admin', password: 'admin' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     const res = await app.inject({
       method: 'POST',
@@ -634,7 +640,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'admin', password: 'admin' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     // Create a key first
     await app.inject({
@@ -661,7 +668,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'admin', password: 'admin' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     const createRes = await app.inject({
       method: 'POST',
@@ -669,7 +677,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { name: 'to-delete' },
     });
-    const { info } = JSON.parse(createRes.payload);
+    const createBody = JSON.parse(createRes.payload);
+    const info = createBody.data.info;
 
     const deleteRes = await app.inject({
       method: 'DELETE',
@@ -687,7 +696,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'admin', password: 'admin' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     const res = await app.inject({
       method: 'DELETE',
@@ -703,7 +713,8 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
       url: '/api/v1/auth/login',
       payload: { username: 'analyst', password: 'analyst' },
     });
-    const { token } = JSON.parse(loginRes.payload);
+    const loginBody = JSON.parse(loginRes.payload);
+    const token = loginBody.data.token;
 
     const res = await app.inject({
       method: 'DELETE',

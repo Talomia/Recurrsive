@@ -44,7 +44,7 @@ RUN pnpm exec turbo build --filter=@recurrsive/server...
 # ── Stage 2: Prune dependencies ───────────────────────────────────────────────
 FROM node:20-alpine AS deps
 
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@9.14.4 --activate
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
@@ -80,61 +80,60 @@ RUN addgroup --system --gid 1001 recurrsive && \
 WORKDIR /app
 
 # Copy workspace config
-COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=builder --chown=recurrsive:recurrsive /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 
 # Copy built packages (dist directories + package.json for resolution)
-COPY --from=builder /app/packages/core/package.json packages/core/package.json
-COPY --from=builder /app/packages/core/dist packages/core/dist
-COPY --from=builder /app/packages/graph/package.json packages/graph/package.json
-COPY --from=builder /app/packages/graph/dist packages/graph/dist
-COPY --from=builder /app/packages/collectors/package.json packages/collectors/package.json
-COPY --from=builder /app/packages/collectors/dist packages/collectors/dist
-COPY --from=builder /app/packages/parsers/package.json packages/parsers/package.json
-COPY --from=builder /app/packages/parsers/dist packages/parsers/dist
-COPY --from=builder /app/packages/analyzers/package.json packages/analyzers/package.json
-COPY --from=builder /app/packages/analyzers/dist packages/analyzers/dist
-COPY --from=builder /app/packages/reasoning/package.json packages/reasoning/package.json
-COPY --from=builder /app/packages/reasoning/dist packages/reasoning/dist
-COPY --from=builder /app/packages/opportunities/package.json packages/opportunities/package.json
-COPY --from=builder /app/packages/opportunities/dist packages/opportunities/dist
-COPY --from=builder /app/packages/policy/package.json packages/policy/package.json
-COPY --from=builder /app/packages/policy/dist packages/policy/dist
-COPY --from=builder /app/packages/presentation/package.json packages/presentation/package.json
-COPY --from=builder /app/packages/presentation/dist packages/presentation/dist
-COPY --from=builder /app/apps/server/package.json apps/server/package.json
-COPY --from=builder /app/apps/server/dist apps/server/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/core/package.json packages/core/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/core/dist packages/core/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/graph/package.json packages/graph/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/graph/dist packages/graph/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/collectors/package.json packages/collectors/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/collectors/dist packages/collectors/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/parsers/package.json packages/parsers/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/parsers/dist packages/parsers/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/analyzers/package.json packages/analyzers/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/analyzers/dist packages/analyzers/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/reasoning/package.json packages/reasoning/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/reasoning/dist packages/reasoning/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/opportunities/package.json packages/opportunities/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/opportunities/dist packages/opportunities/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/policy/package.json packages/policy/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/policy/dist packages/policy/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/presentation/package.json packages/presentation/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/presentation/dist packages/presentation/dist
+COPY --from=builder --chown=recurrsive:recurrsive /app/apps/server/package.json apps/server/package.json
+COPY --from=builder --chown=recurrsive:recurrsive /app/apps/server/dist apps/server/dist
 
 # Copy source files for self-analysis (the analysis engine parses source code)
-COPY --from=builder /app/packages/core/src packages/core/src
-COPY --from=builder /app/packages/graph/src packages/graph/src
-COPY --from=builder /app/packages/collectors/src packages/collectors/src
-COPY --from=builder /app/packages/parsers/src packages/parsers/src
-COPY --from=builder /app/packages/analyzers/src packages/analyzers/src
-COPY --from=builder /app/packages/reasoning/src packages/reasoning/src
-COPY --from=builder /app/packages/opportunities/src packages/opportunities/src
-COPY --from=builder /app/packages/policy/src packages/policy/src
-COPY --from=builder /app/packages/presentation/src packages/presentation/src
-COPY --from=builder /app/apps/server/src apps/server/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/core/src packages/core/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/graph/src packages/graph/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/collectors/src packages/collectors/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/parsers/src packages/parsers/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/analyzers/src packages/analyzers/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/reasoning/src packages/reasoning/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/opportunities/src packages/opportunities/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/policy/src packages/policy/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/packages/presentation/src packages/presentation/src
+COPY --from=builder --chown=recurrsive:recurrsive /app/apps/server/src apps/server/src
 
 # Copy production node_modules from deps stage (includes pnpm virtual store + per-package symlinks)
-COPY --from=deps /app/node_modules node_modules
-COPY --from=deps /app/packages/core/node_modules packages/core/node_modules
-COPY --from=deps /app/packages/graph/node_modules packages/graph/node_modules
-COPY --from=deps /app/packages/collectors/node_modules packages/collectors/node_modules
-COPY --from=deps /app/packages/parsers/node_modules packages/parsers/node_modules
-COPY --from=deps /app/packages/analyzers/node_modules packages/analyzers/node_modules
-COPY --from=deps /app/packages/reasoning/node_modules packages/reasoning/node_modules
-COPY --from=deps /app/packages/opportunities/node_modules packages/opportunities/node_modules
-COPY --from=deps /app/packages/policy/node_modules packages/policy/node_modules
-COPY --from=deps /app/packages/presentation/node_modules packages/presentation/node_modules
-COPY --from=deps /app/apps/server/node_modules apps/server/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/node_modules node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/core/node_modules packages/core/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/graph/node_modules packages/graph/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/collectors/node_modules packages/collectors/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/parsers/node_modules packages/parsers/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/analyzers/node_modules packages/analyzers/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/reasoning/node_modules packages/reasoning/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/opportunities/node_modules packages/opportunities/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/policy/node_modules packages/policy/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/packages/presentation/node_modules packages/presentation/node_modules
+COPY --from=deps --chown=recurrsive:recurrsive /app/apps/server/node_modules apps/server/node_modules
 
 # Expose the default API port
 EXPOSE 3000
 
-# Ensure non-root user owns the app directory + temp clone directory
-RUN chown -R recurrsive:recurrsive /app && \
-    mkdir -p /tmp/recurrsive-repos && chown recurrsive:recurrsive /tmp/recurrsive-repos
+# Ensure non-root user owns the temp clone directory
+RUN mkdir -p /tmp/recurrsive-repos && chown recurrsive:recurrsive /tmp/recurrsive-repos
 
 # Health check — generous start-period for Swarm stability
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

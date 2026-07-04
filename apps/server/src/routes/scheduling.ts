@@ -11,6 +11,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,21 +123,21 @@ function nextCronRun(_cron: string): string {
 
 export async function registerSchedulingRoutes(app: FastifyInstance): Promise<void> {
   // List all scheduled reports
-  app.get('/api/v1/schedules', async (_request, reply) => {
+  app.get('/api/v1/schedules', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const list = Array.from(schedules.values())
       .sort((a, b) => a.name.localeCompare(b.name));
     return reply.send({ data: list, total: list.length });
   });
 
   // Get schedule details
-  app.get<{ Params: { id: string } }>('/api/v1/schedules/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const schedule = schedules.get(request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     return reply.send({ data: schedule });
   });
 
   // Create scheduled report
-  app.post('/api/v1/schedules', async (request, reply) => {
+  app.post('/api/v1/schedules', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as Partial<ScheduledReport>;
     if (!body.name || !body.schedule) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and schedule (cron expression) are required' });
@@ -168,7 +169,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Update schedule
-  app.put<{ Params: { id: string } }>('/api/v1/schedules/:id', async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const existing = schedules.get(request.params.id);
     if (!existing) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
@@ -194,7 +195,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Delete schedule
-  app.delete<{ Params: { id: string } }>('/api/v1/schedules/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!schedules.has(request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     }
@@ -203,7 +204,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Trigger immediate run
-  app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/run', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/run', { preHandler: [authMiddleware] }, async (request, reply) => {
     const schedule = schedules.get(request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
@@ -230,13 +231,13 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Get run history for a schedule
-  app.get<{ Params: { id: string } }>('/api/v1/schedules/:id/runs', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/schedules/:id/runs', { preHandler: [authMiddleware] }, async (request, reply) => {
     const scheduleRuns = runs.filter(r => r.scheduleId === request.params.id);
     return reply.send({ data: scheduleRuns, total: scheduleRuns.length });
   });
 
   // Pause/resume schedule
-  app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/toggle', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/toggle', { preHandler: [authMiddleware] }, async (request, reply) => {
     const schedule = schedules.get(request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 

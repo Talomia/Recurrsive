@@ -11,6 +11,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -116,7 +117,7 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
       channel: NotificationChannel;
       config?: { webhookUrl?: string; url?: string };
     };
-  }>('/api/v1/notifications/test', async (request, reply) => {
+  }>('/api/v1/notifications/test', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as Record<string, unknown> | null;
 
     if (!body || typeof body !== 'object') {

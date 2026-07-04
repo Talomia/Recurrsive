@@ -13,7 +13,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
-import { createToken } from '../middleware/auth.js';
+import { createToken, authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -196,7 +196,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Create/Update SSO config
-  app.put<{ Params: { id: string } }>('/api/v1/sso/providers/:id', async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as Partial<SSOConfig>;
     const existing = ssoConfigs.get(request.params.id);
     const now = nowISO();
@@ -224,7 +224,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Delete SSO config
-  app.delete<{ Params: { id: string } }>('/api/v1/sso/providers/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!ssoConfigs.has(request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not found' });
     }

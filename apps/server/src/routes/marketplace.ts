@@ -302,7 +302,8 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
 
     if (!body.name || !body.category || !body.description || !body.repositoryUrl) {
       return reply.status(400).send({
-        error: 'Missing required fields: name, category, description, repositoryUrl',
+        error: 'Bad Request',
+        message: 'Missing required fields: name, category, description, repositoryUrl',
       });
     }
 

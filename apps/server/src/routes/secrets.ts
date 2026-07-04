@@ -12,6 +12,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,13 +86,13 @@ for (const s of demoSecrets) {
 
 export async function registerSecretRoutes(app: FastifyInstance): Promise<void> {
   // List secrets (never returns values)
-  app.get('/api/v1/secrets', async (_request, reply) => {
+  app.get('/api/v1/secrets', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const list = Array.from(secrets.values()).sort((a, b) => a.key.localeCompare(b.key));
     return reply.send({ data: list, total: list.length });
   });
 
   // Get secret metadata
-  app.get<{ Params: { id: string } }>('/api/v1/secrets/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const secret = secrets.get(request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
@@ -110,7 +111,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Create secret
-  app.post('/api/v1/secrets', async (request, reply) => {
+  app.post('/api/v1/secrets', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as { key?: string; value?: string; description?: string; backend?: SecretBackend; tags?: string[]; rotationIntervalDays?: number };
     if (!body.key || !body.value) {
       return reply.status(400).send({ error: 'Bad Request', message: 'key and value are required' });
@@ -145,7 +146,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Rotate secret
-  app.post<{ Params: { id: string } }>('/api/v1/secrets/:id/rotate', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/secrets/:id/rotate', { preHandler: [authMiddleware] }, async (request, reply) => {
     const secret = secrets.get(request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
@@ -170,7 +171,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Delete secret
-  app.delete<{ Params: { id: string } }>('/api/v1/secrets/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const secret = secrets.get(request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
@@ -185,12 +186,12 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Get audit log for secrets
-  app.get('/api/v1/secrets/audit/log', async (_request, reply) => {
+  app.get('/api/v1/secrets/audit/log', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({ data: auditLog.slice(-100), total: auditLog.length });
   });
 
   // Check rotation status
-  app.get('/api/v1/secrets/health/rotation', async (_request, reply) => {
+  app.get('/api/v1/secrets/health/rotation', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const now = Date.now();
     const needsRotation: Array<{ id: string; key: string; daysSinceRotation: number; intervalDays: number }> = [];
 

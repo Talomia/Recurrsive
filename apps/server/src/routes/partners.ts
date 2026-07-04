@@ -310,7 +310,8 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
 
     if (!body.companyName || !body.contactEmail || !body.partnerType) {
       return reply.status(400).send({
-        error: 'Missing required fields: companyName, contactEmail, partnerType',
+        error: 'Bad Request',
+        message: 'Missing required fields: companyName, contactEmail, partnerType',
       });
     }
 

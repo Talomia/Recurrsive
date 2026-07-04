@@ -14,6 +14,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -178,7 +179,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Install plugin from marketplace
-  app.post<{ Params: { id: string } }>('/api/v1/plugins/install/:id', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/plugins/install/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (installed.has(request.params.id)) {
       return reply.status(409).send({ error: 'Conflict', message: 'Plugin already installed' });
     }
@@ -212,7 +213,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Uninstall plugin
-  app.delete<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!installed.has(request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
     }
@@ -221,7 +222,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Enable/disable plugin
-  app.post<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/toggle', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/toggle', { preHandler: [authMiddleware] }, async (request, reply) => {
     const plugin = installed.get(request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
@@ -232,7 +233,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Update plugin config
-  app.put<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/config', async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/config', { preHandler: [authMiddleware] }, async (request, reply) => {
     const plugin = installed.get(request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 

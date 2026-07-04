@@ -17,6 +17,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types — Benchmarking
@@ -186,7 +187,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // ── Benchmarking ──────────────────────────────────────────────────────────
 
   // Submit benchmark data (opt-in)
-  app.post('/api/v1/cloud/benchmarks', async (request, reply) => {
+  app.post('/api/v1/cloud/benchmarks', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as Partial<BenchmarkEntry>;
     if (!body.industry) return reply.status(400).send({ error: 'Bad Request', message: 'industry is required' });
 
@@ -204,7 +205,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Get benchmark report
-  app.get<{ Querystring: { industry?: string } }>('/api/v1/cloud/benchmarks/report', async (request, reply) => {
+  app.get<{ Querystring: { industry?: string } }>('/api/v1/cloud/benchmarks/report', { preHandler: [authMiddleware] }, async (request, reply) => {
     const industry = request.query.industry;
     const entries = industry ? benchmarks.filter(b => b.industry === industry) : benchmarks;
 
@@ -237,7 +238,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
 
   // ── Cross-org Pattern Learning ────────────────────────────────────────────
 
-  app.get('/api/v1/cloud/patterns', async (_request, reply) => {
+  app.get('/api/v1/cloud/patterns', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({
       data: patterns.sort((a, b) => b.occurrences - a.occurrences),
       total: patterns.length,
@@ -245,7 +246,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
-  app.get<{ Params: { id: string } }>('/api/v1/cloud/patterns/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/cloud/patterns/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const pattern = patterns.find(p => p.id === request.params.id);
     if (!pattern) return reply.status(404).send({ error: 'Not Found', message: 'Pattern not found' });
     return reply.send({ data: pattern });
@@ -253,17 +254,17 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
 
   // ── Partner Certification ─────────────────────────────────────────────────
 
-  app.get('/api/v1/cloud/partners', async (_request, reply) => {
+  app.get('/api/v1/cloud/partners', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({ data: partners, total: partners.length });
   });
 
-  app.get<{ Params: { id: string } }>('/api/v1/cloud/partners/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/cloud/partners/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const partner = partners.find(p => p.id === request.params.id);
     if (!partner) return reply.status(404).send({ error: 'Not Found', message: 'Partner not found' });
     return reply.send({ data: partner });
   });
 
-  app.post('/api/v1/cloud/partners/apply', async (request, reply) => {
+  app.post('/api/v1/cloud/partners/apply', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as { partnerName?: string; specializations?: string[] };
     if (!body.partnerName) return reply.status(400).send({ error: 'Bad Request', message: 'partnerName is required' });
 
@@ -282,13 +283,13 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
 
   // ── Managed Services ──────────────────────────────────────────────────────
 
-  app.get('/api/v1/cloud/services', async (_request, reply) => {
+  app.get('/api/v1/cloud/services', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({ data: managedServices, total: managedServices.length });
   });
 
   // ── Cloud Platform Info ───────────────────────────────────────────────────
 
-  app.get('/api/v1/cloud/info', async (_request, reply) => {
+  app.get('/api/v1/cloud/info', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({
       data: {
         platform: 'Recurrsive Cloud',

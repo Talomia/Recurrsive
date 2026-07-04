@@ -9,6 +9,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -185,7 +186,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    *
    * Create a new experiment.
    */
-  app.post('/api/v1/experiments', async (request, reply) => {
+  app.post('/api/v1/experiments', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as {
       name?: string;
       description?: string;
@@ -237,7 +238,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    *
    * Update experiment status (start/complete/abort).
    */
-  app.put('/api/v1/experiments/:id/status', async (request, reply) => {
+  app.put('/api/v1/experiments/:id/status', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as { status?: string; conclusion?: string };
 

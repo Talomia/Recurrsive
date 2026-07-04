@@ -224,7 +224,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
     async (request, reply) => {
       const preds = Array.from(predictions.values()).filter(p => p.analyzerId === request.params.analyzerId);
       if (preds.length === 0) {
-        return reply.status(404).send({ error: `No predictions for analyzer: ${request.params.analyzerId}` });
+        return reply.status(404).send({ error: 'Not Found', message: `No predictions for analyzer: ${request.params.analyzerId}` });
       }
 
       return reply.send({

@@ -9,6 +9,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 /**
  * All 10 analyzer IDs in the platform.
@@ -101,28 +102,30 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
       ?? (process.env['GRAPH_PROVIDER'] ?? 'sqlite');
 
     return reply.status(200).send({
-      project: {
-        root: projectPath,
-        info: state.getProjectInfo(),
+      data: {
+        project: {
+          root: projectPath,
+          info: state.getProjectInfo(),
+        },
+        graph: {
+          provider: graphProvider,
+        },
+        analysis: {
+          severity_threshold: overrides.severityThreshold ?? 'info',
+          parallel: true,
+          timeout_ms: 60_000,
+        },
+        report: {
+          format: overrides.reportFormat ?? 'markdown',
+          directory: overrides.reportDirectory ?? '.recurrsive',
+        },
+        features: {
+          enabled_analyzers: overrides.enabledAnalyzers ?? [...ALL_ANALYZER_IDS],
+          enabled_collectors: overrides.enabledCollectors ?? [...ALL_COLLECTOR_IDS],
+          active_policy_sets: overrides.activePolicySets ?? [...ALL_POLICY_SET_IDS],
+        },
+        overrides_applied: Object.keys(overrides).length > 0,
       },
-      graph: {
-        provider: graphProvider,
-      },
-      analysis: {
-        severity_threshold: overrides.severityThreshold ?? 'info',
-        parallel: true,
-        timeout_ms: 60_000,
-      },
-      report: {
-        format: overrides.reportFormat ?? 'markdown',
-        directory: overrides.reportDirectory ?? '.recurrsive',
-      },
-      features: {
-        enabled_analyzers: overrides.enabledAnalyzers ?? [...ALL_ANALYZER_IDS],
-        enabled_collectors: overrides.enabledCollectors ?? [...ALL_COLLECTOR_IDS],
-        active_policy_sets: overrides.activePolicySets ?? [...ALL_POLICY_SET_IDS],
-      },
-      overrides_applied: Object.keys(overrides).length > 0,
     });
   });
 
@@ -132,7 +135,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * Update configuration values at runtime (in-memory only, not persisted).
    * Accepts a JSON body with optional fields to override.
    */
-  app.patch('/api/v1/config', async (request, reply) => {
+  app.patch('/api/v1/config', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as Record<string, unknown> | null;
     if (!body || typeof body !== 'object') {
       return reply.status(400).send({
@@ -212,8 +215,10 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
     }
 
     return reply.status(200).send({
+      data: {
+        overrides: { ...overrides },
+      },
       message: 'Configuration updated (in-memory only)',
-      overrides: { ...overrides },
     });
   });
 
@@ -244,16 +249,18 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
     }));
 
     return reply.status(200).send({
-      analyzers,
-      collectors,
-      policy_sets: policySets,
-      summary: {
-        total_analyzers: ALL_ANALYZER_IDS.length,
-        enabled_analyzers: analyzers.filter((a) => a.enabled).length,
-        total_collectors: ALL_COLLECTOR_IDS.length,
-        enabled_collectors: collectors.filter((c) => c.enabled).length,
-        total_policy_sets: ALL_POLICY_SET_IDS.length,
-        active_policy_sets: policySets.filter((p) => p.enabled).length,
+      data: {
+        analyzers,
+        collectors,
+        policy_sets: policySets,
+        summary: {
+          total_analyzers: ALL_ANALYZER_IDS.length,
+          enabled_analyzers: analyzers.filter((a) => a.enabled).length,
+          total_collectors: ALL_COLLECTOR_IDS.length,
+          enabled_collectors: collectors.filter((c) => c.enabled).length,
+          total_policy_sets: ALL_POLICY_SET_IDS.length,
+          active_policy_sets: policySets.filter((p) => p.enabled).length,
+        },
       },
     });
   });

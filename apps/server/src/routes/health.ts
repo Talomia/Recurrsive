@@ -86,14 +86,16 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
     }, 0);
 
     return reply.status(200).send({
-      overall_health: overall,
-      dimensions: dimScores,
-      health_trend: healthTrend,
-      tech_debt: techDebt,
-      snapshot: latestSnapshot ?? null,
-      finding_count: cache.findings.length,
-      opportunity_count: cache.opportunities.length,
-      analyzed_at: cache.analyzedAt,
+      data: {
+        overall_health: overall,
+        dimensions: dimScores,
+        health_trend: healthTrend,
+        tech_debt: techDebt,
+        snapshot: latestSnapshot ?? null,
+        finding_count: cache.findings.length,
+        opportunity_count: cache.opportunities.length,
+        analyzed_at: cache.analyzedAt,
+      },
     });
   });
 
