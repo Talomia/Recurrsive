@@ -77,6 +77,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
       logger.debug(`Returning ${paginated.length} of ${total} findings`);
 
       return reply.send({
+        data: paginated,
         total,
         offset,
         limit,

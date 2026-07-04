@@ -4,10 +4,11 @@
 
 | Field | Value |
 |---|---|
-| **Document Version** | 1.0.0 |
+| **Document Version** | 1.1.0 |
+| **Product Version** | 0.5.6 |
 | **Status** | APPROVED — Single Source of Truth |
 | **Created** | 2026-06-29 |
-| **Last Updated** | 2026-06-29 |
+| **Last Updated** | 2026-07-04 |
 | **Classification** | Internal / Confidential |
 
 ---
@@ -1167,7 +1168,7 @@ Learnings flow back into the system:
 
 ## 7. Evidence Sources — Complete Collector List
 
-Every integration is implemented as a **Collector Plugin** conforming to the `Collector` interface. Below is the complete list of supported sources at launch, organized by category.
+Every integration is implemented as a **Collector Plugin** conforming to the `Collector` interface. Below is the complete list of supported and planned sources, organized by category. As of v0.5.6, 14 collectors are implemented (Git, Documentation, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone); the remainder are planned for future releases.
 
 ### 7.1 Code & Version Control
 
@@ -1577,15 +1578,16 @@ Recurrsive supports multiple deployment models to fit different organizational n
 |---|---|---|---|
 | **Local CLI** | Single binary, runs on developer's machine | Individual developers, small teams, evaluation | Local models or cloud API |
 | **Docker** | `docker compose up` with all services | Small-to-medium teams, development environments | Local models or cloud API |
+| **EasyPanel** | One-click deploy via Create from Schema config | Teams using EasyPanel for self-hosted PaaS | Local models or cloud API |
 | **Kubernetes** | Helm chart with full production configuration | Medium-to-large teams, production workloads | Local models or cloud API |
 | **GitHub App** | Installed as a GitHub App, triggers on events | Teams using GitHub, automated PR analysis | Cloud API (managed) |
 | **GitLab App** | Installed as a GitLab integration | Teams using GitLab, automated MR analysis | Cloud API (managed) |
 | **IDE Extensions** | VS Code, JetBrains, Neovim plugins | Individual developers, real-time feedback | Local models or cloud API |
 | **MCP Server** | Model Context Protocol server for AI assistants | AI-assisted development workflows | Via MCP client |
-| **REST API** | RESTful API for programmatic access | Custom integrations, dashboards, automation | N/A (API only) |
+| **REST API** | 150+ endpoints across 34 route modules | Custom integrations, dashboards, automation | N/A (API only) |
 | **GraphQL API** | GraphQL API for flexible querying | Complex queries, custom UIs, data exploration | N/A (API only) |
 | **SDK** | TypeScript, Python, Go SDKs | Embedding Recurrsive in other tools | N/A (SDK only) |
-| **Managed Cloud** | Fully managed SaaS (optional) | Teams wanting zero-ops, fastest onboarding | Managed (customer-isolated) |
+| **Managed Cloud** | Fully managed SaaS with multi-tenant support | Teams wanting zero-ops, fastest onboarding | Managed (customer-isolated) |
 
 ### 11.2 Architecture by Deployment Model
 
@@ -1641,6 +1643,28 @@ Recurrsive supports multiple deployment models to fit different organizational n
 │  └────────────────────────────────────────────────┘   │
 └───────────────────────────────────────────────────────┘
 ```
+
+### 11.3 Current Implementation (v0.5.6)
+
+As of v0.5.6, the following deployment surface is implemented:
+
+| Component | Count | Notes |
+|---|---|---|
+| **REST Endpoints** | 150+ | Across 34 route modules |
+| **Built-in Analyzers** | 13 | 89+ analysis rules |
+| **Built-in Collectors** | 14 | Including enterprise integrations (GitHub, GitLab, OpenTelemetry, Langfuse, Arize, Helicone, Cloud Cost, Error Tracking, APM) |
+| **Specialist Agents** | 19 | With Custom Specialist Agent SDK |
+| **CLI Commands** | 25 | Full management and analysis |
+| **MCP Tools** | 42 | Plus 21 prompts and 16 resources |
+| **Dashboard Pages** | 40 | Including multi-tenant management, plugins, secrets, SSO, scheduling, simulation, confidence calibration |
+| **Website Pages** | 23 | Marketing site with docs hub, marketplace, cloud, and partner portal |
+| **Entity Types** | 43 | With 43 relationship types in the knowledge graph |
+| **Policy Sets** | 5 | With 15 built-in rules |
+| **Report Formats** | 4 | Markdown, HTML, JSON, SARIF v2.1.0 |
+| **Git URL Analysis** | ✓ | Clone and analyze remote repositories via `POST /api/v1/analyze` with `gitUrl` |
+| **Multi-Tenant Support** | ✓ | Tenant CRUD, tier management, quota tracking |
+| **EasyPanel Deploy** | ✓ | One-click deploy via `easypanel.json` |
+| **Docker Images** | 3 | Server, dashboard, website |
 
 ---
 
@@ -2093,4 +2117,5 @@ The system tracks its own evolution:
 
 | Version | Date | Author | Changes |
 |---|---|---|---|
+| 1.1.0 | 2026-07-04 | Recurrsive Team | Updated to reflect v0.5.6: added §11.3 current implementation stats (13 analyzers, 14 collectors, 19 specialists, 150+ endpoints across 34 route modules, 42 MCP tools, 25 CLI commands, 40 dashboard pages, 23 website pages), added EasyPanel and multi-tenant deployment options, added git URL analysis capability, clarified collector implementation status in §7 |
 | 1.0.0 | 2026-06-29 | Recurrsive Team | Initial comprehensive PRD |
