@@ -67,8 +67,8 @@ RUN pnpm install --frozen-lockfile --prod
 # ── Stage 3: Production ──────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
-# Native module runtime dependencies
-RUN apk add --no-cache libstdc++
+# Native module runtime dependencies + git for remote repo analysis
+RUN apk add --no-cache libstdc++ git
 
 # Install pnpm for workspace resolution at runtime
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -132,8 +132,9 @@ COPY --from=deps /app/apps/server/node_modules apps/server/node_modules
 # Expose the default API port
 EXPOSE 3000
 
-# Ensure non-root user owns the app directory
-RUN chown -R recurrsive:recurrsive /app
+# Ensure non-root user owns the app directory + temp clone directory
+RUN chown -R recurrsive:recurrsive /app && \
+    mkdir -p /tmp/recurrsive-repos && chown recurrsive:recurrsive /tmp/recurrsive-repos
 
 # Health check — generous start-period for Swarm stability
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
