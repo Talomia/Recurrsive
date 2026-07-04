@@ -125,6 +125,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  // Stabilize eventTypes reference to prevent infinite reconnection loop
+  // when callers pass a new array literal on each render
+  const eventTypesRef = useRef(eventTypes);
+  eventTypesRef.current = eventTypes;
 
   /** Clear any pending reconnect timer. */
   const clearReconnectTimer = useCallback(() => {
@@ -194,7 +198,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           }
 
           // Apply event type filter
-          if (eventTypes.length > 0 && !eventTypes.includes(event.type)) {
+          if (eventTypesRef.current.length > 0 && !eventTypesRef.current.includes(event.type)) {
             return;
           }
 
@@ -245,7 +249,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         setStatus('disconnected');
       }
     }
-  }, [url, eventTypes, clearReconnectTimer, maxReconnectAttempts, reconnectBaseDelay]);
+  }, [url, clearReconnectTimer, maxReconnectAttempts, reconnectBaseDelay]);
 
   // Auto-connect on mount
   useEffect(() => {

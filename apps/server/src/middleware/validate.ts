@@ -39,7 +39,8 @@ interface ValidationIssue {
 
 /** Schema for `POST /api/v1/analyze` request body. */
 export const ANALYZE_REQUEST_FIELDS: FieldSchema[] = [
-  { name: 'path', type: 'string', required: true, minLength: 1 },
+  { name: 'path', type: 'string', required: false, minLength: 1 },
+  { name: 'gitUrl', type: 'string', required: false, minLength: 1 },
   { name: 'analyzers', type: 'array', required: false },
   { name: 'include_reasoning', type: 'boolean', required: false },
   { name: 'config', type: 'object', required: false },

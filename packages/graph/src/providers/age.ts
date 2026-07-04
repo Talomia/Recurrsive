@@ -399,6 +399,13 @@ export class AgeGraphClient implements ExtendedGraphClient {
       let whereClause = '';
       if (filter && Object.keys(filter).length > 0) {
         const conditions = Object.entries(filter).map(([k, v]) => {
+          // Validate filter key to prevent Cypher injection
+          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) {
+            throw new GraphError(
+              `Invalid filter key "${k}" — must be a valid identifier`,
+              'INVALID_FILTER',
+            );
+          }
           const val = typeof v === 'string' ? `'${escapeCypher(v)}'` : JSON.stringify(v);
           return `n.${k} = ${val}`;
         });
