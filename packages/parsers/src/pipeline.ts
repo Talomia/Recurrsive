@@ -10,7 +10,7 @@
  */
 
 import type { Entity, Relationship } from '@recurrsive/core';
-import { generateId, nowISO } from '@recurrsive/core';
+import { generateId, nowISO, createLogger } from '@recurrsive/core';
 import { TreeSitterParser } from './tree-sitter/parser.js';
 import type { ExtractorRegistry } from './extractors/index.js';
 import { createDefaultRegistry } from './extractors/index.js';
@@ -104,9 +104,15 @@ export class ParsingPipeline {
   ): Promise<{ entities: Entity[]; relationships: Relationship[] }> {
     // ── Step 1: Parse each file ─────────────────────────────────────────
     const parsedFiles: ParsedFile[] = [];
+    const logger = createLogger({ context: { module: 'ParsingPipeline' } });
     for (const file of files) {
-      const parsed = await this.parseFile(file.path, file.content, file.language);
-      parsedFiles.push(parsed);
+      try {
+        const parsed = await this.parseFile(file.path, file.content, file.language);
+        parsedFiles.push(parsed);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn(`Failed to parse ${file.path}: ${msg}`);
+      }
     }
 
     // ── Step 2: Build per-file maps for cross-file resolution ───────────

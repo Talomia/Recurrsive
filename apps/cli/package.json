@@ -1,9 +1,14 @@
 {
   "name": "@recurrsive/cli",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "private": true,
   "description": "Recurrsive CLI - Engineering Intelligence Platform",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talomia/Recurrsive.git",
+    "directory": "apps/cli"
+  },
   "type": "module",
   "bin": {
     "recurrsive": "./dist/bin.js"

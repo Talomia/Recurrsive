@@ -1,9 +1,14 @@
 {
   "name": "@recurrsive/website",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "Recurrsive marketing website — 23 pages with SEO, glassmorphism design, and documentation",
   "license": "Apache-2.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talomia/Recurrsive.git",
+    "directory": "apps/website"
+  },
   "scripts": {
     "dev": "next dev --port 3200",
     "build": "next build",

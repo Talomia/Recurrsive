@@ -1,7 +1,14 @@
 {
   "name": "@recurrsive/server",
-  "version": "0.5.5",
+  "version": "0.5.6",
+  "private": true,
   "description": "Recurrsive API server - REST + WebSocket",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talomia/Recurrsive.git",
+    "directory": "apps/server"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

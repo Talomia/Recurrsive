@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] - 2026-07-04
+
+### Added
+
+#### Git URL Analysis Support
+- `POST /api/v1/analyze` now accepts `gitUrl` to clone and analyze remote repositories
+- `ServerState.cloneRepo()` — shallow clone (depth=50) with 120s timeout to `/tmp/recurrsive-repos/`
+- `ServerState.cleanupClone()` — automatic cleanup after analysis completes
+- `Dockerfile` updated: `git` installed in runtime stage, `/tmp/recurrsive-repos/` created for non-root user
+- Tested successfully against WordPress (4,532 entities), Directus (4,230 entities), and Recurrsive (292 entities)
+
+#### Deep Codebase Review
+- Added `repository` field to all 14 `package.json` files (9 packages + 5 apps)
+- Updated route `index.ts` JSDoc to list all 34 route groups (was 21)
+
+### Fixed
+
+#### Graph Provider Bug Fixes
+- **`null` vs `undefined` in AGE provider** — `entityToAgeProps()` used strict `!== null` for optional fields that produce `undefined` via Zod. Changed to loose `!= null` to prevent `"undefined"` strings being persisted (age.ts L221, L224)
+- **`null` vs `undefined` in SQLite provider** — Same fix for `source_location` serialization (sqlite.ts L417)
+- **`query()` named params in SQLite** — Was using `Object.values()` for positional binding (order-dependent). Now properly converts to SQLite `$`-prefixed named parameters
+- **Relationship upsert resilience** — FK constraint violations during analysis now logged as warnings instead of crashing the entire pipeline. Enables analysis of large repos (3,000+ files)
+
+#### Parser Pipeline Resilience
+- Wrapped `parseFile()` in try-catch within `parseProject()` loop. A single file parse failure no longer crashes the entire project parse — logs a warning and continues to the next file
+
+#### Documentation Alignment
+- Added missing `license` and `private` fields to `apps/server/package.json`
+- All package.json files now include `repository` pointing to GitHub monorepo
+
 ## [0.5.5] - 2026-07-03
 
 ### Added

@@ -1,9 +1,14 @@
 {
   "name": "@recurrsive/dashboard",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "Engineering Intelligence Dashboard — 40 pages with real-time WebSocket updates",
   "license": "Apache-2.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talomia/Recurrsive.git",
+    "directory": "apps/dashboard"
+  },
   "scripts": {
     "dev": "next dev --port 3100",
     "build": "next build",

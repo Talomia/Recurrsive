@@ -1,9 +1,14 @@
 {
   "name": "@recurrsive/parsers",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "private": true,
   "description": "Code analysis and AI pattern detection for Recurrsive",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talomia/Recurrsive.git",
+    "directory": "packages/parsers"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

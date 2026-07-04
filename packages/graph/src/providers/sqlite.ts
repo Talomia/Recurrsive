@@ -283,17 +283,24 @@ export class SqliteGraphClient implements ExtendedGraphClient {
     try {
       const db = this.getDb();
 
-      // Convert named params map to positional array for binding
-      const bindParams = _params ? Object.values(_params) : [];
+      // Convert named params to SQLite named bindings ($key format)
+      const bindParams = _params
+        ? Object.fromEntries(
+            Object.entries(_params).map(([k, v]) => [
+              k.startsWith('$') ? k : `$${k}`,
+              v,
+            ]),
+          )
+        : {};
 
       // Detect if it's a read (SELECT) or write statement
       const trimmed = sqlQuery.trim().toUpperCase();
       if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH')) {
-        return db.prepare(sqlQuery).all(...bindParams) as unknown[];
+        return db.prepare(sqlQuery).all(bindParams) as unknown[];
       }
 
       // For mutations, run and return info
-      const result = db.prepare(sqlQuery).run(...bindParams);
+      const result = db.prepare(sqlQuery).run(bindParams);
       return [{ changes: result.changes, lastInsertRowid: result.lastInsertRowid }];
     } catch (error) {
       throw new GraphError(
@@ -414,7 +421,7 @@ export class SqliteGraphClient implements ExtendedGraphClient {
         entity.qualified_name,
         entity.description ?? null,
         entity.source,
-        entity.source_location !== null ? JSON.stringify(entity.source_location) : null,
+        entity.source_location != null ? JSON.stringify(entity.source_location) : null,
         JSON.stringify(entity.properties),
         JSON.stringify(entity.tags),
         entity.created_at,

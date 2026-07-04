@@ -46,9 +46,8 @@ import { registerOpenAPIRoutes } from './openapi.js';
 /**
  * Register all REST API routes on the Fastify application.
  *
- * Route groups:
+ * Route groups (34 total):
  * - `/health` — Liveness probe
- * - `/api/v1/health-score` — Project health + maturity
  * - `/api/v1/opportunities` — Opportunity CRUD and export
  * - `/api/v1/analyze`, `/api/v1/analysis/*` — Analysis management
  * - `/api/v1/graph/*` — Knowledge graph queries
@@ -67,7 +66,21 @@ import { registerOpenAPIRoutes } from './openapi.js';
  * - `/api/v1/search` — Cross-entity keyword search
  * - `/api/v1/export/*` — Data export in JSON, CSV, Markdown
  * - `/api/v1/auth/*` — Authentication, API keys, and sessions
- * - `/api/v1/api-keys/*` — API key management
+ * - `/api/v1/projects/*` — Project management
+ * - `/api/v1/forecasting/*` — Trend forecasting and projections
+ * - `/api/v1/sso/*` — Single sign-on integration
+ * - `/api/v1/scheduling/*` — Scheduled analysis and cron jobs
+ * - `/api/v1/data-masking/*` — Data masking and PII redaction
+ * - `/api/v1/plugins/*` — Plugin management and lifecycle
+ * - `/api/v1/secrets/*` — Secret and credential management
+ * - `/api/v1/confidence/*` — Confidence scoring and calibration
+ * - `/api/v1/tenants/*` — Multi-tenant workspace management
+ * - `/api/v1/simulation/*` — What-if simulation and scenario analysis
+ * - `/api/v1/cloud/*` — Cloud provider integration
+ * - `/api/v1/graphql` — GraphQL query endpoint
+ * - `/api/v1/marketplace/*` — Plugin marketplace and distribution
+ * - `/api/v1/partners/*` — Partner integration and management
+ * - `/api/v1/openapi` — OpenAPI specification and docs
  *
  * @param app - The Fastify application instance.
  */

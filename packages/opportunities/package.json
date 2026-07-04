@@ -1,9 +1,14 @@
 {
   "name": "@recurrsive/opportunities",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "private": true,
   "description": "Opportunity lifecycle management, ranking, reporting, and export for the Recurrsive engineering intelligence platform",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talomia/Recurrsive.git",
+    "directory": "packages/opportunities"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

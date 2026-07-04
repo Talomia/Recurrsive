@@ -218,10 +218,10 @@ function entityToAgeProps(entity: Entity): string {
     updated_at: entity.updated_at,
     last_seen_at: entity.last_seen_at,
   };
-  if (entity.description !== null) {
+  if (entity.description != null) {
     props['description'] = entity.description;
   }
-  if (entity.source_location !== null) {
+  if (entity.source_location != null) {
     props['source_location'] = JSON.stringify(entity.source_location);
   }
 
