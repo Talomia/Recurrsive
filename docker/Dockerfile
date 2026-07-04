@@ -120,13 +120,20 @@ COPY --from=deps /app/apps/server/node_modules apps/server/node_modules
 # Expose the default API port
 EXPOSE 3000
 
-# Disable Docker health check — let Swarm manage container lifecycle
-HEALTHCHECK NONE
+# Ensure non-root user owns the app directory
+RUN chown -R recurrsive:recurrsive /app
+
+# Health check — generous start-period for Swarm stability
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget -qO- http://localhost:3000/health || exit 1
 
 # Environment defaults
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
+
+# Run as non-root
+USER recurrsive
 
 # Start the API server
 CMD ["node", "apps/server/dist/bin.js"]

@@ -8,7 +8,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import type { EntityType } from '@recurrsive/core';
+import type { Entity, EntityType } from '@recurrsive/core';
 import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 
@@ -126,14 +126,36 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           });
         }
 
-        // No type filter — use a raw query to get all entities
-        // We query through the graph's Cypher interface
-        const allEntities = await graph.query(
-          `MATCH (n) RETURN n LIMIT ${limit}`,
-        );
+        // No type filter — iterate through known entity types
+        const stats = await graph.getStats();
+        const allEntities: Entity[] = [];
+        for (const entityType of Object.keys(stats.entityCountsByType)) {
+          try {
+            const batch = await graph.getEntities(entityType as EntityType);
+            allEntities.push(...batch);
+          } catch {
+            // Skip types that fail to query
+          }
+        }
+
+        // Apply search filter if provided
+        let filtered = allEntities;
+        if (search) {
+          const searchLower = search.toLowerCase();
+          filtered = allEntities.filter(
+            (e) =>
+              e.name.toLowerCase().includes(searchLower) ||
+              e.qualified_name.toLowerCase().includes(searchLower) ||
+              (e.description?.toLowerCase().includes(searchLower) ?? false),
+          );
+        }
+
+        const total = filtered.length;
+        const paged = filtered.slice(0, limit);
 
         return reply.status(200).send({
-          data: allEntities,
+          data: paged,
+          total,
           limit,
         });
       } catch (err) {

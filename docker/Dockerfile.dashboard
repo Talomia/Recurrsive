@@ -68,6 +68,14 @@ COPY --from=builder /app/apps/dashboard/.next/static ./apps/dashboard/.next/stat
 
 EXPOSE 3100
 
-HEALTHCHECK NONE
+# Ensure non-root user owns the app directory
+RUN chown -R nextjs:nodejs /app
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget -qO- http://localhost:3100/ || exit 1
+
+# Run as non-root
+USER nextjs
 
 CMD ["node", "apps/dashboard/server.js"]
