@@ -479,24 +479,31 @@ export function registerAnalyzeCommand(program: Command): void {
 
           // Combine emitted findings with returned findings
           const allFindings = [...analysisResult.findings, ...ctx.getEmitted()];
-
           // ── Step 11 (optional): Reasoning ───────────────────────────
           let opportunities: Opportunity[] = [];
           const reasoningStep = 11;
 
-          if (opts.reasoning && config.reasoning) {
+          // Build reasoning config — prefer config file, fall back to env var
+          const llmApiKey =
+            config.reasoning?.api_key ?? process.env['RECURRSIVE_LLM_API_KEY'];
+          const reasoningConfig = config.reasoning ?? (llmApiKey ? {
+            provider: 'openai' as const,
+            model: 'gpt-4.1-mini',
+            api_key: llmApiKey,
+          } : null);
+
+          if (opts.reasoning && reasoningConfig && llmApiKey) {
             step(reasoningStep, totalSteps, 'Running reasoning engine...');
             const reasonSpinner = new Spinner('Multi-agent debate in progress...').start();
 
             try {
               const { ReasoningEngine } = await import('@recurrsive/reasoning');
               const engine = new ReasoningEngine({
-                llm_provider: config.reasoning.provider,
-                llm_model: config.reasoning.model,
-                llm_api_key:
-                  config.reasoning.api_key ?? process.env['RECURRSIVE_LLM_API_KEY'],
-                llm_base_url: config.reasoning.base_url,
-                max_debate_rounds: config.reasoning.max_debate_rounds,
+                llm_provider: reasoningConfig.provider,
+                llm_model: reasoningConfig.model,
+                llm_api_key: llmApiKey,
+                llm_base_url: 'base_url' in reasoningConfig ? reasoningConfig.base_url : undefined,
+                max_debate_rounds: 'max_debate_rounds' in reasoningConfig ? reasoningConfig.max_debate_rounds : 3,
                 min_consensus_score: 0.6,
                 specialists: [
                   'architecture_engineer',
@@ -504,7 +511,7 @@ export function registerAnalyzeCommand(program: Command): void {
                   'performance_engineer',
                   'cost_optimizer',
                 ],
-                temperature: config.reasoning.temperature,
+                temperature: 'temperature' in reasoningConfig ? reasoningConfig.temperature : 0.3,
               });
 
               const consensusResult = await engine.process(allFindings, graphClient);
@@ -519,7 +526,7 @@ export function registerAnalyzeCommand(program: Command): void {
               );
               info('Falling back to analyzer findings only.');
             }
-          } else if (opts.reasoning && !config.reasoning) {
+          } else if (opts.reasoning && !llmApiKey) {
             info(
               'Reasoning skipped — no LLM configured. ' +
                 `Set ${bold('reasoning')} in config or ${bold('RECURRSIVE_LLM_API_KEY')} env var.`,
