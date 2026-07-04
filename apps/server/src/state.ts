@@ -426,12 +426,18 @@ export class ServerState {
       const collectorResult = await collector.collect();
 
       // Ingest entities and relationships into the graph
+      let skippedRels = 0;
       for (const entity of collectorResult.entities) {
         await this.graphClient!.upsertEntity(entity);
       }
       for (const rel of collectorResult.relationships) {
-        await this.graphClient!.upsertRelationship(rel);
+        try {
+          await this.graphClient!.upsertRelationship(rel);
+        } catch {
+          skippedRels++;
+        }
       }
+      if (skippedRels > 0) logger.warn(`Skipped ${skippedRels} relationships (missing entity refs)`);
 
       this.updateStatus(
         'collecting',
@@ -462,7 +468,7 @@ export class ServerState {
         await this.graphClient!.upsertEntity(entity);
       }
       for (const rel of docsResult.relationships) {
-        await this.graphClient!.upsertRelationship(rel);
+        try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`Documentation: ${docsResult.entities.length} entities`);
 
@@ -484,7 +490,7 @@ export class ServerState {
         await this.graphClient!.upsertEntity(entity);
       }
       for (const rel of envResult.relationships) {
-        await this.graphClient!.upsertRelationship(rel);
+        try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`Environment: ${envResult.entities.length} entities`);
 
@@ -506,7 +512,7 @@ export class ServerState {
         await this.graphClient!.upsertEntity(entity);
       }
       for (const rel of cicdResult.relationships) {
-        await this.graphClient!.upsertRelationship(rel);
+        try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`CI/CD: ${cicdResult.entities.length} entities`);
 
@@ -528,7 +534,7 @@ export class ServerState {
         await this.graphClient!.upsertEntity(entity);
       }
       for (const rel of dbResult.relationships) {
-        await this.graphClient!.upsertRelationship(rel);
+        try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`Database: ${dbResult.entities.length} entities`);
 
