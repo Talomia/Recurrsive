@@ -9,6 +9,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
+import { state } from '../state.js';
 
 const logger = createLogger({ context: { component: 'server:routes:export' } });
 
@@ -50,26 +51,41 @@ const VALID_FORMATS: ExportFormat[] = ['json', 'csv', 'markdown'];
 const VALID_SCOPES: ExportScope[] = ['findings', 'opportunities', 'health', 'all'];
 
 // ---------------------------------------------------------------------------
-// Mock content generators
+// Content generators — uses real state data when available
 // ---------------------------------------------------------------------------
 
-function generateMockContent(format: ExportFormat, scope: ExportScope): string {
-  const data = {
-    findings: [
-      { id: 'FND-001', title: 'N+1 query detected', severity: 'high', category: 'performance' },
-      { id: 'FND-002', title: 'Missing input validation', severity: 'critical', category: 'security' },
-      { id: 'FND-003', title: 'Unused dependency', severity: 'low', category: 'maintenance' },
-    ],
-    opportunities: [
-      { id: 'OPP-001', title: 'Migrate to connection pooling', severity: 'high', status: 'open' },
-      { id: 'OPP-002', title: 'Add rate limiting', severity: 'medium', status: 'open' },
-    ],
-    health: {
-      overall_score: 74.2,
-      dimensions: { reliability: 78, security: 65, performance: 72, maintainability: 82 },
-    },
-  };
+function generateContent(format: ExportFormat, scope: ExportScope): string {
+  const cache = state.isInitialized() ? state.getAnalysisCache() : null;
 
+  // Build data from real analysis cache when available
+  const findings = cache?.findings.map((f) => ({
+    id: f.id,
+    title: f.title,
+    severity: f.severity,
+    category: f.category,
+  })) ?? [];
+
+  const opportunities = cache?.opportunities.map((o) => ({
+    id: o.id,
+    title: o.title,
+    severity: o.severity,
+    status: o.status,
+  })) ?? [];
+
+  let healthData = { overall_score: 0, dimensions: {} as Record<string, number> };
+  if (state.isInitialized() && cache) {
+    try {
+      const hs = state.getHealthScore();
+      healthData = {
+        overall_score: hs.overall,
+        dimensions: Object.fromEntries(
+          hs.dimensions.map((d) => [d.dimension, d.score]),
+        ),
+      };
+    } catch { /* use default */ }
+  }
+
+  const data = { findings, opportunities, health: healthData };
   const scopeData =
     scope === 'all' ? data : { [scope]: data[scope as keyof typeof data] };
 
@@ -78,7 +94,7 @@ function generateMockContent(format: ExportFormat, scope: ExportScope): string {
       return JSON.stringify(scopeData, null, 2);
 
     case 'csv': {
-      const rows = data.findings.map(
+      const rows = findings.map(
         f => `${f.id},${f.title},${f.severity},${f.category}`,
       );
       return ['id,title,severity,category', ...rows].join('\n');
@@ -92,7 +108,7 @@ function generateMockContent(format: ExportFormat, scope: ExportScope): string {
         '',
         '| ID | Title | Severity |',
         '|---|---|---|',
-        ...data.findings.map(f => `| ${f.id} | ${f.title} | ${f.severity} |`),
+        ...findings.map(f => `| ${f.id} | ${f.title} | ${f.severity} |`),
       ];
       return lines.join('\n');
     }
@@ -175,7 +191,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      const content = generateMockContent(record.format, record.scope);
+      const content = generateContent(record.format, record.scope);
 
       const contentTypes: Record<ExportFormat, string> = {
         json: 'application/json; charset=utf-8',

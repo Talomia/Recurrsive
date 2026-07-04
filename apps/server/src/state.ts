@@ -431,11 +431,18 @@ export class ServerState {
       },
     });
 
+    // Declare collectors outside try for cleanup in finally
+    let collector: InstanceType<typeof GitCollector> | null = null;
+    let docsCollector: InstanceType<typeof DocumentationCollector> | null = null;
+    let envCollector: InstanceType<typeof EnvironmentCollector> | null = null;
+    let cicdCollector: InstanceType<typeof CICDCollector> | null = null;
+    let dbCollector: InstanceType<typeof DatabaseCollector> | null = null;
+
     try {
       // ── Step 1: Collect ──────────────────────────────────────────────────
       this.updateStatus('collecting', 10, 'Running git collector…');
 
-      const collector = new GitCollector(this.projectPath!);
+      collector = new GitCollector(this.projectPath!);
       await collector.initialize({
         governance: {
           masked_fields: [],
@@ -476,7 +483,7 @@ export class ServerState {
 
       // ── Step 1b: Documentation collector ─────────────────────────────
       this.updateStatus('collecting', 15, 'Running documentation collector…');
-      const docsCollector = new DocumentationCollector(this.projectPath!);
+      docsCollector = new DocumentationCollector(this.projectPath!);
       await docsCollector.initialize({
         governance: {
           masked_fields: [],
@@ -498,7 +505,7 @@ export class ServerState {
 
       // ── Step 1c: Environment collector ───────────────────────────────
       this.updateStatus('collecting', 18, 'Running environment collector…');
-      const envCollector = new EnvironmentCollector(this.projectPath!);
+      envCollector = new EnvironmentCollector(this.projectPath!);
       await envCollector.initialize({
         governance: {
           masked_fields: [],
@@ -520,7 +527,7 @@ export class ServerState {
 
       // ── Step 1d: CI/CD collector ────────────────────────────────────
       this.updateStatus('collecting', 21, 'Running CI/CD collector…');
-      const cicdCollector = new CICDCollector(this.projectPath!);
+      cicdCollector = new CICDCollector(this.projectPath!);
       await cicdCollector.initialize({
         governance: {
           masked_fields: [],
@@ -542,7 +549,7 @@ export class ServerState {
 
       // ── Step 1e: Database collector ──────────────────────────────────
       this.updateStatus('collecting', 24, 'Running database collector…');
-      const dbCollector = new DatabaseCollector(this.projectPath!);
+      dbCollector = new DatabaseCollector(this.projectPath!);
       await dbCollector.initialize({
         governance: {
           masked_fields: [],
@@ -766,6 +773,11 @@ export class ServerState {
         error: null,
       });
 
+      // Cap history at 100 entries to prevent unbounded growth
+      if (this._analysisHistory.length > 100) {
+        this._analysisHistory = this._analysisHistory.slice(-100);
+      }
+
       // Persist history to disk
       await saveHistory(this.projectPath!, this._analysisHistory);
       this.broadcast({
@@ -778,13 +790,6 @@ export class ServerState {
           opportunityCount: cache.opportunities.length,
         },
       });
-
-      // ── Dispose collectors ─────────────────────────────────────────────
-      await collector.dispose();
-      await docsCollector.dispose();
-      await envCollector.dispose();
-      await cicdCollector.dispose();
-      await dbCollector.dispose();
 
       return cache;
     } catch (err) {
@@ -819,6 +824,12 @@ export class ServerState {
       });
 
       throw err;
+    } finally {
+      // Always dispose collectors to prevent resource leaks
+      const disposals = [collector, docsCollector, envCollector, cicdCollector, dbCollector];
+      for (const c of disposals) {
+        if (c) { try { await c.dispose(); } catch { /* already cleaned up */ } }
+      }
     }
   }
 
@@ -1027,6 +1038,15 @@ export class ServerState {
     this.projectPath = null;
     this.projectInfo = null;
     this.analysisCache = null;
+    this._analysisStatus = {
+      phase: 'idle',
+      progress: 0,
+      message: 'No analysis running',
+      startedAt: null,
+      completedAt: null,
+      error: null,
+    };
+    this._evolutionTimeline = null;
     logger.info('Server state disposed');
   }
 

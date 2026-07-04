@@ -64,9 +64,13 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
   // Register global error handler
   registerErrorHandler(app);
 
-  // Register CORS
+  // Register CORS — restrict origins in production
+  const corsOrigin = options?.corsOrigin
+    ?? (process.env['CORS_ORIGIN']
+      ? process.env['CORS_ORIGIN'].split(',').map((s) => s.trim())
+      : true); // Allow all in dev; set CORS_ORIGIN in production
   await app.register(cors, {
-    origin: options?.corsOrigin ?? true,
+    origin: corsOrigin,
   });
 
   // Register rate limiting (skip if explicitly disabled)

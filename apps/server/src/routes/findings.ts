@@ -154,4 +154,40 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
       by_analyzer: byAnalyzer,
     });
   });
+
+  // ── GET /api/v1/findings/page ──────────────────────────────────────────
+  // Dashboard findings page — returns findings with severity stats.
+  // Maps core Finding objects to the FindingsPageItem shape.
+
+  app.get('/api/v1/findings/page', async (_request, reply) => {
+    const cache = state.getAnalysisCache();
+    if (!cache) {
+      return reply.code(503).send({
+        error: 'Not ready',
+        message: 'No analysis has been run yet. Use POST /api/v1/analyze first.',
+      });
+    }
+
+    const { findings } = cache;
+
+    const items = findings.map((f) => ({
+      id: f.id,
+      title: f.title,
+      severity: f.severity,
+      category: f.category,
+      status: 'open' as const,
+      assignee: '',
+      created_at: f.created_at ?? cache.analyzedAt,
+    }));
+
+    const stats = {
+      total: findings.length,
+      critical: findings.filter((f) => f.severity === 'critical').length,
+      high: findings.filter((f) => f.severity === 'high').length,
+      medium: findings.filter((f) => f.severity === 'medium').length,
+      low: findings.filter((f) => f.severity === 'low').length,
+    };
+
+    return reply.send({ data: { findings: items, stats } });
+  });
 }
