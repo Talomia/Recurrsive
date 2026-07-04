@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Parser Pipeline Resilience
 - Wrapped `parseFile()` in try-catch within `parseProject()` loop. A single file parse failure no longer crashes the entire project parse — logs a warning and continues to the next file
+- Parser relationship upserts now have try-catch (matching collector pattern)
+
+### Security
+
+#### Critical Vulnerability Fixes
+- **Command injection via `gitUrl`** — replaced `exec()` shell string interpolation with `execFile()` array arguments. Added URL validation: only HTTP(S) URLs allowed, control characters rejected
+- **Path traversal via `path` param** — added allowlist validation. Only `/app`, `/tmp/recurrsive-repos/`, and `/home/` prefixes permitted. Returns 403 for disallowed paths
+- **TOCTOU race condition** — moved `markAnalysisStarting()` before `cloneRepo()` to prevent concurrent analysis launches. Added `markAnalysisError()` for proper status reset
+- **Demo credentials in production** — disabled unless `ALLOW_DEMO_USERS=true`. Prevents trivial `admin/admin` login on production deployments
+- **JWT secret production warning** — logs CRITICAL error when using insecure default in production. Added `JWT_SECRET` to `.env.example`
 
 #### Documentation Alignment
 - Added missing `license` and `private` fields to `apps/server/package.json`
