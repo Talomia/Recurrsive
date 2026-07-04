@@ -191,7 +191,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   // Get SSO config details
   app.get<{ Params: { id: string } }>('/api/v1/sso/providers/:id', async (request, reply) => {
     const config = ssoConfigs.get(request.params.id);
-    if (!config) return reply.status(404).send({ error: 'SSO provider not found' });
+    if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not found' });
     return reply.send({ data: config });
   });
 
@@ -226,7 +226,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   // Delete SSO config
   app.delete<{ Params: { id: string } }>('/api/v1/sso/providers/:id', async (request, reply) => {
     if (!ssoConfigs.has(request.params.id)) {
-      return reply.status(404).send({ error: 'SSO provider not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not found' });
     }
     ssoConfigs.delete(request.params.id);
     return reply.status(204).send();
@@ -235,7 +235,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   // Initiate SSO login (redirect to IdP)
   app.get<{ Params: { provider: string } }>('/api/v1/sso/login/:provider', async (request, reply) => {
     const config = ssoConfigs.get(request.params.provider);
-    if (!config) return reply.status(404).send({ error: 'SSO provider not configured' });
+    if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not configured' });
 
     // In real impl, this would generate a SAML AuthnRequest and redirect
     return reply.send({
@@ -249,7 +249,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   // SSO callback (process SAML response)
   app.post<{ Params: { provider: string } }>('/api/v1/sso/callback/:provider', async (request, reply) => {
     const config = ssoConfigs.get(request.params.provider);
-    if (!config) return reply.status(404).send({ error: 'SSO provider not configured' });
+    if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not configured' });
 
     const body = request.body as { SAMLResponse?: string };
     const samlResponse = body.SAMLResponse ?? 'synthetic-saml-response';
@@ -304,7 +304,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   // Revoke SSO session
   app.delete<{ Params: { id: string } }>('/api/v1/sso/sessions/:id', async (request, reply) => {
     if (!ssoSessions.has(request.params.id)) {
-      return reply.status(404).send({ error: 'Session not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Session not found' });
     }
     ssoSessions.delete(request.params.id);
     return reply.status(204).send();

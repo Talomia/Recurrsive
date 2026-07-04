@@ -42,7 +42,7 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
     async (request, reply) => {
       const cache = state.getAnalysisCache();
       if (!cache) {
-        return reply.code(404).send({
+        return reply.status(404).send({
           error: 'No analysis results available',
           message: 'Run an analysis first via POST /api/v1/analyze',
         });
@@ -105,7 +105,7 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
         }
 
         default:
-          return reply.code(400).send({
+          return reply.status(400).send({
             error: 'Unsupported report format',
             message: `Format "${format}" is not supported. Use: markdown, html, sarif, json`,
             supported_formats: ['markdown', 'html', 'sarif', 'json'],

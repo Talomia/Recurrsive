@@ -133,8 +133,9 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           try {
             const batch = await graph.getEntities(entityType as EntityType);
             allEntities.push(...batch);
-          } catch {
-            // Skip types that fail to query
+          } catch (err: unknown) {
+            // Some entity types may not be queryable; log and continue
+            request.log.warn({ entityType, err: err instanceof Error ? err.message : String(err) }, 'Skipping entity type');
           }
         }
 

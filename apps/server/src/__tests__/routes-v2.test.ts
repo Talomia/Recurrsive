@@ -200,7 +200,8 @@ describe('Projects endpoints', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/projects/nonexistent-id' });
     expect(res.statusCode).toBe(404);
     const body = res.json();
-    expect(body.error).toBe('Project not found');
+    expect(body.error).toBe('Not Found');
+    expect(body.message).toBe('Project not found');
   });
 
   it('POST /api/v1/projects creates a new project', async () => {
@@ -231,7 +232,8 @@ describe('Projects endpoints', () => {
     });
     expect(res.statusCode).toBe(400);
     const body = res.json();
-    expect(body.error).toContain('name and repository are required');
+    expect(body.error).toBe('Bad Request');
+    expect(body.message).toContain('name and repository are required');
   });
 
   it('GET /api/v1/projects/:id returns a project by valid ID', async () => {
@@ -412,7 +414,8 @@ describe('Forecasting endpoints', () => {
     });
     expect(res.statusCode).toBe(400);
     const body = res.json();
-    expect(body.error).toContain('At least one action is required');
+    expect(body.error).toBe('Bad Request');
+    expect(body.message).toContain('At least one action is required');
   });
 
   it('GET /api/v1/forecasting/evolution returns evolution graph', async () => {
@@ -677,7 +680,8 @@ describe('Multi-Tenant endpoints', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/tenants/nonexistent-tenant-xyz' });
     expect(res.statusCode).toBe(404);
     const body = res.json();
-    expect(body.error).toBe('Tenant not found');
+    expect(body.error).toBe('Not Found');
+    expect(body.message).toBe('Tenant not found');
   });
 
   it('Tiers are free/team/enterprise', async () => {
@@ -795,7 +799,8 @@ describe('Simulation endpoints', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/simulations/nonexistent-sim' });
     expect(res.statusCode).toBe(404);
     const body = res.json();
-    expect(body.error).toBe('Simulation not found');
+    expect(body.error).toBe('Not Found');
+    expect(body.message).toBe('Simulation not found');
   });
 });
 
@@ -1269,7 +1274,8 @@ describe('SSO endpoints', () => {
     const res = await app.inject({ method: 'DELETE', url: '/api/v1/sso/sessions/nonexistent-session' });
     expect(res.statusCode).toBe(404);
     const body = res.json();
-    expect(body.error).toBe('Session not found');
+    expect(body.error).toBe('Not Found');
+    expect(body.message).toBe('Session not found');
   });
 
   it('SSO login returns redirect URL', async () => {

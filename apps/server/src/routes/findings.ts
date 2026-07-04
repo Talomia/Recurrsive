@@ -49,7 +49,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
     async (request, reply) => {
       const cache = state.getAnalysisCache();
       if (!cache) {
-        return reply.code(404).send({
+        return reply.status(404).send({
           error: 'No analysis results available',
           message: 'Run an analysis first via POST /api/v1/analyze',
         });
@@ -95,7 +95,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
     async (request, reply) => {
       const cache = state.getAnalysisCache();
       if (!cache) {
-        return reply.code(404).send({
+        return reply.status(404).send({
           error: 'No analysis results available',
         });
       }
@@ -103,7 +103,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
       const finding = cache.findings.find((f) => f.id === request.params.id);
 
       if (!finding) {
-        return reply.code(404).send({
+        return reply.status(404).send({
           error: 'Finding not found',
           message: `No finding with ID "${request.params.id}"`,
         });
@@ -121,7 +121,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
   app.get('/api/v1/findings/summary', async (_request, reply) => {
     const cache = state.getAnalysisCache();
     if (!cache) {
-      return reply.code(404).send({
+      return reply.status(404).send({
         error: 'No analysis results available',
       });
     }
@@ -163,7 +163,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
   app.get('/api/v1/findings/page', async (_request, reply) => {
     const cache = state.getAnalysisCache();
     if (!cache) {
-      return reply.code(503).send({
+      return reply.status(503).send({
         error: 'Not ready',
         message: 'No analysis has been run yet. Use POST /api/v1/analyze first.',
       });

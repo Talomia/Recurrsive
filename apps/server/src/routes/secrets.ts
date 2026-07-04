@@ -93,7 +93,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   // Get secret metadata
   app.get<{ Params: { id: string } }>('/api/v1/secrets/:id', async (request, reply) => {
     const secret = secrets.get(request.params.id);
-    if (!secret) return reply.status(404).send({ error: 'Secret not found' });
+    if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
     // Log access
     auditLog.push({
@@ -113,7 +113,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   app.post('/api/v1/secrets', async (request, reply) => {
     const body = request.body as { key?: string; value?: string; description?: string; backend?: SecretBackend; tags?: string[]; rotationIntervalDays?: number };
     if (!body.key || !body.value) {
-      return reply.status(400).send({ error: 'key and value are required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'key and value are required' });
     }
 
     const id = generateId();
@@ -147,7 +147,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   // Rotate secret
   app.post<{ Params: { id: string } }>('/api/v1/secrets/:id/rotate', async (request, reply) => {
     const secret = secrets.get(request.params.id);
-    if (!secret) return reply.status(404).send({ error: 'Secret not found' });
+    if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
     const body = request.body as { newValue?: string };
     const now = nowISO();
@@ -172,7 +172,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   // Delete secret
   app.delete<{ Params: { id: string } }>('/api/v1/secrets/:id', async (request, reply) => {
     const secret = secrets.get(request.params.id);
-    if (!secret) return reply.status(404).send({ error: 'Secret not found' });
+    if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
     auditLog.push({
       id: generateId(), secretId: secret.id, secretKey: secret.key,

@@ -257,14 +257,14 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
 
   app.get<{ Params: { id: string } }>('/api/v1/simulations/:id', async (request, reply) => {
     const sim = simulations.get(request.params.id);
-    if (!sim) return reply.status(404).send({ error: 'Simulation not found' });
+    if (!sim) return reply.status(404).send({ error: 'Not Found', message: 'Simulation not found' });
     return reply.send({ data: sim });
   });
 
   app.post('/api/v1/simulations', async (request, reply) => {
     const body = request.body as { name?: string; description?: string; type?: SimulationScenario['type']; parameters?: Record<string, unknown> };
     if (!body.name || !body.type) {
-      return reply.status(400).send({ error: 'name and type are required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'name and type are required' });
     }
 
     const id = generateId();
@@ -305,14 +305,14 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
 
   app.get<{ Params: { id: string } }>('/api/v1/pull-requests/:id', async (request, reply) => {
     const pr = generatedPRs.get(request.params.id);
-    if (!pr) return reply.status(404).send({ error: 'PR not found' });
+    if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
     return reply.send({ data: pr });
   });
 
   app.post('/api/v1/pull-requests/generate', async (request, reply) => {
     const body = request.body as { sourceId?: string; title?: string; description?: string };
     if (!body.title) {
-      return reply.status(400).send({ error: 'title is required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'title is required' });
     }
 
     const id = generateId();
@@ -336,7 +336,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
 
   app.post<{ Params: { id: string } }>('/api/v1/pull-requests/:id/submit', async (request, reply) => {
     const pr = generatedPRs.get(request.params.id);
-    if (!pr) return reply.status(404).send({ error: 'PR not found' });
+    if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
 
     pr.status = 'submitted';
     return reply.send({ data: pr, message: 'PR submitted for review' });
@@ -350,16 +350,16 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
 
   app.get<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id', async (request, reply) => {
     const pack = intelligencePacks.get(request.params.id);
-    if (!pack) return reply.status(404).send({ error: 'Intelligence pack not found' });
+    if (!pack) return reply.status(404).send({ error: 'Not Found', message: 'Intelligence pack not found' });
     return reply.send({ data: pack });
   });
 
   app.post<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id/install', async (request, reply) => {
     const pack = intelligencePacks.get(request.params.id);
-    if (!pack) return reply.status(404).send({ error: 'Intelligence pack not found' });
+    if (!pack) return reply.status(404).send({ error: 'Not Found', message: 'Intelligence pack not found' });
 
     if (pack.status === 'installed') {
-      return reply.status(409).send({ error: 'Pack already installed' });
+      return reply.status(409).send({ error: 'Conflict', message: 'Pack already installed' });
     }
 
     pack.status = 'installed';
@@ -368,7 +368,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
 
   app.delete<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id/uninstall', async (request, reply) => {
     const pack = intelligencePacks.get(request.params.id);
-    if (!pack) return reply.status(404).send({ error: 'Intelligence pack not found' });
+    if (!pack) return reply.status(404).send({ error: 'Not Found', message: 'Intelligence pack not found' });
 
     pack.status = 'available';
     return reply.send({ data: pack, message: 'Pack uninstalled' });

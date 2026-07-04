@@ -114,7 +114,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   // Get tenant details
   app.get<{ Params: { id: string } }>('/api/v1/tenants/:id', async (request, reply) => {
     const tenant = tenants.get(request.params.id);
-    if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
+    if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     return reply.send({ data: tenant });
   });
 
@@ -122,12 +122,12 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   app.post('/api/v1/tenants', async (request, reply) => {
     const body = request.body as { name?: string; slug?: string; tier?: TenantTier; ownerId?: string };
     if (!body.name || !body.slug) {
-      return reply.status(400).send({ error: 'name and slug are required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'name and slug are required' });
     }
 
     // Check slug uniqueness
     for (const t of tenants.values()) {
-      if (t.slug === body.slug) return reply.status(409).send({ error: 'Slug already taken' });
+      if (t.slug === body.slug) return reply.status(409).send({ error: 'Conflict', message: 'Slug already taken' });
     }
 
     const tier = body.tier ?? 'free';
@@ -155,7 +155,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   // Update tenant
   app.put<{ Params: { id: string } }>('/api/v1/tenants/:id', async (request, reply) => {
     const tenant = tenants.get(request.params.id);
-    if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
+    if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 
     const body = request.body as Partial<Tenant>;
     if (body.name) tenant.name = body.name;
@@ -174,7 +174,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   // Delete tenant
   app.delete<{ Params: { id: string } }>('/api/v1/tenants/:id', async (request, reply) => {
     if (!tenants.has(request.params.id)) {
-      return reply.status(404).send({ error: 'Tenant not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     }
     tenants.delete(request.params.id);
     return reply.status(204).send();
@@ -183,7 +183,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   // Check quota usage
   app.get<{ Params: { id: string } }>('/api/v1/tenants/:id/quotas', async (request, reply) => {
     const tenant = tenants.get(request.params.id);
-    if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
+    if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 
     const checks = Object.entries(tenant.quotas).map(([key, limit]) => {
       const usageKey = key.replace('max', '').charAt(0).toLowerCase() + key.replace('max', '').slice(1);

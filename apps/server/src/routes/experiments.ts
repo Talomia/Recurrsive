@@ -194,7 +194,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
     };
 
     if (!body.name) {
-      return reply.status(400).send({ error: 'name is required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'name is required' });
     }
 
     const experiment: Experiment = {
@@ -226,7 +226,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
     const experiment = experiments.find((e) => e.id === id);
 
     if (!experiment) {
-      return reply.status(404).send({ error: `Experiment ${id} not found` });
+      return reply.status(404).send({ error: 'Not Found', message: `Experiment ${id} not found` });
     }
 
     return reply.status(200).send({ data: experiment });
@@ -244,17 +244,18 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
     const experiment = experiments.find((e) => e.id === id);
 
     if (!experiment) {
-      return reply.status(404).send({ error: `Experiment ${id} not found` });
+      return reply.status(404).send({ error: 'Not Found', message: `Experiment ${id} not found` });
     }
 
     if (!body.status) {
-      return reply.status(400).send({ error: 'status is required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'status is required' });
     }
 
     const validStatuses = ['pending', 'running', 'completed', 'failed'];
     if (!validStatuses.includes(body.status)) {
       return reply.status(400).send({
-        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        error: 'Bad Request',
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
       });
     }
 

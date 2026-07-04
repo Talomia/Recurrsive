@@ -188,7 +188,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // Submit benchmark data (opt-in)
   app.post('/api/v1/cloud/benchmarks', async (request, reply) => {
     const body = request.body as Partial<BenchmarkEntry>;
-    if (!body.industry) return reply.status(400).send({ error: 'industry is required' });
+    if (!body.industry) return reply.status(400).send({ error: 'Bad Request', message: 'industry is required' });
 
     const entry: BenchmarkEntry = {
       id: generateId(),
@@ -247,7 +247,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{ Params: { id: string } }>('/api/v1/cloud/patterns/:id', async (request, reply) => {
     const pattern = patterns.find(p => p.id === request.params.id);
-    if (!pattern) return reply.status(404).send({ error: 'Pattern not found' });
+    if (!pattern) return reply.status(404).send({ error: 'Not Found', message: 'Pattern not found' });
     return reply.send({ data: pattern });
   });
 
@@ -259,13 +259,13 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{ Params: { id: string } }>('/api/v1/cloud/partners/:id', async (request, reply) => {
     const partner = partners.find(p => p.id === request.params.id);
-    if (!partner) return reply.status(404).send({ error: 'Partner not found' });
+    if (!partner) return reply.status(404).send({ error: 'Not Found', message: 'Partner not found' });
     return reply.send({ data: partner });
   });
 
   app.post('/api/v1/cloud/partners/apply', async (request, reply) => {
     const body = request.body as { partnerName?: string; specializations?: string[] };
-    if (!body.partnerName) return reply.status(400).send({ error: 'partnerName is required' });
+    if (!body.partnerName) return reply.status(400).send({ error: 'Bad Request', message: 'partnerName is required' });
 
     const cert: PartnerCert = {
       id: generateId(),

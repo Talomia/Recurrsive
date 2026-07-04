@@ -172,7 +172,7 @@ export async function registerSearchRoutes(app: FastifyInstance): Promise<void> 
       const { q, scope = 'all' } = request.query;
 
       if (!q || typeof q !== 'string' || q.trim().length === 0) {
-        return reply.code(400).send({
+        return reply.status(400).send({
           error: 'Bad request',
           message: 'Query parameter "q" is required',
         });
@@ -180,7 +180,7 @@ export async function registerSearchRoutes(app: FastifyInstance): Promise<void> 
 
       const validScopes = ['findings', 'opportunities', 'entities', 'all'];
       if (!validScopes.includes(scope)) {
-        return reply.code(400).send({
+        return reply.status(400).send({
           error: 'Bad request',
           message: `Invalid scope "${scope}". Valid scopes: ${validScopes.join(', ')}`,
         });

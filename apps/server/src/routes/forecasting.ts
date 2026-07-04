@@ -150,7 +150,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
     };
 
     if (!body.actions || body.actions.length === 0) {
-      return reply.status(400).send({ error: 'At least one action is required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'At least one action is required' });
     }
 
     const currentScore = 78; // Synthetic baseline

@@ -158,7 +158,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
 
   app.get<{ Params: { id: string } }>('/api/v1/plugins/marketplace/:id', async (request, reply) => {
     const entry = marketplace.find(p => p.id === request.params.id);
-    if (!entry) return reply.status(404).send({ error: 'Plugin not found in marketplace' });
+    if (!entry) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not found in marketplace' });
     return reply.send({ data: entry });
   });
 
@@ -173,18 +173,18 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
 
   app.get<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', async (request, reply) => {
     const plugin = installed.get(request.params.id);
-    if (!plugin) return reply.status(404).send({ error: 'Plugin not installed' });
+    if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
     return reply.send({ data: plugin });
   });
 
   // Install plugin from marketplace
   app.post<{ Params: { id: string } }>('/api/v1/plugins/install/:id', async (request, reply) => {
     if (installed.has(request.params.id)) {
-      return reply.status(409).send({ error: 'Plugin already installed' });
+      return reply.status(409).send({ error: 'Conflict', message: 'Plugin already installed' });
     }
 
     const entry = marketplace.find(p => p.id === request.params.id);
-    if (!entry) return reply.status(404).send({ error: 'Plugin not found in marketplace' });
+    if (!entry) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not found in marketplace' });
 
     const plugin: InstalledPlugin = {
       id: entry.id,
@@ -214,7 +214,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   // Uninstall plugin
   app.delete<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', async (request, reply) => {
     if (!installed.has(request.params.id)) {
-      return reply.status(404).send({ error: 'Plugin not installed' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
     }
     installed.delete(request.params.id);
     return reply.status(204).send();
@@ -223,7 +223,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   // Enable/disable plugin
   app.post<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/toggle', async (request, reply) => {
     const plugin = installed.get(request.params.id);
-    if (!plugin) return reply.status(404).send({ error: 'Plugin not installed' });
+    if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
     plugin.status = plugin.status === 'enabled' ? 'disabled' : 'enabled';
     plugin.updatedAt = nowISO();
@@ -234,7 +234,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   // Update plugin config
   app.put<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/config', async (request, reply) => {
     const plugin = installed.get(request.params.id);
-    if (!plugin) return reply.status(404).send({ error: 'Plugin not installed' });
+    if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
     const body = request.body as Record<string, unknown>;
     plugin.config = { ...plugin.config, ...body };
@@ -246,7 +246,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   // Plugin health check
   app.get<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/health', async (request, reply) => {
     const plugin = installed.get(request.params.id);
-    if (!plugin) return reply.status(404).send({ error: 'Plugin not installed' });
+    if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
     // Refresh health check
     plugin.healthCheck.lastCheck = nowISO();

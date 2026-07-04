@@ -287,7 +287,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
     const { id } = request.params as { id: string };
     const ext = extensions.get(id);
     if (!ext) {
-      return reply.status(404).send({ error: 'Extension not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Extension not found' });
     }
     return reply.send({ data: ext });
   });

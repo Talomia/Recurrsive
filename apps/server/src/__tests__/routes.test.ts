@@ -1255,7 +1255,8 @@ describe('Experiment Routes', () => {
     });
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.payload);
-    expect(body.error).toContain('name');
+    expect(body.error).toBe('Bad Request');
+    expect(body.message).toContain('name');
   });
 
   it('GET /api/v1/experiments/:id returns single experiment', async () => {
@@ -1277,7 +1278,8 @@ describe('Experiment Routes', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/experiments/exp_nonexistent' });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.payload);
-    expect(body.error).toContain('not found');
+    expect(body.error).toBe('Not Found');
+    expect(body.message).toContain('not found');
   });
 
   it('PUT /api/v1/experiments/:id/status updates experiment status', async () => {
@@ -1302,7 +1304,8 @@ describe('Experiment Routes', () => {
     });
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.payload);
-    expect(body.error).toContain('Invalid status');
+    expect(body.error).toBe('Bad Request');
+    expect(body.message).toContain('Invalid status');
   });
 });
 
@@ -1319,13 +1322,14 @@ describe('Export Routes', () => {
     });
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.payload);
-    expect(body).toHaveProperty('export_id');
-    expect(body.format).toBe('json');
-    expect(body.scope).toBe('findings');
-    expect(body.status).toBe('completed');
-    expect(body).toHaveProperty('download_url');
-    expect(body).toHaveProperty('record_count');
-    expect(body).toHaveProperty('generated_at');
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('export_id');
+    expect(body.data.format).toBe('json');
+    expect(body.data.scope).toBe('findings');
+    expect(body.data.status).toBe('completed');
+    expect(body.data).toHaveProperty('download_url');
+    expect(body.data).toHaveProperty('record_count');
+    expect(body.data).toHaveProperty('generated_at');
   });
 
   it('POST /api/v1/export validates format', async () => {
@@ -1357,7 +1361,8 @@ describe('Export Routes', () => {
       url: '/api/v1/export',
       payload: { format: 'json', scope: 'findings' },
     });
-    const { export_id } = JSON.parse(createRes.payload);
+    const { data } = JSON.parse(createRes.payload);
+    const export_id = data.export_id;
 
     const res = await app.inject({
       method: 'GET',
@@ -1392,8 +1397,8 @@ describe('Export Routes', () => {
     });
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.payload);
-    expect(body.format).toBe('csv');
-    expect(body.scope).toBe('all');
+    expect(body.data.format).toBe('csv');
+    expect(body.data.scope).toBe('all');
   });
 });
 

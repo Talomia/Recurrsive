@@ -180,11 +180,11 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   // Record outcome for a prediction
   app.post<{ Params: { id: string } }>('/api/v1/confidence/predictions/:id/outcome', async (request, reply) => {
     const prediction = predictions.get(request.params.id);
-    if (!prediction) return reply.status(404).send({ error: 'Prediction not found' });
+    if (!prediction) return reply.status(404).send({ error: 'Not Found', message: 'Prediction not found' });
 
     const body = request.body as { occurred: boolean };
     if (typeof body.occurred !== 'boolean') {
-      return reply.status(400).send({ error: 'occurred (boolean) is required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'occurred (boolean) is required' });
     }
 
     prediction.actualOutcome = body.occurred;

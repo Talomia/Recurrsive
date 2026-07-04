@@ -295,7 +295,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
     const { id } = request.params as { id: string };
     const partner = partners.get(id);
     if (!partner) {
-      return reply.status(404).send({ error: 'Partner not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Partner not found' });
     }
     return reply.send({ data: partner });
   });

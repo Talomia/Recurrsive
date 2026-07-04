@@ -143,7 +143,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   app.get<{ Params: { id: string } }>('/api/v1/projects/:id', async (request, reply) => {
     const project = projects.get(request.params.id);
     if (!project) {
-      return reply.status(404).send({ error: 'Project not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
     }
     return reply.send({ data: project });
   });
@@ -152,7 +152,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/v1/projects', async (request, reply) => {
     const body = request.body as Partial<Project>;
     if (!body.name || !body.repository) {
-      return reply.status(400).send({ error: 'name and repository are required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'name and repository are required' });
     }
 
     const id = generateId();
@@ -187,7 +187,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   app.put<{ Params: { id: string } }>('/api/v1/projects/:id', async (request, reply) => {
     const project = projects.get(request.params.id);
     if (!project) {
-      return reply.status(404).send({ error: 'Project not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
     }
 
     const body = request.body as Partial<Project>;
@@ -210,7 +210,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   // Delete project
   app.delete<{ Params: { id: string } }>('/api/v1/projects/:id', async (request, reply) => {
     if (!projects.has(request.params.id)) {
-      return reply.status(404).send({ error: 'Project not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
     }
     projects.delete(request.params.id);
     return reply.status(204).send();

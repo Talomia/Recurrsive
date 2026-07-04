@@ -131,7 +131,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   // Get schedule details
   app.get<{ Params: { id: string } }>('/api/v1/schedules/:id', async (request, reply) => {
     const schedule = schedules.get(request.params.id);
-    if (!schedule) return reply.status(404).send({ error: 'Schedule not found' });
+    if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     return reply.send({ data: schedule });
   });
 
@@ -139,7 +139,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   app.post('/api/v1/schedules', async (request, reply) => {
     const body = request.body as Partial<ScheduledReport>;
     if (!body.name || !body.schedule) {
-      return reply.status(400).send({ error: 'name and schedule (cron expression) are required' });
+      return reply.status(400).send({ error: 'Bad Request', message: 'name and schedule (cron expression) are required' });
     }
 
     const id = generateId();
@@ -170,7 +170,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   // Update schedule
   app.put<{ Params: { id: string } }>('/api/v1/schedules/:id', async (request, reply) => {
     const existing = schedules.get(request.params.id);
-    if (!existing) return reply.status(404).send({ error: 'Schedule not found' });
+    if (!existing) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
     const body = request.body as Partial<ScheduledReport>;
     const updated: ScheduledReport = {
@@ -196,7 +196,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   // Delete schedule
   app.delete<{ Params: { id: string } }>('/api/v1/schedules/:id', async (request, reply) => {
     if (!schedules.has(request.params.id)) {
-      return reply.status(404).send({ error: 'Schedule not found' });
+      return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     }
     schedules.delete(request.params.id);
     return reply.status(204).send();
@@ -205,7 +205,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   // Trigger immediate run
   app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/run', async (request, reply) => {
     const schedule = schedules.get(request.params.id);
-    if (!schedule) return reply.status(404).send({ error: 'Schedule not found' });
+    if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
     const now = nowISO();
     const run: ReportRun = {
@@ -238,7 +238,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   // Pause/resume schedule
   app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/toggle', async (request, reply) => {
     const schedule = schedules.get(request.params.id);
-    if (!schedule) return reply.status(404).send({ error: 'Schedule not found' });
+    if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
     schedule.status = schedule.status === 'active' ? 'paused' : 'active';
     schedule.updatedAt = nowISO();
