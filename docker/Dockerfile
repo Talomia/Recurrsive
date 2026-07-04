@@ -125,7 +125,7 @@ RUN chown -R recurrsive:recurrsive /app
 
 # Health check — generous start-period for Swarm stability
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget -qO- http://localhost:3000/health || exit 1
+  CMD node -e "require('http').get('http://localhost:3000/health',(r)=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(r.statusCode===200?0:1))}).on('error',()=>process.exit(1))"
 
 # Environment defaults
 ENV NODE_ENV=production

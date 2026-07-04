@@ -67,7 +67,7 @@ RUN chown -R nextjs:nodejs /app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:3200/ || exit 1
+  CMD node -e "require('http').get('http://localhost:3200/',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
 # Run as non-root
 USER nextjs
