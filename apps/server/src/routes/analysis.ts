@@ -9,7 +9,6 @@
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
-import { validateBody, ANALYZE_REQUEST_FIELDS } from '../middleware/validate.js';
 
 const logger = createLogger({ context: { component: 'server:routes:analysis' } });
 
@@ -18,7 +17,8 @@ const logger = createLogger({ context: { component: 'server:routes:analysis' } }
 // ---------------------------------------------------------------------------
 
 interface AnalyzeBody {
-  path: string;
+  path?: string;
+  gitUrl?: string;
   analyzers?: string[];
   include_reasoning?: boolean;
 }
@@ -43,15 +43,13 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
    * The analysis runs asynchronously; progress is available via the
    * /api/v1/analysis/status endpoint or WebSocket events.
    */
-  app.post<{ Body: AnalyzeBody }>('/api/v1/analyze', {
-    preHandler: validateBody(ANALYZE_REQUEST_FIELDS),
-  }, async (request, reply) => {
-    const { path: projectPath, analyzers, include_reasoning } = request.body;
+  app.post<{ Body: AnalyzeBody }>('/api/v1/analyze', async (request, reply) => {
+    const { path: projectPath, gitUrl, analyzers, include_reasoning } = request.body;
 
-    if (!projectPath) {
+    if (!projectPath && !gitUrl) {
       return reply.status(400).send({
         error: 'Bad request',
-        message: 'Request body must include "path" — the absolute path to the project.',
+        message: 'Request body must include either "path" (absolute local path) or "gitUrl" (git repository URL).',
       });
     }
 
@@ -69,17 +67,41 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
       });
     }
 
-    // Initialize if needed or if the project path changed
-    if (!state.isInitialized() || state.getProjectPath() !== projectPath) {
+    // Determine the effective project path
+    let effectivePath = projectPath;
+    let clonedDir: string | null = null;
+
+    if (gitUrl) {
       try {
-        // Dispose old state to avoid resource leaks (e.g. graph client)
+        clonedDir = await state.cloneRepo(gitUrl);
+        effectivePath = clonedDir;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return reply.status(500).send({
+          error: 'Clone failed',
+          message,
+        });
+      }
+    }
+
+    if (!effectivePath) {
+      return reply.status(400).send({
+        error: 'Bad request',
+        message: 'Could not determine project path.',
+      });
+    }
+
+    // Initialize if needed or if the project path changed
+    if (!state.isInitialized() || state.getProjectPath() !== effectivePath) {
+      try {
         if (state.isInitialized()) {
           await state.dispose();
         }
-        await state.initialize(projectPath);
+        await state.initialize(effectivePath);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.error(`Failed to initialize server state: ${message}`);
+        if (clonedDir) await state.cleanupClone(clonedDir);
         return reply.status(500).send({
           error: 'Initialization failed',
           message,
@@ -87,27 +109,31 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
       }
     }
 
-    // Set status BEFORE launching async work to prevent race conditions.
-    // Without this, two near-simultaneous requests could both pass the
-    // phase check above before either sets a running state.
+    // Set status BEFORE launching async work
     state.markAnalysisStarting();
 
     // Fire off the analysis asynchronously
-    // We reply immediately with 202 and the client polls status or uses WS
-    state.runAnalysis(analyzers, include_reasoning).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error(`Analysis failed: ${message}`);
-    });
+    state.runAnalysis(analyzers, include_reasoning)
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error(`Analysis failed: ${message}`);
+      })
+      .finally(() => {
+        // Cleanup cloned repos after analysis
+        if (clonedDir) {
+          state.cleanupClone(clonedDir).catch(() => {});
+        }
+      });
 
     return reply.status(202).send({
       message: 'Analysis started',
       status: state.getAnalysisStatus(),
-      project: projectPath,
+      project: effectivePath,
+      gitUrl: gitUrl || undefined,
       endpoints: {
         status: '/api/v1/analysis/status',
         history: '/api/v1/analysis/history',
         opportunities: '/api/v1/opportunities',
-        ws: `${request.protocol === 'https' ? 'wss' : 'ws'}://${request.hostname}:${(request.server.addresses()[0]?.port ?? 3000)}/ws`,
       },
     });
   });

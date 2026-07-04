@@ -29,6 +29,12 @@ import type {
 } from '@recurrsive/core';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+
+const execAsync = promisify(exec);
 
 const logger = createLogger({ context: { component: 'server:state' } });
 
@@ -290,6 +296,58 @@ export class ServerState {
     }
 
     logger.info('Server state initialized successfully');
+  }
+
+  /**
+   * Clone a git repository to a temporary directory for analysis.
+   *
+   * Uses shallow clone (--depth 50) to minimize disk usage and time.
+   * Returns the local path where the repo was cloned.
+   */
+  async cloneRepo(gitUrl: string): Promise<string> {
+    const crypto = await import('node:crypto');
+    const hash = crypto.createHash('sha256').update(gitUrl).digest('hex').slice(0, 12);
+    const cloneDir = path.join('/tmp', 'recurrsive-repos', hash);
+
+    // If directory already exists from a previous clone, remove it
+    if (existsSync(cloneDir)) {
+      logger.info(`Removing previous clone at ${cloneDir}`);
+      await rm(cloneDir, { recursive: true, force: true });
+    }
+
+    await mkdir(path.dirname(cloneDir), { recursive: true });
+
+    logger.info(`Cloning ${gitUrl} → ${cloneDir} (shallow, depth=50)`);
+    const startTime = Date.now();
+
+    try {
+      await execAsync(
+        `git clone --depth 50 --single-branch "${gitUrl}" "${cloneDir}"`,
+        { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 },
+      );
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      logger.info(`Clone completed in ${elapsed}s → ${cloneDir}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`Git clone failed: ${message}`);
+      throw new Error(`Failed to clone repository: ${message}`);
+    }
+
+    return cloneDir;
+  }
+
+  /**
+   * Clean up a previously cloned repository.
+   */
+  async cleanupClone(cloneDir: string): Promise<void> {
+    if (cloneDir.startsWith('/tmp/recurrsive-repos/') && existsSync(cloneDir)) {
+      try {
+        await rm(cloneDir, { recursive: true, force: true });
+        logger.info(`Cleaned up clone at ${cloneDir}`);
+      } catch (err) {
+        logger.warn(`Failed to clean up clone: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
   }
 
   /**
