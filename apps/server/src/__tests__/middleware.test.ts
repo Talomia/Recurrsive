@@ -170,11 +170,11 @@ describe('validateBody', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('rejects body missing required "path" field', async () => {
+  it('rejects body with wrong type for "path" field', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
-      payload: {},
+      payload: { path: 12345 },
     });
     expect(res.statusCode).toBe(400);
 
