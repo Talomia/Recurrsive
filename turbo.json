@@ -11,24 +11,24 @@
     },
     "test": {
       "dependsOn": ["build"],
-      "inputs": ["src/**/*.ts", "test/**/*.ts", "vitest.config.*"],
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "vitest.config.*"],
       "outputs": ["coverage/**"],
       "outputLogs": "new-only"
     },
     "test:integration": {
       "dependsOn": ["build"],
-      "inputs": ["src/**/*.ts", "test/**/*.ts"],
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts"],
       "outputs": [],
       "outputLogs": "new-only"
     },
     "lint": {
-      "inputs": ["src/**/*.ts", ".eslintrc.*", "eslint.config.*"],
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", ".eslintrc.*", "eslint.config.*"],
       "outputs": [],
       "outputLogs": "new-only"
     },
     "typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**/*.ts", "tsconfig.json"],
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json"],
       "outputs": [],
       "outputLogs": "new-only"
     },

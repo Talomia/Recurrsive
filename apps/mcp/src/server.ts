@@ -12,6 +12,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { VERSION } from '@recurrsive/core';
 import { registerTools } from './tools/index.js';
 import { registerResources } from './resources/index.js';
 import { registerPrompts } from './prompts/index.js';
@@ -26,12 +27,12 @@ import { state } from './state.js';
  * registered.
  *
  * The server exposes:
- * - **5 tools** for analysis, opportunity browsing, graph querying, and
- *   health scoring
- * - **4 resources** for read-only access to health reports, top
- *   opportunities, graph statistics, and intelligence timeline
- * - **3 prompts** for guided health report interpretation, improvement
- *   cycle planning, and opportunity explanation
+ * - **43 tools** for analysis, inspection, governance, batch operations,
+ *   webhooks, forecasting, simulation, and platform management
+ * - **6 resource modules** for read-only access to health, opportunities,
+ *   graph statistics, timeline, analytics, and configuration
+ * - **7 prompt modules** for guided report interpretation, improvement
+ *   planning, and opportunity explanation
  *
  * @returns A fully configured MCP server instance.
  *
@@ -48,7 +49,7 @@ import { state } from './state.js';
 export function createServer(): McpServer {
   const server = new McpServer({
     name: 'recurrsive',
-    version: '0.5.6',
+    version: VERSION,
     description:
       'Engineering Intelligence Platform — continuously analyze ' +
       'and improve software systems through knowledge graph construction, ' +

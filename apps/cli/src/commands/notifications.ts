@@ -9,6 +9,7 @@
  * @packageDocumentation
  */
 
+import { apiRequest } from '../config.js';
 import type { Command } from 'commander';
 import {
   header,
@@ -51,31 +52,7 @@ interface NotificationEntry {
 // API helpers
 // ---------------------------------------------------------------------------
 
-const DEFAULT_SERVER = 'http://localhost:3000';
 
-/**
- * Make an API request to the Recurrsive server.
- */
-async function apiRequest(
-  path: string,
-  options: RequestInit = {},
-): Promise<unknown> {
-  const base = process.env['RECURRSIVE_SERVER'] ?? DEFAULT_SERVER;
-  const res = await fetch(`${base}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API error ${res.status}: ${body}`);
-  }
-
-  return res.json();
-}
 
 // ---------------------------------------------------------------------------
 // Fallback data

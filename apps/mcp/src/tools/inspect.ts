@@ -838,8 +838,10 @@ ORDER BY rt.depth;`.trim();
               )
               .slice(0, limit);
           } else {
+            const searchPattern = `%${query}%`;
             const allRows = await graph.query(
-              `SELECT * FROM entities WHERE name LIKE '%${query.replace(/'/g, "''")}%' OR qualified_name LIKE '%${query.replace(/'/g, "''")}%' LIMIT ${limit}`,
+              `SELECT * FROM entities WHERE name LIKE $pattern OR qualified_name LIKE $pattern LIMIT $limit`,
+              { $pattern: searchPattern, $limit: limit },
             );
             results = allRows as Entity[];
           }

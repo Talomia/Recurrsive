@@ -14,6 +14,13 @@
 import { createProgram } from './index.js';
 import { bold, red, dim } from './output/terminal.js';
 
+// Catch unhandled rejections that escape Commander's error handling
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  process.stderr.write(`\n${red(bold('✖ Unhandled rejection:'))} ${message}\n`);
+  process.exit(1);
+});
+
 async function main(): Promise<void> {
   const program = createProgram();
 

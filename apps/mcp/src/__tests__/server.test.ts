@@ -47,6 +47,7 @@ vi.mock('../state.js', () => ({
 // deep dependencies.
 
 vi.mock('@recurrsive/core', () => ({
+  VERSION: '0.5.6',
   OpportunityCategorySchema: { safeParse: vi.fn() },
   SeveritySchema: { safeParse: vi.fn() },
   OpportunityStatusSchema: { safeParse: vi.fn() },

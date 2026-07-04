@@ -13,6 +13,13 @@
 
 import { startServer } from './server.js';
 
+// Catch unhandled rejections that escape MCP SDK's error handling
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  process.stderr.write(`[recurrsive-mcp] Unhandled rejection: ${message}\n`);
+  process.exit(1);
+});
+
 startServer().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`[recurrsive-mcp] Fatal error: ${message}\n`);

@@ -34,6 +34,7 @@
  */
 
 import { Command } from 'commander';
+import { VERSION } from '@recurrsive/core';
 import {
   registerInitCommand,
   registerAnalyzeCommand,
@@ -81,7 +82,7 @@ export function createProgram(): Command {
   program
     .name('recurrsive')
     .description('Engineering Intelligence Platform')
-    .version('0.5.6');
+    .version(VERSION);
 
   // Register all commands
   registerInitCommand(program);

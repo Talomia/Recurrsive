@@ -470,12 +470,12 @@ export function registerAnalyzeCommand(program: Command): void {
           // Combine emitted findings with returned findings
           const allFindings = [...analysisResult.findings, ...ctx.getEmitted()];
 
-          // ── Step 8 (optional): Reasoning ───────────────────────────
+          // ── Step 11 (optional): Reasoning ───────────────────────────
           let opportunities: Opportunity[] = [];
-          const currentStep = opts.reasoning ? 8 : 8;
+          const reasoningStep = 11;
 
           if (opts.reasoning && config.reasoning) {
-            step(currentStep, totalSteps, 'Running reasoning engine...');
+            step(reasoningStep, totalSteps, 'Running reasoning engine...');
             const reasonSpinner = new Spinner('Multi-agent debate in progress...').start();
 
             try {
@@ -517,8 +517,8 @@ export function registerAnalyzeCommand(program: Command): void {
           }
 
           // ── Step: Generate opportunities from findings ─────────────
-          const nextStep = opts.reasoning ? 9 : 8;
-          step(nextStep, totalSteps, 'Generating opportunity reports...');
+          const oppsStep = opts.reasoning ? 12 : 11;
+          step(oppsStep, totalSteps, 'Generating opportunity reports...');
 
           // If no reasoning, create basic opportunities from findings
           if (opportunities.length === 0 && allFindings.length > 0) {
@@ -530,7 +530,7 @@ export function registerAnalyzeCommand(program: Command): void {
           const manager = new OpportunityManager(opportunities);
 
           // ── Step: Save results ─────────────────────────────────────
-          const saveStep = opts.reasoning ? 10 : 8;
+          const saveStep = opts.reasoning ? 13 : 11;
           step(saveStep, totalSteps, 'Saving results...');
 
           const outputDir = resolve(projectRoot, config.output.directory);
