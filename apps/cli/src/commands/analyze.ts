@@ -390,13 +390,23 @@ export function registerAnalyzeCommand(program: Command): void {
             await graphClient.upsertEntity(entity);
             ingested++;
           }
+          let relIngested = 0;
+          let relSkipped = 0;
           for (const rel of allRelationships) {
-            await graphClient.upsertRelationship(rel);
+            try {
+              await graphClient.upsertRelationship(rel);
+              relIngested++;
+            } catch {
+              // Skip relationships that reference missing entities
+              // (common when parser generates refs to unresolvable symbols)
+              relSkipped++;
+            }
           }
 
           graphSpinner.succeed(
             `Ingested ${bold(String(ingested))} entities, ` +
-              `${bold(String(allRelationships.length))} relationships`,
+              `${bold(String(relIngested))} relationships` +
+              (relSkipped > 0 ? ` (${relSkipped} skipped)` : ''),
           );
 
           // ── Step 10: Run analyzers ──────────────────────────────────
