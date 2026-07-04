@@ -634,10 +634,12 @@ export class GitCollector implements Collector {
         },
         properties: {
           path: file.path,
+          absolute_path: path.join(this.rootPath, file.path),
           extension: file.extension,
           language,
           size_bytes: file.sizeBytes,
           repo_id: repoId,
+          is_source: isSourceFile(file.path),
         },
         tags: language !== 'Unknown' ? [language.toLowerCase()] : [],
         created_at: now,

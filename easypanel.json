@@ -41,7 +41,7 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile"
         },
-        "env": "DATABASE_URL=postgresql://postgres:recurrsive@recurrsive_postgres:5432/postgres\nGRAPH_PROVIDER=postgresql_age\nPORT=3000\nHOST=0.0.0.0\nNODE_ENV=production\nRECURRSIVE_LLM_PROVIDER=openai\nRECURRSIVE_LLM_MODEL=gpt-4.1-mini\nRECURRSIVE_LLM_API_KEY=\nRECURRSIVE_WEBHOOK_SECRET=\nRECURRSIVE_WEBHOOK_TIMEOUT_MS=5000\nRECURRSIVE_WEBHOOK_MAX_RETRIES=3",
+        "env": "DATABASE_URL=postgresql://postgres:recurrsive@recurrsive_postgres:5432/postgres\nGRAPH_PROVIDER=sqlite\nPORT=3000\nHOST=0.0.0.0\nNODE_ENV=production\nRECURRSIVE_LLM_PROVIDER=openai\nRECURRSIVE_LLM_MODEL=gpt-4.1-mini\nRECURRSIVE_LLM_API_KEY=\nRECURRSIVE_WEBHOOK_SECRET=\nRECURRSIVE_WEBHOOK_TIMEOUT_MS=5000\nRECURRSIVE_WEBHOOK_MAX_RETRIES=3",
         "deploy": {
           "command": null,
           "replicas": 1,
