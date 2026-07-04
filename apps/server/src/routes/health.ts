@@ -7,6 +7,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import os from 'node:os';
 import { VERSION, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 
@@ -179,7 +180,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   app.get('/api/v1/health/dashboard', async (_request, reply) => {
     // Process metrics (always available)
     const memUsage = process.memoryUsage();
-    const totalMem = require('node:os').totalmem();
+    const totalMem = os.totalmem();
     const memPercent = Math.round((memUsage.rss / totalMem) * 100);
     const uptimeDays = Math.round((process.uptime() / 86400) * 10) / 10;
 
