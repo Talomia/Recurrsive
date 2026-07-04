@@ -29,6 +29,17 @@ const logger = createLogger({ context: { component: 'server:middleware:auth' } }
 /** Secret used for HMAC-SHA256 signing. Never rotated in dev mode. */
 const JWT_SECRET = process.env['JWT_SECRET'] ?? 'recurrsive-dev-secret';
 
+if (JWT_SECRET === 'recurrsive-dev-secret') {
+  if (process.env['NODE_ENV'] === 'production') {
+    console.error(
+      '[SECURITY] CRITICAL: JWT_SECRET is using the default insecure value in production. ' +
+      'Set a strong JWT_SECRET environment variable before deploying.',
+    );
+  } else {
+    console.warn('[SECURITY] JWT_SECRET is using the default dev-only value. Set JWT_SECRET in production.');
+  }
+}
+
 /** Default token lifetime in seconds (1 hour). */
 const TOKEN_TTL_SECONDS = 3600;
 

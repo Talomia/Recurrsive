@@ -29,12 +29,12 @@ import type {
 } from '@recurrsive/core';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const logger = createLogger({ context: { component: 'server:state' } });
 
@@ -305,6 +305,14 @@ export class ServerState {
    * Returns the local path where the repo was cloned.
    */
   async cloneRepo(gitUrl: string): Promise<string> {
+    // Validate URL to prevent SSRF and injection
+    if (!/^https?:\/\//i.test(gitUrl)) {
+      throw new Error('Only HTTP(S) git URLs are allowed');
+    }
+    if (/[\x00-\x1f\x7f]/.test(gitUrl)) {
+      throw new Error('Git URL contains invalid control characters');
+    }
+
     const crypto = await import('node:crypto');
     const hash = crypto.createHash('sha256').update(gitUrl).digest('hex').slice(0, 12);
     const cloneDir = path.join('/tmp', 'recurrsive-repos', hash);
@@ -321,8 +329,9 @@ export class ServerState {
     const startTime = Date.now();
 
     try {
-      await execAsync(
-        `git clone --depth 50 --single-branch "${gitUrl}" "${cloneDir}"`,
+      await execFileAsync(
+        'git',
+        ['clone', '--depth', '50', '--single-branch', gitUrl, cloneDir],
         { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 },
       );
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -365,6 +374,21 @@ export class ServerState {
       startedAt: nowISO(),
       completedAt: null,
       error: null,
+    };
+  }
+
+  /**
+   * Mark analysis as failed. Called when pre-analysis steps
+   * (clone, path validation, initialization) fail after markAnalysisStarting().
+   */
+  markAnalysisError(errorMessage: string): void {
+    this._analysisStatus = {
+      phase: 'error',
+      progress: 0,
+      message: errorMessage,
+      startedAt: this._analysisStatus.startedAt,
+      completedAt: nowISO(),
+      error: errorMessage,
     };
   }
 
@@ -580,8 +604,16 @@ export class ServerState {
         for (const entity of parseResult.entities) {
           await this.graphClient!.upsertEntity(entity);
         }
+        let skippedParserRels = 0;
         for (const rel of parseResult.relationships) {
-          await this.graphClient!.upsertRelationship(rel);
+          try {
+            await this.graphClient!.upsertRelationship(rel);
+          } catch {
+            skippedParserRels++;
+          }
+        }
+        if (skippedParserRels > 0) {
+          logger.warn(`Skipped ${skippedParserRels} parser relationships (FK constraint violations)`);
         }
         logger.info(`Parsed ${sourceFiles.length} files → ${parseResult.entities.length} code entities`);
       }

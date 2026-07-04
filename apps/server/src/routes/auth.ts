@@ -31,11 +31,26 @@ interface DemoUser {
   displayName: string;
 }
 
-const DEMO_USERS: DemoUser[] = [
+const _ALL_DEMO_USERS: DemoUser[] = [
   { id: 'user-admin', username: 'admin', password: 'admin', role: 'admin', displayName: 'Admin User' },
   { id: 'user-analyst', username: 'analyst', password: 'analyst', role: 'analyst', displayName: 'Analyst User' },
   { id: 'user-viewer', username: 'viewer', password: 'viewer', role: 'viewer', displayName: 'Viewer User' },
 ];
+
+/**
+ * In production, demo users are disabled unless ALLOW_DEMO_USERS=true.
+ * This prevents trivial credential-based access to production deployments.
+ */
+const DEMO_USERS: DemoUser[] =
+  process.env['NODE_ENV'] === 'production' && process.env['ALLOW_DEMO_USERS'] !== 'true'
+    ? []
+    : _ALL_DEMO_USERS;
+
+if (DEMO_USERS.length === 0) {
+  console.warn('[AUTH] Demo users disabled in production. Set ALLOW_DEMO_USERS=true to override.');
+} else if (process.env['NODE_ENV'] === 'production') {
+  console.warn('[AUTH] WARNING: Demo users are enabled in production (ALLOW_DEMO_USERS=true).');
+}
 
 // ---------------------------------------------------------------------------
 // Request body types

@@ -7,6 +7,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import path from 'node:path';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 
@@ -67,6 +68,10 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
       });
     }
 
+    // Mark as starting IMMEDIATELY to prevent TOCTOU race condition
+    // (a second request arriving during clone would pass the check above)
+    state.markAnalysisStarting();
+
     // Determine the effective project path
     let effectivePath = projectPath;
     let clonedDir: string | null = null;
@@ -77,6 +82,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
         effectivePath = clonedDir;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        state.markAnalysisError(message);
         return reply.status(500).send({
           error: 'Clone failed',
           message,
@@ -85,9 +91,24 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
     }
 
     if (!effectivePath) {
+      state.markAnalysisError('Could not determine project path');
       return reply.status(400).send({
         error: 'Bad request',
         message: 'Could not determine project path.',
+      });
+    }
+
+    // Path traversal protection: only allow safe directories
+    const resolvedPath = path.resolve(effectivePath);
+    const ALLOWED_PREFIXES = ['/app', '/tmp/recurrsive-repos/', '/home/'];
+    const isSafePath = ALLOWED_PREFIXES.some((prefix) => resolvedPath.startsWith(prefix));
+    if (!isSafePath) {
+      state.markAnalysisError('Path not allowed');
+      if (clonedDir) await state.cleanupClone(clonedDir);
+      return reply.status(403).send({
+        error: 'Forbidden',
+        message: `Path "${resolvedPath}" is not in the allowed directories. ` +
+          `Allowed prefixes: ${ALLOWED_PREFIXES.join(', ')}`,
       });
     }
 
@@ -101,6 +122,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.error(`Failed to initialize server state: ${message}`);
+        state.markAnalysisError(message);
         if (clonedDir) await state.cleanupClone(clonedDir);
         return reply.status(500).send({
           error: 'Initialization failed',
@@ -108,9 +130,6 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
         });
       }
     }
-
-    // Set status BEFORE launching async work
-    state.markAnalysisStarting();
 
     // Fire off the analysis asynchronously
     state.runAnalysis(analyzers, include_reasoning)
