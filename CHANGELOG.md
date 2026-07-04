@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Missing Dashboard Endpoints
+- `GET /api/v1/findings/page` — returns real findings mapped to dashboard FindingsPageItem shape with severity stats
+- `GET /api/v1/health/dashboard` — returns real health score, process memory/CPU, uptime, and service statuses
+- Export route now uses real analysis data instead of hardcoded mock findings
+
+#### Server State Hardening
+- `dispose()` now resets `_analysisStatus` to idle and clears `_evolutionTimeline`
+- Analysis history capped at 100 entries to prevent unbounded growth
+- Collector disposal moved to `finally` block — always cleaned up even on error
+- `markAnalysisError()` method for proper status reset on pre-analysis failures
+
+#### Production Hardening
+- CORS origin configurable via `CORS_ORIGIN` env var (comma-separated allowlist)
+- Added `CORS_ORIGIN` and `JWT_SECRET` to `.env.example` with documentation
+
 #### Git URL Analysis Support
 - `POST /api/v1/analyze` now accepts `gitUrl` to clone and analyze remote repositories
 - `ServerState.cloneRepo()` — shallow clone (depth=50) with 120s timeout to `/tmp/recurrsive-repos/`
