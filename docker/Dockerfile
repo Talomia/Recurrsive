@@ -104,6 +104,19 @@ COPY --from=builder /app/packages/presentation/dist packages/presentation/dist
 COPY --from=builder /app/apps/server/package.json apps/server/package.json
 COPY --from=builder /app/apps/server/dist apps/server/dist
 
+# Copy source files for self-analysis (the analysis engine parses source code)
+COPY --from=builder /app/packages/core/src packages/core/src
+COPY --from=builder /app/packages/graph/src packages/graph/src
+COPY --from=builder /app/packages/collectors/src packages/collectors/src
+COPY --from=builder /app/packages/parsers/src packages/parsers/src
+COPY --from=builder /app/packages/analyzers/src packages/analyzers/src
+COPY --from=builder /app/packages/reasoning/src packages/reasoning/src
+COPY --from=builder /app/packages/opportunities/src packages/opportunities/src
+COPY --from=builder /app/packages/policy/src packages/policy/src
+COPY --from=builder /app/packages/presentation/src packages/presentation/src
+COPY --from=builder /app/apps/server/src apps/server/src
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+
 # Copy production node_modules from deps stage (includes pnpm virtual store + per-package symlinks)
 COPY --from=deps /app/node_modules node_modules
 COPY --from=deps /app/packages/core/node_modules packages/core/node_modules
