@@ -1406,10 +1406,10 @@ describe('Search Routes', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=auth' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body).toHaveProperty('results');
+    expect(body).toHaveProperty('data');
     expect(body).toHaveProperty('total');
     expect(body).toHaveProperty('query');
-    expect(Array.isArray(body.results)).toBe(true);
+    expect(Array.isArray(body.data)).toBe(true);
     expect(body.total).toBeGreaterThan(0);
     expect(body.query).toBe('auth');
   });
@@ -1426,21 +1426,21 @@ describe('Search Routes', () => {
     const findingsRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=findings' });
     expect(findingsRes.statusCode).toBe(200);
     const findingsBody = JSON.parse(findingsRes.payload);
-    for (const r of findingsBody.results) {
+    for (const r of findingsBody.data) {
       expect(r.type).toBe('finding');
     }
 
     const oppsRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=opportunities' });
     expect(oppsRes.statusCode).toBe(200);
     const oppsBody = JSON.parse(oppsRes.payload);
-    for (const r of oppsBody.results) {
+    for (const r of oppsBody.data) {
       expect(r.type).toBe('opportunity');
     }
 
     const entitiesRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=entities' });
     expect(entitiesRes.statusCode).toBe(200);
     const entitiesBody = JSON.parse(entitiesRes.payload);
-    for (const r of entitiesBody.results) {
+    for (const r of entitiesBody.data) {
       expect(r.type).toBe('entity');
     }
   });
@@ -1449,7 +1449,7 @@ describe('Search Routes', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=zzzznonexistent' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.results).toEqual([]);
+    expect(body.data).toEqual([]);
     expect(body.total).toBe(0);
   });
 
@@ -1459,7 +1459,7 @@ describe('Search Routes', () => {
     const body = JSON.parse(res.payload);
     expect(body.total).toBeGreaterThan(0);
     const validTypes = ['finding', 'opportunity', 'entity'];
-    for (const result of body.results) {
+    for (const result of body.data) {
       // Score field
       expect(result).toHaveProperty('score');
       expect(typeof result.score).toBe('number');

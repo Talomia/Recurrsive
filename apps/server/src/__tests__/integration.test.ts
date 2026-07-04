@@ -650,12 +650,12 @@ describe('Flow: Search (query → filter → verify)', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=auth' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toHaveProperty('results');
+    expect(body).toHaveProperty('data');
     expect(body).toHaveProperty('total');
     expect(body).toHaveProperty('query');
     expect(body.query).toBe('auth');
     expect(body.total).toBeGreaterThan(0);
-    expect(Array.isArray(body.results)).toBe(true);
+    expect(Array.isArray(body.data)).toBe(true);
   });
 
   it('32. Search results have correct shape', async () => {
@@ -663,7 +663,7 @@ describe('Flow: Search (query → filter → verify)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.total).toBeGreaterThan(0);
-    for (const result of body.results) {
+    for (const result of body.data) {
       expect(result).toHaveProperty('type');
       expect(result).toHaveProperty('id');
       expect(result).toHaveProperty('name');
@@ -683,7 +683,7 @@ describe('Flow: Search (query → filter → verify)', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    for (const result of body.results) {
+    for (const result of body.data) {
       expect(result.type).toBe('finding');
     }
   });

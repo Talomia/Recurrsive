@@ -81,7 +81,6 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
         total,
         offset,
         limit,
-        findings: paginated,
       });
     },
   );
@@ -110,7 +109,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
         });
       }
 
-      return reply.send(finding);
+      return reply.send({ data: finding });
     },
   );
 
@@ -148,10 +147,12 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
     }
 
     return reply.send({
-      total: findings.length,
-      by_severity: bySeverity,
-      by_category: byCategory,
-      by_analyzer: byAnalyzer,
+      data: {
+        total: findings.length,
+        by_severity: bySeverity,
+        by_category: byCategory,
+        by_analyzer: byAnalyzer,
+      },
     });
   });
 

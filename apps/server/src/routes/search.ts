@@ -191,7 +191,7 @@ export async function registerSearchRoutes(app: FastifyInstance): Promise<void> 
       logger.debug(`Search for "${q}" (scope=${scope}) returned ${results.length} results`);
 
       return reply.send({
-        results,
+        data: results,
         total: results.length,
         query: q.trim(),
       });
