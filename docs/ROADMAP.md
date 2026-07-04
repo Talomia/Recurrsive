@@ -1,6 +1,6 @@
 # Recurrsive — Product Roadmap
 
-## Current State (v0.5.5)
+## Current State (v0.5.6)
 
 | Component | Status | Evidence |
 |---|---|---|

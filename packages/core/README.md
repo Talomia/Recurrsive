@@ -82,7 +82,7 @@ pnpm add @recurrsive/core
 
 | Export | Description |
 |--------|-------------|
-| `VERSION` | Current package version (`0.5.5`) |
+| `VERSION` | Current package version (`0.5.6`) |
 | `CONFIG_VERSION` | Configuration schema version |
 | `DEFAULT_GRAPH_PROVIDER` | Default graph backend |
 | `DEFAULT_LLM_PROVIDER` | Default LLM provider |

@@ -5,7 +5,7 @@ info:
     REST API for the Recurrsive codebase intelligence engine.
     Provides analysis, knowledge-graph querying, opportunity management,
     policy enforcement, and report generation.
-  version: 0.5.5
+  version: 0.5.6
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
