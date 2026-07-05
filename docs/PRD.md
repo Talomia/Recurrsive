@@ -2118,5 +2118,5 @@ The system tracks its own evolution:
 | Version | Date | Author | Changes |
 |---|---|---|---|
 | 1.2.0 | 2026-07-05 | Recurrsive Team | Updated to reflect v0.5.7: all synthetic/mock data removed from production code — SSO uses real SAML parsing, 9 collectors rewritten with real API clients (native fetch), GraphQL seed data removed, scheduling uses real cron parser, CLI simulation wired to server API. All docs aligned, 3,293 tests passing. |
-| 1.1.0 | 2026-07-04 | Recurrsive Team | Updated to reflect v0.5.6: added §11.3 current implementation stats (13 analyzers, 14 collectors, 19 specialists, 150+ endpoints across 34 route modules, 42 MCP tools, 25 CLI commands, 40 dashboard pages, 23 website pages), added EasyPanel and multi-tenant deployment options, added git URL analysis capability, clarified collector implementation status in §7 |
+| 1.1.0 | 2026-07-04 | Recurrsive Team | Updated to reflect v0.5.6: added §11.3 current implementation stats (13 analyzers, 14 collectors, 19 specialists, 160+ endpoints across 34 route modules, 42 MCP tools, 25 CLI commands, 45+ dashboard pages, 23 website pages), added EasyPanel and multi-tenant deployment options, added git URL analysis capability, clarified collector implementation status in §7 |
 | 1.0.0 | 2026-06-29 | Recurrsive Team | Initial comprehensive PRD |

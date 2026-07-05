@@ -341,8 +341,8 @@ recurrsive/
 ├── apps/
 │   ├── cli/            # Commander.js CLI — 25 commands
 │   ├── mcp/            # MCP server — 42 tools, 16 resources, 21 prompts
-│   ├── server/         # Fastify REST + WebSocket + GraphQL API — 150 endpoints
-│   ├── dashboard/      # Next.js dashboard — 40 pages
+│   ├── server/         # Fastify REST + WebSocket + GraphQL API — 160+ endpoints
+│   ├── dashboard/      # Next.js dashboard — 45+ pages
 │   └── website/        # Next.js marketing website — 23 pages + SEO
 ├── docker/             # Dockerfiles + docker-compose
 ├── docs/

@@ -1919,7 +1919,7 @@ recurrsive/
 │   │
 │   ├── dashboard/            # Next.js dashboard
 │   │   ├── src/
-│   │   │   ├── app/          # App Router pages (40 pages)
+│   │   │   ├── app/          # App Router pages (45+ pages)
 │   │   │   ├── components/   # React components
 │   │   │   ├── hooks/        # Custom hooks
 │   │   │   └── lib/          # Utilities
@@ -2096,6 +2096,22 @@ Users are persisted in the `users` table of the SQLite store. Passwords are hash
 #### Demo Users (Development Only)
 
 Three demo accounts (`admin/admin`, `analyst/analyst`, `viewer/viewer`) are available when `NODE_ENV !== 'production'` or `ALLOW_DEMO_USERS=true`. These are checked as a fallback after the real user store.
+
+#### Team Invites
+
+Admins can invite team members via `POST /api/v1/invites`. Invites are token-based with a 7-day expiry:
+
+1. Admin creates invite → `crypto.randomBytes(32)` token generated
+2. Invite stored in `invites` table with email, role, and expiry timestamp
+3. Admin shares the invite link (`/invite/{token}`)
+4. Invitee visits the link → `GET /api/v1/invites/:token/validate` verifies token validity
+5. Invitee sets username/password → `POST /api/v1/invites/:token/accept` creates the user and marks the invite as accepted
+
+#### Password Management
+
+- **Self-service**: Users change their own password via `PUT /api/v1/auth/change-password` (requires current password verification)
+- **Admin reset**: Admins reset any user's password via `PUT /api/v1/users/:id/reset-password`
+- All passwords are hashed with `crypto.scrypt` before storage
 
 ### 12.2 Authorization (RBAC)
 

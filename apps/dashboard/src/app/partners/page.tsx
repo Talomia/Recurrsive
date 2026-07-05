@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Users, Award, BarChart3, Loader2, ArrowRight, Shield } from 'lucide-react';
-import { apiFetch } from '@/lib/api/client';
+import { getPartners, getPartnerCertifications, getPartnerStats } from '@/lib/api/platform';
 
 interface Partner {
   id: string;
@@ -58,14 +58,14 @@ export default function PartnersPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [p, cert, st] = await Promise.all([
-          apiFetch<Partner[]>('/api/v1/partners'),
-          apiFetch<Certification[]>('/api/v1/partners/certifications'),
-          apiFetch<PartnerStats>('/api/v1/partners/stats'),
+        const [pRes, certRes, stRes] = await Promise.all([
+          getPartners(),
+          getPartnerCertifications(),
+          getPartnerStats(),
         ]);
-        setPartners(p ?? []);
-        setCertifications(cert ?? []);
-        setStats(st ?? null);
+        setPartners((pRes.data ?? []) as Partner[]);
+        setCertifications((certRes.data ?? []) as Certification[]);
+        setStats((stRes.data ?? null) as PartnerStats | null);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load partner data');
       }

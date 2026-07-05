@@ -36,39 +36,7 @@ interface Prediction {
   analyzer: string;
 }
 
-// ─── Fallback Data (used only if API returns incomplete data) ────────────────
 
-const FALLBACK_BRIER = 0.142;
-
-const FALLBACK_BUCKETS: CalibrationBucket[] = [
-  { predicted: '0–10%', count: 42, actualRate: 0.07, deviation: -0.02 },
-  { predicted: '10–20%', count: 38, actualRate: 0.16, deviation: 0.01 },
-  { predicted: '20–30%', count: 55, actualRate: 0.28, deviation: 0.03 },
-  { predicted: '30–40%', count: 47, actualRate: 0.33, deviation: -0.02 },
-  { predicted: '40–50%', count: 61, actualRate: 0.48, deviation: 0.03 },
-  { predicted: '50–60%', count: 53, actualRate: 0.52, deviation: -0.03 },
-  { predicted: '60–70%', count: 66, actualRate: 0.68, deviation: 0.03 },
-  { predicted: '70–80%', count: 71, actualRate: 0.73, deviation: -0.02 },
-  { predicted: '80–90%', count: 58, actualRate: 0.86, deviation: 0.01 },
-  { predicted: '90–100%', count: 44, actualRate: 0.93, deviation: -0.02 },
-];
-
-const FALLBACK_ANALYZERS: AnalyzerScore[] = [
-  { name: 'Security Analyzer', accuracy: 92, predictions: 214, brierScore: 0.098, trend: 'improving' },
-  { name: 'Dependency Analyzer', accuracy: 87, predictions: 186, brierScore: 0.131, trend: 'stable' },
-  { name: 'Architecture Analyzer', accuracy: 84, predictions: 158, brierScore: 0.162, trend: 'improving' },
-  { name: 'Performance Analyzer', accuracy: 79, predictions: 132, brierScore: 0.194, trend: 'declining' },
-  { name: 'Compliance Analyzer', accuracy: 91, predictions: 98, brierScore: 0.108, trend: 'stable' },
-];
-
-const FALLBACK_PREDICTIONS: Prediction[] = [
-  { id: 'pred-1', description: 'CVE-2026-1234 will impact production within 7 days', confidence: 0.85, outcome: 'correct', date: '2026-06-30', analyzer: 'Security Analyzer' },
-  { id: 'pred-2', description: 'Dependency lodash@4 will release breaking change', confidence: 0.62, outcome: 'incorrect', date: '2026-06-29', analyzer: 'Dependency Analyzer' },
-  { id: 'pred-3', description: 'API latency will exceed P99 threshold this week', confidence: 0.74, outcome: 'correct', date: '2026-06-28', analyzer: 'Performance Analyzer' },
-  { id: 'pred-4', description: 'GDPR audit finding likelihood > 50%', confidence: 0.55, outcome: 'pending', date: '2026-07-01', analyzer: 'Compliance Analyzer' },
-  { id: 'pred-5', description: 'Microservice coupling will increase beyond threshold', confidence: 0.41, outcome: 'incorrect', date: '2026-06-27', analyzer: 'Architecture Analyzer' },
-  { id: 'pred-6', description: 'Container image vulnerability discovered in next scan', confidence: 0.91, outcome: 'correct', date: '2026-06-26', analyzer: 'Security Analyzer' },
-];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -102,13 +70,13 @@ export default function ConfidencePage() {
     getConfidenceData()
       .then(setData)
       .catch(() => {
-        /* API unavailable – set empty data so fallbacks render */
-         setData({
-          brierScore: FALLBACK_BRIER,
+        /* API unavailable – set proper empty state */
+        setData({
+          brierScore: 0,
           brierTrend: 0,
-          calibration: [] as ConfidenceData['calibration'],
-          analyzerAccuracy: [] as ConfidenceData['analyzerAccuracy'],
-          recentPredictions: [] as ConfidenceData['recentPredictions'],
+          calibration: [],
+          analyzerAccuracy: [],
+          recentPredictions: [],
           totalPredictions: 0,
           accuracy: 0,
         });
@@ -124,32 +92,45 @@ export default function ConfidencePage() {
     );
   }
 
-  // Derive display data from API response, falling back to inline data
-  const brierScore = data.brierScore ?? FALLBACK_BRIER;
-  const calibration: CalibrationBucket[] = data.calibration?.length
-    ? data.calibration
-    : FALLBACK_BUCKETS;
-  const analyzers: AnalyzerScore[] = data.analyzerAccuracy?.length
-    ? data.analyzerAccuracy.map(a => ({
-        name: a.name,
-        accuracy: a.accuracy,
-        predictions: a.predictions,
-        brierScore: a.accuracy > 0 ? (1 - a.accuracy / 100) * 0.25 : 0.25,
-        trend: a.accuracy >= 90 ? 'improving' as const : a.accuracy >= 80 ? 'stable' as const : 'declining' as const,
-      }))
-    : FALLBACK_ANALYZERS;
-  const predictions: Prediction[] = data.recentPredictions?.length
-    ? data.recentPredictions.map(p => ({
-        id: p.id,
-        description: p.description,
-        confidence: p.predicted,
-        outcome: p.actual ? 'correct' as const : 'incorrect' as const,
-        date: p.date,
-        analyzer: p.source,
-      }))
-    : FALLBACK_PREDICTIONS;
-  const totalPredictions = data.totalPredictions ?? predictions.length;
-  const accuracy = data.accuracy ?? (predictions.filter(p => p.outcome === 'correct').length / Math.max(1, predictions.filter(p => p.outcome !== 'pending').length) * 100);
+  // Derive display data from API response
+  const brierScore = data.brierScore ?? 0;
+  const calibration: CalibrationBucket[] = data.calibration ?? [];
+  const analyzers: AnalyzerScore[] = (data.analyzerAccuracy ?? []).map(a => ({
+    name: a.name,
+    accuracy: a.accuracy,
+    predictions: a.predictions,
+    brierScore: a.accuracy > 0 ? (1 - a.accuracy / 100) * 0.25 : 0.25,
+    trend: a.accuracy >= 90 ? 'improving' as const : a.accuracy >= 80 ? 'stable' as const : 'declining' as const,
+  }));
+  const predictions: Prediction[] = (data.recentPredictions ?? []).map(p => ({
+    id: p.id,
+    description: p.description,
+    confidence: p.predicted,
+    outcome: p.actual ? 'correct' as const : 'incorrect' as const,
+    date: p.date,
+    analyzer: p.source,
+  }));
+  const totalPredictions = data.totalPredictions ?? 0;
+  const accuracy = data.accuracy ?? 0;
+
+  if (totalPredictions === 0 && calibration.length === 0 && analyzers.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+            <Target className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
+            Confidence Calibration
+          </h1>
+          <p className="text-sm text-text-secondary mt-1">Measure how well our predictions match reality.</p>
+        </div>
+        <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <Target className="w-12 h-12 mx-auto text-text-tertiary mb-4" />
+          <h3 className="text-lg font-medium text-text-primary mb-2">No Confidence Data Yet</h3>
+          <p className="text-text-secondary text-sm">Run an analysis to start tracking prediction accuracy and calibration metrics.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

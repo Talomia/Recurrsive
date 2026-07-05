@@ -20,7 +20,7 @@ Base URL: `http://localhost:3000`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/openapi.json` | Returns the full OpenAPI 3.1 specification (34 tags, 150 endpoints) |
+| `GET` | `/api/v1/openapi.json` | Returns the full OpenAPI 3.1 specification (34 tags, 160+ endpoints) |
 | `GET` | `/api/docs` | Swagger UI interactive documentation page |
 
 ### Analysis
@@ -417,6 +417,27 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
   -d '{"username": "admin", "password": "admin"}'
 ```
 
+### Setup (First-Run)
+
+| Method | Endpoint | Auth Required | Description |
+|--------|----------|:---:|-------------|
+| `GET` | `/api/v1/setup/status` | No | Check if initial setup is required (`{ setupRequired: bool }`) |
+| `POST` | `/api/v1/setup` | No | Create first admin account (only works when no users exist) |
+
+#### `POST /api/v1/setup`
+
+**Body:**
+```json
+{
+  "username": "admin",
+  "email": "admin@example.com",
+  "password": "your-secure-password",
+  "displayName": "Admin User"
+}
+```
+
+**Response:** `201 Created` with `{ data: { token, user } }`
+
 ### Auth Endpoints
 
 | Method | Endpoint | Auth Required | Description |
@@ -424,19 +445,54 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
 | `POST` | `/api/v1/auth/login` | No | Login with credentials → JWT token |
 | `POST` | `/api/v1/auth/refresh` | Yes | Refresh JWT token |
 | `GET` | `/api/v1/auth/me` | Yes | Get current user info |
+| `PUT` | `/api/v1/auth/change-password` | Yes | Change own password |
 | `POST` | `/api/v1/api-keys` | Admin | Create API key |
 | `GET` | `/api/v1/api-keys` | Yes | List API keys |
 | `DELETE` | `/api/v1/api-keys/:id` | Admin | Revoke API key |
+
+### User Management
+
+| Method | Endpoint | Auth Required | Description |
+|--------|----------|:---:|-------------|
+| `GET` | `/api/v1/users` | Admin | List all users |
+| `GET` | `/api/v1/users/:id` | Admin | Get user by ID |
+| `POST` | `/api/v1/users` | Admin | Create user |
+| `PUT` | `/api/v1/users/:id` | Admin | Update user (role, status, displayName) |
+| `DELETE` | `/api/v1/users/:id` | Admin | Soft-delete user |
+| `PUT` | `/api/v1/users/:id/reset-password` | Admin | Reset a user's password |
+
+### Team Invites
+
+| Method | Endpoint | Auth Required | Description |
+|--------|----------|:---:|-------------|
+| `POST` | `/api/v1/invites` | Admin | Create invite (email + role) |
+| `GET` | `/api/v1/invites` | Admin | List all invites |
+| `DELETE` | `/api/v1/invites/:id` | Admin | Cancel pending invite |
+| `GET` | `/api/v1/invites/:token/validate` | No | Validate invite token (public) |
+| `POST` | `/api/v1/invites/:token/accept` | No | Accept invite and create account (public) |
+
+#### `POST /api/v1/invites/:token/accept`
+
+**Body:**
+```json
+{
+  "username": "newuser",
+  "password": "secure-password",
+  "displayName": "New User"
+}
+```
+
+**Response:** `201 Created` with `{ data: { token, user } }`
 
 ### Roles (RBAC)
 
 | Role | Level | Permissions |
 |------|:-----:|-------------|
-| `admin` | 3 | Full access — all endpoints, API key management |
+| `admin` | 3 | Full access — all endpoints, user management, API key management |
 | `analyst` | 2 | Read/write — analysis, findings, opportunities |
 | `viewer` | 1 | Read-only — view data, cannot trigger analysis |
 
-Health endpoints are excluded from authentication.
+Health and setup endpoints are excluded from authentication.
 
 ## Rate Limiting
 

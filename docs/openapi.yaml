@@ -7,7 +7,7 @@ info:
     policy enforcement, and report generation.
 
     NOTE — This static spec documents the core endpoints. The complete
-    auto-generated OpenAPI 3.1 specification (150+ endpoints) is served
+    auto-generated OpenAPI 3.1 specification (160+ endpoints) is served
     by the running server at GET /api/v1/openapi.json with interactive
     Swagger UI at GET /api/docs.
   version: 0.5.7

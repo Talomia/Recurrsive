@@ -88,7 +88,7 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
 
       return reply.status(200).send({
         data: {
-          analysis_runs: 1,
+          analysis_runs: history.length,
           total_findings: totalFindings,
           findings_resolved: totalResolved,
           resolution_rate: resolutionRate,

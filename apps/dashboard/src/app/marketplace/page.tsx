@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Package, Search, Download, Star, Filter, Loader2 } from 'lucide-react';
-import { apiFetch } from '@/lib/api/client';
+import { getMarketplaceExtensions, getMarketplaceCategories, getMarketplaceStats } from '@/lib/api/platform';
 
 interface Extension {
   id: string;
@@ -48,14 +48,14 @@ export default function MarketplacePage() {
   useEffect(() => {
     async function load() {
       try {
-        const [ext, cat, st] = await Promise.all([
-          apiFetch<Extension[]>('/api/v1/marketplace/extensions'),
-          apiFetch<Category[]>('/api/v1/marketplace/categories'),
-          apiFetch<MarketplaceStats>('/api/v1/marketplace/stats'),
+        const [extRes, catRes, stRes] = await Promise.all([
+          getMarketplaceExtensions(),
+          getMarketplaceCategories(),
+          getMarketplaceStats(),
         ]);
-        setExtensions(ext ?? []);
-        setCategories(cat ?? []);
-        setStats(st ?? null);
+        setExtensions((extRes.data ?? []) as Extension[]);
+        setCategories((catRes.data ?? []) as Category[]);
+        setStats((stRes.data ?? null) as MarketplaceStats | null);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load marketplace data');
       }

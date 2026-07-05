@@ -58,7 +58,7 @@ const releases = [
     latest: false,
     changes: [
       'Enterprise landing and pricing pages',
-      '40 dashboard pages covering all analysis domains',
+      '45+ dashboard pages covering all analysis domains',
       '138 fully-typed REST API endpoints',
       'Real-time analysis progress with WebSocket streaming',
       'Custom dashboard builder with drag-and-drop widgets',

@@ -156,6 +156,18 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
+      // Compute actual record count from analysis state
+      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+      const findingsCount = cache?.findings.length ?? 0;
+      const opportunitiesCount = cache?.opportunities.length ?? 0;
+      const recordCount = scope === 'all'
+        ? findingsCount + opportunitiesCount + 1 /* health */
+        : scope === 'health'
+          ? 1
+          : scope === 'findings'
+            ? findingsCount
+            : opportunitiesCount;
+
       const exportId = `exp_${generateId().slice(0, 8)}`;
       const record: ExportRecord = {
         export_id: exportId,
@@ -163,7 +175,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         scope,
         status: 'completed',
         download_url: `/api/v1/export/${exportId}/download`,
-        record_count: scope === 'all' ? 6 : scope === 'health' ? 1 : 3,
+        record_count: recordCount,
         generated_at: nowISO(),
         filters: filters as Record<string, string> | undefined,
       };

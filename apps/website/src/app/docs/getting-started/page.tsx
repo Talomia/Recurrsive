@@ -32,7 +32,7 @@ const PREREQUISITES = [
 ];
 
 const NEXT_LINKS = [
-  { icon: Code2, title: 'API Reference', desc: 'Explore 150 REST endpoints', href: '/docs/api-reference' },
+  { icon: Code2, title: 'API Reference', desc: 'Explore 160+ REST endpoints', href: '/docs/api-reference' },
   { icon: Terminal, title: 'CLI Reference', desc: 'Master 25 CLI commands', href: '/docs/cli-reference' },
   { icon: Puzzle, title: 'Plugin SDK', desc: 'Build custom analyzers', href: '/docs/plugin-sdk' },
   { icon: Server, title: 'Deployment Guide', desc: 'Production setup', href: '/docs/deployment' },

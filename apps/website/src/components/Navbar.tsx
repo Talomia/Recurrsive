@@ -45,7 +45,7 @@ const NAV_ITEMS = [
     href: '/docs',
     items: [
       { label: 'Getting Started', href: '/docs/getting-started', icon: Rocket, desc: '5-minute quickstart guide' },
-      { label: 'API Reference', href: '/docs/api-reference', icon: Code, desc: '150 REST endpoints' },
+      { label: 'API Reference', href: '/docs/api-reference', icon: Code, desc: '160+ REST endpoints' },
       { label: 'CLI Reference', href: '/docs/cli-reference', icon: Terminal, desc: '25 CLI commands' },
       { label: 'Plugin SDK', href: '/docs/plugin-sdk', icon: Store, desc: 'Build custom extensions' },
       { label: 'All Documentation', href: '/docs', icon: BookOpen, desc: 'Guides, API & architecture' },

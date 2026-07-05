@@ -150,6 +150,24 @@ Replaced hardcoded demo user array with a persistent, store-backed user manageme
 
 **Tests:** 10 new tests (5 invites, 3 password change, 2 admin password reset)
 
+#### Data Accuracy & Dashboard Cleanup
+
+**Server Fixes:**
+- **Export `record_count`**: Now computed from actual findings/opportunities counts instead of hardcoded `6`/`3`/`1`
+- **Analytics `analysis_runs`**: Now uses `history.length` instead of hardcoded `1`
+- **Cloud platform version**: Now reads from `package.json` instead of hardcoded `'0.4.0'`
+
+**Dashboard Fixes:**
+- **Confidence page**: Removed fake fallback data (FALLBACK_BRIER, FALLBACK_BUCKETS, etc.) — now shows proper empty state when no confidence data exists
+- **Insights page**: Removed fabricated fallback insights — shows "No Insights Available" empty state
+- **Marketplace page**: Uses typed API module (`getMarketplaceExtensions()` etc.) instead of direct `apiFetch` calls
+- **Partners page**: Uses typed API module (`getPartners()` etc.) instead of direct `apiFetch` calls
+
+**Documentation:**
+- **API.md**: Added Setup, User Management, Team Invites, and Password Management endpoint docs
+- **GETTING_STARTED.md**: Added setup wizard flow, team invite instructions, and first-time setup guide
+- Updated endpoint count from 150 to 160+ across all docs
+
 ---
 
 ## [0.5.6] - 2026-07-04

@@ -192,10 +192,13 @@ node apps/server/dist/bin.js
 
 ### Key API Endpoints
 
-The server exposes 150 REST endpoints. Key ones include:
+The server exposes 160+ REST endpoints. Key ones include:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET` | `/api/v1/setup/status` | Check if initial setup is required |
+| `POST` | `/api/v1/setup` | Create first admin account |
+| `POST` | `/api/v1/auth/login` | Login with credentials |
 | `POST` | `/api/v1/analyze` | Trigger analysis |
 | `GET` | `/api/v1/health-score` | Health + maturity scores |
 | `GET` | `/api/v1/opportunities` | Prioritized opportunities |
@@ -204,7 +207,7 @@ The server exposes 150 REST endpoints. Key ones include:
 | `GET` | `/api/docs` | Swagger UI (interactive API docs) |
 | `GET` | `/api/v1/openapi.json` | OpenAPI 3.1 specification |
 
-## Step 7: Launch the Dashboard (Optional)
+## Step 7: Launch the Dashboard
 
 ```bash
 cd apps/dashboard
@@ -212,11 +215,32 @@ pnpm dev
 # Opens at http://localhost:3100
 ```
 
-The dashboard provides 40 pages including:
+### First-Time Setup
+
+On a fresh install, the dashboard automatically redirects to the **setup wizard**:
+
+1. Visit `http://localhost:3100`
+2. You are redirected to `/setup` (no users exist yet)
+3. Create the first admin account (username, email, password)
+4. You are automatically logged in
+
+### Inviting Team Members
+
+After setup, admins can invite team members:
+
+1. Go to **Administration → Invites** in the sidebar
+2. Click **Invite Member**, enter their email and role
+3. Copy the invite link and share it
+4. The invitee visits the link, sets a username/password, and joins the team
+
+### Dashboard Features
+
+The dashboard provides 45+ pages including:
 - Health score gauge and trend charts
 - Opportunity browser with filtering
 - Knowledge graph visualization
 - Report generation and export
+- User management and team invites
 - System configuration
 
 ## Step 7.5: Launch the Marketing Website (Optional)

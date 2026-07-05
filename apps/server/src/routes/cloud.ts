@@ -15,9 +15,13 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { createRequire } from 'node:module';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
 import { store } from '../store.js';
+
+const require = createRequire(import.meta.url);
+const PKG_VERSION: string = (require('../../package.json') as { version: string }).version;
 
 // ---------------------------------------------------------------------------
 // Types — Benchmarking
@@ -197,7 +201,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({
       data: {
         platform: 'Recurrsive Cloud',
-        version: '0.4.0',
+        version: PKG_VERSION,
         status: 'preview',
         regions: ['us-east-1', 'eu-west-1', 'ap-southeast-1'],
         features: {
