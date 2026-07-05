@@ -47,6 +47,13 @@
           "replicas": 1,
           "zeroDowntime": true
         },
+        "mounts": [
+          {
+            "type": "volume",
+            "name": "server-data",
+            "mountPath": "/app/data"
+          }
+        ],
         "domains": [
           {
             "host": "recurrsive-server.easypanel.host",
