@@ -5,9 +5,10 @@
  * workflows, and deployments from a GitHub repository and produces
  * entities and relationships for the knowledge graph.
  *
- * Since this collector is not yet connected to real API calls, it
- * generates synthetic data that mirrors the shape of real GitHub API
- * responses for development and testing purposes.
+ * Uses native `fetch` to call GitHub API v3. Reads authentication
+ * token from `config.custom.github_token` or `process.env.GITHUB_TOKEN`.
+ * Falls back gracefully to empty results when no token or API is
+ * unavailable.
  *
  * Produces entities:
  * - `workflow` — CI/CD workflow definitions
@@ -41,11 +42,80 @@ import { GovernanceFilter } from '../base/governance.js';
 const logger = createLogger({ context: { module: 'github-collector' } });
 
 // ---------------------------------------------------------------------------
-// Internal Types
+// Internal Types — shapes of GitHub API v3 responses (partial)
 // ---------------------------------------------------------------------------
 
-/** Synthetic pull request data. */
-interface MockPR {
+/** Subset of a GitHub pull request API response. */
+interface GitHubPR {
+  number: number;
+  title: string;
+  user: { login: string } | null;
+  requested_reviewers: Array<{ login: string }>;
+  state: string;
+  merged_at: string | null;
+  labels: Array<{ name: string }>;
+}
+
+/** Subset of a GitHub workflow API response. */
+interface GitHubWorkflow {
+  id: number;
+  name: string;
+  path: string;
+  state: string;
+}
+
+/** Subset of a GitHub workflow run API response. */
+interface GitHubWorkflowRun {
+  id: number;
+  name: string;
+  workflow_id: number;
+  status: string;
+  conclusion: string | null;
+  run_number: number;
+  jobs_url: string;
+}
+
+/** Subset of a GitHub workflow job API response. */
+interface GitHubJob {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  runner_name: string;
+  steps: Array<{ name: string; status: string; conclusion: string | null }>;
+}
+
+/** Subset of a GitHub deployment API response. */
+interface GitHubDeployment {
+  id: number;
+  environment: string;
+  sha: string;
+  creator: { login: string } | null;
+  description: string | null;
+  created_at: string;
+}
+
+/** Subset of a GitHub contributor API response. */
+interface GitHubContributor {
+  login: string;
+  contributions: number;
+  type: string;
+}
+
+/** Subset of a GitHub team API response. */
+interface GitHubTeam {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  members_url: string;
+}
+
+// ---------------------------------------------------------------------------
+// Collected data containers
+// ---------------------------------------------------------------------------
+
+interface CollectedPR {
   number: number;
   title: string;
   author: string;
@@ -54,62 +124,18 @@ interface MockPR {
   labels: string[];
 }
 
-/** Synthetic workflow data. */
-interface MockWorkflow {
+interface CollectedWorkflow {
   name: string;
   trigger: string;
   jobs: Array<{ name: string; runsOn: string; steps: string[] }>;
 }
 
-/** Synthetic deployment data. */
-interface MockDeployment {
+interface CollectedDeployment {
   environment: string;
   sha: string;
   creator: string;
   status: 'success' | 'failure' | 'pending';
 }
-
-// ---------------------------------------------------------------------------
-// Synthetic Data
-// ---------------------------------------------------------------------------
-
-const MOCK_USERS = ['alice', 'bob', 'carol', 'dave', 'eve'];
-
-const MOCK_TEAMS = [
-  { name: 'platform-team', members: ['alice', 'bob'] },
-  { name: 'frontend-team', members: ['carol', 'dave'] },
-  { name: 'sre-team', members: ['eve', 'alice'] },
-];
-
-const MOCK_PRS: MockPR[] = [
-  { number: 101, title: 'feat: add user auth', author: 'alice', reviewers: ['bob', 'carol'], state: 'merged', labels: ['feature'] },
-  { number: 102, title: 'fix: resolve race condition', author: 'bob', reviewers: ['alice'], state: 'merged', labels: ['bugfix'] },
-  { number: 103, title: 'chore: upgrade dependencies', author: 'carol', reviewers: ['dave'], state: 'open', labels: ['chore'] },
-];
-
-const MOCK_WORKFLOWS: MockWorkflow[] = [
-  {
-    name: 'CI Pipeline',
-    trigger: 'push',
-    jobs: [
-      { name: 'lint', runsOn: 'ubuntu-latest', steps: ['Checkout', 'Install', 'Lint'] },
-      { name: 'test', runsOn: 'ubuntu-latest', steps: ['Checkout', 'Install', 'Test'] },
-      { name: 'build', runsOn: 'ubuntu-latest', steps: ['Checkout', 'Install', 'Build'] },
-    ],
-  },
-  {
-    name: 'Deploy Production',
-    trigger: 'release',
-    jobs: [
-      { name: 'deploy', runsOn: 'ubuntu-latest', steps: ['Checkout', 'Configure AWS', 'Deploy'] },
-    ],
-  },
-];
-
-const MOCK_DEPLOYMENTS: MockDeployment[] = [
-  { environment: 'production', sha: 'abc1234', creator: 'alice', status: 'success' },
-  { environment: 'staging', sha: 'def5678', creator: 'bob', status: 'success' },
-];
 
 // ---------------------------------------------------------------------------
 // GitHubCollector
@@ -120,10 +146,10 @@ const MOCK_DEPLOYMENTS: MockDeployment[] = [
  * deployment data from a GitHub repository.
  *
  * Lifecycle:
- * 1. {@link initialize} — configure governance rules and repo URL.
+ * 1. {@link initialize} — configure governance rules, repo URL, and API token.
  * 2. {@link validate} — verify the repo URL is well-formed.
- * 3. {@link collect} — generate entities & relationships from
- *    synthetic GitHub data.
+ * 3. {@link collect} — fetch real data from GitHub API and generate
+ *    entities & relationships.
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -131,7 +157,7 @@ const MOCK_DEPLOYMENTS: MockDeployment[] = [
  * const collector = new GitHubCollector('https://github.com/org/repo');
  * await collector.initialize({
  *   governance: { masked_fields: [], excluded_patterns: [], pii_detection: true, audit_log: false, retention_days: 90 },
- *   custom: {},
+ *   custom: { github_token: 'ghp_...' },
  * });
  * const result = await collector.collect();
  * console.log(`Found ${result.entities.length} entities`);
@@ -155,6 +181,12 @@ export class GitHubCollector implements Collector {
   private governanceFilter!: GovernanceFilter;
   /** Whether this collector has been initialized. */
   private initialized = false;
+  /** GitHub API token. */
+  private token: string | undefined;
+  /** GitHub owner (org or user). */
+  private owner = '';
+  /** GitHub repository name. */
+  private repo = '';
 
   /**
    * @param repoUrl - GitHub repository URL (e.g. `https://github.com/org/repo`).
@@ -179,8 +211,28 @@ export class GitHubCollector implements Collector {
       this.repoUrl = config.custom['repoUrl'];
     }
 
+    // Resolve token
+    this.token =
+      (typeof config.custom['github_token'] === 'string' ? config.custom['github_token'] : undefined) ||
+      process.env['GITHUB_TOKEN'] ||
+      undefined;
+
+    // Resolve owner/repo
+    const ownerFromConfig = typeof config.custom['github_owner'] === 'string' ? config.custom['github_owner'] : undefined;
+    const repoFromConfig = typeof config.custom['github_repo'] === 'string' ? config.custom['github_repo'] : undefined;
+
+    if (ownerFromConfig && repoFromConfig) {
+      this.owner = ownerFromConfig;
+      this.repo = repoFromConfig;
+    } else {
+      // Auto-detect from repoUrl
+      const parsed = this.parseOwnerRepo(this.repoUrl);
+      this.owner = parsed.owner;
+      this.repo = parsed.repo;
+    }
+
     this.initialized = true;
-    logger.info('GitHubCollector initialized', { repoUrl: this.repoUrl });
+    logger.info('GitHubCollector initialized', { repoUrl: this.repoUrl, owner: this.owner, repo: this.repo, hasToken: !!this.token });
   }
 
   /**
@@ -225,9 +277,18 @@ export class GitHubCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build entities and relationships from synthetic data
-    const entities = this.buildEntities();
-    const relationships = this.buildRelationships(entities);
+    // Fetch data from GitHub API (or empty arrays on failure)
+    const users = await this.fetchContributors(errors);
+    const teams = await this.fetchTeams(errors);
+    const prs = await this.fetchPullRequests(errors);
+    const workflows = await this.fetchWorkflows(errors);
+    const deployments = await this.fetchDeployments(errors);
+
+    const itemsProcessed = users.length + prs.length + workflows.length + deployments.length;
+
+    // Build entities and relationships from fetched data
+    const entities = this.buildEntities(users, teams, workflows, deployments);
+    const relationships = this.buildRelationships(entities, prs, workflows);
 
     // Apply governance masking
     const maskedEntities = entities.map((e) => this.governanceFilter.maskEntity(e));
@@ -247,7 +308,7 @@ export class GitHubCollector implements Collector {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed: MOCK_PRS.length + MOCK_WORKFLOWS.length + MOCK_DEPLOYMENTS.length,
+        items_processed: itemsProcessed,
         errors,
       },
     };
@@ -259,6 +320,272 @@ export class GitHubCollector implements Collector {
   async dispose(): Promise<void> {
     this.initialized = false;
     logger.info('GitHubCollector disposed', { repoUrl: this.repoUrl });
+  }
+
+  // -----------------------------------------------------------------------
+  // Internal: GitHub API Fetching
+  // -----------------------------------------------------------------------
+
+  /**
+   * Parse owner/repo from a GitHub URL.
+   */
+  private parseOwnerRepo(url: string): { owner: string; repo: string } {
+    try {
+      const parsed = new URL(url);
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      return {
+        owner: parts[0] || 'unknown',
+        repo: (parts[1] || 'repo').replace(/\.git$/, ''),
+      };
+    } catch {
+      return { owner: 'unknown', repo: 'repo' };
+    }
+  }
+
+  /**
+   * Make a paginated GET request to the GitHub API.
+   * Returns up to `maxItems` results across pages.
+   * Checks `X-RateLimit-Remaining` and aborts if exhausted.
+   */
+  private async fetchPaginated<T>(
+    path: string,
+    errors: Array<{ message: string; details?: unknown }>,
+    maxItems = 100,
+  ): Promise<T[]> {
+    if (!this.token) {
+      logger.warn('No GitHub token configured, skipping API call', { path });
+      errors.push({ message: `No GitHub token configured, skipping: ${path}` });
+      return [];
+    }
+
+    const results: T[] = [];
+    let url: string | null = `https://api.github.com${path}`;
+
+    // Add per_page param if not already present
+    if (!url.includes('per_page')) {
+      url += (url.includes('?') ? '&' : '?') + 'per_page=30';
+    }
+
+    try {
+      while (url && results.length < maxItems) {
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        });
+
+        // Check rate limit
+        const remaining = response.headers.get('X-RateLimit-Remaining');
+        if (remaining !== null && parseInt(remaining, 10) <= 0) {
+          const resetTime = response.headers.get('X-RateLimit-Reset');
+          const msg = `GitHub API rate limit exhausted. Resets at ${resetTime}`;
+          logger.warn(msg);
+          errors.push({ message: msg });
+          break;
+        }
+
+        if (!response.ok) {
+          const msg = `GitHub API error: ${response.status} ${response.statusText} for ${url}`;
+          logger.warn(msg);
+          errors.push({ message: msg, details: { status: response.status } });
+          break;
+        }
+
+        const data = (await response.json()) as T[] | Record<string, unknown>;
+
+        // Some endpoints return { items: [...] } or { workflows: [...] } etc.
+        const items = Array.isArray(data) ? data : [];
+        results.push(...items);
+
+        // Check Link header for next page
+        url = this.parseNextLink(response.headers.get('Link'));
+      }
+    } catch (err) {
+      const msg = `GitHub API fetch failed for ${path}: ${err instanceof Error ? err.message : String(err)}`;
+      logger.warn(msg);
+      errors.push({ message: msg });
+    }
+
+    return results.slice(0, maxItems);
+  }
+
+  /**
+   * Make a single (non-paginated) GET request to the GitHub API.
+   * Used for endpoints that return an object, not an array.
+   */
+  private async fetchSingle<T>(
+    path: string,
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<T | null> {
+    if (!this.token) {
+      logger.warn('No GitHub token configured, skipping API call', { path });
+      errors.push({ message: `No GitHub token configured, skipping: ${path}` });
+      return null;
+    }
+
+    try {
+      const url = `https://api.github.com${path}`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
+
+      // Check rate limit
+      const remaining = response.headers.get('X-RateLimit-Remaining');
+      if (remaining !== null && parseInt(remaining, 10) <= 0) {
+        const resetTime = response.headers.get('X-RateLimit-Reset');
+        errors.push({ message: `GitHub API rate limit exhausted. Resets at ${resetTime}` });
+        return null;
+      }
+
+      if (!response.ok) {
+        errors.push({ message: `GitHub API error: ${response.status} ${response.statusText} for ${url}`, details: { status: response.status } });
+        return null;
+      }
+
+      return (await response.json()) as T;
+    } catch (err) {
+      errors.push({ message: `GitHub API fetch failed for ${path}: ${err instanceof Error ? err.message : String(err)}` });
+      return null;
+    }
+  }
+
+  /**
+   * Parse the `Link` header to find the URL for the next page.
+   */
+  private parseNextLink(linkHeader: string | null): string | null {
+    if (!linkHeader) return null;
+    const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+    return match ? match[1]! : null;
+  }
+
+  /**
+   * Fetch contributors from the GitHub API.
+   */
+  private async fetchContributors(errors: Array<{ message: string; details?: unknown }>): Promise<string[]> {
+    const contributors = await this.fetchPaginated<GitHubContributor>(
+      `/repos/${this.owner}/${this.repo}/contributors`,
+      errors,
+      100,
+    );
+    return contributors.map((c) => c.login);
+  }
+
+  /**
+   * Fetch teams from the GitHub API.
+   * Requires admin access; gracefully returns empty on 403/404.
+   */
+  private async fetchTeams(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<Array<{ name: string; members: string[] }>> {
+    const teams = await this.fetchPaginated<GitHubTeam>(
+      `/repos/${this.owner}/${this.repo}/teams`,
+      errors,
+      100,
+    );
+    // We can't easily fetch team members without org admin, so return team names with empty members
+    return teams.map((t) => ({ name: t.slug, members: [] }));
+  }
+
+  /**
+   * Fetch pull requests from the GitHub API.
+   */
+  private async fetchPullRequests(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<CollectedPR[]> {
+    const rawPRs = await this.fetchPaginated<GitHubPR>(
+      `/repos/${this.owner}/${this.repo}/pulls?state=all&per_page=30`,
+      errors,
+      100,
+    );
+    return rawPRs.map((pr) => ({
+      number: pr.number,
+      title: pr.title,
+      author: pr.user?.login || 'unknown',
+      reviewers: (pr.requested_reviewers || []).map((r) => r.login),
+      state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
+      labels: (pr.labels || []).map((l) => l.name),
+    }));
+  }
+
+  /**
+   * Fetch workflows and their recent runs from the GitHub API.
+   */
+  private async fetchWorkflows(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<CollectedWorkflow[]> {
+    // Fetch workflows list — this returns { total_count, workflows: [...] }
+    const workflowsResponse = await this.fetchSingle<{ total_count: number; workflows: GitHubWorkflow[] }>(
+      `/repos/${this.owner}/${this.repo}/actions/workflows`,
+      errors,
+    );
+
+    if (!workflowsResponse || !workflowsResponse.workflows) return [];
+
+    const collectedWorkflows: CollectedWorkflow[] = [];
+
+    for (const wf of workflowsResponse.workflows.slice(0, 10)) {
+      // Fetch the most recent run for this workflow to get job info
+      const runsResponse = await this.fetchSingle<{ total_count: number; workflow_runs: GitHubWorkflowRun[] }>(
+        `/repos/${this.owner}/${this.repo}/actions/workflows/${wf.id}/runs?per_page=1`,
+        errors,
+      );
+
+      const jobs: Array<{ name: string; runsOn: string; steps: string[] }> = [];
+
+      if (runsResponse?.workflow_runs?.[0]) {
+        // Fetch jobs for the most recent run
+        const jobsResponse = await this.fetchSingle<{ total_count: number; jobs: GitHubJob[] }>(
+          `/repos/${this.owner}/${this.repo}/actions/runs/${runsResponse.workflow_runs[0].id}/jobs`,
+          errors,
+        );
+
+        if (jobsResponse?.jobs) {
+          for (const job of jobsResponse.jobs) {
+            jobs.push({
+              name: job.name,
+              runsOn: job.runner_name || 'unknown',
+              steps: (job.steps || []).map((s) => s.name),
+            });
+          }
+        }
+      }
+
+      // Derive trigger from path (e.g. .github/workflows/ci.yml)
+      const trigger = wf.path ? 'push' : 'unknown';
+
+      collectedWorkflows.push({
+        name: wf.name,
+        trigger,
+        jobs,
+      });
+    }
+
+    return collectedWorkflows;
+  }
+
+  /**
+   * Fetch deployments from the GitHub API.
+   */
+  private async fetchDeployments(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<CollectedDeployment[]> {
+    const rawDeployments = await this.fetchPaginated<GitHubDeployment>(
+      `/repos/${this.owner}/${this.repo}/deployments`,
+      errors,
+      100,
+    );
+    return rawDeployments.map((d) => ({
+      environment: d.environment || 'unknown',
+      sha: d.sha?.substring(0, 7) || 'unknown',
+      creator: d.creator?.login || 'unknown',
+      status: 'success' as const, // Deployment status requires a separate API call to /statuses
+    }));
   }
 
   // -----------------------------------------------------------------------
@@ -329,11 +656,11 @@ export class GitHubCollector implements Collector {
   // -----------------------------------------------------------------------
 
   /**
-   * Build knowledge graph entities from synthetic GitHub data.
+   * Build knowledge graph entities from GitHub data.
    *
    * Creates:
-   * - `user` entities for each mock user
-   * - `team` entities for each mock team
+   * - `user` entities for each contributor
+   * - `team` entities for each team
    * - `workflow` entities for each CI workflow
    * - `job` entities for each job within workflows
    * - `step` entities for each step within jobs
@@ -342,11 +669,16 @@ export class GitHubCollector implements Collector {
    *
    * @returns Array of entities.
    */
-  private buildEntities(): Entity[] {
+  private buildEntities(
+    users: string[],
+    teams: Array<{ name: string; members: string[] }>,
+    workflows: CollectedWorkflow[],
+    deployments: CollectedDeployment[],
+  ): Entity[] {
     const entities: Entity[] = [];
 
     // --- User entities ---
-    for (const username of MOCK_USERS) {
+    for (const username of users) {
       entities.push(
         this.makeEntity('user', username, {
           username,
@@ -357,7 +689,7 @@ export class GitHubCollector implements Collector {
     }
 
     // --- Team entities ---
-    for (const team of MOCK_TEAMS) {
+    for (const team of teams) {
       entities.push(
         this.makeEntity('team', team.name, {
           members: team.members,
@@ -368,7 +700,7 @@ export class GitHubCollector implements Collector {
     }
 
     // --- Workflow entities (with jobs and steps) ---
-    for (const wf of MOCK_WORKFLOWS) {
+    for (const wf of workflows) {
       entities.push(
         this.makeEntity('workflow', wf.name, {
           trigger: wf.trigger,
@@ -400,17 +732,19 @@ export class GitHubCollector implements Collector {
       }
     }
 
-    // --- Pipeline entity ---
-    entities.push(
-      this.makeEntity('pipeline', 'release-pipeline', {
-        stages: ['build', 'test', 'deploy'],
-        platform: 'github',
-        repo_url: this.repoUrl,
-      }, ['release']),
-    );
+    // --- Pipeline entity (only if we have workflows or deployments) ---
+    if (workflows.length > 0 || deployments.length > 0) {
+      entities.push(
+        this.makeEntity('pipeline', 'release-pipeline', {
+          stages: ['build', 'test', 'deploy'],
+          platform: 'github',
+          repo_url: this.repoUrl,
+        }, ['release']),
+      );
+    }
 
     // --- Deployment entities ---
-    for (const deploy of MOCK_DEPLOYMENTS) {
+    for (const deploy of deployments) {
       entities.push(
         this.makeEntity('deployment', `deploy-${deploy.environment}`, {
           environment: deploy.environment,
@@ -440,12 +774,18 @@ export class GitHubCollector implements Collector {
    * - `depends_on` — job → job (test depends on lint, build depends on test)
    *
    * @param entities - All entities built from this collection.
+   * @param prs - Collected pull requests for review relationships.
+   * @param workflows - Collected workflows for dependency relationships.
    * @returns Array of relationships.
    */
-  private buildRelationships(entities: Entity[]): Relationship[] {
+  private buildRelationships(
+    entities: Entity[],
+    prs: CollectedPR[],
+    workflows: CollectedWorkflow[],
+  ): Relationship[] {
     const relationships: Relationship[] = [];
 
-    const workflows = entities.filter((e) => e.type === 'workflow');
+    const workflowEntities = entities.filter((e) => e.type === 'workflow');
     const jobs = entities.filter((e) => e.type === 'job');
     const teams = entities.filter((e) => e.type === 'team');
     const deployments = entities.filter((e) => e.type === 'deployment');
@@ -453,7 +793,7 @@ export class GitHubCollector implements Collector {
     const users = entities.filter((e) => e.type === 'user');
 
     // Workflow → Job (triggers)
-    for (const wf of workflows) {
+    for (const wf of workflowEntities) {
       const wfName = wf.name;
       const wfJobs = jobs.filter(
         (j) => j.properties['workflow_name'] === wfName,
@@ -466,7 +806,7 @@ export class GitHubCollector implements Collector {
     }
 
     // User reviews (reviewer → author mapping from PRs)
-    for (const pr of MOCK_PRS) {
+    for (const pr of prs) {
       const authorEntity = users.find((u) => u.name === pr.author);
       if (!authorEntity) continue;
       for (const reviewer of pr.reviewers) {
@@ -481,10 +821,10 @@ export class GitHubCollector implements Collector {
     }
 
     // Team → Workflow (owns)
-    if (teams.length > 0 && workflows.length > 0) {
+    if (teams.length > 0 && workflowEntities.length > 0) {
       // First team owns first workflow, etc.
-      for (let i = 0; i < workflows.length && i < teams.length; i++) {
-        relationships.push(this.makeRel('owns', teams[i]!.id, workflows[i]!.id));
+      for (let i = 0; i < workflowEntities.length && i < teams.length; i++) {
+        relationships.push(this.makeRel('owns', teams[i]!.id, workflowEntities[i]!.id));
       }
     }
 
@@ -498,7 +838,7 @@ export class GitHubCollector implements Collector {
     }
 
     // Job → Job (depends_on) — test depends on lint within same workflow
-    for (const wf of MOCK_WORKFLOWS) {
+    for (const wf of workflows) {
       const wfJobs = jobs.filter(
         (j) => j.properties['workflow_name'] === wf.name,
       );

@@ -129,6 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       localStorage.setItem(TOKEN_KEY, newToken);
+      // Also set as cookie for Next.js middleware (server-side auth)
+      document.cookie = `${TOKEN_KEY}=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
       setToken(newToken);
       setUser(parsed);
       setLoading(false);
@@ -142,6 +144,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
+    // Clear the auth cookie
+    document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
     setToken(null);
     setUser(null);
     setError(null);

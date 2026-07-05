@@ -11,7 +11,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 /** Demo users for the login form helper. */
 const DEMO_USERS = [
@@ -23,6 +23,8 @@ const DEMO_USERS = [
 export default function LoginPage() {
   const { login, loading, error } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') ?? '/';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -30,7 +32,7 @@ export default function LoginPage() {
     e.preventDefault();
     const success = await login(username, password);
     if (success) {
-      router.push('/');
+      router.push(redirectTo);
     }
   }
 
@@ -39,7 +41,7 @@ export default function LoginPage() {
     setPassword(pass);
     const success = await login(user, pass);
     if (success) {
-      router.push('/');
+      router.push(redirectTo);
     }
   }
 

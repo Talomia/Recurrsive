@@ -5,6 +5,7 @@ import { Globe, Bell, Shield, Palette, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getSettingsSections } from '@/lib/api';
 import type { SettingsSection, SettingsField } from '@/lib/api';
+import { apiFetch } from '@/lib/api/client';
 
 // ---------------------------------------------------------------------------
 // Icon map — resolve icon name strings from the API to Lucide components
@@ -99,15 +100,28 @@ export default function SettingsPage() {
     setSaved(false);
   }, []);
 
-  const handleSave = useCallback(() => {
-    // In production, this would POST to the API.
-    // For now, persist to localStorage.
+  const handleSave = useCallback(async () => {
     try {
+      // Persist to server
+      await apiFetch('/api/v1/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+        unwrap: false,
+      });
+      // Also persist to localStorage as fallback
       localStorage.setItem('recurrsive-settings', JSON.stringify(values));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
-      // localStorage unavailable (e.g. SSR) — no-op
+      // Fall back to localStorage-only persistence
+      try {
+        localStorage.setItem('recurrsive-settings', JSON.stringify(values));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } catch {
+        // localStorage unavailable — no-op
+      }
     }
   }, [values]);
 

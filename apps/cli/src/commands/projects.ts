@@ -10,6 +10,7 @@
  */
 
 import type { Command } from 'commander';
+import { apiRequest } from '../config.js';
 import {
   header,
   info,
@@ -25,7 +26,7 @@ import {
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// Types
 // ---------------------------------------------------------------------------
 
 interface ProjectSummary {
@@ -52,49 +53,6 @@ interface HealthComparison {
   security: number;
   performance: number;
   trend: 'improving' | 'declining' | 'stable';
-}
-
-function getMockProjects(): ProjectSummary[] {
-  return [
-    { id: 'proj-001', name: 'api-gateway', health: 92, status: 'active', language: 'TypeScript', lastAnalyzed: '2026-06-30' },
-    { id: 'proj-002', name: 'auth-service', health: 78, status: 'active', language: 'Go', lastAnalyzed: '2026-06-29' },
-    { id: 'proj-003', name: 'data-pipeline', health: 55, status: 'warning', language: 'Python', lastAnalyzed: '2026-06-28' },
-    { id: 'proj-004', name: 'web-frontend', health: 84, status: 'active', language: 'TypeScript', lastAnalyzed: '2026-06-30' },
-    { id: 'proj-005', name: 'ml-platform', health: 41, status: 'critical', language: 'Python', lastAnalyzed: '2026-06-25' },
-    { id: 'proj-006', name: 'infra-tools', health: 68, status: 'active', language: 'Rust', lastAnalyzed: '2026-06-27' },
-  ];
-}
-
-function getMockDetail(id: string): ProjectDetail {
-  const base = getMockProjects().find((p) => p.id === id) ?? getMockProjects()[0]!;
-  return {
-    ...base,
-    description: `Core ${base.name} service for the Recurrsive platform.`,
-    repoUrl: `https://github.com/recurrsive/${base.name}`,
-    framework: base.language === 'TypeScript' ? 'Node.js / Express' : base.language === 'Go' ? 'Gin' : 'FastAPI',
-    analyzers: [
-      { name: 'complexity', enabled: true },
-      { name: 'security', enabled: true },
-      { name: 'performance', enabled: base.health > 60 },
-      { name: 'documentation', enabled: base.health > 50 },
-    ],
-    collectors: [
-      { name: 'git-history', interval: '6h' },
-      { name: 'dependency-scan', interval: '24h' },
-      { name: 'test-coverage', interval: '12h' },
-    ],
-  };
-}
-
-function getMockComparisons(): HealthComparison[] {
-  return [
-    { project: 'api-gateway', health: 92, complexity: 88, security: 95, performance: 90, trend: 'improving' },
-    { project: 'auth-service', health: 78, complexity: 72, security: 85, performance: 74, trend: 'stable' },
-    { project: 'data-pipeline', health: 55, complexity: 48, security: 62, performance: 58, trend: 'declining' },
-    { project: 'web-frontend', health: 84, complexity: 80, security: 88, performance: 82, trend: 'improving' },
-    { project: 'ml-platform', health: 41, complexity: 35, security: 50, performance: 38, trend: 'declining' },
-    { project: 'infra-tools', health: 68, complexity: 65, security: 72, performance: 64, trend: 'stable' },
-  ];
 }
 
 function formatTrend(trend: string): string {
@@ -133,8 +91,14 @@ export function registerProjectsCommand(program: Command): void {
     .command('list')
     .description('List all projects with health scores')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockProjects();
+    .action(async (opts: { json?: boolean }) => {
+      let data: ProjectSummary[];
+      try {
+        data = await apiRequest('/api/v1/projects') as ProjectSummary[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));
@@ -162,8 +126,14 @@ export function registerProjectsCommand(program: Command): void {
     .command('show <id>')
     .description('Show project details')
     .option('--json', 'Output as JSON')
-    .action((id: string, opts: { json?: boolean }) => {
-      const detail = getMockDetail(id);
+    .action(async (id: string, opts: { json?: boolean }) => {
+      let detail: ProjectDetail;
+      try {
+        detail = await apiRequest(`/api/v1/projects/${id}`) as ProjectDetail;
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(detail, null, 2));
@@ -197,8 +167,14 @@ export function registerProjectsCommand(program: Command): void {
     .command('health-compare')
     .description('Side-by-side health comparison')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockComparisons();
+    .action(async (opts: { json?: boolean }) => {
+      let data: HealthComparison[];
+      try {
+        data = await apiRequest('/api/v1/projects/comparisons') as HealthComparison[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));

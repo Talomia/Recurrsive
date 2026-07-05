@@ -9,6 +9,15 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
+
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
   info: vi.fn(),
@@ -46,6 +55,9 @@ describe('secrets command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
+    mockApiRequest.mockResolvedValue([
+      { name: 'DB_PASSWORD', backend: 'vault', version: 3, lastRotated: '2026-01-01', status: 'current' },
+    ]);
   });
 
   it('registers the "secrets" command', () => {

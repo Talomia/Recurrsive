@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Header from "@/components/header";
-import { getExperiments } from "@/lib/api";
+import { getExperiments, createExperiment } from "@/lib/api";
 import type { DashboardExperiment } from "@/lib/api";
 import {
   FlaskConical,
@@ -298,10 +298,17 @@ function formatDuration(start: string, end: string): string {
 // Page
 // ---------------------------------------------------------------------------
 
+const EXPERIMENT_TYPES = ['A/B test', 'canary', 'feature-flag'] as const;
+
 export default function ExperimentsPage() {
   const [experiments, setExperiments] = useState<DashboardExperiment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newHypothesis, setNewHypothesis] = useState('');
+  const [newType, setNewType] = useState<string>(EXPERIMENT_TYPES[0]);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     getExperiments()
@@ -311,6 +318,32 @@ export default function ExperimentsPage() {
       )
       .finally(() => setLoading(false));
   }, []);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const variants = newType === 'A/B test'
+        ? [{ name: 'Control', config: {} }, { name: 'Treatment', config: {} }]
+        : [{ name: newType, config: {} }];
+      await createExperiment({
+        name: newName.trim(),
+        hypothesis: newHypothesis.trim() || undefined,
+        variants,
+      });
+      setShowCreate(false);
+      setNewName('');
+      setNewHypothesis('');
+      setNewType(EXPERIMENT_TYPES[0]);
+      const data = await getExperiments();
+      setExperiments(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create experiment');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const running = experiments.filter((e) => e.status === "running");
   const completed = experiments.filter((e) => e.status === "completed");
@@ -348,11 +381,74 @@ export default function ExperimentsPage() {
           title="Experiments"
           subtitle={`${experiments.length} experiments · ${running.length} running`}
         />
-        <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-accent-blue to-accent-purple text-white text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 hover:brightness-110">
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-accent-blue to-accent-purple text-white text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 hover:brightness-110"
+        >
           <Plus className="h-4 w-4" />
           New Experiment
         </button>
       </div>
+
+      {/* Create Experiment Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="glass-card w-full max-w-md p-6 space-y-4 mx-4">
+            <h2 className="text-lg font-semibold text-text-primary">New Experiment</h2>
+
+            <div>
+              <label className="block text-xs text-text-muted font-medium mb-1">Name *</label>
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Strict Import Rules"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-text-muted font-medium mb-1">Hypothesis</label>
+              <input
+                type="text"
+                value={newHypothesis}
+                onChange={(e) => setNewHypothesis(e.target.value)}
+                placeholder="What do you expect to happen?"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-text-muted font-medium mb-1">Type</label>
+              <select
+                value={newType}
+                onChange={(e) => setNewType(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                {EXPERIMENT_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => { setShowCreate(false); setError(null); }}
+                className="flex-1 rounded-lg border border-white/10 px-4 py-2 text-sm text-text-secondary hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={!newName.trim() || creating}
+                className="flex-1 rounded-lg bg-gradient-to-r from-accent-blue to-accent-purple px-4 py-2 text-sm font-medium text-white disabled:opacity-50 transition-all"
+              >
+                {creating ? 'Creating…' : 'Create Experiment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error state */}
       {error && (

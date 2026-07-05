@@ -10,6 +10,7 @@
  */
 
 import type { Command } from 'commander';
+import { apiRequest } from '../config.js';
 import {
   header,
   info,
@@ -60,55 +61,8 @@ interface ServiceStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// Helpers
 // ---------------------------------------------------------------------------
-
-function getMockBenchmarks(): BenchmarkEntry[] {
-  return [
-    { metric: 'Code Quality', yourScore: 82, industryAvg: 68, percentile: 78 },
-    { metric: 'Test Coverage', yourScore: 71, industryAvg: 62, percentile: 65 },
-    { metric: 'Deploy Frequency', yourScore: 88, industryAvg: 55, percentile: 91 },
-    { metric: 'MTTR', yourScore: 76, industryAvg: 60, percentile: 72 },
-    { metric: 'Security Score', yourScore: 90, industryAvg: 70, percentile: 85 },
-    { metric: 'Documentation', yourScore: 58, industryAvg: 45, percentile: 68 },
-  ];
-}
-
-function getMockPatterns(): PatternEntry[] {
-  return [
-    { name: 'Event-driven microservices', category: 'architecture', adoptionRate: 67, impact: 'High', source: '1,240 orgs' },
-    { name: 'Contract testing for APIs', category: 'testing', adoptionRate: 45, impact: 'High', source: '890 orgs' },
-    { name: 'Zero-trust service mesh', category: 'security', adoptionRate: 38, impact: 'Critical', source: '720 orgs' },
-    { name: 'Progressive delivery (canary)', category: 'devops', adoptionRate: 52, impact: 'Medium', source: '1,100 orgs' },
-    { name: 'Database query optimization', category: 'performance', adoptionRate: 71, impact: 'High', source: '1,500 orgs' },
-    { name: 'Feature flag lifecycle mgmt', category: 'devops', adoptionRate: 43, impact: 'Medium', source: '680 orgs' },
-    { name: 'Automated threat modeling', category: 'security', adoptionRate: 28, impact: 'High', source: '450 orgs' },
-    { name: 'Observability-driven development', category: 'performance', adoptionRate: 35, impact: 'Medium', source: '560 orgs' },
-  ];
-}
-
-function getMockPartners(): PartnerEntry[] {
-  return [
-    { name: 'CloudForge Solutions', tier: 'Platinum', specialty: 'Cloud Migration', region: 'North America', status: 'active' },
-    { name: 'SecureStack GmbH', tier: 'Platinum', specialty: 'Security Auditing', region: 'Europe', status: 'active' },
-    { name: 'DataFlow Analytics', tier: 'Gold', specialty: 'Data Engineering', region: 'North America', status: 'active' },
-    { name: 'DevOps Accelerate', tier: 'Gold', specialty: 'CI/CD Optimization', region: 'Asia-Pacific', status: 'active' },
-    { name: 'QualityFirst Labs', tier: 'Silver', specialty: 'Test Automation', region: 'Europe', status: 'active' },
-    { name: 'InfraScale Partners', tier: 'Silver', specialty: 'Infrastructure', region: 'South America', status: 'pending' },
-  ];
-}
-
-function getMockServiceStatus(): ServiceStatus[] {
-  return [
-    { service: 'Analysis Engine', status: 'operational', uptime: '99.98%', latency: '45ms', region: 'us-east-1' },
-    { service: 'Graph Database', status: 'operational', uptime: '99.95%', latency: '12ms', region: 'us-east-1' },
-    { service: 'API Gateway', status: 'operational', uptime: '99.99%', latency: '8ms', region: 'global' },
-    { service: 'Webhook Delivery', status: 'degraded', uptime: '99.82%', latency: '320ms', region: 'eu-west-1' },
-    { service: 'Dashboard', status: 'operational', uptime: '99.97%', latency: '65ms', region: 'global' },
-    { service: 'Plugin Registry', status: 'operational', uptime: '99.94%', latency: '38ms', region: 'us-west-2' },
-    { service: 'Snapshot Storage', status: 'operational', uptime: '99.99%', latency: '22ms', region: 'us-east-1' },
-  ];
-}
 
 function tierBadge(tier: string): string {
   switch (tier) {
@@ -157,8 +111,14 @@ export function registerCloudCommand(program: Command): void {
     .command('benchmarks')
     .description('Show industry benchmarks and percentiles')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockBenchmarks();
+    .action(async (opts: { json?: boolean }) => {
+      let data: BenchmarkEntry[];
+      try {
+        data = await apiRequest('/api/v1/cloud/benchmarks') as BenchmarkEntry[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));
@@ -187,8 +147,14 @@ export function registerCloudCommand(program: Command): void {
     .command('patterns')
     .description('View cross-organization learned patterns')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockPatterns();
+    .action(async (opts: { json?: boolean }) => {
+      let data: PatternEntry[];
+      try {
+        data = await apiRequest('/api/v1/cloud/patterns') as PatternEntry[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));
@@ -216,8 +182,14 @@ export function registerCloudCommand(program: Command): void {
     .command('partners')
     .description('View the partner directory')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockPartners();
+    .action(async (opts: { json?: boolean }) => {
+      let data: PartnerEntry[];
+      try {
+        data = await apiRequest('/api/v1/marketplace/partners') as PartnerEntry[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));
@@ -245,8 +217,14 @@ export function registerCloudCommand(program: Command): void {
     .command('status')
     .description('Show cloud platform status')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockServiceStatus();
+    .action(async (opts: { json?: boolean }) => {
+      let data: ServiceStatus[];
+      try {
+        data = await apiRequest('/api/v1/cloud/status') as ServiceStatus[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));

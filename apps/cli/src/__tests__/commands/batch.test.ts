@@ -9,8 +9,14 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
 
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
@@ -19,6 +25,7 @@ vi.mock('../../output/terminal.js', () => ({
   bold: (s: string) => s,
   cyan: (s: string) => s,
   green: (s: string) => s,
+  yellow: (s: string) => s,
   red: (s: string) => s,
   dim: (s: string) => s,
   table: vi.fn(),
@@ -37,15 +44,6 @@ function createCLI(): Command {
   return program;
 }
 
-function mockApiResponse(data: unknown, status = 200): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -58,7 +56,7 @@ describe('batch command', () => {
 
   describe('run', () => {
     it('sends projects to the batch API', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         batch_id: 'batch_001',
         status: 'pending',
         projects: [{ path: '/p1', status: 'pending' }],
@@ -68,19 +66,19 @@ describe('batch command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'run', '/p1']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/batch/analyze'),
         expect.objectContaining({ method: 'POST' }),
       );
     });
 
-    it('falls back gracefully when server is unreachable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'run', '/p1', '/p2']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('rejects more than 10 projects', async () => {
@@ -93,7 +91,12 @@ describe('batch command', () => {
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        batch_id: 'batch_002',
+        status: 'pending',
+        projects: [{ path: '/p1', status: 'pending' }],
+        created_at: new Date().toISOString(),
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
@@ -106,7 +109,7 @@ describe('batch command', () => {
 
   describe('status', () => {
     it('fetches batch status from server', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         batch_id: 'batch_001',
         status: 'complete',
         projects: [{ path: '/p1', status: 'complete', findings_count: 5, opportunities_count: 2 }],
@@ -116,25 +119,24 @@ describe('batch command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'status', 'batch_001']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/batch/status/batch_001'),
-        expect.any(Object),
       );
     });
 
-    it('falls back gracefully when server unavailable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'status', 'batch_xyz']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
   });
 
   describe('history', () => {
     it('fetches batch history from server', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         batches: [
           {
             batch_id: 'batch_001',
@@ -148,23 +150,31 @@ describe('batch command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'history']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/batch/history'),
-        expect.any(Object),
       );
     });
 
-    it('falls back to mock data when server unreachable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'history']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        batches: [
+          {
+            batch_id: 'batch_003',
+            status: 'complete',
+            projects: [],
+            created_at: new Date().toISOString(),
+          },
+        ],
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();

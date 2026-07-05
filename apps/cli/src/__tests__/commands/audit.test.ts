@@ -9,8 +9,14 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
 
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
@@ -19,10 +25,12 @@ vi.mock('../../output/terminal.js', () => ({
   bold: (s: string) => s,
   cyan: (s: string) => s,
   green: (s: string) => s,
+  yellow: (s: string) => s,
   red: (s: string) => s,
   dim: (s: string) => s,
   table: vi.fn(),
 }));
+
 
 import { registerAuditCommand } from '../../commands/audit.js';
 
@@ -37,15 +45,6 @@ function createCLI(): Command {
   return program;
 }
 
-function mockApiResponse(data: unknown, status = 200): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -58,7 +57,7 @@ describe('audit command', () => {
 
   describe('list', () => {
     it('fetches events from the audit API', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         events: [
           {
             id: 'evt_001',
@@ -73,23 +72,32 @@ describe('audit command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'audit', 'list']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/audit'),
-        expect.any(Object),
       );
     });
 
-    it('falls back on server error', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'audit', 'list']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        events: [
+          {
+            id: 'evt_001',
+            type: 'analysis',
+            action: 'started',
+            target: '/project',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
@@ -102,7 +110,17 @@ describe('audit command', () => {
 
   describe('search', () => {
     it('filters events by query', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        events: [
+          {
+            id: 'evt_010',
+            type: 'policy',
+            action: 'updated',
+            target: '/policy/security',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
 
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const program = createCLI();
@@ -118,7 +136,17 @@ describe('audit command', () => {
 
   describe('export', () => {
     it('outputs JSON export', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        events: [
+          {
+            id: 'evt_001',
+            type: 'analysis',
+            action: 'started',
+            target: '/project',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();

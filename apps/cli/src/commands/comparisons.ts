@@ -21,6 +21,7 @@ import {
   bold,
   cyan,
   green,
+  yellow,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
@@ -63,52 +64,6 @@ interface ComparisonDiff {
 // API helpers
 // ---------------------------------------------------------------------------
 
-
-
-// ---------------------------------------------------------------------------
-// Mock Data
-// ---------------------------------------------------------------------------
-
-/** Fallback mock analysis runs. */
-function getMockRuns(): AnalysisRun[] {
-  return [
-    { id: 'run_001', label: 'Run #1', date: '2026-06-20T08:00:00Z', health_score: 71, findings: 55, resolved: 18 },
-    { id: 'run_002', label: 'Run #2', date: '2026-06-23T10:30:00Z', health_score: 76, findings: 48, resolved: 22 },
-    { id: 'run_003', label: 'Run #3', date: '2026-06-25T14:15:00Z', health_score: 80, findings: 42, resolved: 28 },
-    { id: 'run_004', label: 'Run #4', date: '2026-06-28T09:00:00Z', health_score: 84, findings: 38, resolved: 31 },
-    { id: 'run_005', label: 'Run #5', date: '2026-06-30T10:00:00Z', health_score: 87, findings: 34, resolved: 29 },
-  ];
-}
-
-/** Fallback mock comparison diff. */
-function getMockDiff(baselineId: string, targetId: string): ComparisonDiff {
-  const runs = getMockRuns();
-  const baseline = runs.find(r => r.id === baselineId) ?? runs[0]!;
-  const target = runs.find(r => r.id === targetId) ?? runs[runs.length - 1]!;
-
-  const rateA = baseline.findings > 0 ? (baseline.resolved / baseline.findings) * 100 : 0;
-  const rateB = target.findings > 0 ? (target.resolved / target.findings) * 100 : 0;
-
-  return {
-    baseline,
-    target,
-    health_delta: target.health_score - baseline.health_score,
-    findings_delta: target.findings - baseline.findings,
-    resolution_rate_baseline: Math.round(rateA * 10) / 10,
-    resolution_rate_target: Math.round(rateB * 10) / 10,
-    resolution_rate_delta: Math.round((rateB - rateA) * 10) / 10,
-    new_findings: Math.max(0, target.findings - baseline.resolved),
-    findings_resolved: Math.max(0, baseline.findings - target.findings + target.resolved - baseline.resolved),
-    categories: [
-      { name: 'Security', baseline: 12, target: 5, delta: -7 },
-      { name: 'Performance', baseline: 16, target: 9, delta: -7 },
-      { name: 'Architecture', baseline: 10, target: 7, delta: -3 },
-      { name: 'Reliability', baseline: 9, target: 6, delta: -3 },
-      { name: 'Cost', baseline: 8, target: 7, delta: -1 },
-    ],
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Command Registration
 // ---------------------------------------------------------------------------
@@ -135,8 +90,8 @@ export function registerComparisonsCommand(program: Command): void {
           const data = await apiRequest('/api/v1/analysis/history') as { data: AnalysisRun[] };
           runs = data.data;
         } catch {
-          // Fallback to mock data
-          runs = getMockRuns();
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -182,8 +137,8 @@ export function registerComparisonsCommand(program: Command): void {
             `/api/v1/analysis/compare?baseline=${encodeURIComponent(run1)}&target=${encodeURIComponent(run2)}`,
           ) as ComparisonDiff;
         } catch {
-          // Fallback to mock data
-          diff = getMockDiff(run1, run2);
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {

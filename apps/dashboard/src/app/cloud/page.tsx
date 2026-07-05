@@ -43,9 +43,8 @@ export default function CloudPage() {
       setPatterns(p);
       setPartners(pr);
       setServices(s);
-      setLoading(false);
     }
-    load();
+    load().catch(() => { /* API unavailable */ }).finally(() => setLoading(false));
   }, []);
 
   const tabs = [

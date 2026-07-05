@@ -10,6 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { store } from '../store.js';
 
 /**
  * All 10 analyzer IDs in the platform.
@@ -52,10 +53,10 @@ const ALL_POLICY_SET_IDS = [
 ] as const;
 
 /**
- * In-memory config overrides applied via PATCH /api/v1/config.
+ * Config overrides applied via PATCH /api/v1/config.
  *
- * These are non-persistent — they live only for the lifetime of the
- * current server process.
+ * Stored persistently in SQLite via ServerStore under the key
+ * 'config_overrides' / 'default'.
  */
 interface ConfigOverrides {
   /** Override graph provider. */
@@ -74,7 +75,59 @@ interface ConfigOverrides {
   activePolicySets?: string[];
 }
 
-const overrides: ConfigOverrides = {};
+/**
+ * Settings overrides applied via PATCH /api/v1/config.
+ *
+ * Stored in ServerStore under key 'settings_overrides' / 'default'.
+ */
+interface SettingsOverrides {
+  /** Platform display name. */
+  platform_name?: string;
+  /** Auto-analyze on push. */
+  auto_analyze?: boolean;
+  /** Require multi-factor authentication. */
+  require_mfa?: boolean;
+  /** Session timeout in minutes. */
+  session_timeout?: number;
+  /** Enable email/push notifications. */
+  enable_notifications?: boolean;
+  /** Data retention period in days. */
+  data_retention_days?: number;
+  /** Max concurrent analysis jobs. */
+  max_concurrent?: number;
+  /** API rate limit (requests per minute). */
+  rate_limit?: number;
+  /** Enable AI reasoning. */
+  enable_reasoning?: boolean;
+  /** Max findings per report. */
+  max_findings?: number;
+  /** Email notifications enabled. */
+  email_notifications?: boolean;
+  /** Slack integration enabled. */
+  slack_enabled?: boolean;
+  /** Webhook URL for notifications. */
+  webhook_url?: string;
+}
+
+/** Load persisted config overrides (or empty object on first run). */
+function getOverrides(): ConfigOverrides {
+  return store.get<ConfigOverrides>('config_overrides', 'default') ?? {};
+}
+
+/** Persist config overrides. */
+function setOverrides(overrides: ConfigOverrides): void {
+  store.set('config_overrides', 'default', overrides);
+}
+
+/** Load persisted settings overrides (or empty object on first run). */
+function getSettings(): SettingsOverrides {
+  return store.get<SettingsOverrides>('settings_overrides', 'default') ?? {};
+}
+
+/** Persist settings overrides. */
+function setSettings(settings: SettingsOverrides): void {
+  store.set('settings_overrides', 'default', settings);
+}
 
 /**
  * Register configuration management routes.
@@ -98,8 +151,11 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
     }
 
     const projectPath = state.getProjectPath();
-    const graphProvider = overrides.graphProvider
+    const ov = getOverrides();
+    const graphProvider = ov.graphProvider
       ?? (process.env['GRAPH_PROVIDER'] ?? 'sqlite');
+
+    const settings = getSettings();
 
     return reply.status(200).send({
       data: {
@@ -111,20 +167,35 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
           provider: graphProvider,
         },
         analysis: {
-          severity_threshold: overrides.severityThreshold ?? 'info',
+          severity_threshold: ov.severityThreshold ?? 'info',
           parallel: true,
           timeout_ms: 60_000,
         },
         report: {
-          format: overrides.reportFormat ?? 'markdown',
-          directory: overrides.reportDirectory ?? '.recurrsive',
+          format: ov.reportFormat ?? 'markdown',
+          directory: ov.reportDirectory ?? '.recurrsive',
         },
         features: {
-          enabled_analyzers: overrides.enabledAnalyzers ?? [...ALL_ANALYZER_IDS],
-          enabled_collectors: overrides.enabledCollectors ?? [...ALL_COLLECTOR_IDS],
-          active_policy_sets: overrides.activePolicySets ?? [...ALL_POLICY_SET_IDS],
+          enabled_analyzers: ov.enabledAnalyzers ?? [...ALL_ANALYZER_IDS],
+          enabled_collectors: ov.enabledCollectors ?? [...ALL_COLLECTOR_IDS],
+          active_policy_sets: ov.activePolicySets ?? [...ALL_POLICY_SET_IDS],
         },
-        overrides_applied: Object.keys(overrides).length > 0,
+        settings: {
+          platform_name: settings.platform_name ?? 'Recurrsive',
+          auto_analyze: settings.auto_analyze ?? true,
+          require_mfa: settings.require_mfa ?? false,
+          session_timeout: settings.session_timeout ?? 60,
+          enable_notifications: settings.enable_notifications ?? true,
+          data_retention_days: settings.data_retention_days ?? 90,
+          max_concurrent: settings.max_concurrent ?? 3,
+          rate_limit: settings.rate_limit ?? 100,
+          enable_reasoning: settings.enable_reasoning ?? true,
+          max_findings: settings.max_findings ?? 500,
+          email_notifications: settings.email_notifications ?? true,
+          slack_enabled: settings.slack_enabled ?? false,
+          webhook_url: settings.webhook_url ?? '',
+        },
+        overrides_applied: Object.keys(ov).length > 0 || Object.keys(settings).length > 0,
       },
     });
   });
@@ -132,7 +203,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
   /**
    * PATCH /api/v1/config
    *
-   * Update configuration values at runtime (in-memory only, not persisted).
+   * Update configuration values at runtime (persisted via ServerStore).
    * Accepts a JSON body with optional fields to override.
    */
   app.patch('/api/v1/config', { preHandler: [authMiddleware] }, async (request, reply) => {
@@ -144,9 +215,11 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
       });
     }
 
+    const ov = getOverrides();
+
     // Apply recognized fields
     if (typeof body['graphProvider'] === 'string') {
-      overrides.graphProvider = body['graphProvider'];
+      ov.graphProvider = body['graphProvider'];
     }
 
     if (typeof body['severityThreshold'] === 'string') {
@@ -157,7 +230,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
           message: `Must be one of: ${valid.join(', ')}`,
         });
       }
-      overrides.severityThreshold = body['severityThreshold'];
+      ov.severityThreshold = body['severityThreshold'];
     }
 
     if (typeof body['reportFormat'] === 'string') {
@@ -168,11 +241,11 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
           message: `Must be one of: ${valid.join(', ')}`,
         });
       }
-      overrides.reportFormat = body['reportFormat'];
+      ov.reportFormat = body['reportFormat'];
     }
 
     if (typeof body['reportDirectory'] === 'string') {
-      overrides.reportDirectory = body['reportDirectory'];
+      ov.reportDirectory = body['reportDirectory'];
     }
 
     if (Array.isArray(body['enabledAnalyzers'])) {
@@ -185,7 +258,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
           valid: [...ALL_ANALYZER_IDS],
         });
       }
-      overrides.enabledAnalyzers = ids;
+      ov.enabledAnalyzers = ids;
     }
 
     if (Array.isArray(body['enabledCollectors'])) {
@@ -198,7 +271,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
           valid: [...ALL_COLLECTOR_IDS],
         });
       }
-      overrides.enabledCollectors = ids;
+      ov.enabledCollectors = ids;
     }
 
     if (Array.isArray(body['activePolicySets'])) {
@@ -211,14 +284,78 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
           valid: [...ALL_POLICY_SET_IDS],
         });
       }
-      overrides.activePolicySets = ids;
+      ov.activePolicySets = ids;
+    }
+
+    // ---- Settings fields (dashboard UI) ----
+    const settings = getSettings();
+    let settingsChanged = false;
+
+    if (typeof body['platform_name'] === 'string') {
+      settings.platform_name = body['platform_name'];
+      settingsChanged = true;
+    }
+    if (typeof body['auto_analyze'] === 'boolean') {
+      settings.auto_analyze = body['auto_analyze'];
+      settingsChanged = true;
+    }
+    if (typeof body['require_mfa'] === 'boolean') {
+      settings.require_mfa = body['require_mfa'];
+      settingsChanged = true;
+    }
+    if (typeof body['session_timeout'] === 'number') {
+      settings.session_timeout = body['session_timeout'];
+      settingsChanged = true;
+    }
+    if (typeof body['enable_notifications'] === 'boolean') {
+      settings.enable_notifications = body['enable_notifications'];
+      settingsChanged = true;
+    }
+    if (typeof body['data_retention_days'] === 'number') {
+      settings.data_retention_days = body['data_retention_days'];
+      settingsChanged = true;
+    }
+    if (typeof body['max_concurrent'] === 'number') {
+      settings.max_concurrent = body['max_concurrent'];
+      settingsChanged = true;
+    }
+    if (typeof body['rate_limit'] === 'number') {
+      settings.rate_limit = body['rate_limit'];
+      settingsChanged = true;
+    }
+    if (typeof body['enable_reasoning'] === 'boolean') {
+      settings.enable_reasoning = body['enable_reasoning'];
+      settingsChanged = true;
+    }
+    if (typeof body['max_findings'] === 'number') {
+      settings.max_findings = body['max_findings'];
+      settingsChanged = true;
+    }
+    if (typeof body['email_notifications'] === 'boolean') {
+      settings.email_notifications = body['email_notifications'];
+      settingsChanged = true;
+    }
+    if (typeof body['slack_enabled'] === 'boolean') {
+      settings.slack_enabled = body['slack_enabled'];
+      settingsChanged = true;
+    }
+    if (typeof body['webhook_url'] === 'string') {
+      settings.webhook_url = body['webhook_url'];
+      settingsChanged = true;
+    }
+
+    // Persist the updated overrides
+    setOverrides(ov);
+    if (settingsChanged) {
+      setSettings(settings);
     }
 
     return reply.status(200).send({
       data: {
-        overrides: { ...overrides },
+        overrides: { ...ov },
+        settings: { ...settings },
       },
-      message: 'Configuration updated (in-memory only)',
+      message: 'Configuration updated (persisted)',
     });
   });
 
@@ -229,9 +366,10 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * for analyzers, collectors, and policy sets.
    */
   app.get('/api/v1/config/features', async (_request, reply) => {
-    const enabledAnalyzers = new Set(overrides.enabledAnalyzers ?? ALL_ANALYZER_IDS);
-    const enabledCollectors = new Set(overrides.enabledCollectors ?? ALL_COLLECTOR_IDS);
-    const activePolicySets = new Set(overrides.activePolicySets ?? ALL_POLICY_SET_IDS);
+    const ov = getOverrides();
+    const enabledAnalyzers = new Set(ov.enabledAnalyzers ?? ALL_ANALYZER_IDS);
+    const enabledCollectors = new Set(ov.enabledCollectors ?? ALL_COLLECTOR_IDS);
+    const activePolicySets = new Set(ov.activePolicySets ?? ALL_POLICY_SET_IDS);
 
     const analyzers = ALL_ANALYZER_IDS.map((id) => ({
       id,
@@ -262,6 +400,54 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
           active_policy_sets: policySets.filter((p) => p.enabled).length,
         },
       },
+    });
+  });
+
+  // Settings sections — dashboard settings UI categories
+  app.get('/api/v1/settings/sections', async (_request, reply) => {
+    return reply.send({
+      data: [
+        {
+          icon: '🔧',
+          title: 'General',
+          description: 'Platform-wide configuration',
+          settings: [
+            { label: 'Platform Name', key: 'platform_name', type: 'text', defaultValue: 'Recurrsive' },
+            { label: 'Auto-Analysis on Push', key: 'auto_analyze', type: 'toggle', defaultValue: true },
+            { label: 'Max Concurrent Analysis', key: 'max_concurrent', type: 'number', defaultValue: '3' },
+          ],
+        },
+        {
+          icon: '🔐',
+          title: 'Security',
+          description: 'Authentication and access control',
+          settings: [
+            { label: 'Require MFA', key: 'require_mfa', type: 'toggle', defaultValue: false },
+            { label: 'Session Timeout (minutes)', key: 'session_timeout', type: 'number', defaultValue: '60' },
+            { label: 'API Rate Limit (req/min)', key: 'rate_limit', type: 'number', defaultValue: '100' },
+          ],
+        },
+        {
+          icon: '📊',
+          title: 'Analysis',
+          description: 'Analysis engine configuration',
+          settings: [
+            { label: 'Severity Threshold', key: 'severity_threshold', type: 'text', defaultValue: 'low' },
+            { label: 'Enable AI Reasoning', key: 'enable_reasoning', type: 'toggle', defaultValue: true },
+            { label: 'Max Findings per Report', key: 'max_findings', type: 'number', defaultValue: '500' },
+          ],
+        },
+        {
+          icon: '🔔',
+          title: 'Notifications',
+          description: 'Alert and notification preferences',
+          settings: [
+            { label: 'Email Notifications', key: 'email_notifications', type: 'toggle', defaultValue: true },
+            { label: 'Slack Integration', key: 'slack_enabled', type: 'toggle', defaultValue: false },
+            { label: 'Webhook URL', key: 'webhook_url', type: 'text', defaultValue: '' },
+          ],
+        },
+      ],
     });
   });
 }

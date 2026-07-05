@@ -4,14 +4,12 @@
  * Notification management routes for inspecting available channels,
  * sending test notifications, and reviewing notification history.
  *
- * Uses in-memory storage — notifications are not persisted across
- * server restarts.
- *
  * @packageDocumentation
  */
 
 import type { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth.js';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,20 +47,92 @@ export interface ChannelInfo {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory notification store
+// Constants
 // ---------------------------------------------------------------------------
 
 const MAX_HISTORY = 50;
-const notificationHistory: NotificationRecord[] = [];
-let nextId = 1;
 
 function generateNotificationId(): string {
-  return `notif_${String(nextId++).padStart(6, '0')}`;
+  const count = store.count('notifications') + 1;
+  return `notif_${String(count).padStart(6, '0')}`;
 }
 
 // ---------------------------------------------------------------------------
-// Route registration
+// Delivery
 // ---------------------------------------------------------------------------
+
+/** Result of attempting to deliver a notification. */
+interface DeliveryResult {
+  /** Whether the delivery succeeded. */
+  success: boolean;
+  /** HTTP status code from the remote, if applicable. */
+  statusCode?: number;
+  /** Error message if delivery failed. */
+  error?: string;
+}
+
+/**
+ * Deliver a notification message to a remote channel.
+ *
+ * - For `webhook` / `http` channels: POSTs a JSON body to the given URL.
+ * - For `slack` channels: POSTs a Slack-formatted payload (`{ text }`).
+ * - For `console` channels: no-op (always succeeds).
+ *
+ * Uses native `fetch` with a 5-second timeout via `AbortController`.
+ *
+ * @param channel - The notification channel type.
+ * @param message - The message to deliver.
+ * @param url     - The remote URL to POST to (ignored for console).
+ * @returns A DeliveryResult indicating success or failure.
+ */
+async function deliverNotification(
+  channel: NotificationChannel,
+  message: string,
+  url?: string,
+): Promise<DeliveryResult> {
+  // Console channel: always succeeds, no HTTP needed.
+  if (channel === 'console') {
+    return { success: true };
+  }
+
+  if (!url) {
+    return { success: false, error: 'No URL configured for channel' };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+
+  try {
+    const isSlack = channel === 'slack';
+    const body = isSlack
+      ? JSON.stringify({ text: message })
+      : JSON.stringify({ message, channel, timestamp: new Date().toISOString() });
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal: controller.signal,
+    });
+
+    return {
+      success: res.ok,
+      statusCode: res.status,
+      error: res.ok ? undefined : `HTTP ${res.status} ${res.statusText}`,
+    };
+  } catch (err: unknown) {
+    const message =
+      err instanceof DOMException && err.name === 'AbortError'
+        ? 'Request timed out (5s)'
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    return { success: false, error: message };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 
 /**
  * Register notification management routes.
@@ -149,36 +219,56 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
     const testMessage = 'Test notification sent successfully';
     const now = new Date().toISOString();
 
+    // Resolve the URL for delivery
+    const config = body['config'] as Record<string, unknown> | undefined;
+    let deliveryUrl: string | undefined;
+
+    if (channel === 'slack') {
+      deliveryUrl =
+        (config?.['webhookUrl'] as string | undefined) ??
+        process.env['SLACK_WEBHOOK_URL'];
+    } else if (channel === 'http') {
+      deliveryUrl = config?.['url'] as string | undefined;
+    }
+
+    // Attempt delivery
+    const delivery = await deliverNotification(
+      channel as NotificationChannel,
+      testMessage,
+      deliveryUrl,
+    );
+
     const record: NotificationRecord = {
       id,
       channel: channel as NotificationChannel,
       message: testMessage,
       sent_at: now,
-      status: 'sent',
+      status: delivery.success ? 'sent' : 'failed',
+      ...(delivery.error ? { error: delivery.error } : {}),
     };
 
-    // Add to history (cap at MAX_HISTORY)
-    notificationHistory.push(record);
-    if (notificationHistory.length > MAX_HISTORY) {
-      notificationHistory.splice(0, notificationHistory.length - MAX_HISTORY);
-    }
+    // Append to store and trim to MAX_HISTORY
+    store.append<NotificationRecord>('notifications', record);
+    store.trim('notifications', MAX_HISTORY);
 
     return reply.status(200).send({
-      status: 'sent',
+      status: record.status,
       channel,
       message: testMessage,
+      ...(delivery.error ? { error: delivery.error } : {}),
     });
   });
 
   /**
    * GET /api/v1/notifications/history
    *
-   * Return recent notification history (in-memory, last 50 notifications).
+   * Return recent notification history (last 50 notifications).
    */
   app.get('/api/v1/notifications/history', async (_request, reply) => {
+    const recent = store.recent<NotificationRecord>('notifications', MAX_HISTORY);
     return reply.status(200).send({
-      data: [...notificationHistory].reverse(),
-      total: notificationHistory.length,
+      data: recent,
+      total: store.count('notifications'),
       max_retained: MAX_HISTORY,
     });
   });

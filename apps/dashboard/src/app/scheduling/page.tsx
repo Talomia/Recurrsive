@@ -6,8 +6,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Play, Pause, Download, FileText } from 'lucide-react';
-import { getSchedules, getScheduleHistory } from '@/lib/api';
+import { Calendar, Clock, Play, Pause, Download, FileText, Trash2, Zap } from 'lucide-react';
+import {
+  getSchedules, getScheduleHistory,
+  createSchedule, toggleSchedule as toggleScheduleApi,
+  deleteSchedule, runScheduleNow,
+} from '@/lib/api';
 import type { ReportSchedule, ScheduleRunHistory } from '@/lib/api';
 
 type Schedule = ReportSchedule;
@@ -58,18 +62,65 @@ export default function SchedulingPage() {
   const [newName, setNewName] = useState('');
   const [newCron, setNewCron] = useState('');
   const [newFormat, setNewFormat] = useState('pdf');
+  const [error, setError] = useState<string | null>(null);
+  const [mutating, setMutating] = useState(false);
+
+  const refetchData = async () => {
+    const [sched, hist] = await Promise.all([getSchedules(), getScheduleHistory()]);
+    setSchedules(sched);
+    setHistory(hist);
+  };
 
   useEffect(() => {
-    Promise.all([getSchedules(), getScheduleHistory()])
-      .then(([sched, hist]) => {
-        setSchedules(sched);
-        setHistory(hist);
-      })
-      .finally(() => setLoading(false));
+    refetchData().finally(() => setLoading(false));
   }, []);
 
-  const toggleSchedule = (id: string) => {
-    setSchedules(prev => prev.map(s => s.id === id ? { ...s, status: s.status === 'active' ? 'paused' as const : 'active' as const } : s));
+  const handleCreate = async () => {
+    setError(null);
+    setMutating(true);
+    try {
+      await createSchedule({ name: newName, schedule: newCron, format: newFormat });
+      setShowCreate(false);
+      setNewName('');
+      setNewCron('');
+      setNewFormat('pdf');
+      await refetchData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create schedule');
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleToggle = async (id: string) => {
+    setError(null);
+    try {
+      await toggleScheduleApi(id);
+      await refetchData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to toggle schedule');
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Delete schedule "${name}"?`)) return;
+    setError(null);
+    try {
+      await deleteSchedule(id);
+      await refetchData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete schedule');
+    }
+  };
+
+  const handleRunNow = async (id: string) => {
+    setError(null);
+    try {
+      await runScheduleNow(id);
+      await refetchData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to trigger run');
+    }
   };
 
   if (loading) {
@@ -96,6 +147,14 @@ export default function SchedulingPage() {
         </button>
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-lg px-4 py-3 text-sm bg-red-500/20 text-red-400 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300 ml-4 font-bold">×</button>
+        </div>
+      )}
+
       {/* Create Form */}
       {showCreate && (
         <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -111,8 +170,8 @@ export default function SchedulingPage() {
           </div>
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary">Cancel</button>
-            <button disabled={!newName || !newCron} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newName && newCron ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName && newCron ? 1 : 0.5 }}>
-              Create
+            <button disabled={!newName || !newCron || mutating} onClick={handleCreate} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newName && newCron ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName && newCron ? 1 : 0.5 }}>
+              {mutating ? 'Creating…' : 'Create'}
             </button>
           </div>
         </div>
@@ -120,6 +179,12 @@ export default function SchedulingPage() {
 
       {/* Schedules */}
       <div className="space-y-3">
+        {schedules.length === 0 && (
+          <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <Calendar className="w-10 h-10 mx-auto mb-3 text-text-tertiary" />
+            <p className="text-sm text-text-secondary">No schedules yet. Create one to automate report generation.</p>
+          </div>
+        )}
         {schedules.map(schedule => (
           <div key={schedule.id} className="rounded-2xl p-5 transition-all hover:scale-[1.005]" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-start justify-between">
@@ -138,13 +203,19 @@ export default function SchedulingPage() {
                   <span>{schedule.recipients.length} recipient{schedule.recipients.length !== 1 ? 's' : ''}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
+              <div className="flex items-center gap-2">
+                <div className="text-right mr-1">
                   <p className="text-xs text-text-tertiary">Next run</p>
                   <p className="text-sm font-semibold text-text-primary">{getCountdown(schedule.nextRun)}</p>
                 </div>
-                <button onClick={() => toggleSchedule(schedule.id)} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
+                <button onClick={() => handleRunNow(schedule.id)} title="Run Now" className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
+                  <Zap className="w-4 h-4 text-blue-400" />
+                </button>
+                <button onClick={() => handleToggle(schedule.id)} title={schedule.status === 'active' ? 'Pause' : 'Resume'} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
                   {schedule.status === 'active' ? <Pause className="w-4 h-4 text-yellow-400" /> : <Play className="w-4 h-4 text-green-400" />}
+                </button>
+                <button onClick={() => handleDelete(schedule.id, schedule.name)} title="Delete" className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
+                  <Trash2 className="w-4 h-4 text-red-400" />
                 </button>
               </div>
             </div>

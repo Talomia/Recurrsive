@@ -11,6 +11,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { state } from '../state.js';
 
 // ---------------------------------------------------------------------------
 // Forecasting utilities
@@ -45,18 +46,46 @@ function linearRegression(points: Array<{ x: number; y: number }>): {
   return { slope, intercept, r2 };
 }
 
-/** Generate synthetic timeline for demo. */
-function generateTimeline(days: number, baseScore: number): Array<{ date: string; score: number }> {
-  const timeline: Array<{ date: string; score: number }> = [];
-  const now = Date.now();
-  let score = baseScore - days * 0.15;
-
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(now - i * 86400000).toISOString().split('T')[0]!;
-    score = Math.min(100, Math.max(0, score + (Math.random() - 0.45) * 3));
-    timeline.push({ date, score: Math.round(score * 10) / 10 });
+/**
+ * Build historical timeline from real analysis runs.
+ * Falls back to a single-point timeline from the current health score
+ * when insufficient history is available.
+ */
+function buildTimeline(baseScore: number): Array<{ date: string; score: number }> {
+  if (!state.isInitialized()) {
+    // No analysis has been run — return single point with today's date
+    const today = new Date().toISOString().split('T')[0]!;
+    return [{ date: today, score: baseScore }];
   }
-  return timeline;
+
+  const history = state.getAnalysisHistory();
+  if (history.length === 0) {
+    const today = new Date().toISOString().split('T')[0]!;
+    return [{ date: today, score: baseScore }];
+  }
+
+  // Map each history entry to a timeline point
+  // Derive a score from finding/opportunity counts (fewer findings = higher score)
+  const timeline = history
+    .filter(h => h.status === 'success')
+    .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
+    .map(entry => {
+      const date = new Date(entry.startedAt).toISOString().split('T')[0]!;
+      // Derive health score: start at 100, subtract 2 per finding, cap at 0
+      const score = Math.max(0, Math.min(100, 100 - entry.findingCount * 2 + entry.opportunityCount * 0.5));
+      return { date, score: Math.round(score * 10) / 10 };
+    });
+
+  // If we have real history, add the current score as the latest point
+  if (timeline.length > 0) {
+    const today = new Date().toISOString().split('T')[0]!;
+    const lastDate = timeline[timeline.length - 1]!.date;
+    if (lastDate !== today) {
+      timeline.push({ date: today, score: baseScore });
+    }
+  }
+
+  return timeline.length > 0 ? timeline : [{ date: new Date().toISOString().split('T')[0]!, score: baseScore }];
 }
 
 // ---------------------------------------------------------------------------
@@ -76,10 +105,11 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
     '/api/v1/forecasting/health',
     async (request, reply) => {
       const horizon = Math.min(180, parseInt(request.query.horizon ?? '30', 10) || 30);
-      const historyDays = Math.min(365, parseInt(request.query.history ?? '90', 10) || 90);
 
-      // Generate synthetic historical data
-      const timeline = generateTimeline(historyDays, 72);
+      // Use real health score as baseline if analysis has been run
+      const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
+      const baseScore = realScore ?? 72;
+      const timeline = buildTimeline(baseScore);
 
       // Fit linear regression
       const points = timeline.map((p, i) => ({ x: i, y: p.score }));
@@ -153,7 +183,9 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
       return reply.status(400).send({ error: 'Bad Request', message: 'At least one action is required' });
     }
 
-    const currentScore = 78; // Synthetic baseline
+    // Use real health score if available, otherwise use algorithmic baseline
+    const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
+    const currentScore = realScore ?? 78;
     const results = [];
     let cumulativeImpact = 0;
 
@@ -222,84 +254,64 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
   /**
    * GET /api/v1/forecasting/evolution
    * Get the evolution graph — track decisions, outcomes, and learning over time.
+   * Auto-generated from real analysis history.
    */
   app.get('/api/v1/forecasting/evolution', async (_request, reply) => {
-    // Synthetic evolution data
-    const events = [
-      {
-        id: generateId(),
-        date: '2026-01-15',
-        type: 'decision',
-        title: 'Adopt multi-agent reasoning architecture',
-        description: 'Replaced single-pass analysis with 19-specialist debate engine.',
-        outcome: 'positive',
-        healthImpact: 12,
-        learnings: ['Debate protocol significantly improved finding accuracy', 'Specialist diversity matters more than count'],
-      },
-      {
-        id: generateId(),
-        date: '2026-02-20',
-        type: 'milestone',
-        title: 'Knowledge graph migration to dual-backend',
-        description: 'Added SQLite alongside Apache AGE for development workflows.',
-        outcome: 'positive',
-        healthImpact: 5,
-        learnings: ['SQLite backend eliminates PostgreSQL dependency for dev', 'Query interface abstraction was key to clean migration'],
-      },
-      {
-        id: generateId(),
-        date: '2026-03-10',
-        type: 'incident',
-        title: 'Dependency vulnerability in oauth-lib v3',
-        description: 'OWASP A07:2021 flagged during automated scan.',
-        outcome: 'resolved',
-        healthImpact: -8,
-        learnings: ['Automated dependency scanning caught this early', 'Need policy for mandatory lockfile updates'],
-      },
-      {
-        id: generateId(),
-        date: '2026-04-05',
-        type: 'decision',
-        title: 'Add JWT auth + RBAC to REST API',
-        description: 'Enterprise-grade authentication with role-based access control.',
-        outcome: 'positive',
-        healthImpact: 7,
-        learnings: ['API key support essential for CI/CD integration', 'Three-tier RBAC (admin/analyst/viewer) covers most use cases'],
-      },
-      {
-        id: generateId(),
-        date: '2026-05-15',
-        type: 'experiment',
-        title: 'TypeScript strict mode trial',
-        description: 'Enabled strict mode in @recurrsive/core as a pilot.',
-        outcome: 'positive',
-        healthImpact: 3,
-        learnings: ['Found 12 type-safety issues', 'strictNullChecks was the highest-value flag'],
-      },
-      {
-        id: generateId(),
-        date: '2026-06-01',
-        type: 'decision',
-        title: 'Expand collectors to GitLab + telemetry',
-        description: 'Added GitLab CI/CD and OpenTelemetry data collection.',
-        outcome: 'positive',
-        healthImpact: 6,
-        learnings: ['Collector interface abstraction makes new integrations fast', 'Governance filtering is critical for enterprise adoption'],
-      },
-      {
-        id: generateId(),
-        date: '2026-06-20',
-        type: 'milestone',
-        title: 'Dashboard executive intelligence view',
-        description: 'Added KPI dashboards, risk assessment, and trend visualization.',
-        outcome: 'positive',
-        healthImpact: 4,
-        learnings: ['Executive stakeholders need different data than engineers', 'Health score trend is the single most-watched metric'],
-      },
-    ];
+    // Build evolution events from real analysis history
+    const history = state.isInitialized() ? state.getAnalysisHistory() : [];
+    const successfulRuns = history
+      .filter(h => h.status === 'success')
+      .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+
+    interface EvolutionEvent {
+      id: string;
+      date: string;
+      type: string;
+      title: string;
+      description: string;
+      outcome: string;
+      healthImpact: number;
+      learnings: string[];
+    }
+
+    const events: EvolutionEvent[] = [];
+    let prevScore = 50; // baseline before any analysis
+
+    for (let i = 0; i < successfulRuns.length; i++) {
+      const run = successfulRuns[i]!;
+      const currentScore = Math.max(0, Math.min(100, 100 - run.findingCount * 2 + run.opportunityCount * 0.5));
+      const scoreDelta = Math.round((currentScore - prevScore) * 10) / 10;
+
+      // Classify event type by score change
+      const eventType = scoreDelta > 5 ? 'milestone' :
+                        scoreDelta < -5 ? 'incident' :
+                        scoreDelta > 0 ? 'decision' : 'experiment';
+
+      const outcome = scoreDelta >= 0 ? 'positive' : 'resolved';
+
+      // Generate meaningful description and learnings from data
+      const learnings: string[] = [];
+      if (run.findingCount > 0) learnings.push(`${run.findingCount} finding(s) detected`);
+      if (run.opportunityCount > 0) learnings.push(`${run.opportunityCount} improvement opportunity(ies) identified`);
+      if (run.durationMs > 0) learnings.push(`Analysis completed in ${Math.round(run.durationMs / 1000)}s`);
+      if (run.includeReasoning) learnings.push('Multi-agent reasoning was applied');
+
+      events.push({
+        id: run.id,
+        date: new Date(run.startedAt).toISOString().split('T')[0]!,
+        type: eventType,
+        title: `Analysis run #${i + 1}`,
+        description: `Completed with ${run.findingCount} findings and ${run.opportunityCount} opportunities. Health score: ${Math.round(currentScore)}.`,
+        outcome,
+        healthImpact: Math.round(scoreDelta),
+        learnings,
+      });
+
+      prevScore = currentScore;
+    }
 
     // Calculate trajectory
-    let score = 55;
+    let score = 50;
     const trajectory = events.map(e => {
       score = Math.max(0, Math.min(100, score + e.healthImpact));
       return { date: e.date, score, event: e.title };
@@ -309,7 +321,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
       data: {
         events,
         trajectory,
-        currentScore: score,
+        currentScore: events.length > 0 ? score : (state.isInitialized() ? state.getHealthScore().overall : 0),
         totalDecisions: events.filter(e => e.type === 'decision').length,
         totalMilestones: events.filter(e => e.type === 'milestone').length,
         totalIncidents: events.filter(e => e.type === 'incident').length,

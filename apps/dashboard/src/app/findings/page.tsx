@@ -33,7 +33,12 @@ export default function FindingsPage() {
   const [statusFilter, setStatusFilter] = useState("All Statuses");
 
   useEffect(() => {
-    getFindingsPage().then(setData);
+    getFindingsPage()
+      .then(setData)
+      .catch(() => {
+        /* API unavailable – render empty state */
+        setData({ stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 }, findings: [] as FindingsPageData['findings'] } satisfies FindingsPageData);
+      });
   }, []);
 
   const filtered = useMemo(() => {

@@ -9,6 +9,15 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
+
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
   info: vi.fn(),
@@ -46,6 +55,16 @@ describe('forecast command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
+    mockApiRequest.mockResolvedValue({
+      currentHealth: 74,
+      predictedHealth: 79,
+      trend: 'improving',
+      confidenceLow: 72,
+      confidenceHigh: 86,
+      margin: 7,
+      factors: ['Reduced complexity'],
+      weekly: [{ week: 'Week 1', predicted: 76, confidence: '72-80', trend: 'improving' }],
+    });
   });
 
   it('registers the "forecast" command', () => {
@@ -85,6 +104,9 @@ describe('forecast command', () => {
   });
 
   it('what-if subcommand supports --json option', async () => {
+    mockApiRequest.mockResolvedValue([
+      { id: 'a1', name: 'Fix critical bugs', impact: 5, effort: 'M', confidence: 85, category: 'Quality' },
+    ]);
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const program = createCLI();
     await program.parseAsync(['node', 'test', 'forecast', 'what-if', '--json']);

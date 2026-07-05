@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { FolderGit2, Plus, ArrowUpDown, ExternalLink, Settings, Trash2, ChevronRight, Loader2 } from 'lucide-react';
 import { getProjects } from '@/lib/api';
 import type { Project } from '@/lib/api';
+import { apiFetch } from '@/lib/api/client';
 
 function HealthBadge({ score }: { score: number }) {
   const color = score >= 80 ? 'bg-green-500/20 text-green-400 border-green-500/30'
@@ -49,28 +50,33 @@ export default function ProjectsPage() {
   useEffect(() => {
     getProjects()
       .then(setProjects)
+      .catch(() => { /* API unavailable */ })
       .finally(() => setLoading(false));
   }, []);
 
   const createProject = async () => {
     if (!newName || !newRepo) return;
-    const res = await fetch('/api/v1/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, repository: newRepo }),
-    });
-    if (res.ok) {
-      const { data } = await res.json();
+    try {
+      const data = await apiFetch<Project>('/api/v1/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name: newName, repository: newRepo }),
+      });
       setProjects(prev => [...prev, data]);
       setNewName('');
       setNewRepo('');
       setShowCreate(false);
+    } catch {
+      // Project creation failed
     }
   };
 
   const deleteProject = async (id: string) => {
-    await fetch(`/api/v1/projects/${id}`, { method: 'DELETE' });
-    setProjects(prev => prev.filter(p => p.id !== id));
+    try {
+      await apiFetch(`/api/v1/projects/${id}`, { method: 'DELETE', unwrap: false });
+      setProjects(prev => prev.filter(p => p.id !== id));
+    } catch {
+      // Delete failed
+    }
   };
 
   const sorted = [...projects].sort((a, b) => {
@@ -175,6 +181,12 @@ export default function ProjectsPage() {
 
       {/* Project List */}
       <div className="space-y-3">
+        {sorted.length === 0 && (
+          <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <FolderGit2 className="w-10 h-10 mx-auto mb-3 text-text-tertiary" />
+            <p className="text-sm text-text-secondary">No projects yet. Create one to start analyzing your repositories.</p>
+          </div>
+        )}
         {sorted.map(project => (
           <div
             key={project.id}

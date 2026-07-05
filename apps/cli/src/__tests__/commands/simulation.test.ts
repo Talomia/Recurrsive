@@ -9,6 +9,15 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
+
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
   info: vi.fn(),
@@ -45,6 +54,9 @@ describe('simulate command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
+    mockApiRequest.mockResolvedValue([
+      { id: 'sim-001', type: 'load-test', status: 'complete', riskLevel: 'MEDIUM', started: '2026-01-01', duration: '5m' },
+    ]);
   });
 
   it('registers the "simulate" command', () => {

@@ -17,6 +17,7 @@ import {
   error,
   dim,
   table,
+  yellow,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
@@ -37,62 +38,6 @@ interface AuditEvent {
 // ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
-
-
-
-// ---------------------------------------------------------------------------
-// Mock Data
-// ---------------------------------------------------------------------------
-
-/** Generate fallback mock audit events. */
-function getMockEvents(): AuditEvent[] {
-  const now = Date.now();
-  return [
-    {
-      id: 'evt_001',
-      type: 'analysis',
-      action: 'started',
-      target: '/projects/web-app',
-      timestamp: new Date(now - 3600000).toISOString(),
-      actor: 'user@example.com',
-    },
-    {
-      id: 'evt_002',
-      type: 'analysis',
-      action: 'completed',
-      target: '/projects/web-app',
-      timestamp: new Date(now - 3500000).toISOString(),
-      actor: 'user@example.com',
-      details: 'Found 12 findings, 5 opportunities',
-    },
-    {
-      id: 'evt_003',
-      type: 'policy',
-      action: 'violation_detected',
-      target: 'security-baseline',
-      timestamp: new Date(now - 3400000).toISOString(),
-      actor: 'system',
-      details: 'Critical severity violation',
-    },
-    {
-      id: 'evt_004',
-      type: 'webhook',
-      action: 'delivered',
-      target: 'wh_000001',
-      timestamp: new Date(now - 3000000).toISOString(),
-      actor: 'system',
-    },
-    {
-      id: 'evt_005',
-      type: 'config',
-      action: 'updated',
-      target: 'notification_channels',
-      timestamp: new Date(now - 1800000).toISOString(),
-      actor: 'admin@example.com',
-      details: 'Added Slack channel',
-    },
-  ];
-}
 
 // ---------------------------------------------------------------------------
 // Command Registration
@@ -121,8 +66,8 @@ export function registerAuditCommand(program: Command): void {
           const data = await apiRequest(`/api/v1/audit?limit=${opts.limit}`) as { events: AuditEvent[] };
           events = data.events;
         } catch {
-          // Fallback to mock data
-          events = getMockEvents();
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -165,15 +110,8 @@ export function registerAuditCommand(program: Command): void {
           const data = await apiRequest(`/api/v1/audit/search?q=${encodeURIComponent(query)}`) as { events: AuditEvent[] };
           events = data.events;
         } catch {
-          // Fallback — filter mock data
-          const all = getMockEvents();
-          const lowerQuery = query.toLowerCase();
-          events = all.filter(e =>
-            e.type.toLowerCase().includes(lowerQuery) ||
-            e.action.toLowerCase().includes(lowerQuery) ||
-            e.target.toLowerCase().includes(lowerQuery) ||
-            (e.details ?? '').toLowerCase().includes(lowerQuery),
-          );
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -216,8 +154,8 @@ export function registerAuditCommand(program: Command): void {
           const data = await apiRequest('/api/v1/audit?limit=1000') as { events: AuditEvent[] };
           events = data.events;
         } catch {
-          // Fallback to mock data
-          events = getMockEvents();
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         const exportData = {

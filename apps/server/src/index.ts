@@ -17,6 +17,7 @@ import { registerRateLimit } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
 import { registerAuditMiddleware } from './middleware/audit.js';
 import { optionalAuth } from './middleware/auth.js';
+import { store } from './store.js';
 
 // ---------------------------------------------------------------------------
 // Server options
@@ -91,6 +92,11 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
 
   // Register WebSocket handler
   await registerWebSocket(app);
+
+  // Register close hook to cleanly shut down the store
+  app.addHook('onClose', async () => {
+    store.close();
+  });
 
   return app;
 }

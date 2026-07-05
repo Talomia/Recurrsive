@@ -13,6 +13,7 @@
 import { randomBytes, createHash } from 'node:crypto';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
 import type { Role } from './rbac.js';
+import { store } from '../store.js';
 
 const logger = createLogger({ context: { component: 'server:middleware:api-keys' } });
 
@@ -43,11 +44,10 @@ export interface ApiKeyInfo {
 // ---------------------------------------------------------------------------
 
 /**
- * In-memory store mapping hashed API keys → metadata.
- *
- * Keys are SHA-256 hex digests of the raw key strings.
+ * API keys are stored in the ServerStore keyed by their SHA-256 hash.
+ * This enables O(1) validation lookups without exposing the raw key.
  */
-const keyStore = new Map<string, ApiKeyInfo>();
+const API_KEY_TABLE = 'api_keys';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -98,7 +98,7 @@ export function generateApiKey(
     expiresAt: expiresAt ?? null,
   };
 
-  keyStore.set(hashed, info);
+  store.set(API_KEY_TABLE, hashed, info);
   logger.info(`API key '${name}' created for user '${userId}' (role: ${role})`);
 
   return { key: raw, info };
@@ -115,7 +115,7 @@ export function generateApiKey(
  */
 export function validateApiKey(key: string): ApiKeyInfo | null {
   const hashed = hashKey(key);
-  const info = keyStore.get(hashed);
+  const info = store.get<ApiKeyInfo>(API_KEY_TABLE, hashed);
 
   if (!info) {
     return null;
@@ -126,13 +126,14 @@ export function validateApiKey(key: string): ApiKeyInfo | null {
     const expiryTime = new Date(info.expiresAt).getTime();
     if (Date.now() >= expiryTime) {
       logger.info(`API key '${info.name}' has expired — removing`);
-      keyStore.delete(hashed);
+      store.delete(API_KEY_TABLE, hashed);
       return null;
     }
   }
 
   // Update last-used timestamp
   info.lastUsedAt = nowISO();
+  store.set(API_KEY_TABLE, hashed, info);
 
   return info;
 }
@@ -144,9 +145,10 @@ export function validateApiKey(key: string): ApiKeyInfo | null {
  * @returns `true` if a key was found and removed, `false` otherwise.
  */
 export function revokeApiKey(id: string): boolean {
-  for (const [hashed, info] of keyStore) {
+  // API keys are stored by hash, so we scan entries to find by ID
+  for (const [hashed, info] of store.entries<ApiKeyInfo>(API_KEY_TABLE)) {
     if (info.id === id) {
-      keyStore.delete(hashed);
+      store.delete(API_KEY_TABLE, hashed);
       logger.info(`API key '${info.name}' (id: ${id}) revoked`);
       return true;
     }
@@ -163,7 +165,7 @@ export function revokeApiKey(id: string): boolean {
  * @returns Array of {@link ApiKeyInfo} entries.
  */
 export function listApiKeys(userId?: string): ApiKeyInfo[] {
-  const entries = [...keyStore.values()];
+  const entries = store.all<ApiKeyInfo>(API_KEY_TABLE);
   if (userId) {
     return entries.filter((info) => info.userId === userId);
   }
@@ -176,5 +178,5 @@ export function listApiKeys(userId?: string): ApiKeyInfo[] {
  * Primarily useful in tests to reset state between runs.
  */
 export function clearApiKeys(): void {
-  keyStore.clear();
+  store.clear(API_KEY_TABLE);
 }

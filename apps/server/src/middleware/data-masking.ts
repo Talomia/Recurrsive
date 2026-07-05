@@ -11,6 +11,7 @@
  */
 
 import { generateId, nowISO } from '@recurrsive/core';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,8 +84,6 @@ const PII_PATTERNS: Array<{ type: PIIType; pattern: RegExp; confidence: number; 
 // Masking Engine
 // ---------------------------------------------------------------------------
 
-const policies: Map<string, MaskingPolicy> = new Map();
-
 // Seed default policies
 const defaultPolicies: Array<Omit<MaskingPolicy, 'id' | 'createdAt'>> = [
   { fieldPattern: '*.email', piiType: 'email', strategy: 'partial', enabled: true, reason: 'GDPR compliance — personal email addresses' },
@@ -97,9 +96,12 @@ const defaultPolicies: Array<Omit<MaskingPolicy, 'id' | 'createdAt'>> = [
   { fieldPattern: '*.token', piiType: 'jwt_token', strategy: 'partial', enabled: true, reason: 'Security — JWT tokens should be partially masked' },
 ];
 
-for (const p of defaultPolicies) {
-  const id = generateId();
-  policies.set(id, { ...p, id, createdAt: '2026-01-01T00:00:00Z' });
+// Seed only on first startup (empty store)
+if (store.count('masking_policies') === 0) {
+  for (const p of defaultPolicies) {
+    const id = generateId();
+    store.set('masking_policies', id, { ...p, id, createdAt: '2026-01-01T00:00:00Z' });
+  }
 }
 
 /** Apply masking strategy to a value. */
@@ -160,20 +162,20 @@ export function detectPII(text: string): PIIDetection[] {
 
 /** Get all masking policies. */
 export function getMaskingPolicies(): MaskingPolicy[] {
-  return Array.from(policies.values());
+  return store.all<MaskingPolicy>('masking_policies');
 }
 
 /** Add a masking policy. */
 export function addMaskingPolicy(policy: Omit<MaskingPolicy, 'id' | 'createdAt'>): MaskingPolicy {
   const id = generateId();
   const full: MaskingPolicy = { ...policy, id, createdAt: nowISO() };
-  policies.set(id, full);
+  store.set('masking_policies', id, full);
   return full;
 }
 
 /** Remove a masking policy. */
 export function removeMaskingPolicy(id: string): boolean {
-  return policies.delete(id);
+  return store.delete('masking_policies', id);
 }
 
 // ---------------------------------------------------------------------------
@@ -181,22 +183,23 @@ export function removeMaskingPolicy(id: string): boolean {
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
+import { authMiddleware } from './auth.js';
 
 export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<void> {
   // List masking policies
   app.get('/api/v1/data-masking/policies', async (_request, reply) => {
-    return reply.send({ data: getMaskingPolicies(), total: policies.size });
+    return reply.send({ data: getMaskingPolicies(), total: store.count('masking_policies') });
   });
 
   // Get single policy
   app.get<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', async (request, reply) => {
-    const policy = policies.get(request.params.id);
+    const policy = store.get<MaskingPolicy>('masking_policies', request.params.id);
     if (!policy) return reply.status(404).send({ error: 'Policy not found' });
     return reply.send({ data: policy });
   });
 
   // Create policy
-  app.post('/api/v1/data-masking/policies', async (request, reply) => {
+  app.post('/api/v1/data-masking/policies', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as Partial<MaskingPolicy>;
     if (!body.fieldPattern || !body.piiType || !body.strategy) {
       return reply.status(400).send({ error: 'fieldPattern, piiType, and strategy are required' });
@@ -214,8 +217,8 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
   });
 
   // Update policy
-  app.put<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', async (request, reply) => {
-    const existing = policies.get(request.params.id);
+  app.put<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const existing = store.get<MaskingPolicy>('masking_policies', request.params.id);
     if (!existing) return reply.status(404).send({ error: 'Policy not found' });
 
     const body = request.body as Partial<MaskingPolicy>;
@@ -228,12 +231,12 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
       reason: body.reason ?? existing.reason,
     };
 
-    policies.set(updated.id, updated);
+    store.set('masking_policies', updated.id, updated);
     return reply.send({ data: updated });
   });
 
   // Delete policy
-  app.delete<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!removeMaskingPolicy(request.params.id)) {
       return reply.status(404).send({ error: 'Policy not found' });
     }
@@ -241,7 +244,7 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
   });
 
   // Scan text for PII
-  app.post('/api/v1/data-masking/scan', async (request, reply) => {
+  app.post('/api/v1/data-masking/scan', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as { text?: string };
     if (!body.text) return reply.status(400).send({ error: 'text is required' });
 
@@ -259,7 +262,7 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
   });
 
   // Apply masking to text
-  app.post('/api/v1/data-masking/mask', async (request, reply) => {
+  app.post('/api/v1/data-masking/mask', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as { text?: string; strategy?: MaskingStrategy };
     if (!body.text) return reply.status(400).send({ error: 'text is required' });
 
@@ -281,6 +284,38 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
         totalMasked: detections.length,
         strategy,
       },
+    });
+  });
+
+  // PII distribution — aggregate policy patterns by PII type
+  app.get('/api/v1/data-masking/pii-distribution', async (_request, reply) => {
+    const policies = store.all<MaskingPolicy>('masking_policies');
+    const distribution: Record<string, number> = {};
+
+    for (const policy of policies) {
+      const category = policy.piiType;
+      distribution[category] = (distribution[category] ?? 0) + 1;
+    }
+
+    return reply.send({
+      data: Object.entries(distribution).map(([category, count]) => ({
+        category,
+        count,
+        percentage: policies.length > 0 ? Math.round((count / policies.length) * 100) : 0,
+      })),
+    });
+  });
+
+  // Available masking strategies
+  app.get('/api/v1/data-masking/strategies', async (_request, reply) => {
+    return reply.send({
+      data: [
+        { id: 'redact', name: 'Redact', description: 'Replace with [REDACTED]' },
+        { id: 'hash', name: 'Hash', description: 'Replace with SHA-256 hash' },
+        { id: 'mask', name: 'Mask', description: 'Partially mask the value (e.g., ****1234)' },
+        { id: 'tokenize', name: 'Tokenize', description: 'Replace with a reversible token' },
+        { id: 'encrypt', name: 'Encrypt', description: 'Encrypt with AES-256' },
+      ],
     });
   });
 }

@@ -173,7 +173,16 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     }
 
     try {
-      const ws = new WebSocket(url);
+      // Attach JWT token for server-side WebSocket authentication
+      let wsUrl = url;
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('recurrsive_token');
+        if (token) {
+          const separator = wsUrl.includes('?') ? '&' : '?';
+          wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(token)}`;
+        }
+      }
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {

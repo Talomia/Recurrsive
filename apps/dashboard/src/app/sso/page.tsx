@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { KeyRound, Users, Shield, Globe, LogIn, Loader2 } from 'lucide-react';
-import { getSSOProviders, getSSOSessions } from '@/lib/api';
+import { getSSOProviders, getSSOSessions, createSsoProvider, deleteSsoProvider, revokeSsoSession } from '@/lib/api';
 import type { SSOProvider, SSOSession } from '@/lib/api';
 
 function ProviderStatusBadge({ status }: { status: string }) {
@@ -32,6 +32,7 @@ export default function SSOPage() {
   const [newName, setNewName] = useState('');
   const [newDomain, setNewDomain] = useState('');
   const [newType, setNewType] = useState<string>('okta');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([getSSOProviders(), getSSOSessions()])
@@ -42,8 +43,49 @@ export default function SSOPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const revokeSession = (id: string) => {
-    setSessions(prev => prev.map(s => s.id === id ? { ...s, active: false } : s));
+  const reloadData = async () => {
+    const [p, s] = await Promise.all([getSSOProviders(), getSSOSessions()]);
+    setProviders(p);
+    setSessions(s);
+  };
+
+  const handleCreateProvider = async () => {
+    try {
+      setError(null);
+      await createSsoProvider(newType, {
+        provider: newType as 'okta' | 'auth0' | 'azure_ad' | 'google',
+        displayName: newName,
+        entityId: `https://${newDomain}/${newType}`,
+        ssoUrl: `https://${newDomain}/${newType}/sso`,
+      });
+      setShowAdd(false);
+      setNewName('');
+      setNewDomain('');
+      setNewType('okta');
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create SSO provider');
+    }
+  };
+
+  const handleDeleteProvider = async (id: string) => {
+    try {
+      setError(null);
+      await deleteSsoProvider(id);
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete SSO provider');
+    }
+  };
+
+  const handleRevokeSession = async (id: string) => {
+    try {
+      setError(null);
+      await revokeSsoSession(id);
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to revoke session');
+    }
   };
 
   if (loading) {
@@ -70,6 +112,14 @@ export default function SSOPage() {
         </button>
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-xl px-4 py-3 bg-red-500/10 border border-red-500/30 flex items-center justify-between">
+          <span className="text-sm text-red-400">{error}</span>
+          <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-300">Dismiss</button>
+        </div>
+      )}
+
       {/* Add Provider Form */}
       {showAdd && (
         <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -86,7 +136,7 @@ export default function SSOPage() {
           </div>
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary">Cancel</button>
-            <button disabled={!newName || !newDomain} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newName && newDomain ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName && newDomain ? 1 : 0.5 }}>
+            <button onClick={handleCreateProvider} disabled={!newName || !newDomain} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newName && newDomain ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName && newDomain ? 1 : 0.5 }}>
               Save Configuration
             </button>
           </div>
@@ -99,6 +149,11 @@ export default function SSOPage() {
           <Shield className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Identity Providers
         </h3>
         <div className="space-y-3">
+          {providers.length === 0 && (
+            <div className="rounded-xl p-6 text-center" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
+              <p className="text-sm text-text-secondary">No identity providers configured yet.</p>
+            </div>
+          )}
           {providers.map(provider => (
             <div key={provider.id} className="flex items-center justify-between rounded-xl p-4" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
               <div className="flex items-center gap-3">
@@ -115,6 +170,7 @@ export default function SSOPage() {
               <div className="flex items-center gap-4 text-xs text-text-tertiary">
                 <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {provider.usersCount} users</span>
                 {provider.lastSync && <span>Synced {new Date(provider.lastSync).toLocaleTimeString()}</span>}
+                <button onClick={() => handleDeleteProvider(provider.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
               </div>
             </div>
           ))}
@@ -155,7 +211,7 @@ export default function SSOPage() {
                   </td>
                   <td className="py-3">
                     {session.active && (
-                      <button onClick={() => revokeSession(session.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Revoke</button>
+                      <button onClick={() => handleRevokeSession(session.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Revoke</button>
                     )}
                   </td>
                 </tr>

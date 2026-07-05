@@ -9,8 +9,14 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
 
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
@@ -19,10 +25,12 @@ vi.mock('../../output/terminal.js', () => ({
   bold: (s: string) => s,
   cyan: (s: string) => s,
   green: (s: string) => s,
+  yellow: (s: string) => s,
   red: (s: string) => s,
   dim: (s: string) => s,
   table: vi.fn(),
 }));
+
 
 import { registerExperimentsCommand } from '../../commands/experiments.js';
 
@@ -37,15 +45,6 @@ function createCLI(): Command {
   return program;
 }
 
-function mockApiResponse(data: unknown, status = 200): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -58,7 +57,7 @@ describe('experiments command', () => {
 
   describe('list', () => {
     it('fetches experiments from the API', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         data: [
           { id: 'exp_001', name: 'test-exp', status: 'draft', created_at: new Date().toISOString() },
         ],
@@ -67,47 +66,54 @@ describe('experiments command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'list']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/experiments'),
-        expect.any(Object),
       );
     });
 
-    it('falls back on server error', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'list']);
 
-      // Should not set error exit code — fallback is graceful
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('supports --status filter', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        data: [
+          { id: 'exp_002', name: 'running-exp', status: 'running', created_at: new Date().toISOString() },
+        ],
+      });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'list', '--status', 'running']);
 
-      // Graceful fallback with filter applied
-      expect(process.exitCode).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        expect.stringContaining('status=running'),
+      );
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        data: [
+          { id: 'exp_001', name: 'test-exp', status: 'draft', created_at: new Date().toISOString() },
+        ],
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'list', '--json']);
 
-      expect(spy).toHaveBeenCalledWith(expect.stringContaining('exp_'));
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('exp_001'));
       spy.mockRestore();
     });
   });
 
   describe('create', () => {
     it('sends POST to create an experiment', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         id: 'exp_new',
         name: 'my-experiment',
         status: 'draft',
@@ -117,14 +123,14 @@ describe('experiments command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'create', 'my-experiment']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/experiments'),
         expect.objectContaining({ method: 'POST' }),
       );
     });
 
     it('includes hypothesis when provided', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         id: 'exp_new',
         name: 'my-experiment',
         hypothesis: 'It will be faster',
@@ -138,23 +144,23 @@ describe('experiments command', () => {
         '--hypothesis', 'It will be faster',
       ]);
 
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const body = JSON.parse(mockApiRequest.mock.calls[0][1].body);
       expect(body.hypothesis).toBe('It will be faster');
     });
 
-    it('falls back gracefully when server unavailable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'create', 'my-experiment']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
   });
 
   describe('status', () => {
     it('fetches experiment by ID', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         id: 'exp_001',
         name: 'test-exp',
         status: 'complete',
@@ -164,23 +170,27 @@ describe('experiments command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'status', 'exp_001']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/experiments/exp_001'),
-        expect.any(Object),
       );
     });
 
-    it('falls back gracefully when server unavailable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'status', 'exp_001']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        id: 'exp_001',
+        name: 'test-exp',
+        status: 'complete',
+        created_at: new Date().toISOString(),
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();

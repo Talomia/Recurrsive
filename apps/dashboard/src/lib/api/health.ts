@@ -4,7 +4,7 @@
  * Health score metrics, performance metrics, and dimension data.
  */
 
-import { apiFetch, seededRandom } from './client';
+import { apiFetch } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -46,72 +46,6 @@ export interface HealthDashboardData {
   services: ServiceStatus[];
 }
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
-
-function miniSparkline(base: number, count = 14, volatility = 5): { value: number }[] {
-  return Array.from({ length: count }, (_, i) => ({
-    value: Math.round(base + Math.sin(i * 0.7) * volatility + (seededRandom(i * 31 + base) - 0.5) * volatility),
-  }));
-}
-
-const MOCK_HEALTH: HealthMetrics = {
-  healthScore: 87,
-  healthTrend: 4.2,
-  qualityScore: 91,
-  qualityTrend: 2.1,
-  opportunities: 23,
-  newOpportunities: 7,
-  techDebt: 142500,
-  techDebtTrend: -8.3,
-  aiQualityScore: 94,
-  aiQualityTrend: 1.8,
-};
-
-const MOCK_PERFORMANCE: PerformanceMetric[] = [
-  {
-    label: "Avg Response Time",
-    value: "142",
-    unit: "ms",
-    trend: -12.5,
-    data: miniSparkline(150, 14, 20),
-  },
-  {
-    label: "Total Requests",
-    value: "2.4M",
-    unit: "req",
-    trend: 8.3,
-    data: miniSparkline(2200, 14, 300),
-  },
-  {
-    label: "Error Rate",
-    value: "0.12",
-    unit: "%",
-    trend: -23.1,
-    data: miniSparkline(0.15, 14, 0.05),
-  },
-  {
-    label: "Availability",
-    value: "99.97",
-    unit: "%",
-    trend: 0.02,
-    data: miniSparkline(99.95, 14, 0.03),
-  },
-];
-
-const MOCK_HEALTH_DASHBOARD: HealthDashboardData = {
-  overall_score: 92,
-  api_latency_ms: 142,
-  memory_usage_percent: 67,
-  cpu_usage_percent: 34,
-  uptime_days: 42,
-  services: [
-    { name: "Database (PostgreSQL)", status: "healthy", latency_ms: 8, uptime_percent: 99.99, last_check: "2026-06-30T20:40:00Z" },
-    { name: "Cache (Redis)", status: "healthy", latency_ms: 2, uptime_percent: 99.98, last_check: "2026-06-30T20:40:00Z" },
-    { name: "Queue (RabbitMQ)", status: "degraded", latency_ms: 45, uptime_percent: 99.85, last_check: "2026-06-30T20:40:00Z" },
-    { name: "Storage (S3)", status: "healthy", latency_ms: 22, uptime_percent: 99.99, last_check: "2026-06-30T20:40:00Z" },
-  ],
-};
-
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -129,13 +63,11 @@ export async function getHealthMetrics(): Promise<HealthMetrics> {
       tech_debt: number;
       finding_count: number;
       opportunity_count: number;
-    } | null>("/api/v1/health-score", null);
-
-    if (!raw) return MOCK_HEALTH;
+    }>("/api/v1/health-score");
 
     const healthTrend = raw.health_trend ?? 0;
-    const codeQuality = raw.dimensions?.code_quality ?? raw.dimensions?.documentation ?? 91;
-    const aiQuality = raw.dimensions?.ai_readiness ?? raw.dimensions?.security ?? 94;
+    const codeQuality = raw.dimensions?.code_quality ?? raw.dimensions?.documentation ?? 0;
+    const aiQuality = raw.dimensions?.ai_readiness ?? raw.dimensions?.security ?? 0;
 
     return {
       healthScore: raw.overall_health,
@@ -150,21 +82,30 @@ export async function getHealthMetrics(): Promise<HealthMetrics> {
       aiQualityTrend: healthTrend > 0 ? healthTrend * 0.4 : 0,
     };
   } catch {
-    return MOCK_HEALTH;
+    return {
+      healthScore: 0,
+      healthTrend: 0,
+      qualityScore: 0,
+      qualityTrend: 0,
+      opportunities: 0,
+      newOpportunities: 0,
+      techDebt: 0,
+      techDebtTrend: 0,
+      aiQualityScore: 0,
+      aiQualityTrend: 0,
+    };
   }
 }
 
 /**
  * Get performance metrics from `GET /api/v1/metrics/performance`.
- * Falls back to mock data when the server is unavailable.
  */
 export async function getPerformanceMetrics(): Promise<PerformanceMetric[]> {
-  const raw = await apiFetch<{ data: PerformanceMetric[] } | null>(
-    "/api/v1/metrics/performance",
-    null,
-  );
-  if (raw?.data) return raw.data;
-  return MOCK_PERFORMANCE;
+  try {
+    return await apiFetch<PerformanceMetric[]>("/api/v1/metrics/performance");
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -172,12 +113,15 @@ export async function getPerformanceMetrics(): Promise<PerformanceMetric[]> {
  */
 export async function getHealthDashboard(): Promise<HealthDashboardData> {
   try {
-    const raw = await apiFetch<{ data: HealthDashboardData } | null>(
-      "/api/v1/health/dashboard",
-      null,
-    );
-    return raw?.data ?? MOCK_HEALTH_DASHBOARD;
+    return await apiFetch<HealthDashboardData>("/api/v1/health/dashboard");
   } catch {
-    return MOCK_HEALTH_DASHBOARD;
+    return {
+      overall_score: 0,
+      api_latency_ms: 0,
+      memory_usage_percent: 0,
+      cpu_usage_percent: 0,
+      uptime_days: 0,
+      services: [],
+    };
   }
 }

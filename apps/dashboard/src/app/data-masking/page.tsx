@@ -71,9 +71,8 @@ export default function DataMaskingPage() {
       setPolicies(pol);
       setPiiDistribution(pii);
       setStrategies(strat);
-      setLoading(false);
     }
-    load();
+    load().catch(() => { /* API unavailable */ }).finally(() => setLoading(false));
   }, []);
 
   if (loading) {

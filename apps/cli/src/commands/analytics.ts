@@ -20,6 +20,7 @@ import {
   bold,
   cyan,
   green,
+  yellow,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
@@ -55,40 +56,6 @@ interface CategoryStat {
 // API helpers
 // ---------------------------------------------------------------------------
 
-
-
-// ---------------------------------------------------------------------------
-// Mock Data
-// ---------------------------------------------------------------------------
-
-/** Generate fallback mock analytics summary. */
-function getMockSummary(): AnalyticsSummary {
-  return {
-    analysis_runs: 47,
-    total_findings: 312,
-    findings_resolved: 189,
-    resolution_rate: 60.6,
-    avg_health_score: 74.2,
-    trends: [
-      { date: '2026-04-06', findings: 28, resolved: 12, health: 68 },
-      { date: '2026-04-13', findings: 31, resolved: 15, health: 70 },
-      { date: '2026-04-20', findings: 33, resolved: 18, health: 72 },
-      { date: '2026-04-27', findings: 35, resolved: 20, health: 73 },
-    ],
-  };
-}
-
-/** Generate fallback mock categories. */
-function getMockCategories(): CategoryStat[] {
-  return [
-    { name: 'Performance', count: 68, percentage: 21.8 },
-    { name: 'Architecture', count: 54, percentage: 17.3 },
-    { name: 'Security', count: 42, percentage: 13.5 },
-    { name: 'Reliability', count: 39, percentage: 12.5 },
-    { name: 'Documentation', count: 35, percentage: 11.2 },
-  ];
-}
-
 // ---------------------------------------------------------------------------
 // Command Registration
 // ---------------------------------------------------------------------------
@@ -114,8 +81,8 @@ export function registerAnalyticsCommand(program: Command): void {
         try {
           summary = await apiRequest('/api/v1/analytics/summary') as AnalyticsSummary;
         } catch {
-          // Fallback to mock data
-          summary = getMockSummary();
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -164,8 +131,8 @@ export function registerAnalyticsCommand(program: Command): void {
           const data = await apiRequest('/api/v1/analytics/top-categories') as { categories: CategoryStat[] };
           categories = data.categories;
         } catch {
-          // Fallback to mock data
-          categories = getMockCategories();
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {

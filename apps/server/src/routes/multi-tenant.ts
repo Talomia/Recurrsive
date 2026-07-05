@@ -13,6 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,10 +66,8 @@ interface Tenant {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory store
+// Reference data (read-only)
 // ---------------------------------------------------------------------------
-
-const tenants: Map<string, Tenant> = new Map();
 
 // Tier quotas
 const tierQuotas: Record<TenantTier, Tenant['quotas']> = {
@@ -83,24 +82,7 @@ const tierFeatures: Record<TenantTier, Tenant['features']> = {
   enterprise: { sso: true, customBranding: true, advancedReporting: true, apiAccess: true, webhooks: true, multiRegion: true, auditLog: true, dataRetentionDays: 365 },
 };
 
-// Seed demo tenants
-const demoTenants: Array<Omit<Tenant, 'id' | 'createdAt' | 'updatedAt' | 'quotas' | 'features'>> = [
-  { name: 'Talomia Engineering', slug: 'talomia', tier: 'enterprise', status: 'active', ownerId: 'sarah-chen', customDomain: 'intelligence.talomia.io', usage: { projects: 8, users: 24, analysisRunsToday: 45, storageMB: 12800, collectorsActive: 14, analyzersActive: 13 } },
-  { name: 'Acme Startup', slug: 'acme', tier: 'team', status: 'active', ownerId: 'jane-doe', customDomain: null, usage: { projects: 5, users: 12, analysisRunsToday: 15, storageMB: 2100, collectorsActive: 6, analyzersActive: 8 } },
-  { name: 'Open Source Project', slug: 'oss-demo', tier: 'free', status: 'trial', ownerId: 'dev-user', customDomain: null, usage: { projects: 2, users: 3, analysisRunsToday: 4, storageMB: 180, collectorsActive: 3, analyzersActive: 5 } },
-];
-
-for (const t of demoTenants) {
-  const id = generateId();
-  tenants.set(id, {
-    ...t,
-    id,
-    quotas: tierQuotas[t.tier],
-    features: tierFeatures[t.tier],
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: nowISO(),
-  });
-}
+// No seed data — tenants are created via the API.
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -109,12 +91,13 @@ for (const t of demoTenants) {
 export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<void> {
   // List all tenants
   app.get('/api/v1/tenants', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    return reply.send({ data: Array.from(tenants.values()), total: tenants.size });
+    const all = store.all<Tenant>('tenants');
+    return reply.send({ data: all, total: all.length });
   });
 
   // Get tenant details
   app.get<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const tenant = tenants.get(request.params.id);
+    const tenant = store.get<Tenant>('tenants', request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     return reply.send({ data: tenant });
   });
@@ -127,7 +110,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
     }
 
     // Check slug uniqueness
-    for (const t of tenants.values()) {
+    for (const t of store.all<Tenant>('tenants')) {
       if (t.slug === body.slug) return reply.status(409).send({ error: 'Conflict', message: 'Slug already taken' });
     }
 
@@ -149,13 +132,13 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
       updatedAt: now,
     };
 
-    tenants.set(id, tenant);
+    store.set<Tenant>('tenants', id, tenant);
     return reply.status(201).send({ data: tenant });
   });
 
   // Update tenant
   app.put<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const tenant = tenants.get(request.params.id);
+    const tenant = store.get<Tenant>('tenants', request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 
     const body = request.body as Partial<Tenant>;
@@ -169,21 +152,22 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
     if (body.customDomain !== undefined) tenant.customDomain = body.customDomain;
     tenant.updatedAt = nowISO();
 
+    store.set<Tenant>('tenants', request.params.id, tenant);
     return reply.send({ data: tenant });
   });
 
   // Delete tenant
   app.delete<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!tenants.has(request.params.id)) {
+    if (!store.has('tenants', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     }
-    tenants.delete(request.params.id);
+    store.delete('tenants', request.params.id);
     return reply.status(204).send();
   });
 
   // Check quota usage
   app.get<{ Params: { id: string } }>('/api/v1/tenants/:id/quotas', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const tenant = tenants.get(request.params.id);
+    const tenant = store.get<Tenant>('tenants', request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 
     const checks = Object.entries(tenant.quotas).map(([key, limit]) => {

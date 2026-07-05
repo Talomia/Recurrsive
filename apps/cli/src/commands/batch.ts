@@ -19,6 +19,7 @@ import {
   cyan,
   green,
   red,
+  yellow,
   dim,
   table,
 } from '../output/terminal.js';
@@ -93,16 +94,8 @@ export function registerBatchCommand(program: Command): void {
             body: JSON.stringify({ projects: paths }),
           }) as BatchRun;
         } catch {
-          // Fallback — simulate batch creation
-          result = {
-            batch_id: `batch_${String(Date.now()).slice(-6)}`,
-            status: 'pending',
-            projects: paths.map(p => ({
-              path: p,
-              status: 'pending' as const,
-            })),
-            created_at: new Date().toISOString(),
-          };
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -141,23 +134,8 @@ export function registerBatchCommand(program: Command): void {
         try {
           result = await apiRequest(`/api/v1/batch/status/${batchId}`) as BatchRun;
         } catch {
-          // Fallback
-          result = {
-            batch_id: batchId,
-            status: 'complete',
-            projects: [
-              {
-                path: '/example/project-1',
-                status: 'complete',
-                started_at: new Date(Date.now() - 120000).toISOString(),
-                completed_at: new Date(Date.now() - 60000).toISOString(),
-                findings_count: 12,
-                opportunities_count: 5,
-              },
-            ],
-            created_at: new Date(Date.now() - 180000).toISOString(),
-            completed_at: new Date().toISOString(),
-          };
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -206,19 +184,8 @@ export function registerBatchCommand(program: Command): void {
           const data = await apiRequest(`/api/v1/batch/history?limit=${opts.limit}`) as { batches: BatchRun[] };
           runs = data.batches;
         } catch {
-          // Fallback
-          runs = [
-            {
-              batch_id: 'batch_001',
-              status: 'complete',
-              projects: [
-                { path: '/project-a', status: 'complete', findings_count: 8, opportunities_count: 3 },
-                { path: '/project-b', status: 'complete', findings_count: 15, opportunities_count: 7 },
-              ],
-              created_at: new Date(Date.now() - 86400000).toISOString(),
-              completed_at: new Date(Date.now() - 86000000).toISOString(),
-            },
-          ];
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {

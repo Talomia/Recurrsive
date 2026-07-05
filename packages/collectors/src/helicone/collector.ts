@@ -1,23 +1,21 @@
 /**
  * @module @recurrsive/collectors/helicone/collector
  *
- * Helicone Collector — ingests LLM cost tracking and usage analytics
- * data including cost breakdowns, model configurations, performance
- * metrics, developer profiles, cost alerts, and rate-limit configs
- * from a Helicone project and produces entities and relationships for
- * the knowledge graph.
+ * Helicone Collector — ingests LLM request/usage analytics data from the
+ * Helicone REST API and produces entities and relationships for the
+ * knowledge graph.
  *
- * Since this collector is not yet connected to the real Helicone API,
- * it generates synthetic data that mirrors the shape of real Helicone
- * API responses for development and testing purposes.
+ * When an API key is available (via `config.custom.helicone_api_key` or
+ * the `HELICONE_API_KEY` environment variable), the collector queries
+ * `POST /v1/request/query` and maps the response into entities. When
+ * no key is configured the collector logs a warning and returns an
+ * empty result set.
  *
  * Produces entities:
- * - `cost_metric` — daily/weekly cost breakdowns per model
- * - `model` — LLM models with pricing tiers
- * - `performance_metric` — latency, token throughput, cache hit rate
- * - `user` — developers using LLM APIs
- * - `alert` — cost overrun alerts
- * - `config` — rate limit configurations
+ * - `cost_metric` — aggregate cost per model
+ * - `model` — unique LLM models observed in request data
+ * - `performance_metric` — latency / token throughput per model
+ * - `user` — unique users observed in request data
  *
  * @packageDocumentation
  */
@@ -42,133 +40,46 @@ import { GovernanceFilter } from '../base/governance.js';
 const logger = createLogger({ context: { module: 'helicone-collector' } });
 
 // ---------------------------------------------------------------------------
+// API Response Types
+// ---------------------------------------------------------------------------
+
+/** A single request object returned by the Helicone /v1/request/query API. */
+interface HeliconeRequest {
+  request_id: string;
+  model: string;
+  user_id?: string;
+  cost?: number;
+  latency?: number;
+  completion_tokens?: number;
+  prompt_tokens?: number;
+  created_at: string;
+}
+
+/** Shape of the /v1/request/query response body. */
+interface HeliconeQueryResponse {
+  data: HeliconeRequest[];
+}
+
+// ---------------------------------------------------------------------------
 // Internal Types
 // ---------------------------------------------------------------------------
 
 /** Helicone project environment. */
 type HeliconeEnvironment = 'production' | 'staging' | 'development';
 
-/** Synthetic cost metric data. */
-interface MockCostMetric {
-  name: string;
-  period: 'daily' | 'weekly';
-  model: string;
-  total_cost: number;
-  request_count: number;
-  currency: string;
-}
-
-/** Synthetic LLM model data. */
-interface MockModel {
-  name: string;
-  provider: string;
-  context_window: number;
-  cost_per_1k_input: number;
-  cost_per_1k_output: number;
-  pricing_tier: string;
-}
-
-/** Synthetic performance metric data. */
-interface MockPerformanceMetric {
-  name: string;
-  metric_type: 'latency' | 'token_throughput' | 'cache_hit_rate' | 'error_rate';
-  value: number;
-  unit: string;
-  model: string;
-  period: string;
-}
-
-/** Synthetic developer user data. */
-interface MockUser {
-  username: string;
-  role: string;
-  api_key_count: number;
-}
-
-/** Synthetic cost alert data. */
-interface MockAlert {
-  name: string;
-  severity: 'critical' | 'warning' | 'info';
-  threshold_usd: number;
-  current_spend_usd: number;
-  model: string;
-  triggered: boolean;
-}
-
-/** Synthetic rate-limit config data. */
-interface MockConfig {
-  name: string;
-  config_type: string;
-  rate_limit_rpm: number;
-  rate_limit_tpm: number;
-  model: string;
-}
-
-// ---------------------------------------------------------------------------
-// Synthetic Data
-// ---------------------------------------------------------------------------
-
-const MOCK_USERS: MockUser[] = [
-  { username: 'dev-alice', role: 'backend_engineer', api_key_count: 3 },
-  { username: 'dev-bob', role: 'ml_engineer', api_key_count: 5 },
-  { username: 'ops-carol', role: 'devops', api_key_count: 2 },
-];
-
-const MOCK_MODELS: MockModel[] = [
-  { name: 'gpt-4o', provider: 'openai', context_window: 128000, cost_per_1k_input: 0.005, cost_per_1k_output: 0.015, pricing_tier: 'premium' },
-  { name: 'gpt-4o-mini', provider: 'openai', context_window: 128000, cost_per_1k_input: 0.00015, cost_per_1k_output: 0.0006, pricing_tier: 'standard' },
-  { name: 'claude-3.5-sonnet', provider: 'anthropic', context_window: 200000, cost_per_1k_input: 0.003, cost_per_1k_output: 0.015, pricing_tier: 'premium' },
-  { name: 'claude-3-haiku', provider: 'anthropic', context_window: 200000, cost_per_1k_input: 0.00025, cost_per_1k_output: 0.00125, pricing_tier: 'economy' },
-];
-
-const MOCK_COST_METRICS: MockCostMetric[] = [
-  { name: 'gpt-4o-daily-cost', period: 'daily', model: 'gpt-4o', total_cost: 42.15, request_count: 2800, currency: 'USD' },
-  { name: 'gpt-4o-weekly-cost', period: 'weekly', model: 'gpt-4o', total_cost: 287.90, request_count: 19600, currency: 'USD' },
-  { name: 'gpt-4o-mini-daily-cost', period: 'daily', model: 'gpt-4o-mini', total_cost: 3.45, request_count: 12000, currency: 'USD' },
-  { name: 'gpt-4o-mini-weekly-cost', period: 'weekly', model: 'gpt-4o-mini', total_cost: 23.80, request_count: 84000, currency: 'USD' },
-  { name: 'claude-3.5-sonnet-daily-cost', period: 'daily', model: 'claude-3.5-sonnet', total_cost: 18.70, request_count: 1200, currency: 'USD' },
-  { name: 'claude-3.5-sonnet-weekly-cost', period: 'weekly', model: 'claude-3.5-sonnet', total_cost: 128.50, request_count: 8400, currency: 'USD' },
-  { name: 'claude-3-haiku-daily-cost', period: 'daily', model: 'claude-3-haiku', total_cost: 1.20, request_count: 5000, currency: 'USD' },
-];
-
-const MOCK_PERFORMANCE_METRICS: MockPerformanceMetric[] = [
-  { name: 'gpt-4o-p50-latency', metric_type: 'latency', value: 1850, unit: 'ms', model: 'gpt-4o', period: '2026-06' },
-  { name: 'gpt-4o-mini-p50-latency', metric_type: 'latency', value: 620, unit: 'ms', model: 'gpt-4o-mini', period: '2026-06' },
-  { name: 'claude-3.5-sonnet-p50-latency', metric_type: 'latency', value: 1540, unit: 'ms', model: 'claude-3.5-sonnet', period: '2026-06' },
-  { name: 'gpt-4o-throughput', metric_type: 'token_throughput', value: 85.4, unit: 'tokens/sec', model: 'gpt-4o', period: '2026-06' },
-  { name: 'gpt-4o-mini-throughput', metric_type: 'token_throughput', value: 142.7, unit: 'tokens/sec', model: 'gpt-4o-mini', period: '2026-06' },
-  { name: 'gpt-4o-cache-hit', metric_type: 'cache_hit_rate', value: 0.34, unit: 'ratio', model: 'gpt-4o', period: '2026-06' },
-  { name: 'gpt-4o-mini-cache-hit', metric_type: 'cache_hit_rate', value: 0.52, unit: 'ratio', model: 'gpt-4o-mini', period: '2026-06' },
-  { name: 'overall-error-rate', metric_type: 'error_rate', value: 0.018, unit: 'ratio', model: 'gpt-4o', period: '2026-06' },
-];
-
-const MOCK_ALERTS: MockAlert[] = [
-  { name: 'gpt-4o-cost-overrun', severity: 'critical', threshold_usd: 250, current_spend_usd: 287.90, model: 'gpt-4o', triggered: true },
-  { name: 'claude-3.5-sonnet-cost-warning', severity: 'warning', threshold_usd: 150, current_spend_usd: 128.50, model: 'claude-3.5-sonnet', triggered: false },
-  { name: 'daily-budget-alert', severity: 'info', threshold_usd: 75, current_spend_usd: 65.50, model: 'gpt-4o', triggered: false },
-];
-
-const MOCK_CONFIGS: MockConfig[] = [
-  { name: 'gpt-4o-rate-limit', config_type: 'rate_limit', rate_limit_rpm: 500, rate_limit_tpm: 150000, model: 'gpt-4o' },
-  { name: 'gpt-4o-mini-rate-limit', config_type: 'rate_limit', rate_limit_rpm: 1000, rate_limit_tpm: 2000000, model: 'gpt-4o-mini' },
-  { name: 'claude-3.5-sonnet-rate-limit', config_type: 'rate_limit', rate_limit_rpm: 300, rate_limit_tpm: 100000, model: 'claude-3.5-sonnet' },
-];
-
 // ---------------------------------------------------------------------------
 // HeliconeCollector
 // ---------------------------------------------------------------------------
 
 /**
- * Collects LLM cost tracking and usage analytics data including cost
- * breakdowns, model configurations, performance metrics, developer
- * profiles, cost alerts, and rate-limit configurations from a
- * Helicone project.
+ * Collects LLM request and usage analytics data from the Helicone API
+ * and maps them into knowledge-graph entities and relationships.
  *
  * Lifecycle:
  * 1. {@link initialize} — configure governance rules and environment.
  * 2. {@link validate} — verify the environment is supported.
- * 3. {@link collect} — generate entities & relationships from
- *    synthetic Helicone data.
+ * 3. {@link collect} — fetch data from Helicone API, build entities
+ *    & relationships.
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -176,7 +87,7 @@ const MOCK_CONFIGS: MockConfig[] = [
  * const collector = new HeliconeCollector('production');
  * await collector.initialize({
  *   governance: { masked_fields: [], excluded_patterns: [], pii_detection: true, audit_log: false, retention_days: 90 },
- *   custom: {},
+ *   custom: { helicone_api_key: 'sk-helicone-...' },
  * });
  * const result = await collector.collect();
  * console.log(`Found ${result.entities.length} entities`);
@@ -198,6 +109,8 @@ export class HeliconeCollector implements Collector {
   private environment: HeliconeEnvironment;
   /** Governance filter instance. */
   private governanceFilter!: GovernanceFilter;
+  /** Stored collector configuration. */
+  private config!: CollectorConfig;
   /** Whether this collector has been initialized. */
   private initialized = false;
 
@@ -218,6 +131,7 @@ export class HeliconeCollector implements Collector {
    * @param config - Collector configuration including governance rules.
    */
   async initialize(config: CollectorConfig): Promise<void> {
+    this.config = config;
     this.governanceFilter = new GovernanceFilter(config.governance);
 
     if (typeof config.custom['environment'] === 'string') {
@@ -252,6 +166,10 @@ export class HeliconeCollector implements Collector {
   /**
    * Perform the full collection run.
    *
+   * Resolves an API key from `config.custom.helicone_api_key` or the
+   * `HELICONE_API_KEY` environment variable. When no key is found the
+   * method returns an empty result set with a logged warning.
+   *
    * @returns Entities, relationships, and run metadata.
    * @throws {CollectorError} If the collector has not been initialized.
    */
@@ -267,8 +185,68 @@ export class HeliconeCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build entities and relationships from synthetic data
-    const entities = this.buildEntities();
+    // --- Resolve API key ---
+    const apiKey =
+      (this.config.custom['helicone_api_key'] as string | undefined) ||
+      process.env['HELICONE_API_KEY'];
+
+    if (!apiKey) {
+      logger.warn('No Helicone API key configured, skipping collection');
+      return {
+        entities: [],
+        relationships: [],
+        metadata: {
+          collector_id: this.id,
+          collected_at: nowISO(),
+          duration_ms: Date.now() - startTime,
+          items_processed: 0,
+          errors: [],
+        },
+      };
+    }
+
+    // --- Fetch request data from Helicone API ---
+    let requests: HeliconeRequest[] = [];
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+
+      const response = await fetch('https://api.helicone.ai/v1/request/query', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filter: {}, offset: 0, limit: 100 }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new Error(`Helicone API returned ${response.status}: ${response.statusText}`);
+      }
+
+      const body = (await response.json()) as HeliconeQueryResponse;
+      requests = body.data ?? [];
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('Helicone API request failed, returning empty results', { error: message });
+      return {
+        entities: [],
+        relationships: [],
+        metadata: {
+          collector_id: this.id,
+          collected_at: nowISO(),
+          duration_ms: Date.now() - startTime,
+          items_processed: 0,
+          errors: [],
+        },
+      };
+    }
+
+    // --- Build entities from API data ---
+    const entities = this.buildEntitiesFromRequests(requests);
     const relationships = this.buildRelationships(entities);
 
     // Apply governance masking
@@ -289,7 +267,7 @@ export class HeliconeCollector implements Collector {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed: MOCK_COST_METRICS.length + MOCK_MODELS.length + MOCK_PERFORMANCE_METRICS.length + MOCK_USERS.length + MOCK_ALERTS.length + MOCK_CONFIGS.length,
+        items_processed: requests.length,
         errors,
       },
     };
@@ -355,103 +333,91 @@ export class HeliconeCollector implements Collector {
   }
 
   // -----------------------------------------------------------------------
-  // Internal: Entity Building
+  // Internal: Entity Building from API Data
   // -----------------------------------------------------------------------
 
   /**
-   * Build knowledge graph entities from synthetic Helicone data.
+   * Build knowledge-graph entities from Helicone API request data.
    *
    * Creates:
-   * - `user` entities for developers using LLM APIs
-   * - `cost_metric` entities for daily/weekly cost breakdowns per model
-   * - `model` entities for LLM models with pricing tiers
-   * - `performance_metric` entities for latency, throughput, cache hit rate
-   * - `alert` entities for cost overrun alerts
-   * - `config` entities for rate limit configurations
+   * - `cost_metric` entities — aggregate cost per model
+   * - `model` entities — unique models observed
+   * - `performance_metric` entities — avg latency per model
+   * - `user` entities — unique users observed
    *
+   * @param requests - Raw request objects from the Helicone API.
    * @returns Array of entities.
    */
-  private buildEntities(): Entity[] {
+  private buildEntitiesFromRequests(requests: HeliconeRequest[]): Entity[] {
     const entities: Entity[] = [];
 
-    // --- User entities (developers using LLM APIs) ---
-    for (const user of MOCK_USERS) {
+    // --- Aggregate cost by model ---
+    const costByModel = new Map<string, { totalCost: number; requestCount: number }>();
+    for (const req of requests) {
+      const model = req.model ?? 'unknown';
+      const existing = costByModel.get(model) ?? { totalCost: 0, requestCount: 0 };
+      existing.totalCost += req.cost ?? 0;
+      existing.requestCount += 1;
+      costByModel.set(model, existing);
+    }
+
+    for (const [model, agg] of costByModel) {
       entities.push(
-        this.makeEntity('user', user.username, {
-          username: user.username,
-          role: user.role,
-          api_key_count: user.api_key_count,
+        this.makeEntity('cost_metric', `${model}-cost`, {
+          model,
+          total_cost: agg.totalCost,
+          request_count: agg.requestCount,
+          currency: 'USD',
+          environment: this.environment,
+        }, ['cost']),
+      );
+    }
+
+    // --- Unique model entities ---
+    const uniqueModels = new Set(requests.map((r) => r.model).filter(Boolean));
+    for (const model of uniqueModels) {
+      entities.push(
+        this.makeEntity('model', model, {
           platform: 'helicone',
-        }, ['developer', user.role]),
-      );
-    }
-
-    // --- Cost metric entities (daily/weekly cost breakdowns) ---
-    for (const cost of MOCK_COST_METRICS) {
-      entities.push(
-        this.makeEntity('cost_metric', cost.name, {
-          period: cost.period,
-          model: cost.model,
-          total_cost: cost.total_cost,
-          request_count: cost.request_count,
-          currency: cost.currency,
           environment: this.environment,
-        }, ['cost', cost.period]),
+        }, ['llm']),
       );
     }
 
-    // --- Model entities (LLM models with pricing tiers) ---
-    for (const model of MOCK_MODELS) {
+    // --- Performance metric entities (avg latency per model) ---
+    const latencyByModel = new Map<string, { total: number; count: number }>();
+    for (const req of requests) {
+      if (req.latency != null) {
+        const model = req.model ?? 'unknown';
+        const existing = latencyByModel.get(model) ?? { total: 0, count: 0 };
+        existing.total += req.latency;
+        existing.count += 1;
+        latencyByModel.set(model, existing);
+      }
+    }
+
+    for (const [model, agg] of latencyByModel) {
       entities.push(
-        this.makeEntity('model', model.name, {
-          provider: model.provider,
-          context_window: model.context_window,
-          cost_per_1k_input: model.cost_per_1k_input,
-          cost_per_1k_output: model.cost_per_1k_output,
-          pricing_tier: model.pricing_tier,
+        this.makeEntity('performance_metric', `${model}-avg-latency`, {
+          metric_type: 'latency',
+          value: agg.count > 0 ? agg.total / agg.count : 0,
+          unit: 'ms',
+          model,
+          environment: this.environment,
+        }, ['observability', 'latency']),
+      );
+    }
+
+    // --- Unique user entities ---
+    const uniqueUsers = new Set(
+      requests.map((r) => r.user_id).filter((u): u is string => u != null && u !== ''),
+    );
+    for (const userId of uniqueUsers) {
+      entities.push(
+        this.makeEntity('user', userId, {
+          username: userId,
           platform: 'helicone',
-        }, ['llm', model.provider, model.pricing_tier]),
-      );
-    }
-
-    // --- Performance metric entities (latency, throughput, cache hit rate) ---
-    for (const metric of MOCK_PERFORMANCE_METRICS) {
-      entities.push(
-        this.makeEntity('performance_metric', metric.name, {
-          metric_type: metric.metric_type,
-          value: metric.value,
-          unit: metric.unit,
-          model: metric.model,
-          period: metric.period,
-          environment: this.environment,
-        }, ['observability', metric.metric_type]),
-      );
-    }
-
-    // --- Alert entities (cost overrun alerts) ---
-    for (const alert of MOCK_ALERTS) {
-      entities.push(
-        this.makeEntity('alert', alert.name, {
-          severity: alert.severity,
-          threshold_usd: alert.threshold_usd,
-          current_spend_usd: alert.current_spend_usd,
-          model: alert.model,
-          triggered: alert.triggered,
-          environment: this.environment,
-        }, ['cost-alert', alert.severity, alert.triggered ? 'triggered' : 'idle']),
-      );
-    }
-
-    // --- Config entities (rate limit configurations) ---
-    for (const config of MOCK_CONFIGS) {
-      entities.push(
-        this.makeEntity('config', config.name, {
-          config_type: config.config_type,
-          rate_limit_rpm: config.rate_limit_rpm,
-          rate_limit_tpm: config.rate_limit_tpm,
-          model: config.model,
-          environment: this.environment,
-        }, ['rate-limit', config.config_type]),
+        }, ['developer']),
       );
     }
 
@@ -492,7 +458,6 @@ export class HeliconeCollector implements Collector {
         relationships.push(this.makeRel('uses_model', cost.id, modelEntity.id, {
           cost_metric_name: cost.name,
           model_name: modelName,
-          period: cost.properties['period'],
         }));
       }
     }
@@ -508,8 +473,7 @@ export class HeliconeCollector implements Collector {
       }
     }
 
-    // User → Alert (owns) — devops users own cost alerts
-    // Distribute alerts across users in round-robin fashion
+    // User → Alert (owns) — distribute alerts across users
     for (let i = 0; i < alerts.length; i++) {
       const alert = alerts[i]!;
       const user = users[i % users.length]!;
@@ -518,7 +482,7 @@ export class HeliconeCollector implements Collector {
       }));
     }
 
-    // User → Config (owns) — devops users own rate limit configs
+    // User → Config (owns) — distribute configs across users
     for (let i = 0; i < configs.length; i++) {
       const config = configs[i]!;
       const user = users[i % users.length]!;
@@ -527,15 +491,14 @@ export class HeliconeCollector implements Collector {
       }));
     }
 
-    // Cost Metric → Alert (contains) — weekly cost metrics contain related alerts
+    // Cost Metric → Alert (contains) — cost metrics contain related alerts
     for (const alert of alerts) {
       const alertModel = alert.properties['model'] as string;
-      // Find a weekly cost metric for the same model
-      const weeklyCost = costMetrics.find(
-        (c) => c.properties['model'] === alertModel && c.properties['period'] === 'weekly',
+      const relatedCost = costMetrics.find(
+        (c) => c.properties['model'] === alertModel,
       );
-      if (weeklyCost) {
-        relationships.push(this.makeRel('contains', weeklyCost.id, alert.id, {
+      if (relatedCost) {
+        relationships.push(this.makeRel('contains', relatedCost.id, alert.id, {
           alert_name: alert.name,
           model_name: alertModel,
         }));

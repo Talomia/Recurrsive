@@ -11,6 +11,7 @@
  */
 
 import type { Command } from 'commander';
+import { apiRequest } from '../config.js';
 import {
   header,
   info,
@@ -48,31 +49,8 @@ interface MarketplacePlugin {
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// Helpers
 // ---------------------------------------------------------------------------
-
-function getMockInstalled(): InstalledPlugin[] {
-  return [
-    { id: 'plg-sec', name: 'security-scanner', version: '2.4.1', status: 'active', author: 'Recurrsive', updated: '2026-06-28' },
-    { id: 'plg-perf', name: 'perf-profiler', version: '1.8.0', status: 'active', author: 'CloudMetrics Inc', updated: '2026-06-25' },
-    { id: 'plg-doc', name: 'doc-generator', version: '3.1.2', status: 'inactive', author: 'Recurrsive', updated: '2026-06-20' },
-    { id: 'plg-lint', name: 'smart-linter', version: '1.2.0', status: 'active', author: 'CodeQuality Labs', updated: '2026-06-27' },
-    { id: 'plg-dep', name: 'dep-analyzer', version: '0.9.3', status: 'error', author: 'OpenSource Collective', updated: '2026-06-15' },
-  ];
-}
-
-function getMockMarketplace(): MarketplacePlugin[] {
-  return [
-    { id: 'mkt-001', name: 'ai-code-review', description: 'AI-powered code review suggestions', downloads: 12400, rating: 4.8, price: 'Free' },
-    { id: 'mkt-002', name: 'compliance-checker', description: 'SOC2/HIPAA compliance scanning', downloads: 8200, rating: 4.6, price: '$29/mo' },
-    { id: 'mkt-003', name: 'chaos-monkey', description: 'Automated chaos engineering tests', downloads: 6100, rating: 4.3, price: 'Free' },
-    { id: 'mkt-004', name: 'cost-optimizer', description: 'Cloud cost analysis and optimization', downloads: 9800, rating: 4.7, price: '$49/mo' },
-    { id: 'mkt-005', name: 'api-versioning', description: 'Automated API version management', downloads: 3400, rating: 4.1, price: 'Free' },
-    { id: 'mkt-006', name: 'team-insights', description: 'Developer productivity analytics', downloads: 7600, rating: 4.5, price: '$19/mo' },
-    { id: 'mkt-007', name: 'drift-detector', description: 'Infrastructure drift detection', downloads: 5200, rating: 4.4, price: 'Free' },
-    { id: 'mkt-008', name: 'sla-monitor', description: 'SLA tracking and alerting', downloads: 4100, rating: 4.2, price: '$15/mo' },
-  ];
-}
 
 function statusBadge(status: string): string {
   switch (status) {
@@ -109,8 +87,14 @@ export function registerPluginsCommand(program: Command): void {
     .command('list')
     .description('List installed plugins')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockInstalled();
+    .action(async (opts: { json?: boolean }) => {
+      let data: InstalledPlugin[];
+      try {
+        data = await apiRequest('/api/v1/plugins/installed') as InstalledPlugin[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));
@@ -139,8 +123,14 @@ export function registerPluginsCommand(program: Command): void {
     .description('Browse available plugins')
     .option('--json', 'Output as JSON')
     .option('--search <query>', 'Filter plugins by name')
-    .action((opts: { json?: boolean; search?: string }) => {
-      let data = getMockMarketplace();
+    .action(async (opts: { json?: boolean; search?: string }) => {
+      let data: MarketplacePlugin[];
+      try {
+        data = await apiRequest('/api/v1/marketplace/plugins') as MarketplacePlugin[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.search) {
         const q = opts.search.toLowerCase();

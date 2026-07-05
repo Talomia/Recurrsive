@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { Package, Shield, Heart, DollarSign, Container, Brain, Loader2, Star, Download } from 'lucide-react';
 import type { DashboardIntelligencePack } from '@/lib/api';
 import { getIntelligencePacks, getMarketplaceExtensions } from '@/lib/api';
+import { apiFetch } from '@/lib/api/client';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -59,15 +60,28 @@ export default function IntelligencePacksPage() {
       setMarketplaceMeta(meta);
       setPacks(packData);
       setExpanded(packData[0]?.id ?? null);
-      setLoading(false);
     }
-    load();
+    load().catch(() => { /* API unavailable */ }).finally(() => setLoading(false));
   }, []);
 
-  const toggleInstall = (id: string) => {
-    setPacks(prev => prev.map(p =>
-      p.id === id ? { ...p, status: p.status === 'installed' ? 'available' : 'installed' } : p
-    ));
+  const toggleInstall = async (id: string) => {
+    const pack = packs.find(p => p.id === id);
+    if (!pack) return;
+    const action = pack.status === 'installed' ? 'uninstall' : 'install';
+    try {
+      await apiFetch(`/api/v1/intelligence-packs/${id}/${action}`, {
+        method: 'POST',
+        unwrap: false,
+      });
+      setPacks(prev => prev.map(p =>
+        p.id === id ? { ...p, status: p.status === 'installed' ? 'available' : 'installed' } : p
+      ));
+    } catch {
+      // Optimistic fallback — still toggle locally
+      setPacks(prev => prev.map(p =>
+        p.id === id ? { ...p, status: p.status === 'installed' ? 'available' : 'installed' } : p
+      ));
+    }
   };
 
   if (loading) {

@@ -4,17 +4,14 @@
  * Tests cover:
  * - Initialization with config
  * - Validation success / failure
- * - Collection produces entities with valid shapes
- * - Entity types are all valid EntityType values
- * - Relationship types are all valid RelationType values
- * - Governance filtering works
+ * - Collection returns empty results when no OTEL data files exist
+ * - Governance filtering works (no crash with empty results)
  * - Dispose is clean
  * - Metadata has correct collector_id, timing, counts
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { OpenTelemetryCollector } from '../../telemetry/collector.js';
-import { EntityTypeSchema, RelationTypeSchema } from '@recurrsive/core';
 import type { CollectorConfig } from '@recurrsive/core';
 
 // ---------------------------------------------------------------------------
@@ -56,7 +53,8 @@ describe('Initialization', () => {
     };
     await collector.initialize(overrideConfig);
     const result = await collector.collect();
-    expect(result.entities.length).toBeGreaterThan(0);
+    // No OTEL files exist in test environment, so empty results
+    expect(result.entities.length).toBe(0);
   });
 });
 
@@ -99,146 +97,30 @@ describe('Validation', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Collection — Entity Production
+// Collection — Empty Results (No OTEL Data Files)
 // ---------------------------------------------------------------------------
 
-describe('Collection — entity production', () => {
-  it('produces between 12 and 20 entities', async () => {
+describe('Collection — no OTEL data files', () => {
+  it('returns empty entities when no OTEL data files are found', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
-    expect(result.entities.length).toBeGreaterThanOrEqual(12);
-    expect(result.entities.length).toBeLessThanOrEqual(20);
+    expect(result.entities.length).toBe(0);
   });
 
-  it('produces entities with all required fields', async () => {
+  it('returns empty relationships when no OTEL data files are found', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
-
-    for (const entity of result.entities) {
-      expect(entity.id).toBeDefined();
-      expect(entity.type).toBeDefined();
-      expect(entity.name).toBeDefined();
-      expect(entity.qualified_name).toBeDefined();
-      expect(entity.source).toBe('telemetry');
-      expect(entity.properties).toBeDefined();
-      expect(entity.tags).toBeDefined();
-      expect(entity.created_at).toBeDefined();
-      expect(entity.updated_at).toBeDefined();
-      expect(entity.last_seen_at).toBeDefined();
-    }
+    expect(result.relationships.length).toBe(0);
   });
 
-  it('produces only valid EntityType values', async () => {
+  it('returns valid metadata with no data files', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
-
-    for (const entity of result.entities) {
-      const parsed = EntityTypeSchema.safeParse(entity.type);
-      expect(parsed.success).toBe(true);
-    }
-  });
-
-  it('produces the expected entity types', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-
-    const types = new Set(result.entities.map((e) => e.type));
-    expect(types.has('performance_metric')).toBe(true);
-    expect(types.has('infrastructure_resource')).toBe(true);
-    expect(types.has('deployment')).toBe(true);
-    expect(types.has('environment')).toBe(true);
-    expect(types.has('alert')).toBe(true);
-  });
-
-  it('produces metric entities with expected properties', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-
-    const metrics = result.entities.filter((e) => e.type === 'performance_metric');
-    expect(metrics.length).toBe(5);
-    for (const metric of metrics) {
-      expect(metric.properties['unit']).toBeDefined();
-      expect(metric.properties['value']).toBeDefined();
-      expect(metric.properties['metric_type']).toBeDefined();
-    }
-  });
-
-  it('produces infrastructure entities with correct kinds', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-
-    const resources = result.entities.filter((e) => e.type === 'infrastructure_resource');
-    expect(resources.length).toBe(3);
-    const kinds = new Set(resources.map((r) => r.properties['kind']));
-    expect(kinds.has('host')).toBe(true);
-    expect(kinds.has('pod')).toBe(true);
-    expect(kinds.has('container')).toBe(true);
-  });
-
-  it('produces alert entities with severity and status', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-
-    const alerts = result.entities.filter((e) => e.type === 'alert');
-    expect(alerts.length).toBe(2);
-    for (const alert of alerts) {
-      expect(alert.properties['severity']).toBeDefined();
-      expect(alert.properties['status']).toBeDefined();
-      expect(alert.properties['condition']).toBeDefined();
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Collection — Relationship Production
-// ---------------------------------------------------------------------------
-
-describe('Collection — relationship production', () => {
-  it('produces between 8 and 15 relationships', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-    expect(result.relationships.length).toBeGreaterThanOrEqual(8);
-    expect(result.relationships.length).toBeLessThanOrEqual(15);
-  });
-
-  it('produces only valid RelationType values', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-
-    for (const rel of result.relationships) {
-      const parsed = RelationTypeSchema.safeParse(rel.type);
-      expect(parsed.success).toBe(true);
-    }
-  });
-
-  it('produces the expected relationship types', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-
-    const types = new Set(result.relationships.map((r) => r.type));
-    expect(types.has('monitors')).toBe(true);
-    expect(types.has('alerts_on')).toBe(true);
-    expect(types.has('depends_on')).toBe(true);
-    expect(types.has('routes_to')).toBe(true);
-    expect(types.has('deploys_to')).toBe(true);
-  });
-
-  it('produces relationships with all required fields', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-
-    for (const rel of result.relationships) {
-      expect(rel.id).toBeDefined();
-      expect(rel.type).toBeDefined();
-      expect(rel.source_id).toBeDefined();
-      expect(rel.target_id).toBeDefined();
-      expect(rel.properties).toBeDefined();
-      expect(rel.confidence).toBeGreaterThanOrEqual(0);
-      expect(rel.confidence).toBeLessThanOrEqual(1);
-      expect(rel.source).toBe('telemetry');
-      expect(rel.created_at).toBeDefined();
-      expect(rel.updated_at).toBeDefined();
-    }
+    expect(result.metadata.collector_id).toBe('telemetry');
+    expect(result.metadata.items_processed).toBe(0);
+    expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
+    expect(result.metadata.collected_at).toBeDefined();
+    expect(result.metadata.errors).toEqual([]);
   });
 });
 
@@ -247,7 +129,7 @@ describe('Collection — relationship production', () => {
 // ---------------------------------------------------------------------------
 
 describe('Governance filtering', () => {
-  it('masks configured fields in entity properties', async () => {
+  it('does not crash with masked config when no data files exist', async () => {
     const maskedConfig: CollectorConfig = {
       governance: {
         masked_fields: ['otlp_endpoint', 'condition'],
@@ -261,17 +143,8 @@ describe('Governance filtering', () => {
 
     await collector.initialize(maskedConfig);
     const result = await collector.collect();
-
-    // Every entity has otlp_endpoint, so they should all be masked
-    for (const entity of result.entities) {
-      expect(entity.properties['otlp_endpoint']).toBe('***REDACTED***');
-    }
-
-    // Alert entities should have condition masked
-    const alerts = result.entities.filter((e) => e.type === 'alert');
-    for (const alert of alerts) {
-      expect(alert.properties['condition']).toBe('***REDACTED***');
-    }
+    expect(result.entities.length).toBe(0);
+    expect(result.relationships.length).toBe(0);
   });
 });
 
@@ -330,7 +203,7 @@ describe('Metadata', () => {
     expect(result.metadata.collector_id).toBe('telemetry');
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
-    expect(result.metadata.items_processed).toBeGreaterThan(0);
+    expect(result.metadata.items_processed).toBe(0);
     expect(result.metadata.errors).toEqual([]);
   });
 });

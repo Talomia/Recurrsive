@@ -1,22 +1,26 @@
 /**
  * @module @recurrsive/collectors/langfuse/collector
  *
- * Langfuse Collector — ingests LLM observability data including prompt
- * templates, model configurations, performance metrics, LLM pipelines,
- * evaluation datasets, and AI engineers from a Langfuse project and
- * produces entities and relationships for the knowledge graph.
+ * Langfuse Collector — ingests LLM observability data from the Langfuse
+ * public API including prompt templates, model configurations, performance
+ * metrics, LLM pipelines, and user profiles.
  *
- * Since this collector is not yet connected to the real Langfuse API,
- * it generates synthetic data that mirrors the shape of real Langfuse
- * API responses for development and testing purposes.
+ * Connects to the real Langfuse API using Basic auth with a public/secret
+ * key pair. When no credentials are configured (via config.custom or
+ * environment variables), the collector logs a warning and returns empty
+ * results — this allows tests and development to run without a live
+ * Langfuse instance.
+ *
+ * API endpoints used:
+ * - GET /api/public/traces?limit=50
+ * - GET /api/public/prompts
  *
  * Produces entities:
  * - `prompt` — prompt templates and versions
- * - `model` — LLM models used in traces
- * - `performance_metric` — latency, token usage, and cost metrics
- * - `pipeline` — LLM chains and workflows
- * - `user` — AI engineers and prompt authors
- * - `evaluation` — evaluation datasets and scoring runs
+ * - `model` — LLM models observed in traces
+ * - `performance_metric` — aggregate latency and token usage metrics
+ * - `pipeline` — unique trace names (LLM workflows)
+ * - `user` — unique user IDs from traces
  *
  * @packageDocumentation
  */
@@ -47,97 +51,52 @@ const logger = createLogger({ context: { module: 'langfuse-collector' } });
 /** Langfuse project environment. */
 type LangfuseEnvironment = 'production' | 'staging' | 'development';
 
-/** Synthetic prompt template data. */
-interface MockPrompt {
-  name: string;
-  version: number;
-  template: string;
-  model: string;
-  author: string;
-  is_active: boolean;
+/** Shape of a single trace returned by GET /api/public/traces. */
+interface LangfuseTrace {
+  id: string;
+  name?: string;
+  userId?: string;
+  metadata?: Record<string, unknown>;
+  totalCost?: number;
+  latency?: number;
+  input?: unknown;
+  output?: unknown;
+  observations?: LangfuseObservation[];
 }
 
-/** Synthetic LLM model data. */
-interface MockModel {
-  name: string;
-  provider: string;
-  context_window: number;
-  cost_per_1k_input: number;
-  cost_per_1k_output: number;
+/** Shape of an observation nested inside a trace. */
+interface LangfuseObservation {
+  id: string;
+  model?: string;
+  usage?: {
+    input?: number;
+    output?: number;
+    total?: number;
+  };
+  latency?: number;
 }
 
-/** Synthetic performance metric data. */
-interface MockPerformanceMetric {
-  name: string;
-  metric_type: 'latency' | 'token_usage' | 'cost' | 'error_rate';
-  value: number;
-  unit: string;
-  model: string;
-  period: string;
+/** Shape of the traces list API response. */
+interface LangfuseTracesResponse {
+  data: LangfuseTrace[];
+  meta?: { totalItems?: number; page?: number };
 }
 
-/** Synthetic LLM pipeline data. */
-interface MockPipeline {
+/** Shape of a single prompt returned by GET /api/public/prompts. */
+interface LangfusePrompt {
   name: string;
-  description: string;
-  step_count: number;
-  avg_latency_ms: number;
-  daily_invocations: number;
+  version?: number;
+  prompt?: string | Record<string, unknown>;
+  config?: Record<string, unknown>;
+  labels?: string[];
+  tags?: string[];
 }
 
-/** Synthetic evaluation data. */
-interface MockEvaluation {
-  name: string;
-  dataset_size: number;
-  avg_score: number;
-  scoring_method: string;
-  model: string;
+/** Shape of the prompts list API response. */
+interface LangfusePromptsResponse {
+  data: LangfusePrompt[];
+  meta?: { totalItems?: number; page?: number };
 }
-
-// ---------------------------------------------------------------------------
-// Synthetic Data
-// ---------------------------------------------------------------------------
-
-const MOCK_USERS = ['ml-engineer-alice', 'prompt-author-bob', 'ai-ops-carol'];
-
-const MOCK_PROMPTS: MockPrompt[] = [
-  { name: 'summarization-v2', version: 2, template: 'Summarize the following text:\n\n{{text}}', model: 'gpt-4o', author: 'prompt-author-bob', is_active: true },
-  { name: 'code-review', version: 3, template: 'Review the following code for bugs and improvements:\n\n{{code}}', model: 'gpt-4o', author: 'prompt-author-bob', is_active: true },
-  { name: 'classification', version: 1, template: 'Classify the following into categories:\n\n{{input}}', model: 'claude-3-sonnet', author: 'ml-engineer-alice', is_active: true },
-  { name: 'extraction', version: 4, template: 'Extract structured data from:\n\n{{document}}', model: 'gpt-4o-mini', author: 'ml-engineer-alice', is_active: true },
-  { name: 'chat-system-prompt', version: 1, template: 'You are a helpful assistant. Respond concisely.', model: 'gpt-4o', author: 'prompt-author-bob', is_active: false },
-];
-
-const MOCK_MODELS: MockModel[] = [
-  { name: 'gpt-4o', provider: 'openai', context_window: 128000, cost_per_1k_input: 0.005, cost_per_1k_output: 0.015 },
-  { name: 'gpt-4o-mini', provider: 'openai', context_window: 128000, cost_per_1k_input: 0.00015, cost_per_1k_output: 0.0006 },
-  { name: 'claude-3-sonnet', provider: 'anthropic', context_window: 200000, cost_per_1k_input: 0.003, cost_per_1k_output: 0.015 },
-  { name: 'claude-3-haiku', provider: 'anthropic', context_window: 200000, cost_per_1k_input: 0.00025, cost_per_1k_output: 0.00125 },
-];
-
-const MOCK_PERFORMANCE_METRICS: MockPerformanceMetric[] = [
-  { name: 'gpt-4o-latency', metric_type: 'latency', value: 2340, unit: 'ms', model: 'gpt-4o', period: '2026-06' },
-  { name: 'gpt-4o-mini-latency', metric_type: 'latency', value: 890, unit: 'ms', model: 'gpt-4o-mini', period: '2026-06' },
-  { name: 'claude-3-sonnet-latency', metric_type: 'latency', value: 1870, unit: 'ms', model: 'claude-3-sonnet', period: '2026-06' },
-  { name: 'gpt-4o-tokens', metric_type: 'token_usage', value: 1245000, unit: 'tokens', model: 'gpt-4o', period: '2026-06' },
-  { name: 'gpt-4o-mini-tokens', metric_type: 'token_usage', value: 3890000, unit: 'tokens', model: 'gpt-4o-mini', period: '2026-06' },
-  { name: 'claude-3-sonnet-tokens', metric_type: 'token_usage', value: 567000, unit: 'tokens', model: 'claude-3-sonnet', period: '2026-06' },
-  { name: 'total-llm-cost', metric_type: 'cost', value: 487.32, unit: 'USD', model: 'gpt-4o', period: '2026-06' },
-  { name: 'overall-error-rate', metric_type: 'error_rate', value: 0.023, unit: 'ratio', model: 'gpt-4o', period: '2026-06' },
-];
-
-const MOCK_PIPELINES: MockPipeline[] = [
-  { name: 'rag-pipeline', description: 'Retrieval-augmented generation pipeline', step_count: 4, avg_latency_ms: 3200, daily_invocations: 1500 },
-  { name: 'code-assistant-chain', description: 'Multi-step code review and suggestion chain', step_count: 3, avg_latency_ms: 4500, daily_invocations: 800 },
-  { name: 'document-processor', description: 'Document extraction and classification workflow', step_count: 5, avg_latency_ms: 6100, daily_invocations: 350 },
-  { name: 'chat-agent', description: 'Conversational agent with tool use', step_count: 2, avg_latency_ms: 2100, daily_invocations: 4200 },
-];
-
-const MOCK_EVALUATIONS: MockEvaluation[] = [
-  { name: 'summarization-eval', dataset_size: 500, avg_score: 0.87, scoring_method: 'llm-as-judge', model: 'gpt-4o' },
-  { name: 'code-review-eval', dataset_size: 200, avg_score: 0.92, scoring_method: 'human-annotation', model: 'gpt-4o' },
-  { name: 'classification-eval', dataset_size: 1000, avg_score: 0.94, scoring_method: 'exact-match', model: 'claude-3-sonnet' },
-];
 
 // ---------------------------------------------------------------------------
 // LangfuseCollector
@@ -145,14 +104,14 @@ const MOCK_EVALUATIONS: MockEvaluation[] = [
 
 /**
  * Collects LLM observability data including prompt templates, model
- * configurations, performance metrics, LLM pipelines, evaluation
- * datasets, and AI engineer profiles from a Langfuse project.
+ * configurations, performance metrics, LLM pipelines, and user profiles
+ * from a Langfuse project via the public API.
  *
  * Lifecycle:
  * 1. {@link initialize} — configure governance rules and environment.
  * 2. {@link validate} — verify the environment is supported.
- * 3. {@link collect} — generate entities & relationships from
- *    synthetic Langfuse data.
+ * 3. {@link collect} — fetch data from the Langfuse API, build entities
+ *    and relationships for the knowledge graph.
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -160,7 +119,11 @@ const MOCK_EVALUATIONS: MockEvaluation[] = [
  * const collector = new LangfuseCollector('production');
  * await collector.initialize({
  *   governance: { masked_fields: [], excluded_patterns: [], pii_detection: true, audit_log: false, retention_days: 90 },
- *   custom: {},
+ *   custom: {
+ *     langfuse_public_key: 'pk-lf-...',
+ *     langfuse_secret_key: 'sk-lf-...',
+ *     langfuse_url: 'https://cloud.langfuse.com',
+ *   },
  * });
  * const result = await collector.collect();
  * console.log(`Found ${result.entities.length} entities`);
@@ -184,6 +147,8 @@ export class LangfuseCollector implements Collector {
   private governanceFilter!: GovernanceFilter;
   /** Whether this collector has been initialized. */
   private initialized = false;
+  /** Stored configuration from initialize(). */
+  private config!: CollectorConfig;
 
   /**
    * @param environment - Langfuse project environment (default: `'production'`).
@@ -202,6 +167,7 @@ export class LangfuseCollector implements Collector {
    * @param config - Collector configuration including governance rules.
    */
   async initialize(config: CollectorConfig): Promise<void> {
+    this.config = config;
     this.governanceFilter = new GovernanceFilter(config.governance);
 
     if (typeof config.custom['environment'] === 'string') {
@@ -236,6 +202,9 @@ export class LangfuseCollector implements Collector {
   /**
    * Perform the full collection run.
    *
+   * Attempts to fetch data from the Langfuse public API. When no
+   * credentials are configured, returns empty results with a warning.
+   *
    * @returns Entities, relationships, and run metadata.
    * @throws {CollectorError} If the collector has not been initialized.
    */
@@ -251,14 +220,110 @@ export class LangfuseCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build entities and relationships from synthetic data
-    const entities = this.buildEntities();
+    // Resolve credentials from config or environment
+    const publicKey =
+      (this.config.custom['langfuse_public_key'] as string | undefined) ||
+      process.env['LANGFUSE_PUBLIC_KEY'];
+    const secretKey =
+      (this.config.custom['langfuse_secret_key'] as string | undefined) ||
+      process.env['LANGFUSE_SECRET_KEY'];
+
+    // If no credentials, return empty results
+    if (!publicKey || !secretKey) {
+      logger.warn('No Langfuse credentials configured, skipping collection');
+
+      const durationMs = Date.now() - startTime;
+      return {
+        entities: [],
+        relationships: [],
+        metadata: {
+          collector_id: this.id,
+          collected_at: nowISO(),
+          duration_ms: durationMs,
+          items_processed: 0,
+          errors: [],
+        },
+      };
+    }
+
+    // Resolve base URL
+    const baseUrl =
+      (this.config.custom['langfuse_url'] as string | undefined) ||
+      process.env['LANGFUSE_URL'] ||
+      'https://cloud.langfuse.com';
+
+    // Build auth header
+    const authHeader = `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString('base64')}`;
+
+    let traces: LangfuseTrace[] = [];
+    let prompts: LangfusePrompt[] = [];
+
+    // Fetch traces and prompts from the API
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+
+      try {
+        const [tracesRes, promptsRes] = await Promise.all([
+          fetch(`${baseUrl}/api/public/traces?limit=50`, {
+            headers: { Authorization: authHeader },
+            signal: controller.signal,
+          }),
+          fetch(`${baseUrl}/api/public/prompts`, {
+            headers: { Authorization: authHeader },
+            signal: controller.signal,
+          }),
+        ]);
+
+        if (tracesRes.ok) {
+          const tracesBody = (await tracesRes.json()) as LangfuseTracesResponse;
+          traces = tracesBody.data ?? [];
+        } else {
+          const msg = `Traces API returned ${tracesRes.status}: ${tracesRes.statusText}`;
+          logger.warn(msg);
+          errors.push({ message: msg });
+        }
+
+        if (promptsRes.ok) {
+          const promptsBody = (await promptsRes.json()) as LangfusePromptsResponse;
+          prompts = promptsBody.data ?? [];
+        } else {
+          const msg = `Prompts API returned ${promptsRes.status}: ${promptsRes.statusText}`;
+          logger.warn(msg);
+          errors.push({ message: msg });
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('Failed to fetch from Langfuse API', { error: message });
+      errors.push({ message: `Langfuse API fetch failed: ${message}` });
+
+      // Return empty results on fetch failure
+      const durationMs = Date.now() - startTime;
+      return {
+        entities: [],
+        relationships: [],
+        metadata: {
+          collector_id: this.id,
+          collected_at: nowISO(),
+          duration_ms: durationMs,
+          items_processed: 0,
+          errors,
+        },
+      };
+    }
+
+    // Build entities from API data
+    const entities = this.buildEntities(traces, prompts);
     const relationships = this.buildRelationships(entities);
 
     // Apply governance masking
     const maskedEntities = entities.map((e) => this.governanceFilter.maskEntity(e));
 
     const durationMs = Date.now() - startTime;
+    const itemsProcessed = traces.length + prompts.length;
 
     logger.info('LangfuseCollector collection complete', {
       entities: maskedEntities.length,
@@ -273,7 +338,7 @@ export class LangfuseCollector implements Collector {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed: MOCK_PROMPTS.length + MOCK_MODELS.length + MOCK_PERFORMANCE_METRICS.length + MOCK_PIPELINES.length + MOCK_EVALUATIONS.length,
+        items_processed: itemsProcessed,
         errors,
       },
     };
@@ -343,96 +408,129 @@ export class LangfuseCollector implements Collector {
   // -----------------------------------------------------------------------
 
   /**
-   * Build knowledge graph entities from synthetic Langfuse data.
+   * Build knowledge graph entities from Langfuse API data.
    *
    * Creates:
-   * - `user` entities for AI engineers and prompt authors
-   * - `prompt` entities for prompt templates and versions
-   * - `model` entities for LLM models used in traces
-   * - `performance_metric` entities for latency, token usage, cost
-   * - `pipeline` entities for LLM chains and workflows
-   * - `evaluation` entities for evaluation datasets and scoring
+   * - `model` entities for unique models observed in traces
+   * - `performance_metric` entities for aggregate latency/token metrics
+   * - `pipeline` entities for unique trace names (workflows)
+   * - `user` entities for unique user IDs from traces
+   * - `prompt` entities from the prompts API
    *
+   * @param traces - Traces fetched from the Langfuse API.
+   * @param prompts - Prompts fetched from the Langfuse API.
    * @returns Array of entities.
    */
-  private buildEntities(): Entity[] {
+  private buildEntities(traces: LangfuseTrace[], prompts: LangfusePrompt[]): Entity[] {
     const entities: Entity[] = [];
 
-    // --- User entities (AI engineers / prompt authors) ---
-    for (const username of MOCK_USERS) {
+    // --- Collect unique models from trace observations ---
+    const modelNames = new Set<string>();
+    const modelLatencies = new Map<string, number[]>();
+    const modelTokens = new Map<string, number>();
+
+    for (const trace of traces) {
+      if (trace.observations) {
+        for (const obs of trace.observations) {
+          if (obs.model) {
+            modelNames.add(obs.model);
+
+            // Aggregate latency
+            if (obs.latency != null) {
+              const existing = modelLatencies.get(obs.model) ?? [];
+              existing.push(obs.latency);
+              modelLatencies.set(obs.model, existing);
+            }
+
+            // Aggregate token usage
+            if (obs.usage?.total != null) {
+              const existing = modelTokens.get(obs.model) ?? 0;
+              modelTokens.set(obs.model, existing + obs.usage.total);
+            }
+          }
+        }
+      }
+    }
+
+    // --- Model entities ---
+    for (const modelName of modelNames) {
       entities.push(
-        this.makeEntity('user', username, {
-          username,
-          role: 'ai_engineer',
+        this.makeEntity('model', modelName, {
           platform: 'langfuse',
-        }, ['ai-engineer']),
+          environment: this.environment,
+        }, ['llm']),
       );
     }
 
-    // --- Prompt entities (prompt templates) ---
-    for (const prompt of MOCK_PROMPTS) {
+    // --- Performance metric entities (aggregate per model) ---
+    for (const [modelName, latencies] of modelLatencies) {
+      const avgLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+      entities.push(
+        this.makeEntity('performance_metric', `${modelName}-avg-latency`, {
+          metric_type: 'latency',
+          value: Math.round(avgLatency * 100) / 100,
+          unit: 'ms',
+          model: modelName,
+          environment: this.environment,
+        }, ['observability', 'latency']),
+      );
+    }
+
+    for (const [modelName, totalTokens] of modelTokens) {
+      entities.push(
+        this.makeEntity('performance_metric', `${modelName}-token-usage`, {
+          metric_type: 'token_usage',
+          value: totalTokens,
+          unit: 'tokens',
+          model: modelName,
+          environment: this.environment,
+        }, ['observability', 'token_usage']),
+      );
+    }
+
+    // --- Pipeline entities (unique trace names) ---
+    const traceNames = new Set<string>();
+    for (const trace of traces) {
+      if (trace.name) {
+        traceNames.add(trace.name);
+      }
+    }
+
+    for (const traceName of traceNames) {
+      entities.push(
+        this.makeEntity('pipeline', traceName, {
+          environment: this.environment,
+        }, ['llm-pipeline', 'trace']),
+      );
+    }
+
+    // --- User entities (unique userIds from traces) ---
+    const userIds = new Set<string>();
+    for (const trace of traces) {
+      if (trace.userId) {
+        userIds.add(trace.userId);
+      }
+    }
+
+    for (const userId of userIds) {
+      entities.push(
+        this.makeEntity('user', userId, {
+          user_id: userId,
+          platform: 'langfuse',
+        }, ['trace-user']),
+      );
+    }
+
+    // --- Prompt entities ---
+    for (const prompt of prompts) {
       entities.push(
         this.makeEntity('prompt', prompt.name, {
           version: prompt.version,
-          template: prompt.template,
-          model: prompt.model,
-          author: prompt.author,
-          is_active: prompt.is_active,
+          prompt: typeof prompt.prompt === 'string' ? prompt.prompt : JSON.stringify(prompt.prompt),
+          config: prompt.config ?? {},
+          labels: prompt.labels ?? [],
           environment: this.environment,
-        }, ['prompt-template', prompt.is_active ? 'active' : 'inactive']),
-      );
-    }
-
-    // --- Model entities (LLM models) ---
-    for (const model of MOCK_MODELS) {
-      entities.push(
-        this.makeEntity('model', model.name, {
-          provider: model.provider,
-          context_window: model.context_window,
-          cost_per_1k_input: model.cost_per_1k_input,
-          cost_per_1k_output: model.cost_per_1k_output,
-          platform: 'langfuse',
-        }, ['llm', model.provider]),
-      );
-    }
-
-    // --- Performance metric entities ---
-    for (const metric of MOCK_PERFORMANCE_METRICS) {
-      entities.push(
-        this.makeEntity('performance_metric', metric.name, {
-          metric_type: metric.metric_type,
-          value: metric.value,
-          unit: metric.unit,
-          model: metric.model,
-          period: metric.period,
-          environment: this.environment,
-        }, ['observability', metric.metric_type]),
-      );
-    }
-
-    // --- Pipeline entities (LLM chains/workflows) ---
-    for (const pipeline of MOCK_PIPELINES) {
-      entities.push(
-        this.makeEntity('pipeline', pipeline.name, {
-          description: pipeline.description,
-          step_count: pipeline.step_count,
-          avg_latency_ms: pipeline.avg_latency_ms,
-          daily_invocations: pipeline.daily_invocations,
-          environment: this.environment,
-        }, ['llm-pipeline', 'chain']),
-      );
-    }
-
-    // --- Evaluation entities (eval datasets / scoring runs) ---
-    for (const evalData of MOCK_EVALUATIONS) {
-      entities.push(
-        this.makeEntity('evaluation', evalData.name, {
-          dataset_size: evalData.dataset_size,
-          avg_score: evalData.avg_score,
-          scoring_method: evalData.scoring_method,
-          model: evalData.model,
-          environment: this.environment,
-        }, ['eval-dataset', evalData.scoring_method]),
+        }, ['prompt-template']),
       );
     }
 

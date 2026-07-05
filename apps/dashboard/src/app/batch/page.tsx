@@ -1,4 +1,5 @@
 import Header from "@/components/header";
+import NewBatchButton from "./NewBatchButton";
 import { getBatchHistory } from "@/lib/api";
 import type { BatchRun, BatchProject } from "@/lib/api";
 import {
@@ -231,10 +232,7 @@ export default async function BatchPage() {
           title="Batch Analysis"
           subtitle={`${totalBatches} batch runs · ${totalProjects} projects analyzed`}
         />
-        <button className="flex items-center gap-2 rounded-xl bg-blue-500/15 border border-blue-500/25 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/25 transition-colors shrink-0 mt-4">
-          <Play className="h-4 w-4" />
-          New Batch
-        </button>
+        <NewBatchButton />
       </div>
 
       {/* Error state */}

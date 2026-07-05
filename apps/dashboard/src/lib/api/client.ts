@@ -15,31 +15,69 @@
 export const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 /**
- * Fetch JSON from the API, falling back to a default value if the
- * server is unreachable or returns an error.
+ * API error class for non-OK responses.
  */
-export async function apiFetch<T>(path: string, fallback: T): Promise<T> {
-  try {
-    const res = await fetch(`${BASE_URL}${path}`, {
-      next: { revalidate: 60 },
-    });
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    return (await res.json()) as T;
-  } catch (err) {
-    // Log the error in development so developers know the dashboard is
-    // displaying fallback (mock) data instead of live API responses.
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(
-        `[apiFetch] ${path} → using fallback data:`,
-        err instanceof Error ? err.message : String(err),
-      );
-    }
-    return fallback;
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly statusText: string,
+    public readonly path: string,
+  ) {
+    super(`API ${status} ${statusText} — ${path}`);
+    this.name = 'ApiError';
   }
 }
 
-/** Deterministic pseudo-random — prevents SSR/client hydration mismatches. */
-export function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
+/**
+ * Fetch JSON from the API, unwrapping the `{ data }` envelope.
+ *
+ * - On success: returns the `data` field from the response
+ * - On error: throws `ApiError`
+ *
+ * For endpoints that don't use the `{ data }` envelope, pass
+ * `{ unwrap: false }` in options to get the raw response body.
+ *
+ * @param path - API path (e.g. `/api/v1/projects`)
+ * @param options - Optional fetch options and unwrap flag
+ * @returns The unwrapped data from the API response
+ */
+export async function apiFetch<T>(
+  path: string,
+  options?: RequestInit & { unwrap?: boolean },
+): Promise<T> {
+  const { unwrap = true, ...fetchOpts } = options ?? {};
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(fetchOpts.headers as Record<string, string> ?? {}),
+  };
+
+  // Attach JWT token if available (client-side only)
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('recurrsive_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...fetchOpts,
+    headers,
+    next: { revalidate: 60 },
+  } as RequestInit);
+
+  if (!res.ok) {
+    throw new ApiError(res.status, res.statusText, path);
+  }
+
+  const body = await res.json();
+
+  if (unwrap && body && typeof body === 'object' && 'data' in body) {
+    return body.data as T;
+  }
+
+  return body as T;
 }
+
+
+

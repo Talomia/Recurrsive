@@ -132,8 +132,9 @@ COPY --from=deps --chown=recurrsive:recurrsive /app/apps/server/node_modules app
 # Expose the default API port
 EXPOSE 3000
 
-# Ensure non-root user owns the temp clone directory
-RUN mkdir -p /tmp/recurrsive-repos && chown recurrsive:recurrsive /tmp/recurrsive-repos
+# Ensure non-root user owns the temp clone directory and SQLite data directory
+RUN mkdir -p /tmp/recurrsive-repos /app/data && \
+    chown recurrsive:recurrsive /tmp/recurrsive-repos /app/data
 
 # Health check — generous start-period for Swarm stability
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

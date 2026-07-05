@@ -11,6 +11,7 @@
  */
 
 import type { Command } from 'commander';
+import { apiRequest } from '../config.js';
 import {
   header,
   info,
@@ -47,31 +48,10 @@ interface ImpactMetric {
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// Constants
 // ---------------------------------------------------------------------------
 
 const VALID_TYPES = ['traffic-replay', 'load-test', 'failure-injection'] as const;
-
-function getMockSimulations(): SimulationEntry[] {
-  return [
-    { id: 'sim-a1b2', type: 'load-test', status: 'complete', riskLevel: 'MEDIUM', started: '2026-06-30 10:00', duration: '8m 32s' },
-    { id: 'sim-c3d4', type: 'failure-injection', status: 'complete', riskLevel: 'HIGH', started: '2026-06-29 14:15', duration: '12m 05s' },
-    { id: 'sim-e5f6', type: 'traffic-replay', status: 'running', riskLevel: 'LOW', started: '2026-06-30 15:30', duration: '3m 12s' },
-    { id: 'sim-g7h8', type: 'load-test', status: 'failed', riskLevel: 'HIGH', started: '2026-06-28 09:45', duration: '1m 08s' },
-    { id: 'sim-i9j0', type: 'traffic-replay', status: 'complete', riskLevel: 'LOW', started: '2026-06-27 11:20', duration: '5m 44s' },
-    { id: 'sim-k1l2', type: 'failure-injection', status: 'pending', riskLevel: 'MEDIUM', started: '2026-06-30 16:00', duration: '—' },
-  ];
-}
-
-function getMockImpactMetrics(): ImpactMetric[] {
-  return [
-    { metric: 'p99 Latency', before: '120ms', after: '185ms', change: -54 },
-    { metric: 'Error Rate', before: '0.02%', after: '0.15%', change: -650 },
-    { metric: 'Throughput', before: '2,400 rps', after: '2,180 rps', change: -9 },
-    { metric: 'CPU Usage', before: '45%', after: '72%', change: -60 },
-    { metric: 'Memory Usage', before: '62%', after: '68%', change: -10 },
-  ];
-}
 
 function statusBadge(status: string): string {
   switch (status) {
@@ -117,8 +97,14 @@ export function registerSimulationCommand(program: Command): void {
     .command('list')
     .description('List all simulations')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockSimulations();
+    .action(async (opts: { json?: boolean }) => {
+      let data: SimulationEntry[];
+      try {
+        data = await apiRequest('/api/v1/simulations') as SimulationEntry[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));
@@ -146,8 +132,9 @@ export function registerSimulationCommand(program: Command): void {
   simulate
     .command('run <type>')
     .description('Start a simulation (traffic-replay|load-test|failure-injection)')
+    .option('--name <name>', 'Simulation name')
     .option('--duration <min>', 'Duration in minutes', '5')
-    .action((type: string, opts: { duration?: string }) => {
+    .action(async (type: string, opts: { name?: string; duration?: string }) => {
       if (!VALID_TYPES.includes(type as typeof VALID_TYPES[number])) {
         error(`Invalid simulation type: ${bold(type)}`);
         info(`Valid types: ${VALID_TYPES.map((t) => cyan(t)).join(', ')}`);
@@ -155,20 +142,36 @@ export function registerSimulationCommand(program: Command): void {
         return;
       }
 
-      const duration = opts.duration ?? '5';
-      const simId = `sim-${Math.random().toString(36).slice(2, 6)}`;
+      const name = opts.name ?? `CLI ${type} simulation`;
 
       header('Starting Simulation');
 
-      info(`  ${bold('ID:')}       ${cyan(simId)}`);
+      let sim: { id: string; status: string };
+      try {
+        const result = await apiRequest('/api/v1/simulations', {
+          method: 'POST',
+          body: JSON.stringify({
+            name,
+            type,
+            description: `${type} simulation started from CLI`,
+          }),
+        });
+        sim = (result as { data: { id: string; status: string } }).data;
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
+
+      info(`  ${bold('ID:')}       ${cyan(sim.id)}`);
       info(`  ${bold('Type:')}     ${cyan(type)}`);
-      info(`  ${bold('Duration:')} ${duration} minutes`);
+      info(`  ${bold('Duration:')} ${opts.duration ?? '5'} minutes`);
+      info(`  ${bold('Status:')}   ${statusBadge(sim.status)}`);
       info(`  ${bold('Started:')}  ${dim(new Date().toISOString())}`);
       console.log('');
 
-      success(`Simulation ${bold(simId)} started successfully.`);
+      success(`Simulation ${bold(sim.id)} started successfully.`);
       console.log('');
-      info(dim(`  Monitor progress: ${cyan(`recurrsive simulate show ${simId}`)}`));
+      info(dim(`  Monitor progress: ${cyan(`recurrsive simulate show ${sim.id}`)}`));
       console.log('');
     });
 
@@ -177,9 +180,23 @@ export function registerSimulationCommand(program: Command): void {
     .command('show <id>')
     .description('Show simulation results')
     .option('--json', 'Output as JSON')
-    .action((id: string, opts: { json?: boolean }) => {
-      const sim = getMockSimulations().find((s) => s.id === id) ?? getMockSimulations()[0]!;
-      const metrics = getMockImpactMetrics();
+    .action(async (id: string, opts: { json?: boolean }) => {
+      let allSimulations: SimulationEntry[];
+      try {
+        allSimulations = await apiRequest('/api/v1/simulations') as SimulationEntry[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
+      const sim = allSimulations.find((s) => s.id === id) ?? allSimulations[0]!;
+
+      let metrics: ImpactMetric[];
+      try {
+        metrics = await apiRequest(`/api/v1/simulations/${id}/impact`) as ImpactMetric[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify({ simulation: sim, metrics }, null, 2));

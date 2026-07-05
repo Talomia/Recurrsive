@@ -64,6 +64,43 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
   });
 
   /**
+   * GET /api/v1/policies/:id
+   *
+   * Return a single policy set by its ID with full rule details.
+   */
+  app.get<{ Params: { id: string } }>('/api/v1/policies/:id', async (request, reply) => {
+    const pe = getEngine();
+    const ps = pe.getPolicySet(request.params.id);
+
+    if (!ps) {
+      return reply.status(404).send({
+        error: 'Not found',
+        message: `Policy set '${request.params.id}' not found.`,
+      });
+    }
+
+    return reply.status(200).send({
+      data: {
+        id: ps.id,
+        name: ps.name,
+        description: ps.description,
+        enabled: ps.enabled,
+        rule_count: ps.rules.length,
+        rules: ps.rules.map((r) => ({
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          scope: r.scope,
+          action: r.action,
+          condition: r.condition,
+          message: r.message,
+          metadata: r.metadata,
+        })),
+      },
+    });
+  });
+
+  /**
    * POST /api/v1/policies/evaluate
    *
    * Evaluate all opportunities against active policies and return

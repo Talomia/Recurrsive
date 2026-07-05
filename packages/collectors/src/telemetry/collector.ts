@@ -4,9 +4,9 @@
  * OpenTelemetry Collector — ingests OTLP-shaped trace and metric data
  * and produces entities and relationships for the knowledge graph.
  *
- * Since this collector is not yet connected to a real OTLP endpoint,
- * it generates synthetic data that mirrors the shape of real
- * OpenTelemetry trace spans and metric data points.
+ * Reads OTEL data from local JSON files (.otel-traces.json and
+ * .otel-metrics.json) if they exist in the project directory.
+ * If no files are found, returns empty results.
  *
  * Produces entities:
  * - `performance_metric` — latency, throughput, error-rate metrics
@@ -34,15 +34,17 @@ import {
   CollectorError,
 } from '@recurrsive/core';
 import { GovernanceFilter } from '../base/governance.js';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const logger = createLogger({ context: { module: 'telemetry-collector' } });
 
 // ---------------------------------------------------------------------------
-// Internal Types
+// OTEL Data Shapes
 // ---------------------------------------------------------------------------
 
-/** Synthetic trace span data. */
-interface MockSpan {
+/** Shape of a span in the .otel-traces.json file. */
+interface OtelSpan {
   traceId: string;
   spanId: string;
   operationName: string;
@@ -51,8 +53,8 @@ interface MockSpan {
   status: 'ok' | 'error';
 }
 
-/** Synthetic metric data point. */
-interface MockMetric {
+/** Shape of a metric data point in the .otel-metrics.json file. */
+interface OtelMetric {
   name: string;
   unit: string;
   value: number;
@@ -60,74 +62,19 @@ interface MockMetric {
   metricType: 'gauge' | 'counter' | 'histogram';
 }
 
-/** Synthetic infrastructure resource. */
-interface MockResource {
-  name: string;
-  kind: 'host' | 'container' | 'pod';
-  region: string;
-  cpu: number;
-  memoryMb: number;
-}
-
-/** Synthetic alert definition. */
-interface MockAlert {
-  name: string;
-  severity: 'critical' | 'warning' | 'info';
-  condition: string;
-  targetMetric: string;
-  status: 'firing' | 'resolved';
-}
-
-// ---------------------------------------------------------------------------
-// Synthetic Data
-// ---------------------------------------------------------------------------
-
-const MOCK_SPANS: MockSpan[] = [
-  { traceId: 'trace-001', spanId: 'span-001', operationName: 'GET /api/users', serviceName: 'api-gateway', durationMs: 45, status: 'ok' },
-  { traceId: 'trace-001', spanId: 'span-002', operationName: 'SELECT users', serviceName: 'user-service', durationMs: 12, status: 'ok' },
-  { traceId: 'trace-002', spanId: 'span-003', operationName: 'POST /api/orders', serviceName: 'api-gateway', durationMs: 230, status: 'error' },
-  { traceId: 'trace-003', spanId: 'span-004', operationName: 'GET /health', serviceName: 'api-gateway', durationMs: 2, status: 'ok' },
-];
-
-const MOCK_METRICS: MockMetric[] = [
-  { name: 'http_request_duration_ms', unit: 'ms', value: 45.2, resource: 'api-gateway', metricType: 'histogram' },
-  { name: 'http_requests_total', unit: 'count', value: 15234, resource: 'api-gateway', metricType: 'counter' },
-  { name: 'cpu_utilization', unit: 'percent', value: 67.5, resource: 'worker-node-1', metricType: 'gauge' },
-  { name: 'memory_utilization', unit: 'percent', value: 82.1, resource: 'worker-node-1', metricType: 'gauge' },
-  { name: 'error_rate', unit: 'percent', value: 0.3, resource: 'api-gateway', metricType: 'gauge' },
-];
-
-const MOCK_RESOURCES: MockResource[] = [
-  { name: 'worker-node-1', kind: 'host', region: 'us-east-1', cpu: 8, memoryMb: 16384 },
-  { name: 'api-gateway-pod-1', kind: 'pod', region: 'us-east-1', cpu: 2, memoryMb: 4096 },
-  { name: 'user-service-container', kind: 'container', region: 'us-east-1', cpu: 1, memoryMb: 2048 },
-];
-
-const MOCK_ALERTS: MockAlert[] = [
-  { name: 'HighErrorRate', severity: 'critical', condition: 'error_rate > 1%', targetMetric: 'error_rate', status: 'resolved' },
-  { name: 'HighCPU', severity: 'warning', condition: 'cpu_utilization > 80%', targetMetric: 'cpu_utilization', status: 'firing' },
-];
-
-const MOCK_ENVIRONMENTS = ['production', 'staging'];
-
-const MOCK_DEPLOYMENTS = [
-  { service: 'api-gateway', environment: 'production', version: 'v2.3.1', status: 'active' },
-  { service: 'user-service', environment: 'staging', version: 'v1.8.0-rc.2', status: 'active' },
-];
-
 // ---------------------------------------------------------------------------
 // OpenTelemetryCollector
 // ---------------------------------------------------------------------------
 
 /**
  * Collects telemetry data (traces, metrics, infrastructure resources,
- * alerts, and deployments) from an OTLP-compatible endpoint.
+ * alerts, and deployments) from local OTEL JSON files.
  *
  * Lifecycle:
  * 1. {@link initialize} — configure governance rules and endpoint.
  * 2. {@link validate} — verify the endpoint URL is well-formed.
- * 3. {@link collect} — generate entities & relationships from
- *    synthetic OTLP data.
+ * 3. {@link collect} — read OTEL data files and build entities &
+ *    relationships.
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -159,6 +106,8 @@ export class OpenTelemetryCollector implements Collector {
   private governanceFilter!: GovernanceFilter;
   /** Whether this collector has been initialized. */
   private initialized = false;
+  /** Stored collector configuration. */
+  private config!: CollectorConfig;
 
   /**
    * @param otlpEndpoint - OTLP receiver endpoint URL
@@ -178,6 +127,7 @@ export class OpenTelemetryCollector implements Collector {
    * @param config - Collector configuration including governance rules.
    */
   async initialize(config: CollectorConfig): Promise<void> {
+    this.config = config;
     this.governanceFilter = new GovernanceFilter(config.governance);
 
     if (typeof config.custom['otlpEndpoint'] === 'string') {
@@ -215,6 +165,9 @@ export class OpenTelemetryCollector implements Collector {
   /**
    * Perform the full collection run.
    *
+   * Reads OTEL data from local JSON files. If no files are found,
+   * returns empty results with a warning.
+   *
    * @returns Entities, relationships, and run metadata.
    * @throws {CollectorError} If the collector has not been initialized.
    */
@@ -230,14 +183,67 @@ export class OpenTelemetryCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build entities and relationships from synthetic data
-    const entities = this.buildEntities();
+    // Determine file paths
+    const tracesPath = resolve(
+      process.cwd(),
+      (this.config.custom['otel_traces_path'] as string) ||
+        process.env['OTEL_TRACES_PATH'] ||
+        '.otel-traces.json',
+    );
+    const metricsPath = resolve(
+      process.cwd(),
+      (this.config.custom['otel_metrics_path'] as string) ||
+        process.env['OTEL_METRICS_PATH'] ||
+        '.otel-metrics.json',
+    );
+
+    // Try to read data files
+    let spans: OtelSpan[] | null = null;
+    let metrics: OtelMetric[] | null = null;
+
+    try {
+      const tracesRaw = await readFile(tracesPath, 'utf-8');
+      spans = JSON.parse(tracesRaw) as OtelSpan[];
+    } catch {
+      // File not found or invalid JSON — continue
+    }
+
+    try {
+      const metricsRaw = await readFile(metricsPath, 'utf-8');
+      metrics = JSON.parse(metricsRaw) as OtelMetric[];
+    } catch {
+      // File not found or invalid JSON — continue
+    }
+
+    // If neither file exists, return empty results
+    if (!spans && !metrics) {
+      const durationMs = Date.now() - startTime;
+      logger.warn('No OTEL data files found, skipping collection', {
+        tracesPath,
+        metricsPath,
+      });
+      return {
+        entities: [],
+        relationships: [],
+        metadata: {
+          collector_id: this.id,
+          collected_at: nowISO(),
+          duration_ms: durationMs,
+          items_processed: 0,
+          errors: [],
+        },
+      };
+    }
+
+    // Build entities and relationships from file data
+    const entities = this.buildEntities(spans ?? [], metrics ?? []);
     const relationships = this.buildRelationships(entities);
 
     // Apply governance masking
     const maskedEntities = entities.map((e) => this.governanceFilter.maskEntity(e));
 
     const durationMs = Date.now() - startTime;
+    const itemsProcessed = (spans?.length ?? 0) + (metrics?.length ?? 0);
 
     logger.info('OpenTelemetryCollector collection complete', {
       entities: maskedEntities.length,
@@ -252,7 +258,7 @@ export class OpenTelemetryCollector implements Collector {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed: MOCK_SPANS.length + MOCK_METRICS.length + MOCK_RESOURCES.length,
+        items_processed: itemsProcessed,
         errors,
       },
     };
@@ -322,22 +328,25 @@ export class OpenTelemetryCollector implements Collector {
   // -----------------------------------------------------------------------
 
   /**
-   * Build knowledge graph entities from synthetic telemetry data.
+   * Build knowledge graph entities from OTEL data files.
    *
    * Creates:
-   * - `performance_metric` entities for each metric
-   * - `infrastructure_resource` entities for each host/pod/container
-   * - `deployment` entities for each deployment record
-   * - `environment` entities for each environment
-   * - `alert` entities for each alert rule
+   * - `performance_metric` entities for each metric data point
+   * - `infrastructure_resource` entities for unique resources from
+   *   metrics and unique services from spans
+   * - `deployment` entities from unique service names in spans
+   * - `environment` entities (production, staging)
+   * - `alert` entities for metrics that may indicate issues
    *
+   * @param spans - Parsed span data from .otel-traces.json.
+   * @param metrics - Parsed metric data from .otel-metrics.json.
    * @returns Array of entities.
    */
-  private buildEntities(): Entity[] {
+  private buildEntities(spans: OtelSpan[], metrics: OtelMetric[]): Entity[] {
     const entities: Entity[] = [];
 
-    // --- Performance metric entities ---
-    for (const metric of MOCK_METRICS) {
+    // --- Performance metric entities from metrics file ---
+    for (const metric of metrics) {
       entities.push(
         this.makeEntity('performance_metric', metric.name, {
           unit: metric.unit,
@@ -349,21 +358,39 @@ export class OpenTelemetryCollector implements Collector {
       );
     }
 
-    // --- Infrastructure resource entities ---
-    for (const resource of MOCK_RESOURCES) {
+    // --- Infrastructure resource entities from metrics ---
+    const resourceNames = new Set(metrics.map((m) => m.resource));
+    for (const resourceName of resourceNames) {
       entities.push(
-        this.makeEntity('infrastructure_resource', resource.name, {
-          kind: resource.kind,
-          region: resource.region,
-          cpu_cores: resource.cpu,
-          memory_mb: resource.memoryMb,
+        this.makeEntity('infrastructure_resource', resourceName, {
+          kind: 'host',
+          region: 'unknown',
+          cpu_cores: 0,
+          memory_mb: 0,
           otlp_endpoint: this.otlpEndpoint,
-        }, [resource.kind, resource.region]),
+        }, ['host', 'unknown']),
       );
     }
 
+    // --- Infrastructure resource entities from unique services in spans ---
+    const serviceNames = new Set(spans.map((s) => s.serviceName));
+    for (const svcName of serviceNames) {
+      if (!resourceNames.has(svcName)) {
+        entities.push(
+          this.makeEntity('infrastructure_resource', svcName, {
+            kind: 'service',
+            region: 'unknown',
+            cpu_cores: 0,
+            memory_mb: 0,
+            otlp_endpoint: this.otlpEndpoint,
+          }, ['service', 'unknown']),
+        );
+      }
+    }
+
     // --- Environment entities ---
-    for (const env of MOCK_ENVIRONMENTS) {
+    const environments = ['production', 'staging'];
+    for (const env of environments) {
       entities.push(
         this.makeEntity('environment', env, {
           environment_name: env,
@@ -372,30 +399,35 @@ export class OpenTelemetryCollector implements Collector {
       );
     }
 
-    // --- Deployment entities ---
-    for (const deploy of MOCK_DEPLOYMENTS) {
+    // --- Deployment entities from unique services in spans ---
+    for (const svcName of serviceNames) {
       entities.push(
-        this.makeEntity('deployment', `${deploy.service}-${deploy.environment}`, {
-          service: deploy.service,
-          environment: deploy.environment,
-          version: deploy.version,
-          status: deploy.status,
+        this.makeEntity('deployment', `${svcName}-production`, {
+          service: svcName,
+          environment: 'production',
+          version: 'unknown',
+          status: 'active',
           otlp_endpoint: this.otlpEndpoint,
-        }, [deploy.environment, deploy.service]),
+        }, ['production', svcName]),
       );
     }
 
-    // --- Alert entities ---
-    for (const alert of MOCK_ALERTS) {
-      entities.push(
-        this.makeEntity('alert', alert.name, {
-          severity: alert.severity,
-          condition: alert.condition,
-          target_metric: alert.targetMetric,
-          status: alert.status,
-          otlp_endpoint: this.otlpEndpoint,
-        }, [alert.severity, alert.status]),
-      );
+    // --- Alert entities from metrics with concerning values ---
+    for (const metric of metrics) {
+      if (
+        (metric.name.includes('error') && metric.value > 0.5) ||
+        (metric.name.includes('cpu') && metric.value > 80)
+      ) {
+        entities.push(
+          this.makeEntity('alert', `High${metric.name}`, {
+            severity: metric.value > 90 ? 'critical' : 'warning',
+            condition: `${metric.name} > threshold`,
+            target_metric: metric.name,
+            status: 'firing',
+            otlp_endpoint: this.otlpEndpoint,
+          }, [metric.value > 90 ? 'critical' : 'warning', 'firing']),
+        );
+      }
     }
 
     return entities;
@@ -455,7 +487,7 @@ export class OpenTelemetryCollector implements Collector {
     for (const deploy of deployments) {
       // Each deployment depends on the first matching infrastructure resource
       const matchingResource = resources.find(
-        (r) => r.properties['kind'] === 'pod' || r.properties['kind'] === 'container',
+        (r) => r.properties['kind'] === 'pod' || r.properties['kind'] === 'container' || r.properties['kind'] === 'service',
       );
       if (matchingResource) {
         relationships.push(this.makeRel('depends_on', deploy.id, matchingResource.id, {

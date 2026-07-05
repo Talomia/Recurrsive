@@ -10,12 +10,135 @@
  * - Governance filtering works
  * - Dispose is clean
  * - Metadata has correct collector_id, timing, counts
+ * - Graceful fallback when no token is configured
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GitHubCollector } from '../../github/collector.js';
 import { EntityTypeSchema, RelationTypeSchema } from '@recurrsive/core';
 import type { CollectorConfig } from '@recurrsive/core';
+
+// ---------------------------------------------------------------------------
+// Mock GitHub API Responses
+// ---------------------------------------------------------------------------
+
+const MOCK_CONTRIBUTORS = [
+  { login: 'alice', contributions: 42, type: 'User' },
+  { login: 'bob', contributions: 17, type: 'User' },
+  { login: 'carol', contributions: 8, type: 'User' },
+  { login: 'dave', contributions: 5, type: 'User' },
+  { login: 'eve', contributions: 3, type: 'User' },
+];
+
+const MOCK_TEAMS = [
+  { id: 1, name: 'Platform Team', slug: 'platform-team', description: null, members_url: '' },
+  { id: 2, name: 'Frontend Team', slug: 'frontend-team', description: null, members_url: '' },
+  { id: 3, name: 'SRE Team', slug: 'sre-team', description: null, members_url: '' },
+];
+
+const MOCK_PULL_REQUESTS = [
+  {
+    number: 101,
+    title: 'feat: add user auth',
+    user: { login: 'alice' },
+    requested_reviewers: [{ login: 'bob' }, { login: 'carol' }],
+    state: 'closed',
+    merged_at: '2025-01-01T00:00:00Z',
+    labels: [{ name: 'feature' }],
+  },
+  {
+    number: 102,
+    title: 'fix: resolve race condition',
+    user: { login: 'bob' },
+    requested_reviewers: [{ login: 'alice' }],
+    state: 'closed',
+    merged_at: '2025-01-02T00:00:00Z',
+    labels: [{ name: 'bugfix' }],
+  },
+  {
+    number: 103,
+    title: 'chore: upgrade dependencies',
+    user: { login: 'carol' },
+    requested_reviewers: [{ login: 'dave' }],
+    state: 'open',
+    merged_at: null,
+    labels: [{ name: 'chore' }],
+  },
+];
+
+const MOCK_WORKFLOWS_RESPONSE = {
+  total_count: 2,
+  workflows: [
+    { id: 1, name: 'CI Pipeline', path: '.github/workflows/ci.yml', state: 'active' },
+    { id: 2, name: 'Deploy Production', path: '.github/workflows/deploy.yml', state: 'active' },
+  ],
+};
+
+const MOCK_CI_RUNS_RESPONSE = {
+  total_count: 1,
+  workflow_runs: [
+    { id: 100, name: 'CI Pipeline', workflow_id: 1, status: 'completed', conclusion: 'success', run_number: 42, jobs_url: '' },
+  ],
+};
+
+const MOCK_DEPLOY_RUNS_RESPONSE = {
+  total_count: 1,
+  workflow_runs: [
+    { id: 200, name: 'Deploy Production', workflow_id: 2, status: 'completed', conclusion: 'success', run_number: 5, jobs_url: '' },
+  ],
+};
+
+const MOCK_CI_JOBS_RESPONSE = {
+  total_count: 3,
+  jobs: [
+    { id: 1, name: 'lint', status: 'completed', conclusion: 'success', runner_name: 'ubuntu-latest', steps: [{ name: 'Checkout', status: 'completed', conclusion: 'success' }, { name: 'Install', status: 'completed', conclusion: 'success' }, { name: 'Lint', status: 'completed', conclusion: 'success' }] },
+    { id: 2, name: 'test', status: 'completed', conclusion: 'success', runner_name: 'ubuntu-latest', steps: [{ name: 'Checkout', status: 'completed', conclusion: 'success' }, { name: 'Install', status: 'completed', conclusion: 'success' }, { name: 'Test', status: 'completed', conclusion: 'success' }] },
+    { id: 3, name: 'build', status: 'completed', conclusion: 'success', runner_name: 'ubuntu-latest', steps: [{ name: 'Checkout', status: 'completed', conclusion: 'success' }, { name: 'Install', status: 'completed', conclusion: 'success' }, { name: 'Build', status: 'completed', conclusion: 'success' }] },
+  ],
+};
+
+const MOCK_DEPLOY_JOBS_RESPONSE = {
+  total_count: 1,
+  jobs: [
+    { id: 4, name: 'deploy', status: 'completed', conclusion: 'success', runner_name: 'ubuntu-latest', steps: [{ name: 'Checkout', status: 'completed', conclusion: 'success' }, { name: 'Configure AWS', status: 'completed', conclusion: 'success' }, { name: 'Deploy', status: 'completed', conclusion: 'success' }] },
+  ],
+};
+
+const MOCK_DEPLOYMENTS = [
+  { id: 1, environment: 'production', sha: 'abc1234def', creator: { login: 'alice' }, description: null, created_at: '2025-01-01T00:00:00Z' },
+  { id: 2, environment: 'staging', sha: 'def5678abc', creator: { login: 'bob' }, description: null, created_at: '2025-01-02T00:00:00Z' },
+];
+
+/**
+ * Set up fetch mock that routes GitHub API calls to mock responses.
+ */
+function setupFetchMock(): void {
+  vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
+    const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+
+    const makeResponse = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
+      status,
+      statusText: status === 200 ? 'OK' : 'Error',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-RateLimit-Remaining': '4999',
+        'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 3600),
+      },
+    });
+
+    if (urlStr.includes('/contributors')) return makeResponse(MOCK_CONTRIBUTORS);
+    if (urlStr.includes('/teams')) return makeResponse(MOCK_TEAMS);
+    if (urlStr.includes('/pulls')) return makeResponse(MOCK_PULL_REQUESTS);
+    if (urlStr.includes('/actions/runs/200/jobs')) return makeResponse(MOCK_DEPLOY_JOBS_RESPONSE);
+    if (urlStr.includes('/actions/runs/100/jobs')) return makeResponse(MOCK_CI_JOBS_RESPONSE);
+    if (urlStr.includes('/actions/workflows/2/runs')) return makeResponse(MOCK_DEPLOY_RUNS_RESPONSE);
+    if (urlStr.includes('/actions/workflows/1/runs')) return makeResponse(MOCK_CI_RUNS_RESPONSE);
+    if (urlStr.includes('/actions/workflows')) return makeResponse(MOCK_WORKFLOWS_RESPONSE);
+    if (urlStr.includes('/deployments')) return makeResponse(MOCK_DEPLOYMENTS);
+
+    return makeResponse({ message: 'Not Found' }, 404);
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,13 +154,18 @@ const defaultConfig: CollectorConfig = {
     audit_log: false,
     retention_days: 90,
   },
-  custom: {},
+  custom: { github_token: 'ghp_test_token' },
 };
 
 let collector: GitHubCollector;
 
 beforeEach(() => {
+  setupFetchMock();
   collector = new GitHubCollector(REPO_URL);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -52,7 +180,7 @@ describe('Initialization', () => {
   it('accepts repoUrl override from custom config', async () => {
     const overrideConfig: CollectorConfig = {
       ...defaultConfig,
-      custom: { repoUrl: 'https://github.com/other/repo' },
+      custom: { ...defaultConfig.custom, repoUrl: 'https://github.com/other/repo' },
     };
     await collector.initialize(overrideConfig);
     const result = await collector.collect();
@@ -147,7 +275,7 @@ describe('Collection — entity production', () => {
     expect(types.has('team')).toBe(true);
   });
 
-  it('produces user entities for all mock users', async () => {
+  it('produces user entities for all contributors', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
 
@@ -233,7 +361,7 @@ describe('Governance filtering', () => {
         audit_log: false,
         retention_days: 90,
       },
-      custom: {},
+      custom: { github_token: 'ghp_test_token' },
     };
 
     await collector.initialize(maskedConfig);
@@ -253,6 +381,25 @@ describe('Governance filtering', () => {
 describe('Error handling', () => {
   it('throws CollectorError when collecting before initialization', async () => {
     await expect(collector.collect()).rejects.toThrow('not been initialized');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Graceful Fallback
+// ---------------------------------------------------------------------------
+
+describe('Graceful fallback', () => {
+  it('returns empty results without a token', async () => {
+    vi.restoreAllMocks(); // Remove fetch mock
+    const noTokenConfig: CollectorConfig = {
+      governance: defaultConfig.governance,
+      custom: {},
+    };
+    await collector.initialize(noTokenConfig);
+    const result = await collector.collect();
+    expect(result.entities).toEqual([]);
+    expect(result.relationships).toEqual([]);
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
   });
 });
 

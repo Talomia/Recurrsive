@@ -5,9 +5,10 @@
  * environments, deployments, and members from a GitLab project and
  * produces entities and relationships for the knowledge graph.
  *
- * Since this collector is not yet connected to real API calls, it
- * generates synthetic data that mirrors the shape of real GitLab API
- * responses for development and testing purposes.
+ * Uses native `fetch` to call GitLab API v4. Reads authentication
+ * token from `config.custom.gitlab_token` or `process.env.GITLAB_TOKEN`.
+ * Falls back gracefully to empty results when no token or API is
+ * unavailable.
  *
  * Produces entities:
  * - `workflow` — merge request workflows
@@ -42,11 +43,67 @@ import { GovernanceFilter } from '../base/governance.js';
 const logger = createLogger({ context: { module: 'gitlab-collector' } });
 
 // ---------------------------------------------------------------------------
-// Internal Types
+// Internal Types — shapes of GitLab API v4 responses (partial)
 // ---------------------------------------------------------------------------
 
-/** Synthetic merge request data. */
-interface MockMR {
+/** Subset of a GitLab merge request API response. */
+interface GitLabMR {
+  iid: number;
+  title: string;
+  author: { username: string } | null;
+  reviewers: Array<{ username: string }>;
+  state: string;
+  labels: string[];
+}
+
+/** Subset of a GitLab pipeline API response. */
+interface GitLabPipeline {
+  id: number;
+  ref: string;
+  status: string;
+  user: { username: string } | null;
+}
+
+/** Subset of a GitLab job API response. */
+interface GitLabJob {
+  id: number;
+  name: string;
+  stage: string;
+  status: string;
+  pipeline: { id: number };
+  runner: { description: string } | null;
+}
+
+/** Subset of a GitLab environment API response. */
+interface GitLabEnvironment {
+  id: number;
+  name: string;
+  tier: string | null;
+  external_url: string | null;
+}
+
+/** Subset of a GitLab deployment API response. */
+interface GitLabDeployment {
+  id: number;
+  environment: string;
+  sha: string;
+  user: { username: string } | null;
+  status: string;
+  deployable: { pipeline: { id: number } } | null;
+}
+
+/** Subset of a GitLab member API response. */
+interface GitLabMember {
+  username: string;
+  name: string;
+  access_level: number;
+}
+
+// ---------------------------------------------------------------------------
+// Collected data containers
+// ---------------------------------------------------------------------------
+
+interface CollectedMR {
   iid: number;
   title: string;
   author: string;
@@ -55,8 +112,7 @@ interface MockMR {
   labels: string[];
 }
 
-/** Synthetic pipeline data. */
-interface MockPipeline {
+interface CollectedPipeline {
   id: number;
   ref: string;
   status: 'success' | 'failed' | 'running' | 'pending';
@@ -64,72 +120,19 @@ interface MockPipeline {
   jobs: Array<{ name: string; stage: string; steps: string[] }>;
 }
 
-/** Synthetic environment data. */
-interface MockEnvironment {
+interface CollectedEnvironment {
   name: string;
   tier: 'production' | 'staging' | 'development';
   url: string;
 }
 
-/** Synthetic deployment data. */
-interface MockDeployment {
+interface CollectedDeployment {
   environment: string;
   sha: string;
   deployer: string;
   status: 'success' | 'failed' | 'running';
   pipelineId: number;
 }
-
-// ---------------------------------------------------------------------------
-// Synthetic Data
-// ---------------------------------------------------------------------------
-
-const MOCK_USERS = ['alice', 'bob', 'carol', 'dave', 'eve'];
-
-const MOCK_TEAMS = [
-  { name: 'backend-group', members: ['alice', 'bob', 'carol'] },
-  { name: 'devops-group', members: ['dave', 'eve'] },
-];
-
-const MOCK_MRS: MockMR[] = [
-  { iid: 42, title: 'feat: add OAuth2 login', author: 'alice', reviewers: ['bob', 'carol'], state: 'merged', labels: ['feature'] },
-  { iid: 43, title: 'fix: database connection pool leak', author: 'bob', reviewers: ['alice'], state: 'merged', labels: ['bugfix'] },
-  { iid: 44, title: 'chore: migrate CI to rules-based pipelines', author: 'dave', reviewers: ['eve', 'alice'], state: 'opened', labels: ['chore', 'ci'] },
-];
-
-const MOCK_PIPELINES: MockPipeline[] = [
-  {
-    id: 1001,
-    ref: 'main',
-    status: 'success',
-    triggeredBy: 'alice',
-    jobs: [
-      { name: 'lint', stage: 'test', steps: ['Checkout', 'Install', 'ESLint'] },
-      { name: 'unit-test', stage: 'test', steps: ['Checkout', 'Install', 'Jest'] },
-      { name: 'build', stage: 'build', steps: ['Checkout', 'Install', 'Compile'] },
-      { name: 'deploy-staging', stage: 'deploy', steps: ['Checkout', 'Configure', 'Deploy'] },
-    ],
-  },
-  {
-    id: 1002,
-    ref: 'main',
-    status: 'success',
-    triggeredBy: 'dave',
-    jobs: [
-      { name: 'deploy-production', stage: 'deploy', steps: ['Checkout', 'Configure', 'Deploy', 'Verify'] },
-    ],
-  },
-];
-
-const MOCK_ENVIRONMENTS: MockEnvironment[] = [
-  { name: 'production', tier: 'production', url: 'https://app.example.com' },
-  { name: 'staging', tier: 'staging', url: 'https://staging.example.com' },
-];
-
-const MOCK_DEPLOYMENTS: MockDeployment[] = [
-  { environment: 'staging', sha: 'a1b2c3d4', deployer: 'alice', status: 'success', pipelineId: 1001 },
-  { environment: 'production', sha: 'e5f6a7b8', deployer: 'dave', status: 'success', pipelineId: 1002 },
-];
 
 // ---------------------------------------------------------------------------
 // GitLabCollector
@@ -140,10 +143,10 @@ const MOCK_DEPLOYMENTS: MockDeployment[] = [
  * deployment data from a GitLab project.
  *
  * Lifecycle:
- * 1. {@link initialize} — configure governance rules and GitLab URL.
+ * 1. {@link initialize} — configure governance rules, GitLab URL, and API token.
  * 2. {@link validate} — verify the GitLab URL is well-formed.
- * 3. {@link collect} — generate entities & relationships from
- *    synthetic GitLab data.
+ * 3. {@link collect} — fetch real data from GitLab API and generate
+ *    entities & relationships.
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -151,7 +154,7 @@ const MOCK_DEPLOYMENTS: MockDeployment[] = [
  * const collector = new GitLabCollector('https://gitlab.com/org/project');
  * await collector.initialize({
  *   governance: { masked_fields: [], excluded_patterns: [], pii_detection: true, audit_log: false, retention_days: 90 },
- *   custom: {},
+ *   custom: { gitlab_token: 'glpat-...' },
  * });
  * const result = await collector.collect();
  * console.log(`Found ${result.entities.length} entities`);
@@ -175,6 +178,12 @@ export class GitLabCollector implements Collector {
   private governanceFilter!: GovernanceFilter;
   /** Whether this collector has been initialized. */
   private initialized = false;
+  /** GitLab API token. */
+  private token: string | undefined;
+  /** GitLab API base URL. */
+  private apiBase = 'https://gitlab.com';
+  /** URL-encoded project path (e.g. `org%2Fproject`). */
+  private projectId = '';
 
   /**
    * @param gitlabUrl - GitLab project URL (e.g. `https://gitlab.com/org/project`).
@@ -199,8 +208,39 @@ export class GitLabCollector implements Collector {
       this.gitlabUrl = config.custom['gitlabUrl'];
     }
 
+    // Resolve token
+    this.token =
+      (typeof config.custom['gitlab_token'] === 'string' ? config.custom['gitlab_token'] : undefined) ||
+      process.env['GITLAB_TOKEN'] ||
+      undefined;
+
+    // Resolve GitLab base URL
+    if (typeof config.custom['gitlab_url'] === 'string') {
+      this.apiBase = config.custom['gitlab_url'];
+    } else {
+      // Auto-detect from the project URL
+      try {
+        const parsed = new URL(this.gitlabUrl);
+        this.apiBase = `${parsed.protocol}//${parsed.host}`;
+      } catch {
+        this.apiBase = 'https://gitlab.com';
+      }
+    }
+
+    // Resolve project ID (URL-encoded path)
+    if (typeof config.custom['gitlab_project_id'] === 'string') {
+      this.projectId = config.custom['gitlab_project_id'];
+    } else {
+      this.projectId = this.parseProjectPath(this.gitlabUrl);
+    }
+
     this.initialized = true;
-    logger.info('GitLabCollector initialized', { gitlabUrl: this.gitlabUrl });
+    logger.info('GitLabCollector initialized', {
+      gitlabUrl: this.gitlabUrl,
+      apiBase: this.apiBase,
+      projectId: this.projectId,
+      hasToken: !!this.token,
+    });
   }
 
   /**
@@ -245,9 +285,18 @@ export class GitLabCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build entities and relationships from synthetic data
-    const entities = this.buildEntities();
-    const relationships = this.buildRelationships(entities);
+    // Fetch data from GitLab API (or empty arrays on failure)
+    const members = await this.fetchMembers(errors);
+    const mrs = await this.fetchMergeRequests(errors);
+    const pipelines = await this.fetchPipelines(errors);
+    const environments = await this.fetchEnvironments(errors);
+    const deployments = await this.fetchDeployments(errors);
+
+    const itemsProcessed = members.length + mrs.length + pipelines.length + environments.length + deployments.length;
+
+    // Build entities and relationships from fetched data
+    const entities = this.buildEntities(members, pipelines, mrs, environments, deployments);
+    const relationships = this.buildRelationships(entities, mrs, pipelines);
 
     // Apply governance masking
     const maskedEntities = entities.map((e) => this.governanceFilter.maskEntity(e));
@@ -267,7 +316,7 @@ export class GitLabCollector implements Collector {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed: MOCK_MRS.length + MOCK_PIPELINES.length + MOCK_DEPLOYMENTS.length + MOCK_ENVIRONMENTS.length,
+        items_processed: itemsProcessed,
         errors,
       },
     };
@@ -279,6 +328,225 @@ export class GitLabCollector implements Collector {
   async dispose(): Promise<void> {
     this.initialized = false;
     logger.info('GitLabCollector disposed', { gitlabUrl: this.gitlabUrl });
+  }
+
+  // -----------------------------------------------------------------------
+  // Internal: GitLab API Fetching
+  // -----------------------------------------------------------------------
+
+  /**
+   * Parse URL-encoded project path from a GitLab URL.
+   */
+  private parseProjectPath(url: string): string {
+    try {
+      const parsed = new URL(url);
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      // GitLab projects can be nested: org/subgroup/project
+      const projectPath = parts.join('/');
+      return encodeURIComponent(projectPath);
+    } catch {
+      return encodeURIComponent('unknown/project');
+    }
+  }
+
+  /**
+   * Make a paginated GET request to the GitLab API.
+   * GitLab uses `X-Page`, `X-Next-Page` headers for pagination.
+   * Returns up to `maxItems` results across pages.
+   */
+  private async fetchPaginated<T>(
+    path: string,
+    errors: Array<{ message: string; details?: unknown }>,
+    maxItems = 100,
+  ): Promise<T[]> {
+    if (!this.token) {
+      logger.warn('No GitLab token configured, skipping API call', { path });
+      errors.push({ message: `No GitLab token configured, skipping: ${path}` });
+      return [];
+    }
+
+    const results: T[] = [];
+    let page = 1;
+
+    // Add per_page param if not already present
+    const separator = path.includes('?') ? '&' : '?';
+    const basePath = path.includes('per_page') ? path : `${path}${separator}per_page=30`;
+
+    try {
+      while (results.length < maxItems) {
+        const pageParam = basePath.includes('per_page') ? `&page=${page}` : `?page=${page}`;
+        const url = `${this.apiBase}/api/v4${basePath}${pageParam}`;
+
+        const response = await fetch(url, {
+          headers: {
+            'PRIVATE-TOKEN': this.token,
+            'Accept': 'application/json',
+          },
+        });
+
+        // Check rate limit (GitLab uses RateLimit-Remaining)
+        const remaining = response.headers.get('RateLimit-Remaining');
+        if (remaining !== null && parseInt(remaining, 10) <= 0) {
+          const resetTime = response.headers.get('RateLimit-Reset');
+          const msg = `GitLab API rate limit exhausted. Resets at ${resetTime}`;
+          logger.warn(msg);
+          errors.push({ message: msg });
+          break;
+        }
+
+        if (!response.ok) {
+          const msg = `GitLab API error: ${response.status} ${response.statusText} for ${url}`;
+          logger.warn(msg);
+          errors.push({ message: msg, details: { status: response.status } });
+          break;
+        }
+
+        const data = (await response.json()) as T[];
+
+        if (!Array.isArray(data) || data.length === 0) break;
+        results.push(...data);
+
+        // Check if there's a next page
+        const nextPage = response.headers.get('X-Next-Page');
+        if (!nextPage || nextPage === '') break;
+        page = parseInt(nextPage, 10);
+      }
+    } catch (err) {
+      const msg = `GitLab API fetch failed for ${path}: ${err instanceof Error ? err.message : String(err)}`;
+      logger.warn(msg);
+      errors.push({ message: msg });
+    }
+
+    return results.slice(0, maxItems);
+  }
+
+  /**
+   * Fetch project members from the GitLab API.
+   */
+  private async fetchMembers(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<string[]> {
+    const members = await this.fetchPaginated<GitLabMember>(
+      `/projects/${this.projectId}/members`,
+      errors,
+      100,
+    );
+    return members.map((m) => m.username);
+  }
+
+  /**
+   * Fetch merge requests from the GitLab API.
+   */
+  private async fetchMergeRequests(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<CollectedMR[]> {
+    const rawMRs = await this.fetchPaginated<GitLabMR>(
+      `/projects/${this.projectId}/merge_requests?state=all&per_page=30`,
+      errors,
+      100,
+    );
+    return rawMRs.map((mr) => ({
+      iid: mr.iid,
+      title: mr.title,
+      author: mr.author?.username || 'unknown',
+      reviewers: (mr.reviewers || []).map((r) => r.username),
+      state: (mr.state === 'opened' ? 'opened' : mr.state === 'merged' ? 'merged' : 'closed') as 'opened' | 'closed' | 'merged',
+      labels: mr.labels || [],
+    }));
+  }
+
+  /**
+   * Fetch pipelines and their jobs from the GitLab API.
+   */
+  private async fetchPipelines(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<CollectedPipeline[]> {
+    const rawPipelines = await this.fetchPaginated<GitLabPipeline>(
+      `/projects/${this.projectId}/pipelines`,
+      errors,
+      30,
+    );
+
+    const collectedPipelines: CollectedPipeline[] = [];
+
+    for (const pipeline of rawPipelines.slice(0, 10)) {
+      // Fetch jobs for this pipeline
+      const rawJobs = await this.fetchPaginated<GitLabJob>(
+        `/projects/${this.projectId}/pipelines/${pipeline.id}/jobs`,
+        errors,
+        50,
+      );
+
+      const jobs = rawJobs.map((job) => ({
+        name: job.name,
+        stage: job.stage,
+        // GitLab doesn't expose individual steps within a job via API,
+        // so we create a single step representing the job script
+        steps: [`Run ${job.name}`],
+      }));
+
+      const status = (['success', 'failed', 'running', 'pending'].includes(pipeline.status)
+        ? pipeline.status
+        : 'pending') as CollectedPipeline['status'];
+
+      collectedPipelines.push({
+        id: pipeline.id,
+        ref: pipeline.ref,
+        status,
+        triggeredBy: pipeline.user?.username || 'unknown',
+        jobs,
+      });
+    }
+
+    return collectedPipelines;
+  }
+
+  /**
+   * Fetch environments from the GitLab API.
+   */
+  private async fetchEnvironments(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<CollectedEnvironment[]> {
+    const rawEnvs = await this.fetchPaginated<GitLabEnvironment>(
+      `/projects/${this.projectId}/environments`,
+      errors,
+      100,
+    );
+    return rawEnvs.map((env) => {
+      const tier = (['production', 'staging', 'development'].includes(env.tier || '')
+        ? env.tier
+        : 'development') as CollectedEnvironment['tier'];
+      return {
+        name: env.name,
+        tier,
+        url: env.external_url || '',
+      };
+    });
+  }
+
+  /**
+   * Fetch deployments from the GitLab API.
+   */
+  private async fetchDeployments(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<CollectedDeployment[]> {
+    const rawDeployments = await this.fetchPaginated<GitLabDeployment>(
+      `/projects/${this.projectId}/deployments`,
+      errors,
+      100,
+    );
+    return rawDeployments.map((d) => {
+      const status = (['success', 'failed', 'running'].includes(d.status)
+        ? d.status
+        : 'success') as CollectedDeployment['status'];
+      return {
+        environment: d.environment || 'unknown',
+        sha: d.sha?.substring(0, 8) || 'unknown',
+        deployer: d.user?.username || 'unknown',
+        status,
+        pipelineId: d.deployable?.pipeline?.id || 0,
+      };
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -349,11 +617,10 @@ export class GitLabCollector implements Collector {
   // -----------------------------------------------------------------------
 
   /**
-   * Build knowledge graph entities from synthetic GitLab data.
+   * Build knowledge graph entities from GitLab data.
    *
    * Creates:
-   * - `user` entities for each mock user
-   * - `team` entities for each mock group
+   * - `user` entities for each member
    * - `workflow` entities for each merge request workflow
    * - `pipeline` entities for each CI/CD pipeline
    * - `job` entities for each job within pipelines
@@ -363,11 +630,17 @@ export class GitLabCollector implements Collector {
    *
    * @returns Array of entities.
    */
-  private buildEntities(): Entity[] {
+  private buildEntities(
+    users: string[],
+    pipelines: CollectedPipeline[],
+    mrs: CollectedMR[],
+    environments: CollectedEnvironment[],
+    deployments: CollectedDeployment[],
+  ): Entity[] {
     const entities: Entity[] = [];
 
     // --- User entities ---
-    for (const username of MOCK_USERS) {
+    for (const username of users) {
       entities.push(
         this.makeEntity('user', username, {
           username,
@@ -377,19 +650,8 @@ export class GitLabCollector implements Collector {
       );
     }
 
-    // --- Team entities ---
-    for (const team of MOCK_TEAMS) {
-      entities.push(
-        this.makeEntity('team', team.name, {
-          members: team.members,
-          member_count: team.members.length,
-          platform: 'gitlab',
-        }, ['group']),
-      );
-    }
-
     // --- Workflow entities (merge requests) ---
-    for (const mr of MOCK_MRS) {
+    for (const mr of mrs) {
       entities.push(
         this.makeEntity('workflow', `MR!${mr.iid}: ${mr.title}`, {
           iid: mr.iid,
@@ -404,7 +666,7 @@ export class GitLabCollector implements Collector {
     }
 
     // --- Pipeline entities (with jobs and steps) ---
-    for (const pipeline of MOCK_PIPELINES) {
+    for (const pipeline of pipelines) {
       entities.push(
         this.makeEntity('pipeline', `pipeline-${pipeline.id}`, {
           pipeline_id: pipeline.id,
@@ -440,7 +702,7 @@ export class GitLabCollector implements Collector {
     }
 
     // --- Environment entities ---
-    for (const env of MOCK_ENVIRONMENTS) {
+    for (const env of environments) {
       entities.push(
         this.makeEntity('environment', env.name, {
           tier: env.tier,
@@ -451,7 +713,7 @@ export class GitLabCollector implements Collector {
     }
 
     // --- Deployment entities ---
-    for (const deploy of MOCK_DEPLOYMENTS) {
+    for (const deploy of deployments) {
       entities.push(
         this.makeEntity('deployment', `deploy-${deploy.environment}-${deploy.sha}`, {
           environment: deploy.environment,
@@ -483,21 +745,27 @@ export class GitLabCollector implements Collector {
    * - `contains` — pipeline contains jobs
    *
    * @param entities - All entities built from this collection.
+   * @param mrs - Collected merge requests for review relationships.
+   * @param pipelines - Collected pipelines for dependency relationships.
    * @returns Array of relationships.
    */
-  private buildRelationships(entities: Entity[]): Relationship[] {
+  private buildRelationships(
+    entities: Entity[],
+    mrs: CollectedMR[],
+    pipelines: CollectedPipeline[],
+  ): Relationship[] {
     const relationships: Relationship[] = [];
 
     const users = entities.filter((e) => e.type === 'user');
     const teams = entities.filter((e) => e.type === 'team');
-    const pipelines = entities.filter((e) => e.type === 'pipeline');
+    const pipelineEntities = entities.filter((e) => e.type === 'pipeline');
     const jobs = entities.filter((e) => e.type === 'job');
     const workflows = entities.filter((e) => e.type === 'workflow');
     const deployments = entities.filter((e) => e.type === 'deployment');
     const environments = entities.filter((e) => e.type === 'environment');
 
     // User → Pipeline (triggers)
-    for (const pipeline of pipelines) {
+    for (const pipeline of pipelineEntities) {
       const triggeredBy = pipeline.properties['triggered_by'] as string;
       const userEntity = users.find((u) => u.name === triggeredBy);
       if (userEntity) {
@@ -508,7 +776,7 @@ export class GitLabCollector implements Collector {
     }
 
     // User reviews MR (reviewer → workflow)
-    for (const mr of MOCK_MRS) {
+    for (const mr of mrs) {
       const mrEntity = workflows.find((w) =>
         w.properties['iid'] === mr.iid,
       );
@@ -544,8 +812,8 @@ export class GitLabCollector implements Collector {
     }
 
     // Pipeline → Job (contains)
-    for (const pipeline of MOCK_PIPELINES) {
-      const pipelineEntity = pipelines.find(
+    for (const pipeline of pipelines) {
+      const pipelineEntity = pipelineEntities.find(
         (p) => p.properties['pipeline_id'] === pipeline.id,
       );
       if (!pipelineEntity) continue;
@@ -561,7 +829,7 @@ export class GitLabCollector implements Collector {
     }
 
     // Job → Job (depends_on) — sequential jobs within same pipeline
-    for (const pipeline of MOCK_PIPELINES) {
+    for (const pipeline of pipelines) {
       const pipelineJobs = jobs.filter(
         (j) => j.properties['pipeline_id'] === pipeline.id,
       );

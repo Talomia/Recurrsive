@@ -10,6 +10,7 @@
  */
 
 import type { Command } from 'commander';
+import { apiRequest } from '../config.js';
 import {
   header,
   info,
@@ -49,42 +50,8 @@ interface WhatIfAction {
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// Helpers
 // ---------------------------------------------------------------------------
-
-function getMockForecast(days: number): HealthForecast {
-  const scale = days / 30;
-  return {
-    currentHealth: 74,
-    predictedHealth: Math.min(100, Math.round(74 + 5 * scale)),
-    trend: 'improving',
-    confidenceLow: Math.round(72 + 2 * scale),
-    confidenceHigh: Math.round(74 + 12 * scale),
-    margin: 7,
-    factors: [
-      'Security findings resolution rate trending upward (+12% MoM)',
-      'Test coverage increased from 64% to 71% over 3 sprints',
-      'Two critical dependency vulnerabilities remain unpatched',
-      'Documentation score declining due to new API endpoints',
-    ],
-    weekly: [
-      { week: 'Week 1', predicted: 75, confidence: '72–78', trend: 'improving' },
-      { week: 'Week 2', predicted: 77, confidence: '73–81', trend: 'improving' },
-      { week: 'Week 3', predicted: 78, confidence: '73–83', trend: 'stable' },
-      { week: 'Week 4', predicted: 79, confidence: '72–86', trend: 'improving' },
-    ],
-  };
-}
-
-function getMockActions(): WhatIfAction[] {
-  return [
-    { id: 'act-001', name: 'Resolve critical security findings', impact: 8, effort: 'M', confidence: 92, category: 'security' },
-    { id: 'act-002', name: 'Add unit test coverage', impact: 5, effort: 'L', confidence: 85, category: 'testing' },
-    { id: 'act-003', name: 'Refactor legacy modules', impact: 12, effort: 'XL', confidence: 70, category: 'architecture' },
-    { id: 'act-004', name: 'Enable performance monitoring', impact: 3, effort: 'S', confidence: 95, category: 'performance' },
-    { id: 'act-005', name: 'Adopt dependency scanning', impact: 6, effort: 'M', confidence: 88, category: 'security' },
-  ];
-}
 
 function formatTrend(trend: string): string {
   switch (trend) {
@@ -132,9 +99,15 @@ export function registerForecastCommand(program: Command): void {
     .description('Show health prediction with trend and confidence')
     .option('--json', 'Output as JSON')
     .option('--days <n>', 'Forecast horizon in days', '30')
-    .action((opts: { json?: boolean; days?: string }) => {
+    .action(async (opts: { json?: boolean; days?: string }) => {
       const days = parseInt(opts.days ?? '30', 10);
-      const data = getMockForecast(days);
+      let data: HealthForecast;
+      try {
+        data = await apiRequest('/api/v1/forecasting') as HealthForecast;
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));
@@ -177,8 +150,14 @@ export function registerForecastCommand(program: Command): void {
     .command('what-if')
     .description('Interactive what-if impact simulation')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const actions = getMockActions();
+    .action(async (opts: { json?: boolean }) => {
+      let actions: WhatIfAction[];
+      try {
+        actions = await apiRequest('/api/v1/forecasting/actions') as WhatIfAction[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
       const currentHealth = 74;
 
       if (opts.json) {

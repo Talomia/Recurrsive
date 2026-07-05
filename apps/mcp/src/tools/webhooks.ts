@@ -13,6 +13,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { apiGet, apiRequest, apiErrorResult } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Tool registration
@@ -30,44 +31,18 @@ export function registerWebhookTools(server: McpServer): void {
     'List all registered webhook integrations and their delivery stats',
     {},
     async () => {
-      // In a production deployment, this would query the server's webhook store.
-      // For now, return the supported events and configuration instructions.
-      const hooks = [
-        {
-          id: 'wh_000001',
-          url: 'https://ci.example.com/recurrsive/hooks',
-          events: ['analysis.complete', 'policy.violation'],
-          active: true,
-          created_at: new Date().toISOString(),
-          delivery_count: 42,
-          failure_count: 0,
-        },
-      ];
+      try {
+        const result = await apiGet<unknown>('/api/v1/webhooks');
 
-      return {
-        content: [
-          {
+        return {
+          content: [{
             type: 'text' as const,
-            text: JSON.stringify(
-              {
-                webhooks: hooks,
-                total: hooks.length,
-                supported_events: [
-                  'analysis.complete',
-                  'analysis.failed',
-                  'opportunity.created',
-                  'opportunity.updated',
-                  'policy.violation',
-                  'health.degraded',
-                  'snapshot.created',
-                ],
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return apiErrorResult(error, 'list webhooks');
+      }
     },
   );
 
@@ -97,35 +72,21 @@ export function registerWebhookTools(server: McpServer): void {
         .describe('Optional HMAC secret for payload signature verification'),
     },
     async ({ url, events, secret }) => {
-      const id = `wh_${String(Date.now()).slice(-6)}`;
+      try {
+        const result = await apiRequest<unknown>('/api/v1/webhooks', {
+          method: 'POST',
+          body: JSON.stringify({ url, events, secret }),
+        });
 
-      const webhook = {
-        id,
-        url,
-        events,
-        active: true,
-        secret: secret ? '***' : undefined,
-        created_at: new Date().toISOString(),
-        delivery_count: 0,
-        failure_count: 0,
-      };
-
-      return {
-        content: [
-          {
+        return {
+          content: [{
             type: 'text' as const,
-            text: JSON.stringify(
-              {
-                status: 'registered',
-                webhook,
-                message: `Webhook ${id} registered for ${events.length} event(s). It will receive POST requests at ${url}.`,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return apiErrorResult(error, 'register webhook');
+      }
     },
   );
 
@@ -140,30 +101,21 @@ export function registerWebhookTools(server: McpServer): void {
         .describe('Action to perform: test sends a test event, delete removes the webhook, enable/disable toggles it'),
     },
     async ({ webhook_id, action }) => {
-      const actions: Record<string, string> = {
-        test: `Test event sent to webhook ${webhook_id}. Check your endpoint for a delivery with event type 'analysis.complete' and test: true.`,
-        delete: `Webhook ${webhook_id} has been deleted. It will no longer receive event notifications.`,
-        enable: `Webhook ${webhook_id} has been enabled. It will resume receiving event notifications.`,
-        disable: `Webhook ${webhook_id} has been disabled. It will stop receiving event notifications until re-enabled.`,
-      };
+      try {
+        const result = await apiRequest<unknown>(
+          `/api/v1/webhooks/${encodeURIComponent(webhook_id)}/${encodeURIComponent(action)}`,
+          { method: 'POST' },
+        );
 
-      return {
-        content: [
-          {
+        return {
+          content: [{
             type: 'text' as const,
-            text: JSON.stringify(
-              {
-                status: 'success',
-                webhook_id,
-                action,
-                message: actions[action],
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return apiErrorResult(error, `${action} webhook ${webhook_id}`);
+      }
     },
   );
 }

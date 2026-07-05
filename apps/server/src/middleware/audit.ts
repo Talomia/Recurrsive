@@ -13,6 +13,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createLogger, nowISO, generateId } from '@recurrsive/core';
 import type { AuthUser } from './auth.js';
+import { store } from '../store.js';
 
 const logger = createLogger({ context: { component: 'server:middleware:audit' } });
 
@@ -94,7 +95,7 @@ export interface AuditStats {
 // ---------------------------------------------------------------------------
 
 const MAX_EVENTS = 1000;
-const auditBuffer: AuditEvent[] = [];
+const AUDIT_TABLE = 'audit_events';
 
 // ---------------------------------------------------------------------------
 // Action classification
@@ -242,12 +243,10 @@ export function registerAuditMiddleware(app: FastifyInstance): void {
       event.role = user.role;
     }
 
-    auditBuffer.push(event);
+    store.set(AUDIT_TABLE, event.id, event);
 
-    // Enforce circular buffer limit
-    if (auditBuffer.length > MAX_EVENTS) {
-      auditBuffer.shift();
-    }
+    // Enforce event limit — trim deterministically
+    store.trim(AUDIT_TABLE, MAX_EVENTS);
 
     logger.debug(
       `Audit: ${event.method} ${event.url} → ${event.statusCode} ` +
@@ -286,8 +285,8 @@ export function getAuditEvents(filters?: AuditEventFilter): {
   events: AuditEvent[];
   total: number;
 } {
-  // Start with a copy in reverse chronological order
-  let events = [...auditBuffer].reverse();
+  // Load events from store (newest first via recent)
+  let events = store.recent<AuditEvent>(AUDIT_TABLE, MAX_EVENTS);
 
   if (filters?.action) {
     events = events.filter((e) => e.action === filters.action);
@@ -336,7 +335,9 @@ export function getAuditStats(): AuditStats {
   const byStatusGroup: Record<string, number> = {};
   const errors: AuditEvent[] = [];
 
-  for (const event of auditBuffer) {
+  const allEvents = store.all<AuditEvent>(AUDIT_TABLE);
+
+  for (const event of allEvents) {
     // By action
     byAction[event.action] = (byAction[event.action] ?? 0) + 1;
 
@@ -355,7 +356,7 @@ export function getAuditStats(): AuditStats {
   }
 
   return {
-    total: auditBuffer.length,
+    total: allEvents.length,
     byAction,
     byUser,
     byStatusGroup,
@@ -369,7 +370,7 @@ export function getAuditStats(): AuditStats {
  * Primarily intended for test cleanup.
  */
 export function clearAuditEvents(): void {
-  auditBuffer.length = 0;
+  store.clear(AUDIT_TABLE);
 }
 
 /**
@@ -378,5 +379,5 @@ export function clearAuditEvents(): void {
  * @returns The internal audit buffer array (read-only).
  */
 export function getAuditBuffer(): readonly AuditEvent[] {
-  return auditBuffer;
+  return store.all<AuditEvent>(AUDIT_TABLE);
 }

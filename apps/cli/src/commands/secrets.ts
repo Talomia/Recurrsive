@@ -10,6 +10,7 @@
  */
 
 import type { Command } from 'commander';
+import { apiRequest } from '../config.js';
 import {
   header,
   info,
@@ -46,34 +47,8 @@ interface AuditEvent {
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// Helpers
 // ---------------------------------------------------------------------------
-
-function getMockSecrets(): SecretEntry[] {
-  return [
-    { name: 'DATABASE_URL', backend: 'vault', version: 5, lastRotated: '2026-06-28', status: 'current' },
-    { name: 'API_KEY_STRIPE', backend: 'aws-ssm', version: 3, lastRotated: '2026-06-15', status: 'expiring' },
-    { name: 'JWT_SIGNING_KEY', backend: 'vault', version: 8, lastRotated: '2026-06-30', status: 'current' },
-    { name: 'SMTP_PASSWORD', backend: 'azure-keyvault', version: 2, lastRotated: '2026-05-10', status: 'expired' },
-    { name: 'REDIS_AUTH_TOKEN', backend: 'aws-ssm', version: 4, lastRotated: '2026-06-20', status: 'current' },
-    { name: 'WEBHOOK_SECRET', backend: 'env', version: 1, lastRotated: '2026-04-01', status: 'expired' },
-  ];
-}
-
-function getMockAuditLog(): AuditEvent[] {
-  return [
-    { timestamp: '2026-06-30 14:23:01', key: 'JWT_SIGNING_KEY', action: 'rotate', actor: 'ci-pipeline', sourceIp: '10.0.1.42' },
-    { timestamp: '2026-06-30 12:15:33', key: 'DATABASE_URL', action: 'read', actor: 'api-gateway', sourceIp: '10.0.2.15' },
-    { timestamp: '2026-06-29 18:44:12', key: 'API_KEY_STRIPE', action: 'read', actor: 'billing-svc', sourceIp: '10.0.3.8' },
-    { timestamp: '2026-06-29 09:30:00', key: 'REDIS_AUTH_TOKEN', action: 'rotate', actor: 'admin@recurrsive.dev', sourceIp: '192.168.1.100' },
-    { timestamp: '2026-06-28 22:10:45', key: 'DATABASE_URL', action: 'rotate', actor: 'ci-pipeline', sourceIp: '10.0.1.42' },
-    { timestamp: '2026-06-28 16:05:22', key: 'JWT_SIGNING_KEY', action: 'read', actor: 'auth-service', sourceIp: '10.0.2.20' },
-    { timestamp: '2026-06-27 11:33:18', key: 'WEBHOOK_SECRET', action: 'read', actor: 'webhook-handler', sourceIp: '10.0.4.5' },
-    { timestamp: '2026-06-26 08:12:50', key: 'SMTP_PASSWORD', action: 'read', actor: 'notification-svc', sourceIp: '10.0.3.12' },
-    { timestamp: '2026-06-25 15:48:30', key: 'API_KEY_STRIPE', action: 'create', actor: 'admin@recurrsive.dev', sourceIp: '192.168.1.100' },
-    { timestamp: '2026-06-24 10:20:05', key: 'DATABASE_URL', action: 'read', actor: 'data-pipeline', sourceIp: '10.0.5.3' },
-  ];
-}
 
 function statusBadge(status: string): string {
   switch (status) {
@@ -113,8 +88,14 @@ export function registerSecretsCommand(program: Command): void {
     .command('list')
     .description('List all secrets (values never shown)')
     .option('--json', 'Output as JSON')
-    .action((opts: { json?: boolean }) => {
-      const data = getMockSecrets();
+    .action(async (opts: { json?: boolean }) => {
+      let data: SecretEntry[];
+      try {
+        data = await apiRequest('/api/v1/secrets') as SecretEntry[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
 
       if (opts.json) {
         const safe = data.map((s) => ({ ...s, value: '••••••••' }));
@@ -142,8 +123,15 @@ export function registerSecretsCommand(program: Command): void {
   secrets
     .command('rotate <id>')
     .description('Trigger secret rotation')
-    .action((id: string) => {
-      const secret = getMockSecrets().find((s) => s.name === id);
+    .action(async (id: string) => {
+      let secrets: SecretEntry[];
+      try {
+        secrets = await apiRequest('/api/v1/secrets') as SecretEntry[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
+      const secret = secrets.find((s) => s.name === id);
       const oldVersion = secret ? secret.version : 1;
       const newVersion = oldVersion + 1;
 
@@ -168,9 +156,16 @@ export function registerSecretsCommand(program: Command): void {
     .description('Show recent access and rotation events')
     .option('--json', 'Output as JSON')
     .option('--limit <n>', 'Number of events to show', '10')
-    .action((opts: { json?: boolean; limit?: string }) => {
+    .action(async (opts: { json?: boolean; limit?: string }) => {
       const limit = parseInt(opts.limit ?? '10', 10);
-      const data = getMockAuditLog().slice(0, limit);
+      let allData: AuditEvent[];
+      try {
+        allData = await apiRequest('/api/v1/secrets/audit') as AuditEvent[];
+      } catch {
+        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+        process.exit(1);
+      }
+      const data = allData.slice(0, limit);
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));

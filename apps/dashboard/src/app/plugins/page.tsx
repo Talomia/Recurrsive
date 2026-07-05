@@ -8,7 +8,14 @@
 
 import { useState, useEffect } from 'react';
 import { Package, Download, Power, Shield, Star, Search } from 'lucide-react';
-import { getInstalledPlugins, getMarketplacePlugins, getMarketplaceExtensions } from '@/lib/api';
+import {
+  getInstalledPlugins,
+  getMarketplacePlugins,
+  getMarketplaceExtensions,
+  installPlugin as apiInstallPlugin,
+  uninstallPlugin as apiUninstallPlugin,
+  togglePlugin as apiTogglePlugin,
+} from '@/lib/api';
 import type { InstalledPlugin, MarketplacePlugin } from '@/lib/api';
 function StatusBadge({ enabled }: { enabled: boolean }) {
   return (
@@ -39,6 +46,8 @@ export default function PluginsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -72,12 +81,64 @@ export default function PluginsPage() {
     load().finally(() => setLoading(false));
   }, []);
 
-  const togglePlugin = (id: string) => {
-    setInstalled(prev => prev.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p));
+  const markBusy = (id: string, busy: boolean) =>
+    setBusyIds(prev => { const next = new Set(prev); busy ? next.add(id) : next.delete(id); return next; });
+
+  const handleToggle = async (id: string) => {
+    markBusy(id, true);
+    setError(null);
+    try {
+      const updated = await apiTogglePlugin(id);
+      setInstalled(prev =>
+        prev.map(p => p.id === id ? { ...p, enabled: updated.enabled } : p),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to toggle plugin');
+    } finally {
+      markBusy(id, false);
+    }
   };
 
-  const uninstallPlugin = (id: string) => {
-    setInstalled(prev => prev.filter(p => p.id !== id));
+  const handleUninstall = async (id: string) => {
+    markBusy(id, true);
+    setError(null);
+    try {
+      await apiUninstallPlugin(id);
+      setInstalled(prev => prev.filter(p => p.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to uninstall plugin');
+    } finally {
+      markBusy(id, false);
+    }
+  };
+
+  const handleInstall = async (id: string) => {
+    markBusy(id, true);
+    setError(null);
+    try {
+      const plugin = await apiInstallPlugin(id);
+      // Add to installed list using the server response directly
+      setInstalled(prev => [
+        ...prev,
+        {
+          id: plugin.id,
+          name: plugin.name,
+          version: plugin.version,
+          author: plugin.author,
+          description: plugin.description,
+          enabled: plugin.enabled ?? true,
+          health: plugin.health ?? 'healthy',
+          type: plugin.type,
+          installedAt: plugin.installedAt ?? new Date().toISOString(),
+        },
+      ]);
+      // Remove from marketplace list
+      setMarketplace(prev => prev.filter(p => p.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to install plugin');
+    } finally {
+      markBusy(id, false);
+    }
   };
 
   const filteredMarketplace = marketplace.filter(p => {
@@ -107,6 +168,14 @@ export default function PluginsPage() {
         </div>
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-red-400" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-3 hover:opacity-80">✕</button>
+        </div>
+      )}
+
       {/* Installed Plugins */}
       <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
         <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
@@ -128,10 +197,10 @@ export default function PluginsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => togglePlugin(plugin.id)} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-surface)' }}>
+                <button onClick={() => handleToggle(plugin.id)} disabled={busyIds.has(plugin.id)} className="p-2 rounded-lg transition-all hover:opacity-80 disabled:opacity-40" style={{ background: 'var(--color-surface)' }}>
                   <Power className={`w-4 h-4 ${plugin.enabled ? 'text-green-400' : 'text-gray-500'}`} />
                 </button>
-                <button onClick={() => uninstallPlugin(plugin.id)} className="p-2 rounded-lg transition-all hover:opacity-80 text-red-400" style={{ background: 'var(--color-surface)' }}>
+                <button onClick={() => handleUninstall(plugin.id)} disabled={busyIds.has(plugin.id)} className="p-2 rounded-lg transition-all hover:opacity-80 text-red-400 disabled:opacity-40" style={{ background: 'var(--color-surface)' }}>
                   ✕
                 </button>
               </div>
@@ -185,8 +254,13 @@ export default function PluginsPage() {
                   <span>by {plugin.author}</span>
                 </div>
               </div>
-              <button className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: 'var(--color-accent)' }}>
-                Install
+              <button
+                onClick={() => handleInstall(plugin.id)}
+                disabled={busyIds.has(plugin.id)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-40"
+                style={{ background: 'var(--color-accent)' }}
+              >
+                {busyIds.has(plugin.id) ? 'Installing…' : 'Install'}
               </button>
             </div>
           ))}

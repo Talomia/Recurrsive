@@ -20,6 +20,7 @@ import {
   bold,
   cyan,
   green,
+  yellow,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
@@ -51,55 +52,6 @@ interface ExportHistoryItem {
 // API helpers
 // ---------------------------------------------------------------------------
 
-
-
-// ---------------------------------------------------------------------------
-// Mock Data
-// ---------------------------------------------------------------------------
-
-/** Generate fallback mock export result. */
-function getMockExportResult(scope: string, format: string): ExportResult {
-  return {
-    export_id: 'exp_mock0001',
-    format,
-    scope,
-    status: 'completed',
-    download_url: '/api/v1/export/exp_mock0001/download',
-    record_count: scope === 'all' ? 6 : 3,
-    generated_at: new Date().toISOString(),
-  };
-}
-
-/** Generate fallback mock export history. */
-function getMockHistory(): ExportHistoryItem[] {
-  return [
-    {
-      export_id: 'exp_abc123',
-      format: 'json',
-      scope: 'findings',
-      status: 'completed',
-      record_count: 47,
-      generated_at: '2026-06-28T14:30:00.000Z',
-    },
-    {
-      export_id: 'exp_def456',
-      format: 'csv',
-      scope: 'all',
-      status: 'completed',
-      record_count: 128,
-      generated_at: '2026-06-29T09:15:00.000Z',
-    },
-    {
-      export_id: 'exp_ghi789',
-      format: 'markdown',
-      scope: 'opportunities',
-      status: 'completed',
-      record_count: 23,
-      generated_at: '2026-06-30T11:00:00.000Z',
-    },
-  ];
-}
-
 // ---------------------------------------------------------------------------
 // Command Registration
 // ---------------------------------------------------------------------------
@@ -130,8 +82,8 @@ export function registerExportCommand(program: Command): void {
             body: JSON.stringify({ format, scope }),
           }) as ExportResult;
         } catch {
-          // Fallback to mock data
-          result = getMockExportResult(scope, format);
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -166,8 +118,8 @@ export function registerExportCommand(program: Command): void {
           const data = await apiRequest('/api/v1/export/history') as { data: ExportHistoryItem[] };
           items = data.data;
         } catch {
-          // Fallback to mock data
-          items = getMockHistory();
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {

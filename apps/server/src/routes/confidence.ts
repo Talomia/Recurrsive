@@ -11,7 +11,8 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { generateId, nowISO } from '@recurrsive/core';
+import { nowISO } from '@recurrsive/core';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,35 +52,7 @@ interface CalibrationBucket {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory store
-// ---------------------------------------------------------------------------
-
-const predictions: Map<string, Prediction> = new Map();
-
-// Seed demo predictions
-const analyzers = ['architecture', 'security', 'performance', 'reliability', 'ai', 'cost', 'dependency', 'ux'];
-const now = Date.now();
-
-for (let i = 0; i < 100; i++) {
-  const id = generateId();
-  const analyzerId = analyzers[i % analyzers.length]!;
-  const predicted = Math.round((0.3 + Math.random() * 0.6) * 100) / 100;
-  // Simulate ~70% accuracy with calibration drift
-  const actualOccurred = Math.random() < predicted + (Math.random() - 0.5) * 0.3;
-  const daysAgo = Math.floor(Math.random() * 90);
-
-  predictions.set(id, {
-    id,
-    analyzerId,
-    findingId: generateId(),
-    description: `${analyzerId} finding #${i + 1}`,
-    predictedProbability: predicted,
-    actualOutcome: daysAgo > 7 ? actualOccurred : null,
-    severity: (['critical', 'high', 'medium', 'low'] as const)[i % 4]!,
-    predictedAt: new Date(now - daysAgo * 86400000).toISOString(),
-    resolvedAt: daysAgo > 7 ? new Date(now - (daysAgo - 5) * 86400000).toISOString() : null,
-  });
-}
+// No seed data — predictions are populated from real analysis runs.
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -135,11 +108,12 @@ function calibrationCurve(preds: Prediction[]): CalibrationBucket[] {
 export async function registerConfidenceRoutes(app: FastifyInstance): Promise<void> {
   // Overall calibration metrics
   app.get('/api/v1/confidence/overview', async (_request, reply) => {
-    const all = Array.from(predictions.values());
+    const all = store.all<Prediction>('predictions');
     const resolved = all.filter(p => p.actualOutcome !== null);
 
-    // Per-analyzer Brier scores
-    const analyzerScores = analyzers.map(aid => {
+    // Per-analyzer Brier scores — derive analyzer IDs from actual predictions
+    const analyzerIds = [...new Set(all.map(p => p.analyzerId))];
+    const analyzerScores = analyzerIds.map(aid => {
       const preds = all.filter(p => p.analyzerId === aid);
       return {
         analyzerId: aid,
@@ -179,7 +153,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
 
   // Record outcome for a prediction
   app.post<{ Params: { id: string } }>('/api/v1/confidence/predictions/:id/outcome', async (request, reply) => {
-    const prediction = predictions.get(request.params.id);
+    const prediction = store.get<Prediction>('predictions', request.params.id);
     if (!prediction) return reply.status(404).send({ error: 'Not Found', message: 'Prediction not found' });
 
     const body = request.body as { occurred: boolean };
@@ -189,6 +163,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
 
     prediction.actualOutcome = body.occurred;
     prediction.resolvedAt = nowISO();
+    store.set<Prediction>('predictions', prediction.id, prediction);
 
     return reply.send({ data: prediction });
   });
@@ -197,7 +172,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   app.get<{ Querystring: { analyzer?: string; status?: string; severity?: string } }>(
     '/api/v1/confidence/predictions',
     async (request, reply) => {
-      let preds = Array.from(predictions.values());
+      let preds = store.all<Prediction>('predictions');
 
       if (request.query.analyzer) {
         preds = preds.filter(p => p.analyzerId === request.query.analyzer);
@@ -222,7 +197,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   app.get<{ Params: { analyzerId: string } }>(
     '/api/v1/confidence/calibration/:analyzerId',
     async (request, reply) => {
-      const preds = Array.from(predictions.values()).filter(p => p.analyzerId === request.params.analyzerId);
+      const preds = store.all<Prediction>('predictions').filter(p => p.analyzerId === request.params.analyzerId);
       if (preds.length === 0) {
         return reply.status(404).send({ error: 'Not Found', message: `No predictions for analyzer: ${request.params.analyzerId}` });
       }

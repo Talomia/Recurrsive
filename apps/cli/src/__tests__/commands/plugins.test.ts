@@ -9,6 +9,15 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
+
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
   info: vi.fn(),
@@ -46,6 +55,9 @@ describe('plugins command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
+    mockApiRequest.mockResolvedValue([
+      { id: 'p1', name: 'test-plugin', version: '1.0.0', status: 'active', author: 'Test', updated: '2026-01-01' },
+    ]);
   });
 
   it('registers the "plugins" command', () => {

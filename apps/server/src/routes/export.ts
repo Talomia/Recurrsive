@@ -10,6 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
 import { state } from '../state.js';
+import { store } from '../store.js';
 
 const logger = createLogger({ context: { component: 'server:routes:export' } });
 
@@ -42,10 +43,8 @@ interface ExportRecord {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory store
+// Constants
 // ---------------------------------------------------------------------------
-
-const exportHistory: ExportRecord[] = [];
 
 const VALID_FORMATS: ExportFormat[] = ['json', 'csv', 'markdown'];
 const VALID_SCOPES: ExportScope[] = ['findings', 'opportunities', 'health', 'all'];
@@ -169,7 +168,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         filters: filters as Record<string, string> | undefined,
       };
 
-      exportHistory.push(record);
+      store.set<ExportRecord>('exports', exportId, record);
       logger.info(`Export created: ${exportId} (${format}/${scope})`);
 
       return reply.status(201).send({ data: record });
@@ -185,7 +184,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
     '/api/v1/export/:id/download',
     async (request, reply) => {
       const { id } = request.params;
-      const record = exportHistory.find(r => r.export_id === id);
+      const record = store.get<ExportRecord>('exports', id);
 
       if (!record) {
         return reply.status(404).send({
@@ -218,9 +217,10 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    * List all past exports.
    */
   app.get('/api/v1/export/history', async (_request, reply) => {
+    const all = store.all<ExportRecord>('exports');
     return reply.send({
-      data: exportHistory,
-      total: exportHistory.length,
+      data: all,
+      total: all.length,
     });
   });
 }

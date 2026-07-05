@@ -10,8 +10,13 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { generateId, nowISO } from '@recurrsive/core';
+import { generateId, nowISO, createLogger } from '@recurrsive/core';
+import { generateReport } from '@recurrsive/presentation';
 import { authMiddleware } from '../middleware/auth.js';
+import { store } from '../store.js';
+import { state } from '../state.js';
+
+const logger = createLogger({ context: { component: 'server:routes:scheduling' } });
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,62 +64,212 @@ interface ReportRun {
   error: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// In-memory store
-// ---------------------------------------------------------------------------
-
-const schedules: Map<string, ScheduledReport> = new Map();
-const runs: ReportRun[] = [];
-
-// Seed demo schedule
-const demoSchedule: ScheduledReport = {
-  id: generateId(),
-  name: 'Weekly Engineering Intelligence Report',
-  description: 'Comprehensive weekly report covering all analyzers, health trends, and top opportunities.',
-  schedule: '0 9 * * 1',
-  timezone: 'America/New_York',
-  formats: ['html', 'markdown'],
-  analyzers: [],
-  recipients: ['engineering@talomia.io', 'cto@talomia.io'],
-  sections: ['summary', 'findings', 'opportunities', 'trends', 'health'],
-  includeExecutiveSummary: true,
-  status: 'active',
-  lastRunAt: '2026-06-30T13:00:00Z',
-  nextRunAt: '2026-07-07T13:00:00Z',
-  totalRuns: 12,
-  createdAt: '2026-04-01T00:00:00Z',
-  updatedAt: nowISO(),
-};
-schedules.set(demoSchedule.id, demoSchedule);
-
-// Seed demo runs
-for (let i = 0; i < 5; i++) {
-  const date = new Date(Date.now() - (i + 1) * 7 * 86400000);
-  runs.push({
-    id: generateId(),
-    scheduleId: demoSchedule.id,
-    status: 'completed',
-    format: 'html',
-    startedAt: date.toISOString(),
-    completedAt: new Date(date.getTime() + 45000).toISOString(),
-    durationMs: 45000,
-    sizeBytes: 128000 + Math.floor(Math.random() * 50000),
-    downloadUrl: `/api/v1/reports/export/${generateId()}`,
-    error: null,
-  });
-}
+// No seed data — schedules are created by the user via the API.
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function nextCronRun(_cron: string): string {
-  // Simplified: parse weekly cron and return next Monday 9am
+/**
+ * Parse a single cron field and return matching values.
+ * Supports: *, specific values, ranges (a-b), steps (star/n or a-b/n), and comma-separated lists.
+ */
+function parseCronField(field: string, min: number, max: number): number[] {
+  const values: Set<number> = new Set();
+
+  for (const part of field.split(',')) {
+    const trimmed = part.trim();
+
+    if (trimmed === '*') {
+      for (let i = min; i <= max; i++) values.add(i);
+      continue;
+    }
+
+    // Step: */n or a-b/n
+    const stepMatch = trimmed.match(/^(\*|(\d+)-(\d+))\/(\d+)$/);
+    if (stepMatch) {
+      const step = parseInt(stepMatch[4]!, 10);
+      const rangeStart = stepMatch[2] ? parseInt(stepMatch[2], 10) : min;
+      const rangeEnd = stepMatch[3] ? parseInt(stepMatch[3], 10) : max;
+      for (let i = rangeStart; i <= rangeEnd; i += step) values.add(i);
+      continue;
+    }
+
+    // Range: a-b
+    const rangeMatch = trimmed.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1]!, 10);
+      const end = parseInt(rangeMatch[2]!, 10);
+      for (let i = start; i <= end; i++) values.add(i);
+      continue;
+    }
+
+    // Single value
+    const num = parseInt(trimmed, 10);
+    if (!isNaN(num) && num >= min && num <= max) {
+      values.add(num);
+    }
+  }
+
+  return [...values].sort((a, b) => a - b);
+}
+
+/**
+ * Compute the next run time from a standard 5-field cron expression.
+ * Fields: minute hour day-of-month month day-of-week
+ */
+function nextCronRun(cron: string): string {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) {
+    // Invalid cron — fall back to 1 hour from now
+    return new Date(Date.now() + 3600000).toISOString();
+  }
+
+  const minutes = parseCronField(parts[0]!, 0, 59);
+  const hours = parseCronField(parts[1]!, 0, 23);
+  const daysOfMonth = parseCronField(parts[2]!, 1, 31);
+  const months = parseCronField(parts[3]!, 1, 12);
+  const daysOfWeek = parseCronField(parts[4]!, 0, 6); // 0 = Sunday
+
+  // Search forward from now, checking up to 366 days
   const now = new Date();
-  const daysUntilMonday = (8 - now.getDay()) % 7 || 7;
-  const next = new Date(now.getTime() + daysUntilMonday * 86400000);
-  next.setHours(9, 0, 0, 0);
-  return next.toISOString();
+  const candidate = new Date(now);
+  candidate.setSeconds(0, 0);
+  candidate.setMinutes(candidate.getMinutes() + 1); // Start from next minute
+
+  for (let dayOffset = 0; dayOffset < 366; dayOffset++) {
+    const d = new Date(candidate.getTime() + dayOffset * 86400000);
+    const month = d.getMonth() + 1;
+    const dom = d.getDate();
+    const dow = d.getDay();
+
+    if (!months.includes(month)) continue;
+    if (!daysOfMonth.includes(dom) && !daysOfWeek.includes(dow)) continue;
+
+    for (const hour of hours) {
+      for (const minute of minutes) {
+        const test = new Date(d);
+        test.setHours(hour, minute, 0, 0);
+        if (test > now) {
+          return test.toISOString();
+        }
+      }
+    }
+  }
+
+  // Shouldn't happen — fall back to 24h from now
+  return new Date(Date.now() + 86400000).toISOString();
+}
+
+/**
+ * Execute a scheduled report: generate actual report from current analysis data.
+ */
+async function executeScheduledRun(schedule: ScheduledReport): Promise<ReportRun> {
+  const runId = generateId();
+  const startedAt = nowISO();
+  const format = schedule.formats[0] ?? 'html';
+
+  const run: ReportRun = {
+    id: runId,
+    scheduleId: schedule.id,
+    status: 'generating',
+    format: format as ReportFormat,
+    startedAt,
+    completedAt: null,
+    durationMs: 0,
+    sizeBytes: 0,
+    downloadUrl: null,
+    error: null,
+  };
+  store.set('schedule_runs', runId, run);
+
+  try {
+    // Generate the report using real analysis data
+    const manager = state.getOpportunities();
+    const opportunities = manager.list();
+    const healthScore = state.getHealthScore();
+
+    const reportContent = generateReport(
+      opportunities,
+      format as 'html' | 'markdown' | 'json' | 'sarif',
+      {
+        healthScore: healthScore.overall,
+        title: schedule.name,
+        includeActionItems: schedule.includeExecutiveSummary,
+      },
+    );
+
+    const completedAt = nowISO();
+    const durationMs = Date.now() - new Date(startedAt).getTime();
+
+    run.status = 'completed';
+    run.completedAt = completedAt;
+    run.durationMs = durationMs;
+    run.sizeBytes = Buffer.byteLength(reportContent, 'utf-8');
+    run.downloadUrl = `/api/v1/reports/export/${runId}`;
+    store.set('schedule_runs', runId, run);
+
+    // Update schedule metadata
+    schedule.lastRunAt = completedAt;
+    schedule.totalRuns += 1;
+    schedule.nextRunAt = nextCronRun(schedule.schedule);
+    schedule.updatedAt = completedAt;
+    store.set('schedules', schedule.id, schedule);
+
+    logger.info(`Schedule "${schedule.name}" run ${runId} completed in ${durationMs}ms`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    run.status = 'failed';
+    run.completedAt = nowISO();
+    run.durationMs = Date.now() - new Date(startedAt).getTime();
+    run.error = message;
+    store.set('schedule_runs', runId, run);
+
+    schedule.status = 'error';
+    schedule.updatedAt = nowISO();
+    store.set('schedules', schedule.id, schedule);
+
+    logger.error(`Schedule "${schedule.name}" run ${runId} failed: ${message}`);
+  }
+
+  return run;
+}
+
+/**
+ * Periodic scheduler that checks for due schedules every 60 seconds.
+ * Compares each active schedule's nextRunAt against the current time.
+ */
+let schedulerInterval: ReturnType<typeof setInterval> | null = null;
+
+function startScheduler(): void {
+  if (schedulerInterval) return; // Already running
+
+  schedulerInterval = setInterval(() => {
+    const schedules = store.all<ScheduledReport>('schedules');
+    const now = new Date();
+
+    for (const schedule of schedules) {
+      if (schedule.status !== 'active') continue;
+
+      const nextRun = new Date(schedule.nextRunAt);
+      if (nextRun <= now) {
+        logger.info(`Schedule "${schedule.name}" is due, executing...`);
+        executeScheduledRun(schedule).catch((err) => {
+          logger.error(`Scheduler error: ${err instanceof Error ? err.message : String(err)}`);
+        });
+      }
+    }
+  }, 60_000); // Check every 60 seconds
+
+  logger.info('Schedule executor started (checking every 60s)');
+}
+
+function stopScheduler(): void {
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+    schedulerInterval = null;
+    logger.info('Schedule executor stopped');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -124,14 +279,14 @@ function nextCronRun(_cron: string): string {
 export async function registerSchedulingRoutes(app: FastifyInstance): Promise<void> {
   // List all scheduled reports
   app.get('/api/v1/schedules', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const list = Array.from(schedules.values())
+    const list = store.all<ScheduledReport>('schedules')
       .sort((a, b) => a.name.localeCompare(b.name));
     return reply.send({ data: list, total: list.length });
   });
 
   // Get schedule details
   app.get<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const schedule = schedules.get(request.params.id);
+    const schedule = store.get<ScheduledReport>('schedules', request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     return reply.send({ data: schedule });
   });
@@ -164,13 +319,13 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
       updatedAt: now,
     };
 
-    schedules.set(id, schedule);
+    store.set('schedules', id, schedule);
     return reply.status(201).send({ data: schedule });
   });
 
   // Update schedule
   app.put<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const existing = schedules.get(request.params.id);
+    const existing = store.get<ScheduledReport>('schedules', request.params.id);
     if (!existing) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
     const body = request.body as Partial<ScheduledReport>;
@@ -190,60 +345,61 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
       updatedAt: nowISO(),
     };
 
-    schedules.set(updated.id, updated);
+    store.set('schedules', updated.id, updated);
     return reply.send({ data: updated });
   });
 
   // Delete schedule
   app.delete<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!schedules.has(request.params.id)) {
+    if (!store.has('schedules', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     }
-    schedules.delete(request.params.id);
+    store.delete('schedules', request.params.id);
     return reply.status(204).send();
   });
 
   // Trigger immediate run
   app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/run', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const schedule = schedules.get(request.params.id);
+    const schedule = store.get<ScheduledReport>('schedules', request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
-    const now = nowISO();
-    const run: ReportRun = {
-      id: generateId(),
-      scheduleId: schedule.id,
-      status: 'completed',
-      format: schedule.formats[0] ?? 'html',
-      startedAt: now,
-      completedAt: new Date(Date.now() + 30000).toISOString(),
-      durationMs: 30000,
-      sizeBytes: 145000,
-      downloadUrl: `/api/v1/reports/export/${generateId()}`,
-      error: null,
-    };
-
-    runs.unshift(run);
-    schedule.lastRunAt = now;
-    schedule.totalRuns += 1;
-    schedule.updatedAt = now;
+    // Execute the scheduled report with real data
+    const run = await executeScheduledRun(schedule);
 
     return reply.send({ data: run });
   });
 
+  // Start the periodic scheduler and register cleanup
+  startScheduler();
+  app.addHook('onClose', async () => {
+    stopScheduler();
+  });
+
   // Get run history for a schedule
   app.get<{ Params: { id: string } }>('/api/v1/schedules/:id/runs', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const scheduleRuns = runs.filter(r => r.scheduleId === request.params.id);
+    const allRuns = store.all<ReportRun>('schedule_runs');
+    const scheduleRuns = allRuns.filter(r => r.scheduleId === request.params.id);
     return reply.send({ data: scheduleRuns, total: scheduleRuns.length });
   });
 
   // Pause/resume schedule
   app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/toggle', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const schedule = schedules.get(request.params.id);
+    const schedule = store.get<ScheduledReport>('schedules', request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
     schedule.status = schedule.status === 'active' ? 'paused' : 'active';
     schedule.updatedAt = nowISO();
+    store.set('schedules', schedule.id, schedule);
 
     return reply.send({ data: schedule });
+  });
+
+  // Global run history (all schedules)
+  app.get('/api/v1/schedules/history', async (_request, reply) => {
+    const allRuns = store.all<ReportRun>('schedule_runs');
+    const sorted = allRuns.sort((a, b) =>
+      new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+    );
+    return reply.send({ data: sorted, total: sorted.length });
   });
 }

@@ -9,6 +9,15 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
+
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
   info: vi.fn(),
@@ -45,6 +54,9 @@ describe('cloud command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
+    mockApiRequest.mockResolvedValue([
+      { metric: 'Code Quality', yourScore: 82, industryAvg: 68, percentile: 78 },
+    ]);
   });
 
   it('registers the "cloud" command', () => {
@@ -90,6 +102,9 @@ describe('cloud command', () => {
   });
 
   it('status subcommand supports --json option', async () => {
+    mockApiRequest.mockResolvedValue([
+      { service: 'API Gateway', status: 'operational', uptime: '99.99%', latency: '45ms', region: 'us-east-1' },
+    ]);
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const program = createCLI();
     await program.parseAsync(['node', 'test', 'cloud', 'status', '--json']);

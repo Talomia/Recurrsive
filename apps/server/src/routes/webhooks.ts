@@ -12,7 +12,9 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { createHmac } from 'node:crypto';
 import { authMiddleware } from '../middleware/auth.js';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,23 +62,176 @@ export interface WebhookPayload {
   data: Record<string, unknown>;
 }
 
-// ---------------------------------------------------------------------------
-// In-memory webhook store
-// ---------------------------------------------------------------------------
+/** Result returned by {@link deliverWebhook}. */
+export interface DeliveryResult {
+  /** Whether the HTTP request succeeded (2xx status). */
+  success: boolean;
+  /** HTTP status code, or `undefined` when the request never completed. */
+  status_code?: number;
+  /** Wall-clock duration of the delivery attempt in milliseconds. */
+  duration_ms: number;
+  /** Error message when the delivery failed. */
+  error?: string;
+}
 
-const webhooks = new Map<string, WebhookRegistration>();
-const deliveryLog: Array<{
+/** A single webhook delivery log entry. */
+interface DeliveryLogEntry {
   webhook_id: string;
   event: WebhookEvent;
   timestamp: string;
   status: 'success' | 'failure';
   response_code?: number;
-}> = [];
+  /** Duration of the delivery attempt in milliseconds. */
+  duration_ms?: number;
+  /** Error message when the delivery failed. */
+  error?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+/** Delivery timeout in milliseconds (configurable via env). */
+const WEBHOOK_TIMEOUT_MS = Number(
+  process.env['RECURRSIVE_WEBHOOK_TIMEOUT_MS'] ?? 5000,
+);
+
+// ---------------------------------------------------------------------------
+// ID generation
+// ---------------------------------------------------------------------------
 
 let nextId = 1;
 
 function generateWebhookId(): string {
-  return `wh_${String(nextId++).padStart(6, '0')}`;
+  // Derive next ID from store count to stay monotonic across restarts
+  const current = store.count('webhooks') + nextId;
+  nextId++;
+  return `wh_${String(current).padStart(6, '0')}`;
+}
+
+// ---------------------------------------------------------------------------
+// HTTP delivery
+// ---------------------------------------------------------------------------
+
+/**
+ * Deliver a webhook payload via HTTP POST.
+ *
+ * - Signs the JSON body with HMAC-SHA256 when a `secret` is provided,
+ *   adding an `X-Recurrsive-Signature` header (`sha256=<hex>`).
+ * - Enforces a configurable timeout (default 5 000 ms) via
+ *   `AbortController`.
+ *
+ * @param url     - Target URL to POST to.
+ * @param secret  - Optional HMAC secret for payload signing.
+ * @param payload - The webhook payload object.
+ * @param timeoutMs - Request timeout in milliseconds.
+ * @returns A {@link DeliveryResult} describing the outcome.
+ */
+export async function deliverWebhook(
+  url: string,
+  secret: string | undefined,
+  payload: WebhookPayload,
+  timeoutMs: number = WEBHOOK_TIMEOUT_MS,
+): Promise<DeliveryResult> {
+  const body = JSON.stringify(payload);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'User-Agent': 'Recurrsive-Webhooks/1.0',
+  };
+
+  // HMAC-SHA256 signature
+  if (secret) {
+    const signature = createHmac('sha256', secret).update(body).digest('hex');
+    headers['X-Recurrsive-Signature'] = `sha256=${signature}`;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const start = performance.now();
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: controller.signal,
+    });
+
+    const duration_ms = Math.round(performance.now() - start);
+    const success = response.status >= 200 && response.status < 300;
+
+    return {
+      success,
+      status_code: response.status,
+      duration_ms,
+      ...(!success ? { error: `HTTP ${response.status} ${response.statusText}` } : {}),
+    };
+  } catch (err: unknown) {
+    const duration_ms = Math.round(performance.now() - start);
+    const message =
+      err instanceof DOMException && err.name === 'AbortError'
+        ? `Request timed out after ${timeoutMs}ms`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+
+    return { success: false, duration_ms, error: message };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Dispatch a webhook event to all active subscribers.
+ *
+ * Iterates over every registered webhook, checks if the event type
+ * matches, and delivers the payload in parallel. Delivery results
+ * are recorded in the `webhook_deliveries` store.
+ *
+ * @param event - The event type.
+ * @param data  - Event-specific payload data.
+ */
+export async function dispatchWebhookEvent(
+  event: WebhookEvent,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const hooks = store.all<WebhookRegistration>('webhooks');
+  const active = hooks.filter((h) => h.active && h.events.includes(event));
+
+  if (active.length === 0) return;
+
+  const payload: WebhookPayload = {
+    event,
+    timestamp: new Date().toISOString(),
+    data,
+  };
+
+  await Promise.allSettled(
+    active.map(async (hook) => {
+      const result = await deliverWebhook(hook.url, hook.secret, payload);
+
+      // Update counters
+      hook.delivery_count++;
+      if (result.success) {
+        hook.last_delivery_at = new Date().toISOString();
+      } else {
+        hook.failure_count++;
+      }
+      store.set('webhooks', hook.id, hook);
+
+      // Record delivery log
+      const logEntry: DeliveryLogEntry = {
+        webhook_id: hook.id,
+        event,
+        timestamp: new Date().toISOString(),
+        status: result.success ? 'success' : 'failure',
+        response_code: result.status_code,
+        duration_ms: result.duration_ms,
+        error: result.error,
+      };
+      store.append('webhook_deliveries', logEntry);
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +250,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    * List all registered webhooks.
    */
   app.get('/api/v1/webhooks', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const hooks = Array.from(webhooks.values());
+    const hooks = store.all<WebhookRegistration>('webhooks');
 
     return reply.status(200).send({
       data: hooks.map((h) => ({
@@ -170,7 +325,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       failure_count: 0,
     };
 
-    webhooks.set(id, hook);
+    store.set('webhooks', id, hook);
 
     return reply.status(201).send({
       data: {
@@ -191,14 +346,14 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       const { id } = request.params;
 
-      if (!webhooks.has(id)) {
+      if (!store.has('webhooks', id)) {
         return reply.status(404).send({
           error: 'Not found',
           message: `Webhook ${id} not found.`,
         });
       }
 
-      webhooks.delete(id);
+      store.delete('webhooks', id);
 
       return reply.status(200).send({
         data: { id, deleted: true },
@@ -220,7 +375,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     };
   }>('/api/v1/webhooks/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params;
-    const hook = webhooks.get(id);
+    const hook = store.get<WebhookRegistration>('webhooks', id);
 
     if (!hook) {
       return reply.status(404).send({
@@ -234,6 +389,8 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     if (active !== undefined) hook.active = active;
     if (events !== undefined) hook.events = events;
     if (url !== undefined) hook.url = url;
+
+    store.set('webhooks', id, hook);
 
     return reply.status(200).send({
       data: {
@@ -253,7 +410,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
-      const hook = webhooks.get(id);
+      const hook = store.get<WebhookRegistration>('webhooks', id);
 
       if (!hook) {
         return reply.status(404).send({
@@ -272,23 +429,36 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
         },
       };
 
-      // Record the test delivery
-      hook.delivery_count++;
-      hook.last_delivery_at = new Date().toISOString();
+      // Actually deliver the payload over HTTP
+      const result = await deliverWebhook(hook.url, hook.secret, testPayload);
 
-      deliveryLog.push({
+      // Update webhook counters
+      hook.delivery_count++;
+      if (result.success) {
+        hook.last_delivery_at = new Date().toISOString();
+      } else {
+        hook.failure_count++;
+      }
+      store.set('webhooks', id, hook);
+
+      // Record delivery log
+      const logEntry: DeliveryLogEntry = {
         webhook_id: id,
         event: 'analysis.complete',
         timestamp: new Date().toISOString(),
-        status: 'success',
-        response_code: 200,
-      });
+        status: result.success ? 'success' : 'failure',
+        response_code: result.status_code,
+        duration_ms: result.duration_ms,
+        error: result.error,
+      };
+      store.append('webhook_deliveries', logEntry);
 
       return reply.status(200).send({
         data: {
-          delivered: true,
+          delivered: result.success,
           webhook_id: id,
           payload: testPayload,
+          delivery: result,
         },
       });
     },
@@ -305,14 +475,15 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       const { id } = request.params;
 
-      if (!webhooks.has(id)) {
+      if (!store.has('webhooks', id)) {
         return reply.status(404).send({
           error: 'Not found',
           message: `Webhook ${id} not found.`,
         });
       }
 
-      const history = deliveryLog.filter((d) => d.webhook_id === id);
+      const allDeliveries = store.all<DeliveryLogEntry>('webhook_deliveries');
+      const history = allDeliveries.filter((d) => d.webhook_id === id);
 
       return reply.status(200).send({
         data: history,

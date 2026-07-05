@@ -4,13 +4,14 @@
  * Batch analysis routes for submitting multiple projects for sequential
  * analysis and tracking their status.
  *
- * Uses in-memory storage — batch runs are not persisted across
- * server restarts.
- *
  * @packageDocumentation
  */
 
 import type { FastifyInstance } from 'fastify';
+import path from 'node:path';
+import { store } from '../store.js';
+import { state } from '../state.js';
+import { createLogger } from '@recurrsive/core';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,67 +54,106 @@ export interface BatchRun {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory batch store
+// Constants
 // ---------------------------------------------------------------------------
 
 const MAX_HISTORY = 50;
-const batchRuns: Map<string, BatchRun> = new Map();
-let nextBatchId = 1;
 
 function generateBatchId(): string {
-  return `batch_${String(nextBatchId++).padStart(6, '0')}`;
+  const count = store.count('batches') + 1;
+  return `batch_${String(count).padStart(6, '0')}`;
+}
+
+const batchLogger = createLogger({ context: { component: 'server:routes:batch' } });
+
+/**
+ * Path traversal safety check — rejects paths outside allowed prefixes.
+ */
+const ALLOWED_PREFIXES = ['/app', '/tmp/recurrsive-repos/', '/home/'];
+function isSafePath(projectPath: string): boolean {
+  const resolved = path.resolve(projectPath);
+  return ALLOWED_PREFIXES.some((prefix) => resolved.startsWith(prefix));
 }
 
 /**
- * Simulate sequential analysis of projects in a batch.
+ * Run real sequential analysis on each project in a batch.
  *
- * In a real implementation, this would call the analysis engine
- * for each project. Here we simulate it with timeouts.
+ * For each project:
+ * 1. Validate the path
+ * 2. Initialize a fresh server state for that project
+ * 3. Run the full analysis pipeline
+ * 4. Update per-project status in the store
+ *
+ * After all projects complete, set the final batch status.
  */
-function simulateBatchAnalysis(batchId: string): void {
-  const batch = batchRuns.get(batchId);
+async function runBatchAnalysis(batchId: string): Promise<void> {
+  const batch = store.get<BatchRun>('batches', batchId);
   if (!batch) return;
 
   batch.status = 'running';
+  store.set<BatchRun>('batches', batchId, batch);
 
-  let projectIndex = 0;
+  for (let i = 0; i < batch.projects.length; i++) {
+    const currentBatch = store.get<BatchRun>('batches', batchId);
+    if (!currentBatch) return;
 
-  function processNext(): void {
-    const currentBatch = batchRuns.get(batchId);
-    if (!currentBatch || projectIndex >= currentBatch.projects.length) {
-      // All projects processed — determine final status
-      if (currentBatch) {
-        const allCompleted = currentBatch.projects.every((p) => p.status === 'completed');
-        const allFailed = currentBatch.projects.every((p) => p.status === 'failed');
-        currentBatch.status = allCompleted ? 'completed' : allFailed ? 'failed' : 'partial';
-        currentBatch.completed_at = new Date().toISOString();
-      }
-      return;
-    }
-
-    const project = currentBatch.projects[projectIndex];
-    if (!project) return;
+    const project = currentBatch.projects[i];
+    if (!project) continue;
 
     project.status = 'running';
     project.started_at = new Date().toISOString();
+    store.set<BatchRun>('batches', batchId, currentBatch);
 
-    // Simulate analysis taking 1-3 seconds
-    const duration = 1000 + Math.random() * 2000;
-    setTimeout(() => {
-      // 90% success rate
-      if (Math.random() > 0.1) {
-        project.status = 'completed';
-      } else {
-        project.status = 'failed';
-        project.error = 'Analysis failed: unable to parse project configuration';
+    try {
+      // Validate path safety
+      if (!isSafePath(project.path)) {
+        throw new Error(`Path "${project.path}" is not in the allowed directories.`);
       }
-      project.completed_at = new Date().toISOString();
-      projectIndex++;
-      processNext();
-    }, duration);
+
+      // Initialize state for this project and run analysis
+      if (state.isInitialized()) {
+        await state.dispose();
+      }
+      await state.initialize(project.path);
+      await state.runAnalysis();
+
+      // Mark success
+      const afterBatch = store.get<BatchRun>('batches', batchId);
+      if (!afterBatch) return;
+      const afterProject = afterBatch.projects[i];
+      if (afterProject) {
+        afterProject.status = 'completed';
+        afterProject.completed_at = new Date().toISOString();
+        store.set<BatchRun>('batches', batchId, afterBatch);
+      }
+
+      batchLogger.info(`Batch ${batchId}: project "${project.path}" completed`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      batchLogger.error(`Batch ${batchId}: project "${project.path}" failed: ${message}`);
+
+      const afterBatch = store.get<BatchRun>('batches', batchId);
+      if (!afterBatch) return;
+      const afterProject = afterBatch.projects[i];
+      if (afterProject) {
+        afterProject.status = 'failed';
+        afterProject.completed_at = new Date().toISOString();
+        afterProject.error = message;
+        store.set<BatchRun>('batches', batchId, afterBatch);
+      }
+    }
   }
 
-  processNext();
+  // Determine final batch status
+  const finalBatch = store.get<BatchRun>('batches', batchId);
+  if (finalBatch) {
+    const allCompleted = finalBatch.projects.every((p) => p.status === 'completed');
+    const allFailed = finalBatch.projects.every((p) => p.status === 'failed');
+    finalBatch.status = allCompleted ? 'completed' : allFailed ? 'failed' : 'partial';
+    finalBatch.completed_at = new Date().toISOString();
+    store.set<BatchRun>('batches', batchId, finalBatch);
+    batchLogger.info(`Batch ${batchId}: ${finalBatch.status} (${finalBatch.projects.length} projects)`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -202,20 +242,23 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       completed_at: null,
     };
 
-    batchRuns.set(batchId, batchRun);
+    store.set<BatchRun>('batches', batchId, batchRun);
 
     // Enforce max history
-    if (batchRuns.size > MAX_HISTORY) {
-      const oldest = batchRuns.keys().next().value as string;
-      batchRuns.delete(oldest);
-    }
+    store.trim('batches', MAX_HISTORY);
 
-    // Start simulation asynchronously
-    simulateBatchAnalysis(batchId);
+    // Start real batch analysis asynchronously (runs in background)
+    // Use setImmediate to ensure the response is sent before analysis starts
+    setImmediate(() => {
+      runBatchAnalysis(batchId).catch((err) => {
+        batchLogger.error(`Batch ${batchId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    });
 
+    // Return the initial batch state immediately
     return reply.status(202).send({
       batch_id: batchId,
-      status: batchRun.status,
+      status: 'pending',
       projects: batchRun.projects.map((p) => ({
         path: p.path,
         status: p.status,
@@ -232,7 +275,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
     Params: { id: string };
   }>('/api/v1/batch/status/:id', async (request, reply) => {
     const { id } = request.params;
-    const batch = batchRuns.get(id);
+    const batch = store.get<BatchRun>('batches', id);
 
     if (!batch) {
       return reply.status(404).send({
@@ -252,8 +295,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
    * Return past batch runs, ordered newest first.
    */
   app.get('/api/v1/batch/history', async (_request, reply) => {
-    const runs = Array.from(batchRuns.values())
-      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const runs = store.recent<BatchRun>('batches');
 
     return reply.status(200).send({
       data: runs,

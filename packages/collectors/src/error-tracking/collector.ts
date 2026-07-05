@@ -2,13 +2,11 @@
  * @module @recurrsive/collectors/error-tracking/collector
  *
  * Error Tracking Collector — ingests error events, error groups,
- * alert rules, services, environments, and users from an error
- * tracking platform (Sentry, Bugsnag, or Rollbar) and produces
- * entities and relationships for the knowledge graph.
+ * alert rules, services, environments, and users from the Sentry API
+ * and produces entities and relationships for the knowledge graph.
  *
- * Since this collector is not yet connected to real API calls, it
- * generates synthetic data that mirrors the shape of real error
- * tracking platform responses for development and testing purposes.
+ * Requires Sentry credentials (auth token, org slug, project slug).
+ * If no credentials are configured, returns empty results.
  *
  * Produces entities:
  * - `incident` — individual error occurrences (error events)
@@ -47,97 +45,31 @@ const logger = createLogger({ context: { module: 'error-tracking-collector' } })
 /** Supported error tracking platforms. */
 export type ErrorTrackingPlatform = 'sentry' | 'bugsnag' | 'rollbar';
 
-/** Synthetic error event data. */
-interface MockErrorEvent {
+/** Sentry issue from the API. */
+interface SentryIssue {
+  id: string;
   title: string;
-  errorType: string;
-  severity: 'fatal' | 'error' | 'warning';
-  service: string;
-  environment: string;
-  stackTrace: string;
-  occurrences: number;
-}
-
-/** Synthetic error group data. */
-interface MockErrorGroup {
-  name: string;
-  pattern: string;
-  errorTypes: string[];
-  count: number;
+  culprit: string;
+  type: string;
+  metadata: { type?: string; value?: string };
+  count: string;
   firstSeen: string;
   lastSeen: string;
+  level: 'fatal' | 'error' | 'warning' | 'info';
+  assignedTo?: { name: string; type: string } | null;
+  project?: { slug: string; name: string };
 }
 
-/** Synthetic alert rule data. */
-interface MockAlertRule {
+/** Sentry alert rule from the API. */
+interface SentryAlertRule {
+  id: string;
   name: string;
-  condition: string;
-  threshold: number;
-  owner: string;
-  channel: string;
-  enabled: boolean;
+  conditions: Array<{ id: string; name?: string }>;
+  actions: Array<{ id: string; name?: string }>;
+  owner?: string;
+  dateCreated: string;
+  status?: string;
 }
-
-/** Synthetic service data. */
-interface MockService {
-  name: string;
-  language: string;
-  framework: string;
-  errorRate: number;
-}
-
-/** Synthetic environment data. */
-interface MockEnvironment {
-  name: string;
-  tier: 'production' | 'staging' | 'development';
-  url: string;
-}
-
-// ---------------------------------------------------------------------------
-// Synthetic Data
-// ---------------------------------------------------------------------------
-
-const MOCK_USERS = ['sre-alice', 'sre-bob', 'sre-carol', 'sre-dave', 'sre-eve'];
-
-const MOCK_ERROR_EVENTS: MockErrorEvent[] = [
-  { title: 'TypeError: Cannot read property of undefined', errorType: 'TypeError', severity: 'error', service: 'frontend', environment: 'prod', stackTrace: 'at render (app.tsx:42)', occurrences: 1523 },
-  { title: 'NullReferenceException in UserService', errorType: 'NullRef', severity: 'error', service: 'auth-service', environment: 'prod', stackTrace: 'at UserService.getUser (user.ts:88)', occurrences: 872 },
-  { title: 'OutOfMemoryError: heap space exhausted', errorType: 'OOM', severity: 'fatal', service: 'ml-pipeline', environment: 'prod', stackTrace: 'at ModelLoader.load (loader.py:156)', occurrences: 43 },
-  { title: 'API Timeout: upstream /v2/payments exceeded 30s', errorType: 'APITimeout', severity: 'error', service: 'api-gateway', environment: 'prod', stackTrace: 'at HttpClient.request (http.ts:201)', occurrences: 2891 },
-  { title: 'RateLimitExceeded: 429 Too Many Requests', errorType: 'RateLimit', severity: 'warning', service: 'api-gateway', environment: 'staging', stackTrace: 'at RateLimiter.check (limiter.ts:67)', occurrences: 567 },
-  { title: 'AuthenticationFailure: invalid JWT signature', errorType: 'AuthFailure', severity: 'error', service: 'auth-service', environment: 'prod', stackTrace: 'at JwtVerifier.verify (jwt.ts:34)', occurrences: 312 },
-  { title: 'DBConnectionError: connection pool exhausted', errorType: 'DBConnection', severity: 'fatal', service: 'payment-processor', environment: 'prod', stackTrace: 'at ConnectionPool.acquire (pool.ts:99)', occurrences: 78 },
-  { title: 'ParseError: unexpected token in JSON at position 0', errorType: 'ParseError', severity: 'warning', service: 'api-gateway', environment: 'staging', stackTrace: 'at JSON.parse (native)', occurrences: 234 },
-];
-
-const MOCK_ERROR_GROUPS: MockErrorGroup[] = [
-  { name: 'Type Errors', pattern: 'TypeError|NullRef', errorTypes: ['TypeError', 'NullRef'], count: 2395, firstSeen: '2025-01-15T08:00:00Z', lastSeen: '2026-07-01T12:00:00Z' },
-  { name: 'Resource Exhaustion', pattern: 'OOM|DBConnection', errorTypes: ['OOM', 'DBConnection'], count: 121, firstSeen: '2025-06-01T03:00:00Z', lastSeen: '2026-07-01T11:30:00Z' },
-  { name: 'Network Failures', pattern: 'APITimeout|RateLimit', errorTypes: ['APITimeout', 'RateLimit'], count: 3458, firstSeen: '2025-03-20T10:00:00Z', lastSeen: '2026-07-01T12:15:00Z' },
-  { name: 'Auth Errors', pattern: 'AuthFailure', errorTypes: ['AuthFailure'], count: 312, firstSeen: '2025-09-10T14:00:00Z', lastSeen: '2026-07-01T09:45:00Z' },
-  { name: 'Data Parsing', pattern: 'ParseError', errorTypes: ['ParseError'], count: 234, firstSeen: '2025-11-05T16:00:00Z', lastSeen: '2026-06-30T22:00:00Z' },
-];
-
-const MOCK_ALERT_RULES: MockAlertRule[] = [
-  { name: 'Critical Error Spike', condition: 'error_count > threshold in 5m', threshold: 100, owner: 'sre-alice', channel: '#incidents', enabled: true },
-  { name: 'P0 Bug Alert', condition: 'severity == fatal', threshold: 1, owner: 'sre-bob', channel: '#p0-alerts', enabled: true },
-  { name: 'Performance Degradation', condition: 'p99_latency > threshold_ms', threshold: 5000, owner: 'sre-carol', channel: '#performance', enabled: true },
-  { name: 'Security Alert', condition: 'error_type in [AuthFailure]', threshold: 50, owner: 'sre-dave', channel: '#security', enabled: true },
-];
-
-const MOCK_SERVICES: MockService[] = [
-  { name: 'api-gateway', language: 'TypeScript', framework: 'Express', errorRate: 0.023 },
-  { name: 'auth-service', language: 'TypeScript', framework: 'NestJS', errorRate: 0.015 },
-  { name: 'payment-processor', language: 'Java', framework: 'Spring Boot', errorRate: 0.008 },
-  { name: 'ml-pipeline', language: 'Python', framework: 'FastAPI', errorRate: 0.012 },
-  { name: 'frontend', language: 'TypeScript', framework: 'React', errorRate: 0.031 },
-];
-
-const MOCK_ENVIRONMENTS: MockEnvironment[] = [
-  { name: 'prod', tier: 'production', url: 'https://app.example.com' },
-  { name: 'staging', tier: 'staging', url: 'https://staging.example.com' },
-  { name: 'dev', tier: 'development', url: 'https://dev.example.com' },
-];
 
 // ---------------------------------------------------------------------------
 // ErrorTrackingCollector
@@ -145,13 +77,13 @@ const MOCK_ENVIRONMENTS: MockEnvironment[] = [
 
 /**
  * Collects error events, error groups, alert rules, services,
- * environments, and users from an error tracking platform.
+ * environments, and users from the Sentry API.
  *
  * Lifecycle:
  * 1. {@link initialize} — configure governance rules and DSN.
  * 2. {@link validate} — verify the DSN is well-formed.
- * 3. {@link collect} — generate entities & relationships from
- *    synthetic error tracking data.
+ * 3. {@link collect} — fetch issues from Sentry and build entities &
+ *    relationships.
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -159,7 +91,7 @@ const MOCK_ENVIRONMENTS: MockEnvironment[] = [
  * const collector = new ErrorTrackingCollector('sentry');
  * await collector.initialize({
  *   governance: { masked_fields: [], excluded_patterns: [], pii_detection: true, audit_log: false, retention_days: 90 },
- *   custom: { dsn: 'https://key@sentry.io/123' },
+ *   custom: { sentry_auth_token: 'sntrys_...', sentry_org: 'my-org', sentry_project: 'my-project' },
  * });
  * const result = await collector.collect();
  * console.log(`Found ${result.entities.length} entities`);
@@ -185,6 +117,8 @@ export class ErrorTrackingCollector implements Collector {
   private governanceFilter!: GovernanceFilter;
   /** Whether this collector has been initialized. */
   private initialized = false;
+  /** Stored collector configuration. */
+  private config!: CollectorConfig;
 
   /**
    * @param platform - Error tracking platform (default: `'sentry'`).
@@ -204,6 +138,7 @@ export class ErrorTrackingCollector implements Collector {
    * @param config - Collector configuration including governance rules.
    */
   async initialize(config: CollectorConfig): Promise<void> {
+    this.config = config;
     this.governanceFilter = new GovernanceFilter(config.governance);
 
     if (typeof config.custom['dsn'] === 'string') {
@@ -251,6 +186,9 @@ export class ErrorTrackingCollector implements Collector {
   /**
    * Perform the full collection run.
    *
+   * Fetches issues from the Sentry API. If no credentials are configured,
+   * returns empty results with a warning.
+   *
    * @returns Entities, relationships, and run metadata.
    * @throws {CollectorError} If the collector has not been initialized.
    */
@@ -266,8 +204,107 @@ export class ErrorTrackingCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build entities and relationships from synthetic data
-    const entities = this.buildEntities();
+    // Check for Sentry credentials
+    const authToken = (this.config.custom['sentry_auth_token'] as string) ||
+      process.env['SENTRY_AUTH_TOKEN'];
+    const org = (this.config.custom['sentry_org'] as string) ||
+      process.env['SENTRY_ORG'];
+    const project = (this.config.custom['sentry_project'] as string) ||
+      process.env['SENTRY_PROJECT'];
+
+    if (!authToken || !org || !project) {
+      const durationMs = Date.now() - startTime;
+      logger.warn('No Sentry credentials configured, skipping collection', {
+        hasToken: !!authToken,
+        hasOrg: !!org,
+        hasProject: !!project,
+      });
+      return {
+        entities: [],
+        relationships: [],
+        metadata: {
+          collector_id: this.id,
+          collected_at: nowISO(),
+          duration_ms: durationMs,
+          items_processed: 0,
+          errors: [],
+        },
+      };
+    }
+
+    const baseUrl = (this.config.custom['sentry_url'] as string) ||
+      process.env['SENTRY_URL'] ||
+      'https://sentry.io';
+
+    // Fetch issues from Sentry
+    let issues: SentryIssue[] = [];
+    let rules: SentryAlertRule[] = [];
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+
+      const issuesResponse = await fetch(
+        `${baseUrl}/api/0/projects/${org}/${project}/issues/?query=is:unresolved`,
+        {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        },
+      );
+
+      clearTimeout(timeout);
+
+      if (!issuesResponse.ok) {
+        throw new Error(`Sentry API returned ${issuesResponse.status}: ${issuesResponse.statusText}`);
+      }
+
+      issues = (await issuesResponse.json()) as SentryIssue[];
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      logger.warn('Failed to fetch Sentry issues', { error: err });
+      return {
+        entities: [],
+        relationships: [],
+        metadata: {
+          collector_id: this.id,
+          collected_at: nowISO(),
+          duration_ms: durationMs,
+          items_processed: 0,
+          errors: [{ message: `Sentry issues fetch failed: ${err instanceof Error ? err.message : String(err)}` }],
+        },
+      };
+    }
+
+    // Fetch alert rules
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+
+      const rulesResponse = await fetch(
+        `${baseUrl}/api/0/projects/${org}/${project}/rules/`,
+        {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        },
+      );
+
+      clearTimeout(timeout);
+
+      if (rulesResponse.ok) {
+        rules = (await rulesResponse.json()) as SentryAlertRule[];
+      }
+    } catch {
+      // Alert rules are optional — continue without them
+    }
+
+    // Build entities and relationships
+    const entities = this.buildEntities(issues, rules);
     const relationships = this.buildRelationships(entities);
 
     // Apply governance masking
@@ -288,12 +325,7 @@ export class ErrorTrackingCollector implements Collector {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed:
-          MOCK_ERROR_EVENTS.length +
-          MOCK_ERROR_GROUPS.length +
-          MOCK_ALERT_RULES.length +
-          MOCK_SERVICES.length +
-          MOCK_ENVIRONMENTS.length,
+        items_processed: issues.length + rules.length,
         errors,
       },
     };
@@ -363,23 +395,100 @@ export class ErrorTrackingCollector implements Collector {
   // -----------------------------------------------------------------------
 
   /**
-   * Build knowledge graph entities from synthetic error tracking data.
+   * Build knowledge graph entities from Sentry API data.
    *
    * Creates:
-   * - `user` entities for each SRE team member
-   * - `incident` entities for each error event
-   * - `alert` entities for each error group
+   * - `incident` entities for each Sentry issue
+   * - `alert` entities for groups of similar error types
    * - `config` entities for each alert rule
-   * - `infrastructure_resource` entities for each service
-   * - `environment` entities for each deployment environment
+   * - `infrastructure_resource` entities for unique services (culprits)
+   * - `environment` entities (production, staging, dev)
+   * - `user` entities for unique issue assignees and rule owners
    *
+   * @param issues - Sentry issues from the API.
+   * @param rules - Sentry alert rules from the API.
    * @returns Array of entities.
    */
-  private buildEntities(): Entity[] {
+  private buildEntities(issues: SentryIssue[], rules: SentryAlertRule[]): Entity[] {
     const entities: Entity[] = [];
 
-    // --- User entities (SRE team members) ---
-    for (const username of MOCK_USERS) {
+    // --- Incident entities (each issue) ---
+    for (const issue of issues) {
+      entities.push(
+        this.makeEntity('incident', issue.title, {
+          sentry_id: issue.id,
+          error_type: issue.type,
+          severity: issue.level,
+          culprit: issue.culprit,
+          occurrences: parseInt(issue.count, 10) || 0,
+          first_seen: issue.firstSeen,
+          last_seen: issue.lastSeen,
+          platform: this.platform,
+        }, ['error-event', issue.level, issue.type.toLowerCase()]),
+      );
+    }
+
+    // --- Alert (error group) entities by type ---
+    const issuesByType = new Map<string, SentryIssue[]>();
+    for (const issue of issues) {
+      const type = issue.type || 'unknown';
+      if (!issuesByType.has(type)) issuesByType.set(type, []);
+      issuesByType.get(type)!.push(issue);
+    }
+    for (const [type, typeIssues] of issuesByType) {
+      const totalCount = typeIssues.reduce((sum, i) => sum + (parseInt(i.count, 10) || 0), 0);
+      entities.push(
+        this.makeEntity('alert', `${type} Errors`, {
+          pattern: type,
+          error_types: [type],
+          count: totalCount,
+          first_seen: typeIssues[0]?.firstSeen ?? '',
+          last_seen: typeIssues[typeIssues.length - 1]?.lastSeen ?? '',
+          platform: this.platform,
+        }, ['error-group']),
+      );
+    }
+
+    // --- Config entities (alert rules) ---
+    for (const rule of rules) {
+      entities.push(
+        this.makeEntity('config', rule.name, {
+          sentry_rule_id: rule.id,
+          condition: rule.conditions.map((c) => c.name || c.id).join(', '),
+          threshold: 0,
+          owner: rule.owner ?? 'unassigned',
+          channel: rule.actions.map((a) => a.name || a.id).join(', '),
+          enabled: rule.status !== 'disabled',
+          platform: this.platform,
+        }, ['alert-rule', rule.status !== 'disabled' ? 'enabled' : 'disabled']),
+      );
+    }
+
+    // --- Infrastructure resource entities (unique culprits/services) ---
+    const uniqueCulprits = new Set(issues.map((i) => i.culprit).filter(Boolean));
+    for (const culprit of uniqueCulprits) {
+      const culpritIssues = issues.filter((i) => i.culprit === culprit);
+      const totalOccurrences = culpritIssues.reduce((sum, i) => sum + (parseInt(i.count, 10) || 0), 0);
+      entities.push(
+        this.makeEntity('infrastructure_resource', culprit, {
+          language: 'unknown',
+          framework: 'unknown',
+          error_rate: totalOccurrences,
+          issue_count: culpritIssues.length,
+          platform: this.platform,
+        }, ['service']),
+      );
+    }
+
+    // --- User entities (unique assignees + rule owners) ---
+    const uniqueUsers = new Set<string>();
+    for (const issue of issues) {
+      if (issue.assignedTo?.name) uniqueUsers.add(issue.assignedTo.name);
+    }
+    for (const rule of rules) {
+      if (rule.owner) uniqueUsers.add(rule.owner);
+    }
+    for (const username of uniqueUsers) {
       entities.push(
         this.makeEntity('user', username, {
           username,
@@ -389,67 +498,16 @@ export class ErrorTrackingCollector implements Collector {
       );
     }
 
-    // --- Error event entities ---
-    for (const event of MOCK_ERROR_EVENTS) {
-      entities.push(
-        this.makeEntity('incident', event.title, {
-          error_type: event.errorType,
-          severity: event.severity,
-          service: event.service,
-          environment: event.environment,
-          stack_trace: event.stackTrace,
-          occurrences: event.occurrences,
-          platform: this.platform,
-        }, ['error-event', event.severity, event.errorType.toLowerCase()]),
-      );
-    }
-
-    // --- Error group entities ---
-    for (const group of MOCK_ERROR_GROUPS) {
-      entities.push(
-        this.makeEntity('alert', group.name, {
-          pattern: group.pattern,
-          error_types: group.errorTypes,
-          count: group.count,
-          first_seen: group.firstSeen,
-          last_seen: group.lastSeen,
-          platform: this.platform,
-        }, ['error-group']),
-      );
-    }
-
-    // --- Alert rule entities ---
-    for (const rule of MOCK_ALERT_RULES) {
-      entities.push(
-        this.makeEntity('config', rule.name, {
-          condition: rule.condition,
-          threshold: rule.threshold,
-          owner: rule.owner,
-          channel: rule.channel,
-          enabled: rule.enabled,
-          platform: this.platform,
-        }, ['alert-rule', rule.enabled ? 'enabled' : 'disabled']),
-      );
-    }
-
-    // --- Service entities ---
-    for (const svc of MOCK_SERVICES) {
-      entities.push(
-        this.makeEntity('infrastructure_resource', svc.name, {
-          language: svc.language,
-          framework: svc.framework,
-          error_rate: svc.errorRate,
-          platform: this.platform,
-        }, ['service']),
-      );
-    }
-
     // --- Environment entities ---
-    for (const env of MOCK_ENVIRONMENTS) {
+    const envs = [
+      { name: 'prod', tier: 'production' as const },
+      { name: 'staging', tier: 'staging' as const },
+      { name: 'dev', tier: 'development' as const },
+    ];
+    for (const env of envs) {
       entities.push(
         this.makeEntity('environment', env.name, {
           tier: env.tier,
-          url: env.url,
           platform: this.platform,
         }, [env.tier]),
       );
@@ -466,11 +524,11 @@ export class ErrorTrackingCollector implements Collector {
    * Build relationships between entities.
    *
    * Creates:
-   * - `monitors` — alert rule monitors error group
-   * - `contains` — service contains error groups
-   * - `triggers` — error event triggers alert rule
-   * - `deploys_to` — service deploys to environment
-   * - `owns` — user owns alert rule
+   * - `monitors` — config (alert rule) monitors alert (error group)
+   * - `contains` — infrastructure_resource contains incidents
+   * - `triggers` — incident triggers config (alert rule)
+   * - `deploys_to` — infrastructure_resource deploys to environment
+   * - `owns` — user owns config (alert rule)
    *
    * @param entities - All entities built from this collection.
    * @returns Array of relationships.
@@ -485,92 +543,52 @@ export class ErrorTrackingCollector implements Collector {
     const services = entities.filter((e) => e.type === 'infrastructure_resource');
     const environments = entities.filter((e) => e.type === 'environment');
 
-    // Alert Rule → Error Group (monitors)
-    // Each alert rule monitors relevant error groups
+    // Config (alert rule) → Alert (error group) (monitors)
     for (const rule of alertRules) {
-      const ruleName = rule.name as string;
-      // Match alert rules to error groups based on rule semantics
       for (const group of alertGroups) {
-        const errorTypes = group.properties['error_types'] as string[];
-        const shouldMonitor =
-          (ruleName === 'Critical Error Spike') ||
-          (ruleName === 'P0 Bug Alert' && errorTypes.some((t) => ['OOM', 'DBConnection'].includes(t))) ||
-          (ruleName === 'Performance Degradation' && errorTypes.some((t) => ['APITimeout', 'RateLimit'].includes(t))) ||
-          (ruleName === 'Security Alert' && errorTypes.includes('AuthFailure'));
-
-        if (shouldMonitor) {
-          relationships.push(this.makeRel('monitors', rule.id, group.id, {
-            rule_name: ruleName,
-            group_name: group.name,
-          }));
-        }
+        relationships.push(this.makeRel('monitors', rule.id, group.id, {
+          rule_name: rule.name,
+          group_name: group.name,
+        }));
       }
     }
 
-    // Service → Error Group (contains)
-    // Map services to error groups based on the error events they produce
+    // Infrastructure Resource → Incident (contains)
     for (const svc of services) {
-      const svcName = svc.name;
-      // Find error types associated with this service
-      const svcErrorTypes = new Set(
-        MOCK_ERROR_EVENTS
-          .filter((e) => e.service === svcName)
-          .map((e) => e.errorType),
+      const svcIncidents = incidents.filter(
+        (i) => i.properties['culprit'] === svc.name,
       );
+      for (const incident of svcIncidents) {
+        relationships.push(this.makeRel('contains', svc.id, incident.id, {
+          service: svc.name,
+        }));
+      }
+    }
 
-      for (const group of alertGroups) {
-        const groupErrorTypes = group.properties['error_types'] as string[];
-        if (groupErrorTypes.some((t) => svcErrorTypes.has(t))) {
-          relationships.push(this.makeRel('contains', svc.id, group.id, {
-            service: svcName,
-            group_name: group.name,
+    // Incident → Config (triggers) — fatal severity triggers alert rules
+    for (const incident of incidents) {
+      if (incident.properties['severity'] === 'fatal') {
+        for (const rule of alertRules) {
+          relationships.push(this.makeRel('triggers', incident.id, rule.id, {
+            event_title: incident.name,
+            rule_name: rule.name,
           }));
         }
       }
     }
 
-    // Error Event → Alert Rule (triggers)
-    // Fatal/high-severity events trigger relevant alert rules
-    for (const event of incidents) {
-      const severity = event.properties['severity'] as string;
-      const errorType = event.properties['error_type'] as string;
-
-      for (const rule of alertRules) {
-        const ruleName = rule.name as string;
-        const shouldTrigger =
-          (ruleName === 'P0 Bug Alert' && severity === 'fatal') ||
-          (ruleName === 'Security Alert' && errorType === 'AuthFailure');
-
-        if (shouldTrigger) {
-          relationships.push(this.makeRel('triggers', event.id, rule.id, {
-            event_title: event.name,
-            rule_name: ruleName,
-          }));
-        }
+    // Infrastructure Resource → Environment (deploys_to)
+    const prodEnv = environments.find((e) => e.name === 'prod');
+    if (prodEnv) {
+      for (const svc of services) {
+        relationships.push(this.makeRel('deploys_to', svc.id, prodEnv.id, {
+          service: svc.name,
+          environment: 'prod',
+        }));
       }
     }
 
-    // Service → Environment (deploys_to)
-    for (const svc of services) {
-      const svcName = svc.name;
-      // Find environments this service has errors in
-      const svcEnvs = new Set(
-        MOCK_ERROR_EVENTS
-          .filter((e) => e.service === svcName)
-          .map((e) => e.environment),
-      );
-
-      for (const env of environments) {
-        if (svcEnvs.has(env.name)) {
-          relationships.push(this.makeRel('deploys_to', svc.id, env.id, {
-            service: svcName,
-            environment: env.name,
-          }));
-        }
-      }
-    }
-
-    // User → Alert Rule (owns)
+    // User → Config (owns)
     for (const rule of alertRules) {
       const ownerName = rule.properties['owner'] as string;
       const ownerEntity = users.find((u) => u.name === ownerName);

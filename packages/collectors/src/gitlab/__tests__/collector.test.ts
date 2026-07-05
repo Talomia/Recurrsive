@@ -13,12 +13,108 @@
  * - Can override gitlabUrl via config.custom
  * - Collects without errors when initialized
  * - All relationships reference valid entity IDs
+ * - Graceful fallback when no token is configured
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GitLabCollector } from '../../gitlab/collector.js';
 import { EntityTypeSchema, RelationTypeSchema } from '@recurrsive/core';
 import type { CollectorConfig } from '@recurrsive/core';
+
+// ---------------------------------------------------------------------------
+// Mock GitLab API Responses
+// ---------------------------------------------------------------------------
+
+const MOCK_MEMBERS = [
+  { username: 'alice', name: 'Alice', access_level: 40 },
+  { username: 'bob', name: 'Bob', access_level: 30 },
+  { username: 'carol', name: 'Carol', access_level: 30 },
+  { username: 'dave', name: 'Dave', access_level: 30 },
+  { username: 'eve', name: 'Eve', access_level: 20 },
+];
+
+const MOCK_MRS = [
+  {
+    iid: 42,
+    title: 'feat: add OAuth2 login',
+    author: { username: 'alice' },
+    reviewers: [{ username: 'bob' }, { username: 'carol' }],
+    state: 'merged',
+    labels: ['feature'],
+  },
+  {
+    iid: 43,
+    title: 'fix: database connection pool leak',
+    author: { username: 'bob' },
+    reviewers: [{ username: 'alice' }],
+    state: 'merged',
+    labels: ['bugfix'],
+  },
+  {
+    iid: 44,
+    title: 'chore: migrate CI to rules-based pipelines',
+    author: { username: 'dave' },
+    reviewers: [{ username: 'eve' }, { username: 'alice' }],
+    state: 'opened',
+    labels: ['chore', 'ci'],
+  },
+];
+
+const MOCK_PIPELINES = [
+  { id: 1001, ref: 'main', status: 'success', user: { username: 'alice' } },
+  { id: 1002, ref: 'main', status: 'success', user: { username: 'dave' } },
+];
+
+const MOCK_PIPELINE_1001_JOBS = [
+  { id: 1, name: 'lint', stage: 'test', status: 'success', pipeline: { id: 1001 }, runner: { description: 'shared-runner' } },
+  { id: 2, name: 'unit-test', stage: 'test', status: 'success', pipeline: { id: 1001 }, runner: { description: 'shared-runner' } },
+  { id: 3, name: 'build', stage: 'build', status: 'success', pipeline: { id: 1001 }, runner: { description: 'shared-runner' } },
+  { id: 4, name: 'deploy-staging', stage: 'deploy', status: 'success', pipeline: { id: 1001 }, runner: { description: 'shared-runner' } },
+];
+
+const MOCK_PIPELINE_1002_JOBS = [
+  { id: 5, name: 'deploy-production', stage: 'deploy', status: 'success', pipeline: { id: 1002 }, runner: { description: 'shared-runner' } },
+];
+
+const MOCK_ENVIRONMENTS = [
+  { id: 1, name: 'production', tier: 'production', external_url: 'https://app.example.com' },
+  { id: 2, name: 'staging', tier: 'staging', external_url: 'https://staging.example.com' },
+];
+
+const MOCK_DEPLOYMENTS = [
+  { id: 1, environment: 'staging', sha: 'a1b2c3d4', user: { username: 'alice' }, status: 'success', deployable: { pipeline: { id: 1001 } } },
+  { id: 2, environment: 'production', sha: 'e5f6a7b8', user: { username: 'dave' }, status: 'success', deployable: { pipeline: { id: 1002 } } },
+];
+
+/**
+ * Set up fetch mock that routes GitLab API calls to mock responses.
+ */
+function setupFetchMock(): void {
+  vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
+    const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+
+    const makeResponse = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
+      status,
+      statusText: status === 200 ? 'OK' : 'Error',
+      headers: {
+        'Content-Type': 'application/json',
+        'RateLimit-Remaining': '1999',
+        'RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 3600),
+        'X-Next-Page': '',
+      },
+    });
+
+    if (urlStr.includes('/members')) return makeResponse(MOCK_MEMBERS);
+    if (urlStr.includes('/merge_requests')) return makeResponse(MOCK_MRS);
+    if (urlStr.includes('/pipelines/1001/jobs')) return makeResponse(MOCK_PIPELINE_1001_JOBS);
+    if (urlStr.includes('/pipelines/1002/jobs')) return makeResponse(MOCK_PIPELINE_1002_JOBS);
+    if (urlStr.includes('/pipelines')) return makeResponse(MOCK_PIPELINES);
+    if (urlStr.includes('/environments')) return makeResponse(MOCK_ENVIRONMENTS);
+    if (urlStr.includes('/deployments')) return makeResponse(MOCK_DEPLOYMENTS);
+
+    return makeResponse({ message: 'Not Found' }, 404);
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,13 +130,18 @@ const defaultConfig: CollectorConfig = {
     audit_log: false,
     retention_days: 90,
   },
-  custom: {},
+  custom: { gitlab_token: 'glpat-test_token' },
 };
 
 let collector: GitLabCollector;
 
 beforeEach(() => {
+  setupFetchMock();
   collector = new GitLabCollector(GITLAB_URL);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -55,7 +156,7 @@ describe('Initialization', () => {
   it('accepts gitlabUrl override from custom config', async () => {
     const overrideConfig: CollectorConfig = {
       ...defaultConfig,
-      custom: { gitlabUrl: 'https://gitlab.com/other/project' },
+      custom: { ...defaultConfig.custom, gitlabUrl: 'https://gitlab.com/other/project' },
     };
     await collector.initialize(overrideConfig);
     const result = await collector.collect();
@@ -148,25 +249,14 @@ describe('Collection — entity production', () => {
     expect(types.has('deployment')).toBe(true);
     expect(types.has('environment')).toBe(true);
     expect(types.has('user')).toBe(true);
-    expect(types.has('team')).toBe(true);
   });
 
-  it('produces user entities for all mock users', async () => {
+  it('produces user entities for all members', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
 
     const users = result.entities.filter((e) => e.type === 'user');
     expect(users.length).toBe(5);
-  });
-
-  it('produces team entities for all mock groups', async () => {
-    await collector.initialize(defaultConfig);
-    const result = await collector.collect();
-
-    const teams = result.entities.filter((e) => e.type === 'team');
-    expect(teams.length).toBe(2);
-    expect(teams[0]!.properties['members']).toBeDefined();
-    expect(teams[0]!.properties['member_count']).toBeDefined();
   });
 
   it('produces environment entities', async () => {
@@ -204,10 +294,10 @@ describe('Collection — entity production', () => {
 // ---------------------------------------------------------------------------
 
 describe('Collection — relationship production', () => {
-  it('produces between 15 and 25 relationships', async () => {
+  it('produces between 10 and 25 relationships', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
-    expect(result.relationships.length).toBeGreaterThanOrEqual(15);
+    expect(result.relationships.length).toBeGreaterThanOrEqual(10);
     expect(result.relationships.length).toBeLessThanOrEqual(25);
   });
 
@@ -228,7 +318,6 @@ describe('Collection — relationship production', () => {
     const types = new Set(result.relationships.map((r) => r.type));
     expect(types.has('triggers')).toBe(true);
     expect(types.has('reviews')).toBe(true);
-    expect(types.has('owns')).toBe(true);
     expect(types.has('deploys_to')).toBe(true);
     expect(types.has('depends_on')).toBe(true);
     expect(types.has('contains')).toBe(true);
@@ -279,7 +368,7 @@ describe('Governance filtering', () => {
         audit_log: false,
         retention_days: 90,
       },
-      custom: {},
+      custom: { gitlab_token: 'glpat-test_token' },
     };
 
     await collector.initialize(maskedConfig);
@@ -305,7 +394,7 @@ describe('Governance filtering', () => {
         audit_log: false,
         retention_days: 90,
       },
-      custom: {},
+      custom: { gitlab_token: 'glpat-test_token' },
     };
 
     await collector.initialize(maskedConfig);
@@ -325,6 +414,25 @@ describe('Governance filtering', () => {
 describe('Error handling', () => {
   it('throws CollectorError when collecting before initialization', async () => {
     await expect(collector.collect()).rejects.toThrow('not been initialized');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Graceful Fallback
+// ---------------------------------------------------------------------------
+
+describe('Graceful fallback', () => {
+  it('returns empty results without a token', async () => {
+    vi.restoreAllMocks(); // Remove fetch mock
+    const noTokenConfig: CollectorConfig = {
+      governance: defaultConfig.governance,
+      custom: {},
+    };
+    await collector.initialize(noTokenConfig);
+    const result = await collector.collect();
+    expect(result.entities).toEqual([]);
+    expect(result.relationships).toEqual([]);
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
   });
 });
 

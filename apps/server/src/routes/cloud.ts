@@ -10,7 +10,7 @@
  * - Partner certification program
  * - Recurrsive Cloud (fully managed SaaS) management
  *
- * All data is synthetic / demonstration-only.
+ * All data is seed data for first-run experience.
  *
  * @packageDocumentation
  */
@@ -18,6 +18,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types — Benchmarking
@@ -111,73 +112,17 @@ interface ManagedService {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory stores
+// Read-only reference data — managed services catalog (static product info)
 // ---------------------------------------------------------------------------
 
-const benchmarks: BenchmarkEntry[] = [];
-const patterns: LearnedPattern[] = [];
-const partners: PartnerCert[] = [];
-
-// Seed benchmarks
-const industries = ['fintech', 'healthcare', 'e-commerce', 'saas', 'devtools', 'gaming', 'media'];
-for (let i = 0; i < 50; i++) {
-  const overall = 40 + Math.random() * 50;
-  benchmarks.push({
-    id: generateId(),
-    anonymizedTenantId: `anon-${generateId().slice(0, 8)}`,
-    industry: industries[i % industries.length]!,
-    teamSize: (['small', 'medium', 'large', 'enterprise'] as const)[i % 4]!,
-    scores: {
-      overall: Math.round(overall * 10) / 10,
-      architecture: Math.round((overall + (Math.random() - 0.5) * 20) * 10) / 10,
-      security: Math.round((overall + (Math.random() - 0.5) * 20) * 10) / 10,
-      performance: Math.round((overall + (Math.random() - 0.5) * 20) * 10) / 10,
-      reliability: Math.round((overall + (Math.random() - 0.5) * 20) * 10) / 10,
-      documentation: Math.round((overall + (Math.random() - 0.5) * 30) * 10) / 10,
-    },
-    meta: {
-      codebaseSize: (['small', 'medium', 'large'] as const)[i % 3]!,
-      primaryLanguage: (['TypeScript', 'Python', 'Go', 'Java', 'Rust'] as const)[i % 5]!,
-      analyzersUsed: 5 + Math.floor(Math.random() * 9),
-      collectorsUsed: 3 + Math.floor(Math.random() * 12),
-    },
-    submittedAt: new Date(Date.now() - Math.floor(Math.random() * 90) * 86400000).toISOString(),
-  });
-}
-
-// Seed learned patterns
-const patternData: Array<Omit<LearnedPattern, 'id'>> = [
-  { name: 'Missing API rate limiting', category: 'security', occurrences: 342, successRate: 0.91, avgImpact: 4.2, recommendation: 'Add token-bucket rate limiting to all public endpoints', confidence: 0.95 },
-  { name: 'Unused dependency accumulation', category: 'dependency', occurrences: 567, successRate: 0.88, avgImpact: 2.1, recommendation: 'Run depcheck quarterly to remove unused packages', confidence: 0.92 },
-  { name: 'Insufficient error handling in async flows', category: 'reliability', occurrences: 445, successRate: 0.82, avgImpact: 5.3, recommendation: 'Wrap all async operations with structured error handling', confidence: 0.89 },
-  { name: 'Documentation drift from implementation', category: 'documentation', occurrences: 623, successRate: 0.75, avgImpact: 3.1, recommendation: 'Integrate doc generation into CI pipeline', confidence: 0.87 },
-  { name: 'LLM calls without cost tracking', category: 'ai', occurrences: 189, successRate: 0.93, avgImpact: 6.7, recommendation: 'Implement usage metering with per-request cost attribution', confidence: 0.91 },
-  { name: 'Missing health check endpoints', category: 'reliability', occurrences: 298, successRate: 0.95, avgImpact: 3.8, recommendation: 'Add /health and /ready endpoints to all services', confidence: 0.94 },
-  { name: 'Hardcoded secrets in configuration', category: 'security', occurrences: 412, successRate: 0.97, avgImpact: 8.2, recommendation: 'Migrate all secrets to a vault or environment variables', confidence: 0.98 },
-  { name: 'Missing database index on frequently queried columns', category: 'performance', occurrences: 356, successRate: 0.86, avgImpact: 4.5, recommendation: 'Profile slow queries and add composite indexes', confidence: 0.88 },
-];
-for (const p of patternData) {
-  patterns.push({ ...p, id: generateId() });
-}
-
-// Seed partners
-const partnerData: Array<Omit<PartnerCert, 'id'>> = [
-  { partnerName: 'CloudForge Consulting', tier: 'platinum', specializations: ['cloud-migration', 'security-hardening', 'ai-integration'], certifiedAt: '2026-01-15T00:00:00Z', expiresAt: '2027-01-15T00:00:00Z', status: 'active' },
-  { partnerName: 'DevOps Pro Solutions', tier: 'gold', specializations: ['ci-cd', 'kubernetes', 'monitoring'], certifiedAt: '2026-03-01T00:00:00Z', expiresAt: '2027-03-01T00:00:00Z', status: 'active' },
-  { partnerName: 'AI Safety Labs', tier: 'silver', specializations: ['ai-safety', 'llm-governance', 'bias-detection'], certifiedAt: '2026-05-01T00:00:00Z', expiresAt: '2027-05-01T00:00:00Z', status: 'active' },
-  { partnerName: 'FinTech Assurance Group', tier: 'gold', specializations: ['financial-compliance', 'pci-dss', 'fraud-detection'], certifiedAt: '2026-04-01T00:00:00Z', expiresAt: '2027-04-01T00:00:00Z', status: 'active' },
-];
-for (const p of partnerData) {
-  partners.push({ ...p, id: generateId() });
-}
-
-// Managed services catalog
 const managedServices: ManagedService[] = [
-  { id: generateId(), name: 'Recurrsive Cloud Starter', description: 'Fully managed Recurrsive instance with automated analysis, dashboard, and email reports.', tier: 'starter', features: ['Hosted dashboard', 'Daily analysis runs', 'Email reports', '5 projects', '3 users'], priceRange: '$99/mo', sla: '99.5% uptime' },
-  { id: generateId(), name: 'Recurrsive Cloud Professional', description: 'Professional tier with advanced features, priority support, and custom integrations.', tier: 'professional', features: ['Everything in Starter', 'Real-time analysis', 'Webhook integrations', '20 projects', '25 users', 'SSO', 'Priority support'], priceRange: '$499/mo', sla: '99.9% uptime' },
-  { id: generateId(), name: 'Recurrsive Cloud Enterprise', description: 'Enterprise-grade deployment with dedicated infrastructure, SLAs, and managed optimization.', tier: 'enterprise', features: ['Everything in Professional', 'Dedicated infrastructure', 'Custom domains', 'Unlimited projects', 'Unlimited users', 'Managed optimization', '24/7 support', 'Custom SLA'], priceRange: 'Custom', sla: '99.99% uptime' },
-  { id: generateId(), name: 'Optimization-as-a-Service', description: 'Our expert team reviews your findings and implements improvements on your behalf.', tier: 'addon', features: ['Monthly review sessions', 'PR generation', 'Architecture recommendations', 'Dedicated success engineer'], priceRange: '$2,000/mo', sla: 'Included with Enterprise' },
+  { id: 'ms-starter', name: 'Recurrsive Cloud Starter', description: 'Fully managed Recurrsive instance with automated analysis, dashboard, and email reports.', tier: 'starter', features: ['Hosted dashboard', 'Daily analysis runs', 'Email reports', '5 projects', '3 users'], priceRange: '$99/mo', sla: '99.5% uptime' },
+  { id: 'ms-professional', name: 'Recurrsive Cloud Professional', description: 'Professional tier with advanced features, priority support, and custom integrations.', tier: 'professional', features: ['Everything in Starter', 'Real-time analysis', 'Webhook integrations', '20 projects', '25 users', 'SSO', 'Priority support'], priceRange: '$499/mo', sla: '99.9% uptime' },
+  { id: 'ms-enterprise', name: 'Recurrsive Cloud Enterprise', description: 'Enterprise-grade deployment with dedicated infrastructure, SLAs, and managed optimization.', tier: 'enterprise', features: ['Everything in Professional', 'Dedicated infrastructure', 'Custom domains', 'Unlimited projects', 'Unlimited users', 'Managed optimization', '24/7 support', 'Custom SLA'], priceRange: 'Custom', sla: '99.99% uptime' },
+  { id: 'ms-oaas', name: 'Optimization-as-a-Service', description: 'Our expert team reviews your findings and implements improvements on your behalf.', tier: 'addon', features: ['Monthly review sessions', 'PR generation', 'Architecture recommendations', 'Dedicated success engineer'], priceRange: '$2,000/mo', sla: 'Included with Enterprise' },
 ];
+
+// No seed data — benchmarks, patterns, and partner data are created via API or analysis.
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -200,14 +145,15 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
       meta: body.meta ?? { codebaseSize: 'medium', primaryLanguage: 'TypeScript', analyzersUsed: 8, collectorsUsed: 5 },
       submittedAt: nowISO(),
     };
-    benchmarks.push(entry);
+    store.set<BenchmarkEntry>('cloud_benchmarks', entry.id, entry);
     return reply.status(201).send({ data: { id: entry.id, message: 'Benchmark submitted (anonymized)' } });
   });
 
   // Get benchmark report
   app.get<{ Querystring: { industry?: string } }>('/api/v1/cloud/benchmarks/report', { preHandler: [authMiddleware] }, async (request, reply) => {
     const industry = request.query.industry;
-    const entries = industry ? benchmarks.filter(b => b.industry === industry) : benchmarks;
+    const allBenchmarks = store.all<BenchmarkEntry>('cloud_benchmarks');
+    const entries = industry ? allBenchmarks.filter(b => b.industry === industry) : allBenchmarks;
 
     if (entries.length === 0) {
       return reply.send({ data: { message: 'No benchmark data available', sampleSize: 0 } });
@@ -239,6 +185,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // ── Cross-org Pattern Learning ────────────────────────────────────────────
 
   app.get('/api/v1/cloud/patterns', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const patterns = store.all<LearnedPattern>('cloud_patterns');
     return reply.send({
       data: patterns.sort((a, b) => b.occurrences - a.occurrences),
       total: patterns.length,
@@ -247,7 +194,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/cloud/patterns/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pattern = patterns.find(p => p.id === request.params.id);
+    const pattern = store.get<LearnedPattern>('cloud_patterns', request.params.id);
     if (!pattern) return reply.status(404).send({ error: 'Not Found', message: 'Pattern not found' });
     return reply.send({ data: pattern });
   });
@@ -255,11 +202,12 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // ── Partner Certification ─────────────────────────────────────────────────
 
   app.get('/api/v1/cloud/partners', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const partners = store.all<PartnerCert>('cloud_applications');
     return reply.send({ data: partners, total: partners.length });
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/cloud/partners/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const partner = partners.find(p => p.id === request.params.id);
+    const partner = store.get<PartnerCert>('cloud_applications', request.params.id);
     if (!partner) return reply.status(404).send({ error: 'Not Found', message: 'Partner not found' });
     return reply.send({ data: partner });
   });
@@ -277,7 +225,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
       expiresAt: new Date(Date.now() + 365 * 86400000).toISOString(),
       status: 'pending',
     };
-    partners.push(cert);
+    store.set<PartnerCert>('cloud_applications', cert.id, cert);
     return reply.status(201).send({ data: cert, message: 'Application submitted. Review in 5 business days.' });
   });
 
@@ -290,6 +238,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // ── Cloud Platform Info ───────────────────────────────────────────────────
 
   app.get('/api/v1/cloud/info', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const benchmarkCount = store.count('cloud_benchmarks');
     return reply.send({
       data: {
         platform: 'Recurrsive Cloud',
@@ -297,10 +246,10 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
         status: 'preview',
         regions: ['us-east-1', 'eu-west-1', 'ap-southeast-1'],
         features: {
-          benchmarking: { status: 'active', participants: benchmarks.length },
-          patternLearning: { status: 'active', patterns: patterns.length },
+          benchmarking: { status: 'active', participants: benchmarkCount },
+          patternLearning: { status: 'active', patterns: store.count('cloud_patterns') },
           managedServices: { status: 'active', tiers: managedServices.length },
-          partnerProgram: { status: 'active', partners: partners.length },
+          partnerProgram: { status: 'active', partners: store.count('cloud_applications') },
         },
         upcomingFeatures: [
           'Multi-region failover',

@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Building2, Users, CreditCard, Shield, BarChart3, Loader2 } from 'lucide-react';
-import { getTenants } from '@/lib/api';
+import { getTenants, createTenant, deleteTenant } from '@/lib/api';
 import type { DashboardTenant } from '@/lib/api';
 
 const featureMatrix = [
@@ -61,6 +61,33 @@ export default function TenantsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTier, setNewTier] = useState<string>('free');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    try {
+      setError(null);
+      const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      await createTenant({ name: newName, slug, tier: newTier });
+      setShowCreate(false);
+      setNewName('');
+      setNewTier('free');
+      const data = await getTenants();
+      setTenants(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create tenant');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      setError(null);
+      await deleteTenant(id);
+      const data = await getTenants();
+      setTenants(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete tenant');
+    }
+  };
 
   useEffect(() => {
     getTenants()
@@ -93,6 +120,14 @@ export default function TenantsPage() {
       </div>
 
       {/* Create Form */}
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-xl px-4 py-3 bg-red-500/10 border border-red-500/30 flex items-center justify-between">
+          <span className="text-sm text-red-400">{error}</span>
+          <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-300">Dismiss</button>
+        </div>
+      )}
+
       {showCreate && (
         <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <h3 className="text-base font-semibold text-text-primary mb-3">Create New Tenant</h3>
@@ -106,7 +141,7 @@ export default function TenantsPage() {
           </div>
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary">Cancel</button>
-            <button disabled={!newName} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newName ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName ? 1 : 0.5 }}>
+            <button onClick={handleCreate} disabled={!newName} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newName ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName ? 1 : 0.5 }}>
               Create
             </button>
           </div>
@@ -134,6 +169,11 @@ export default function TenantsPage() {
 
       {/* Tenant List */}
       <div className="space-y-3">
+        {tenants.length === 0 && (
+          <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <p className="text-sm text-text-secondary">No tenants yet. Create one to start multi-tenant management.</p>
+          </div>
+        )}
         {tenants.map(tenant => (
           <div key={tenant.id} className="rounded-2xl p-5 transition-all hover:scale-[1.005]" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-start justify-between mb-3">
@@ -145,7 +185,7 @@ export default function TenantsPage() {
                 </div>
                 <p className="text-xs text-text-tertiary mt-0.5">{tenant.slug} · {tenant.owner} · Created {new Date(tenant.createdAt).toLocaleDateString()}</p>
               </div>
-              <BarChart3 className="w-5 h-5 text-text-tertiary" />
+              <button onClick={() => handleDelete(tenant.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded" title="Delete tenant">Delete</button>
             </div>
             <div className="flex items-center gap-6">
               <QuotaBar label="Projects" used={tenant.quotas.projects.used} max={tenant.quotas.projects.max} />

@@ -49,177 +49,25 @@ type Dimension { name: String!, score: Float! }
 type Opportunity { id: ID!, title: String!, impact: String!, effort: String!, category: String! }`;
 
 // ---------------------------------------------------------------------------
-// Synthetic demo data
+// Collector catalog (static list of known collector names)
 // ---------------------------------------------------------------------------
 
-interface DemoProject {
-  id: string;
-  name: string;
-  slug: string;
-  healthScore: number;
-  language: string;
-}
-
-interface DemoFinding {
-  id: string;
-  ruleId: string;
-  title: string;
-  severity: string;
-  analyzerId: string;
-  description: string;
-}
-
-interface DemoAnalyzer {
-  id: string;
-  name: string;
-  version: string;
-  ruleCount: number;
-}
-
-interface DemoCollector {
-  id: string;
-  name: string;
-  type: string;
-  version: string;
-}
-
-interface DemoDimension {
-  name: string;
-  score: number;
-}
-
-interface DemoHealthScore {
-  overall: number;
-  dimensions: DemoDimension[];
-}
-
-interface DemoOpportunity {
-  id: string;
-  title: string;
-  impact: string;
-  effort: string;
-  category: string;
-}
-
-function buildDemoData(): {
-  projects: DemoProject[];
-  findings: DemoFinding[];
-  analyzers: DemoAnalyzer[];
-  collectors: DemoCollector[];
-  healthScore: DemoHealthScore;
-  opportunities: DemoOpportunity[];
-} {
-  const projects: DemoProject[] = [
-    { id: generateId(), name: 'Recurrsive Platform', slug: 'recurrsive', healthScore: 78, language: 'TypeScript' },
-    { id: generateId(), name: 'ML Pipeline Service', slug: 'ml-pipeline', healthScore: 65, language: 'Python' },
-    { id: generateId(), name: 'Data Lake Ingestion', slug: 'data-lake', healthScore: 72, language: 'Go' },
-    { id: generateId(), name: 'Mobile Companion App', slug: 'mobile-app', healthScore: 81, language: 'Kotlin' },
-    { id: generateId(), name: 'Infrastructure Toolkit', slug: 'infra-toolkit', healthScore: 54, language: 'Rust' },
-  ];
-
-  const severities = ['critical', 'high', 'medium', 'low', 'info'];
-  const analyzerIds = ['architecture', 'security', 'performance', 'reliability', 'ai-runtime'];
-  const findingTitles = [
-    'Circular dependency detected between modules',
-    'SQL injection vulnerability in query builder',
-    'Unbounded memory allocation in stream handler',
-    'Missing retry logic on external API calls',
-    'Hardcoded credentials in configuration file',
-    'N+1 query pattern in ORM relationship loading',
-    'Deprecated cryptographic algorithm usage',
-    'Missing input validation on public endpoint',
-    'Thread pool exhaustion risk under load',
-    'Insecure deserialization of user-controlled data',
-    'Excessive coupling between service layers',
-    'Missing rate limiting on authentication endpoint',
-    'Blocking I/O call on main event loop',
-    'Unencrypted data at rest in staging environment',
-    'Overly permissive CORS configuration',
-    'Missing health check on downstream dependency',
-    'Stale cache invalidation strategy',
-    'Missing circuit breaker on payment service',
-    'Log injection vulnerability in error handler',
-    'Oversized container image exceeding 2GB',
-  ];
-
-  const findings: DemoFinding[] = findingTitles.map((title, i) => ({
-    id: generateId(),
-    ruleId: `RULE-${String(i + 1).padStart(3, '0')}`,
-    title,
-    severity: severities[i % severities.length]!,
-    analyzerId: analyzerIds[i % analyzerIds.length]!,
-    description: `${title}. This finding was identified during automated analysis and should be reviewed for remediation.`,
-  }));
-
-  const analyzers: DemoAnalyzer[] = [
-    { id: generateId(), name: 'Architecture Analyzer', version: '2.4.1', ruleCount: 28 },
-    { id: generateId(), name: 'AI Runtime Analyzer', version: '1.3.0', ruleCount: 15 },
-    { id: generateId(), name: 'Performance Analyzer', version: '3.1.2', ruleCount: 42 },
-    { id: generateId(), name: 'Cost Analyzer', version: '1.0.5', ruleCount: 18 },
-    { id: generateId(), name: 'Reliability Analyzer', version: '2.2.0', ruleCount: 35 },
-    { id: generateId(), name: 'Security Analyzer', version: '4.0.1', ruleCount: 67 },
-    { id: generateId(), name: 'Data Analyzer', version: '1.1.3', ruleCount: 22 },
-    { id: generateId(), name: 'Documentation Analyzer', version: '1.5.0', ruleCount: 12 },
-    { id: generateId(), name: 'UX Analyzer', version: '0.9.2', ruleCount: 9 },
-    { id: generateId(), name: 'Product Analyzer', version: '1.0.0', ruleCount: 14 },
-    { id: generateId(), name: 'Dependency Analyzer', version: '2.0.3', ruleCount: 31 },
-    { id: generateId(), name: 'API Contract Analyzer', version: '1.2.1', ruleCount: 19 },
-    { id: generateId(), name: 'Compliance Analyzer', version: '1.4.0', ruleCount: 24 },
-  ];
-
-  const collectors: DemoCollector[] = [
-    { id: generateId(), name: 'Git Collector', type: 'vcs', version: '2.1.0' },
-    { id: generateId(), name: 'GitHub Collector', type: 'vcs', version: '1.5.2' },
-    { id: generateId(), name: 'GitLab Collector', type: 'vcs', version: '1.3.1' },
-    { id: generateId(), name: 'Documentation Collector', type: 'docs', version: '1.2.0' },
-    { id: generateId(), name: 'CI/CD Collector', type: 'pipeline', version: '1.4.0' },
-    { id: generateId(), name: 'Database Collector', type: 'database', version: '1.1.1' },
-    { id: generateId(), name: 'Environment Collector', type: 'runtime', version: '1.0.3' },
-    { id: generateId(), name: 'Telemetry Collector', type: 'observability', version: '2.0.0' },
-    { id: generateId(), name: 'Cloud Cost Collector', type: 'finops', version: '1.0.0' },
-    { id: generateId(), name: 'Error Tracking Collector', type: 'observability', version: '1.2.4' },
-    { id: generateId(), name: 'Package Registry Collector', type: 'registry', version: '0.9.0' },
-    { id: generateId(), name: 'Kubernetes Collector', type: 'orchestration', version: '1.1.0' },
-    { id: generateId(), name: 'Terraform Collector', type: 'iac', version: '1.0.2' },
-    { id: generateId(), name: 'Secrets Scanner Collector', type: 'security', version: '1.3.0' },
-  ];
-
-  const healthScore: DemoHealthScore = {
-    overall: 73.5,
-    dimensions: [
-      { name: 'Architecture', score: 76 },
-      { name: 'Security', score: 68 },
-      { name: 'Performance', score: 82 },
-      { name: 'Reliability', score: 71 },
-      { name: 'Documentation', score: 59 },
-      { name: 'Testing', score: 74 },
-      { name: 'DevOps', score: 80 },
-    ],
-  };
-
-  const opportunities: DemoOpportunity[] = [
-    { id: generateId(), title: 'Migrate to connection pooling for database access', impact: 'high', effort: 'medium', category: 'performance' },
-    { id: generateId(), title: 'Implement structured logging across all services', impact: 'medium', effort: 'low', category: 'observability' },
-    { id: generateId(), title: 'Add circuit breakers to external API integrations', impact: 'high', effort: 'medium', category: 'reliability' },
-    { id: generateId(), title: 'Consolidate duplicate utility functions into shared library', impact: 'medium', effort: 'low', category: 'architecture' },
-    { id: generateId(), title: 'Enable SAST scanning in CI/CD pipeline', impact: 'high', effort: 'low', category: 'security' },
-    { id: generateId(), title: 'Replace polling with event-driven architecture for notifications', impact: 'high', effort: 'high', category: 'architecture' },
-    { id: generateId(), title: 'Implement request-level caching for read-heavy endpoints', impact: 'medium', effort: 'medium', category: 'performance' },
-    { id: generateId(), title: 'Add OpenTelemetry tracing to service mesh', impact: 'medium', effort: 'medium', category: 'observability' },
-    { id: generateId(), title: 'Upgrade container base images to reduce CVE surface', impact: 'high', effort: 'low', category: 'security' },
-    { id: generateId(), title: 'Introduce API versioning strategy for public endpoints', impact: 'medium', effort: 'high', category: 'architecture' },
-    { id: generateId(), title: 'Set up automated dependency update pipeline', impact: 'medium', effort: 'low', category: 'devops' },
-    { id: generateId(), title: 'Add load testing suite for critical user journeys', impact: 'high', effort: 'medium', category: 'reliability' },
-    { id: generateId(), title: 'Implement feature flag system for gradual rollouts', impact: 'medium', effort: 'medium', category: 'devops' },
-    { id: generateId(), title: 'Create ADR process for architectural decisions', impact: 'low', effort: 'low', category: 'documentation' },
-    { id: generateId(), title: 'Add end-to-end encryption for PII data fields', impact: 'high', effort: 'high', category: 'security' },
-  ];
-
-  return { projects, findings, analyzers, collectors, healthScore, opportunities };
-}
-
-// Initialise demo data once at module load
-const DEMO = buildDemoData();
+const COLLECTOR_CATALOG: Array<{ name: string; type: string; version: string }> = [
+  { name: 'Git Collector', type: 'vcs', version: '2.1.0' },
+  { name: 'GitHub Collector', type: 'vcs', version: '1.5.2' },
+  { name: 'GitLab Collector', type: 'vcs', version: '1.3.1' },
+  { name: 'Documentation Collector', type: 'docs', version: '1.2.0' },
+  { name: 'CI/CD Collector', type: 'pipeline', version: '1.4.0' },
+  { name: 'Database Collector', type: 'database', version: '1.1.1' },
+  { name: 'Environment Collector', type: 'runtime', version: '1.0.3' },
+  { name: 'Telemetry Collector', type: 'observability', version: '2.0.0' },
+  { name: 'Cloud Cost Collector', type: 'finops', version: '1.0.0' },
+  { name: 'Error Tracking Collector', type: 'observability', version: '1.2.4' },
+  { name: 'Package Registry Collector', type: 'registry', version: '0.9.0' },
+  { name: 'Kubernetes Collector', type: 'orchestration', version: '1.1.0' },
+  { name: 'Terraform Collector', type: 'iac', version: '1.0.2' },
+  { name: 'Secrets Scanner Collector', type: 'security', version: '1.3.0' },
+];
 
 // ---------------------------------------------------------------------------
 // Lightweight GraphQL query parser
@@ -480,25 +328,22 @@ function buildResolvers(): Record<string, ResolverFn> {
               id: generateId(),
               name: slug.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
               slug,
-              healthScore: 70 + Math.round(Math.random() * 20),
+              healthScore: state.isInitialized() ? state.getHealthScore().overall : 0,
               language: 'TypeScript',
             });
           }
         }
-        const projects = projectMap.size > 0
-          ? [...projectMap.values()]
-          : DEMO.projects.map(p => p as unknown as Record<string, unknown>);
+        const projects = [...projectMap.values()];
         return projects.map((p) => selectFields(p, fields));
       }
-      return DEMO.projects.map((p) => selectFields(p as unknown as Record<string, unknown>, fields));
+      return [];
     },
 
-    project: (args, fields) => {
+    project: (args, _fields) => {
       const id = args['id'] as string | undefined;
       if (!id) throw new GraphQLError('Argument "id" is required for field "project".');
-      const project = DEMO.projects.find((p) => p.id === id);
-      if (!project) return null;
-      return selectFields(project as unknown as Record<string, unknown>, fields);
+      // No seed data — only live data is available when state is initialized
+      return null;
     },
 
     findings: (args, fields) => {
@@ -538,26 +383,8 @@ function buildResolvers(): Record<string, ResolverFn> {
         return results.map((f) => selectFields(f as unknown as Record<string, unknown>, fields));
       }
 
-      // Fallback to demo data
-      let demoResults = [...DEMO.findings];
-
-      const severity = args['severity'];
-      if (severity && typeof severity === 'string') {
-        const sev = severity.toLowerCase();
-        demoResults = demoResults.filter((f) => f.severity === sev);
-      }
-
-      const analyzerId = args['analyzerId'];
-      if (analyzerId && typeof analyzerId === 'string') {
-        demoResults = demoResults.filter((f) => f.analyzerId === analyzerId);
-      }
-
-      const limit = args['limit'];
-      if (typeof limit === 'number' && limit > 0) {
-        demoResults = demoResults.slice(0, limit);
-      }
-
-      return demoResults.map((f) => selectFields(f as unknown as Record<string, unknown>, fields));
+      // No live findings available
+      return [];
     },
 
     analyzers: (_args, fields) => {
@@ -571,16 +398,19 @@ function buildResolvers(): Record<string, ResolverFn> {
             id: generateId(),
             name: name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
             version: '0.5.6',
-            ruleCount: Math.floor(Math.random() * 20) + 5,
+            ruleCount: name.length * 2 + 5, // deterministic from name length
           }));
           return liveAnalyzers.map((a) => selectFields(a as unknown as Record<string, unknown>, fields));
         }
       }
-      return DEMO.analyzers.map((a) => selectFields(a as unknown as Record<string, unknown>, fields));
+      return [];
     },
 
     collectors: (_args, fields) => {
-      return DEMO.collectors.map((c) => selectFields(c as unknown as Record<string, unknown>, fields));
+      return COLLECTOR_CATALOG.map((c) => selectFields(
+        { id: generateId(), ...c } as unknown as Record<string, unknown>,
+        fields,
+      ));
     },
 
     healthScore: (_args, fields) => {
@@ -592,24 +422,23 @@ function buildResolvers(): Record<string, ResolverFn> {
         if (healthData) {
           const result: Record<string, unknown> = {};
           if (fields.length === 0 || fields.includes('overall')) {
-            result['overall'] = healthData['overall'] ?? 73.5;
+            result['overall'] = healthData['overall'] ?? 0;
           }
           if (fields.length === 0 || fields.includes('dimensions')) {
             const dims = healthData['dimensions'] as Array<Record<string, unknown>> | undefined;
-            result['dimensions'] = dims ?? DEMO.healthScore.dimensions;
+            result['dimensions'] = dims ?? [];
           }
           return result;
         }
       }
 
-      // Fallback to demo
-      const hs = DEMO.healthScore;
+      // No live data — return empty defaults
       const result: Record<string, unknown> = {};
       if (fields.length === 0 || fields.includes('overall')) {
-        result['overall'] = hs.overall;
+        result['overall'] = 0;
       }
       if (fields.length === 0 || fields.includes('dimensions')) {
-        result['dimensions'] = hs.dimensions;
+        result['dimensions'] = [];
       }
       return result;
     },
@@ -639,15 +468,8 @@ function buildResolvers(): Record<string, ResolverFn> {
         return results.map((o) => selectFields(o as unknown as Record<string, unknown>, fields));
       }
 
-      // Fallback to demo
-      let demoResults = [...DEMO.opportunities];
-
-      const limit = args['limit'];
-      if (typeof limit === 'number' && limit > 0) {
-        demoResults = demoResults.slice(0, limit);
-      }
-
-      return demoResults.map((o) => selectFields(o as unknown as Record<string, unknown>, fields));
+      // No live opportunities available
+      return [];
     },
   };
 }

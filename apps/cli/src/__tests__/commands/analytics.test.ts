@@ -9,8 +9,14 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
 
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
@@ -19,6 +25,7 @@ vi.mock('../../output/terminal.js', () => ({
   bold: (s: string) => s,
   cyan: (s: string) => s,
   green: (s: string) => s,
+  yellow: (s: string) => s,
   red: (s: string) => s,
   dim: (s: string) => s,
   table: vi.fn(),
@@ -37,15 +44,6 @@ function createCLI(): Command {
   return program;
 }
 
-function mockApiResponse(data: unknown, status = 200): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -58,7 +56,7 @@ describe('analytics command', () => {
 
   describe('summary', () => {
     it('fetches and displays summary data', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         analysis_runs: 47,
         total_findings: 312,
         findings_resolved: 189,
@@ -72,23 +70,29 @@ describe('analytics command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'analytics', 'summary']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/analytics/summary'),
-        expect.any(Object),
       );
     });
 
-    it('falls back on server error', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'analytics', 'summary']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        analysis_runs: 47,
+        total_findings: 312,
+        findings_resolved: 189,
+        resolution_rate: 60.6,
+        avg_health_score: 74.2,
+        trends: [],
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
@@ -101,7 +105,7 @@ describe('analytics command', () => {
 
   describe('categories', () => {
     it('displays category data', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         categories: [
           { name: 'Performance', count: 68, percentage: 21.8 },
           { name: 'Security', count: 42, percentage: 13.5 },
@@ -111,9 +115,8 @@ describe('analytics command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'analytics', 'categories']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/analytics/top-categories'),
-        expect.any(Object),
       );
     });
   });

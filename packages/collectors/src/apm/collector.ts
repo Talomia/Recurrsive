@@ -6,9 +6,9 @@
  * environments, and team members from an APM platform account and
  * produces entities and relationships for the knowledge graph.
  *
- * Since this collector is not yet connected to real API calls, it
- * generates synthetic data that mirrors the shape of real APM
- * API responses for development and testing purposes.
+ * Connects to real APM platform APIs (Datadog, New Relic, Grafana)
+ * using credentials from config or environment variables. When no
+ * credentials are configured the collector returns empty results.
  *
  * Produces entities:
  * - `performance_metric` — response times, error rates, throughput
@@ -47,101 +47,6 @@ const logger = createLogger({ context: { module: 'apm-collector' } });
 /** APM platform type. */
 type APMPlatform = 'datadog' | 'newrelic' | 'grafana';
 
-/** Synthetic performance metric data. */
-interface MockPerformanceMetric {
-  name: string;
-  metric_type: 'response_time' | 'error_rate' | 'throughput';
-  value: number;
-  unit: string;
-  service: string;
-  period: string;
-}
-
-/** Synthetic infrastructure resource data. */
-interface MockInfraResource {
-  name: string;
-  resource_type: 'host' | 'container' | 'service';
-  cpu_percent: number;
-  memory_percent: number;
-  status: 'healthy' | 'degraded' | 'critical';
-  region: string;
-}
-
-/** Synthetic alert data. */
-interface MockAlert {
-  name: string;
-  severity: 'warning' | 'critical';
-  metric: string;
-  threshold: number;
-  current_value: number;
-  owner: string;
-  status: 'active' | 'resolved';
-}
-
-/** Synthetic incident data. */
-interface MockIncident {
-  name: string;
-  severity: 'SEV1' | 'SEV2' | 'SEV3';
-  status: 'active' | 'investigating' | 'resolved';
-  affected_service: string;
-  started_at: string;
-  commander: string;
-}
-
-/** Synthetic environment data. */
-interface MockEnvironment {
-  name: string;
-  tier: 'production' | 'staging' | 'development';
-  service_count: number;
-  host_count: number;
-}
-
-// ---------------------------------------------------------------------------
-// Synthetic Data
-// ---------------------------------------------------------------------------
-
-const MOCK_USERS = ['devops-lead', 'sre-engineer', 'platform-admin'];
-
-const MOCK_PERFORMANCE_METRICS: MockPerformanceMetric[] = [
-  { name: 'api-response-time-p99', metric_type: 'response_time', value: 245.8, unit: 'ms', service: 'api-gateway', period: '5m' },
-  { name: 'api-response-time-p50', metric_type: 'response_time', value: 42.3, unit: 'ms', service: 'api-gateway', period: '5m' },
-  { name: 'auth-service-error-rate', metric_type: 'error_rate', value: 0.23, unit: 'percent', service: 'auth-service', period: '15m' },
-  { name: 'payment-service-error-rate', metric_type: 'error_rate', value: 1.47, unit: 'percent', service: 'payment-service', period: '15m' },
-  { name: 'api-gateway-throughput', metric_type: 'throughput', value: 12480, unit: 'req/min', service: 'api-gateway', period: '1m' },
-  { name: 'order-service-throughput', metric_type: 'throughput', value: 3200, unit: 'req/min', service: 'order-service', period: '1m' },
-];
-
-const MOCK_INFRA_RESOURCES: MockInfraResource[] = [
-  { name: 'web-host-01', resource_type: 'host', cpu_percent: 67.2, memory_percent: 74.1, status: 'healthy', region: 'us-east-1' },
-  { name: 'web-host-02', resource_type: 'host', cpu_percent: 82.5, memory_percent: 88.3, status: 'degraded', region: 'us-east-1' },
-  { name: 'db-host-01', resource_type: 'host', cpu_percent: 45.0, memory_percent: 62.4, status: 'healthy', region: 'us-west-2' },
-  { name: 'api-container-01', resource_type: 'container', cpu_percent: 55.3, memory_percent: 60.2, status: 'healthy', region: 'us-east-1' },
-  { name: 'api-container-02', resource_type: 'container', cpu_percent: 91.7, memory_percent: 85.6, status: 'critical', region: 'us-east-1' },
-  { name: 'worker-container-01', resource_type: 'container', cpu_percent: 30.1, memory_percent: 42.5, status: 'healthy', region: 'us-west-2' },
-  { name: 'api-gateway', resource_type: 'service', cpu_percent: 58.0, memory_percent: 65.0, status: 'healthy', region: 'us-east-1' },
-  { name: 'auth-service', resource_type: 'service', cpu_percent: 35.2, memory_percent: 48.7, status: 'healthy', region: 'us-east-1' },
-  { name: 'payment-service', resource_type: 'service', cpu_percent: 72.8, memory_percent: 70.3, status: 'degraded', region: 'us-east-1' },
-  { name: 'order-service', resource_type: 'service', cpu_percent: 48.5, memory_percent: 55.1, status: 'healthy', region: 'us-west-2' },
-];
-
-const MOCK_ALERTS: MockAlert[] = [
-  { name: 'high-p99-latency', severity: 'warning', metric: 'api-response-time-p99', threshold: 200, current_value: 245.8, owner: 'devops-lead', status: 'active' },
-  { name: 'elevated-error-rate', severity: 'critical', metric: 'payment-service-error-rate', threshold: 1.0, current_value: 1.47, owner: 'sre-engineer', status: 'active' },
-  { name: 'cpu-saturation', severity: 'critical', metric: 'cpu_percent', threshold: 90, current_value: 91.7, owner: 'platform-admin', status: 'active' },
-  { name: 'memory-pressure', severity: 'warning', metric: 'memory_percent', threshold: 85, current_value: 88.3, owner: 'devops-lead', status: 'active' },
-];
-
-const MOCK_INCIDENTS: MockIncident[] = [
-  { name: 'payment-degradation-2026-06-30', severity: 'SEV2', status: 'investigating', affected_service: 'payment-service', started_at: '2026-06-30T14:22:00Z', commander: 'sre-engineer' },
-  { name: 'api-latency-spike-2026-06-29', severity: 'SEV3', status: 'resolved', affected_service: 'api-gateway', started_at: '2026-06-29T09:15:00Z', commander: 'devops-lead' },
-];
-
-const MOCK_ENVIRONMENTS: MockEnvironment[] = [
-  { name: 'production', tier: 'production', service_count: 8, host_count: 6 },
-  { name: 'staging', tier: 'staging', service_count: 4, host_count: 2 },
-  { name: 'dev', tier: 'development', service_count: 3, host_count: 1 },
-];
-
 // ---------------------------------------------------------------------------
 // APMCollector
 // ---------------------------------------------------------------------------
@@ -155,7 +60,7 @@ const MOCK_ENVIRONMENTS: MockEnvironment[] = [
  * 1. {@link initialize} — configure governance rules and platform.
  * 2. {@link validate} — verify the platform is supported.
  * 3. {@link collect} — generate entities & relationships from
- *    synthetic APM data.
+ *    APM API data.
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -163,7 +68,7 @@ const MOCK_ENVIRONMENTS: MockEnvironment[] = [
  * const collector = new APMCollector('datadog');
  * await collector.initialize({
  *   governance: { masked_fields: [], excluded_patterns: [], pii_detection: true, audit_log: false, retention_days: 90 },
- *   custom: {},
+ *   custom: { datadog_api_key: 'xxx', datadog_app_key: 'yyy' },
  * });
  * const result = await collector.collect();
  * console.log(`Found ${result.entities.length} entities`);
@@ -183,6 +88,8 @@ export class APMCollector implements Collector {
 
   /** APM platform. */
   private platform: APMPlatform;
+  /** Stored collector configuration. */
+  private config!: CollectorConfig;
   /** Governance filter instance. */
   private governanceFilter!: GovernanceFilter;
   /** Whether this collector has been initialized. */
@@ -205,6 +112,7 @@ export class APMCollector implements Collector {
    * @param config - Collector configuration including governance rules.
    */
   async initialize(config: CollectorConfig): Promise<void> {
+    this.config = config;
     this.governanceFilter = new GovernanceFilter(config.governance);
 
     if (typeof config.custom['platform'] === 'string') {
@@ -254,8 +162,97 @@ export class APMCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build entities and relationships from synthetic data
-    const entities = this.buildEntities();
+    // Build empty result helper
+    const emptyResult = (): CollectorResult => ({
+      entities: [],
+      relationships: [],
+      metadata: {
+        collector_id: this.id,
+        collected_at: nowISO(),
+        duration_ms: Date.now() - startTime,
+        items_processed: 0,
+        errors: [],
+      },
+    });
+
+    // Check for credentials based on the selected platform
+    let apiKey: string | undefined;
+    let appKey: string | undefined;
+    let baseUrl: string;
+
+    if (this.platform === 'datadog') {
+      apiKey = (this.config.custom['datadog_api_key'] as string) || process.env['DATADOG_API_KEY'];
+      appKey = (this.config.custom['datadog_app_key'] as string) || process.env['DATADOG_APP_KEY'];
+      baseUrl = (this.config.custom['datadog_url'] as string) || process.env['DATADOG_URL'] || 'https://api.datadoghq.com';
+
+      if (!apiKey || !appKey) {
+        logger.warn(`No APM credentials configured for ${this.platform}, skipping collection`);
+        return emptyResult();
+      }
+    } else if (this.platform === 'newrelic') {
+      apiKey = (this.config.custom['newrelic_api_key'] as string) || process.env['NEWRELIC_API_KEY'];
+      baseUrl = (this.config.custom['newrelic_url'] as string) || process.env['NEWRELIC_URL'] || 'https://api.newrelic.com';
+
+      if (!apiKey) {
+        logger.warn(`No APM credentials configured for ${this.platform}, skipping collection`);
+        return emptyResult();
+      }
+    } else if (this.platform === 'grafana') {
+      apiKey = (this.config.custom['grafana_api_key'] as string) || process.env['GRAFANA_API_KEY'];
+      baseUrl = (this.config.custom['grafana_url'] as string) || process.env['GRAFANA_URL'] || 'https://grafana.com/api';
+
+      if (!apiKey) {
+        logger.warn(`No APM credentials configured for ${this.platform}, skipping collection`);
+        return emptyResult();
+      }
+    } else {
+      logger.warn(`No APM credentials configured for ${this.platform}, skipping collection`);
+      return emptyResult();
+    }
+
+    // Fetch data from the APM platform API
+    let responseData: unknown;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+
+      let url: string;
+      const headers: Record<string, string> = {};
+
+      if (this.platform === 'datadog') {
+        url = `${baseUrl}/api/v1/hosts`;
+        headers['DD-API-KEY'] = apiKey!;
+        headers['DD-APPLICATION-KEY'] = appKey!;
+      } else if (this.platform === 'newrelic') {
+        url = `${baseUrl}/v2/applications.json`;
+        headers['Api-Key'] = apiKey!;
+      } else {
+        // grafana
+        url = `${baseUrl}/api/dashboards`;
+        headers['Authorization'] = `Bearer ${apiKey!}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      responseData = await response.json();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`Failed to fetch from ${this.platform} API`, { error: message });
+      return emptyResult();
+    }
+
+    // Build entities from response data
+    const entities = this.buildEntitiesFromResponse(responseData);
     const relationships = this.buildRelationships(entities);
 
     // Apply governance masking
@@ -276,7 +273,7 @@ export class APMCollector implements Collector {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed: MOCK_PERFORMANCE_METRICS.length + MOCK_INFRA_RESOURCES.length + MOCK_ALERTS.length + MOCK_INCIDENTS.length + MOCK_ENVIRONMENTS.length,
+        items_processed: maskedEntities.length,
         errors,
       },
     };
@@ -342,103 +339,192 @@ export class APMCollector implements Collector {
   }
 
   // -----------------------------------------------------------------------
-  // Internal: Entity Building
+  // Internal: Entity Building from API Response
   // -----------------------------------------------------------------------
 
   /**
-   * Build knowledge graph entities from synthetic APM data.
+   * Build knowledge graph entities from API response data.
    *
-   * Creates:
-   * - `user` entities for DevOps team members
-   * - `performance_metric` entities for response times, error rates, throughput
-   * - `infrastructure_resource` entities for hosts, containers, services
-   * - `alert` entities for performance thresholds
-   * - `incident` entities for active incidents
-   * - `environment` entities for deployment environments
+   * Parses the platform-specific response and creates:
+   * - `infrastructure_resource` entities
+   * - `performance_metric` entities
+   * - `alert` entities
+   * - `incident` entities
+   * - `environment` entities
+   * - `user` entities
    *
+   * @param data - Raw API response data.
    * @returns Array of entities.
    */
-  private buildEntities(): Entity[] {
+  private buildEntitiesFromResponse(data: unknown): Entity[] {
     const entities: Entity[] = [];
 
-    // --- User entities (DevOps team) ---
-    for (const username of MOCK_USERS) {
+    if (!data || typeof data !== 'object') {
+      return entities;
+    }
+
+    const record = data as Record<string, unknown>;
+
+    if (this.platform === 'datadog') {
+      // Parse Datadog /api/v1/hosts response
+      const hostList = Array.isArray(record['host_list']) ? record['host_list'] : [];
+      for (const host of hostList) {
+        const h = host as Record<string, unknown>;
+        entities.push(
+          this.makeEntity('infrastructure_resource', String(h['name'] ?? 'unknown-host'), {
+            resource_type: 'host',
+            cpu_percent: h['cpu'] ?? 0,
+            memory_percent: h['memory'] ?? 0,
+            status: h['up'] === true ? 'healthy' : 'degraded',
+            region: h['aws_region'] ?? h['region'] ?? 'unknown',
+            platform: this.platform,
+          }, ['host']),
+        );
+      }
+
+      // Extract metrics if present
+      const metrics = Array.isArray(record['metrics']) ? record['metrics'] : [];
+      for (const metric of metrics) {
+        const m = metric as Record<string, unknown>;
+        entities.push(
+          this.makeEntity('performance_metric', String(m['name'] ?? 'unknown-metric'), {
+            metric_type: m['type'] ?? 'unknown',
+            value: m['value'] ?? 0,
+            unit: m['unit'] ?? 'unknown',
+            service: m['service'] ?? 'unknown',
+            period: m['period'] ?? '5m',
+            platform: this.platform,
+          }, ['apm-metric']),
+        );
+      }
+    } else if (this.platform === 'newrelic') {
+      // Parse New Relic /v2/applications.json response
+      const applications = Array.isArray(record['applications']) ? record['applications'] : [];
+      for (const app of applications) {
+        const a = app as Record<string, unknown>;
+        entities.push(
+          this.makeEntity('infrastructure_resource', String(a['name'] ?? 'unknown-app'), {
+            resource_type: 'service',
+            status: a['health_status'] === 'green' ? 'healthy' : (a['health_status'] === 'orange' ? 'degraded' : 'critical'),
+            language: a['language'] ?? 'unknown',
+            platform: this.platform,
+          }, ['service']),
+        );
+
+        // Extract application metrics if present
+        const appSettings = a['application_summary'] as Record<string, unknown> | undefined;
+        if (appSettings) {
+          if (appSettings['response_time'] != null) {
+            entities.push(
+              this.makeEntity('performance_metric', `${a['name']}-response-time`, {
+                metric_type: 'response_time',
+                value: appSettings['response_time'],
+                unit: 'ms',
+                service: String(a['name']),
+                period: '5m',
+                platform: this.platform,
+              }, ['apm-metric', 'response_time']),
+            );
+          }
+          if (appSettings['error_rate'] != null) {
+            entities.push(
+              this.makeEntity('performance_metric', `${a['name']}-error-rate`, {
+                metric_type: 'error_rate',
+                value: appSettings['error_rate'],
+                unit: 'percent',
+                service: String(a['name']),
+                period: '5m',
+                platform: this.platform,
+              }, ['apm-metric', 'error_rate']),
+            );
+          }
+          if (appSettings['throughput'] != null) {
+            entities.push(
+              this.makeEntity('performance_metric', `${a['name']}-throughput`, {
+                metric_type: 'throughput',
+                value: appSettings['throughput'],
+                unit: 'req/min',
+                service: String(a['name']),
+                period: '1m',
+                platform: this.platform,
+              }, ['apm-metric', 'throughput']),
+            );
+          }
+        }
+      }
+    } else if (this.platform === 'grafana') {
+      // Parse Grafana /api/dashboards response
+      const dashboards = Array.isArray(record) ? (record as unknown as unknown[]) : (Array.isArray(record['dashboards']) ? record['dashboards'] : []);
+      for (const dash of dashboards) {
+        const d = dash as Record<string, unknown>;
+        entities.push(
+          this.makeEntity('infrastructure_resource', String(d['title'] ?? d['name'] ?? 'unknown-dashboard'), {
+            resource_type: 'service',
+            uid: d['uid'] ?? 'unknown',
+            status: 'healthy',
+            platform: this.platform,
+          }, ['dashboard']),
+        );
+      }
+    }
+
+    // Extract alerts if present in response
+    const alerts = Array.isArray(record['alerts']) ? record['alerts'] : [];
+    for (const alert of alerts) {
+      const a = alert as Record<string, unknown>;
       entities.push(
-        this.makeEntity('user', username, {
-          username,
-          role: 'devops_engineer',
+        this.makeEntity('alert', String(a['name'] ?? 'unknown-alert'), {
+          severity: a['severity'] ?? 'warning',
+          metric: a['metric'] ?? 'unknown',
+          threshold: a['threshold'] ?? 0,
+          current_value: a['current_value'] ?? 0,
+          owner: a['owner'] ?? 'unknown',
+          status: a['status'] ?? 'active',
+          platform: this.platform,
+        }, ['apm-alert']),
+      );
+    }
+
+    // Extract incidents if present in response
+    const incidents = Array.isArray(record['incidents']) ? record['incidents'] : [];
+    for (const incident of incidents) {
+      const i = incident as Record<string, unknown>;
+      entities.push(
+        this.makeEntity('incident', String(i['name'] ?? i['title'] ?? 'unknown-incident'), {
+          severity: i['severity'] ?? 'SEV3',
+          status: i['status'] ?? 'active',
+          affected_service: i['affected_service'] ?? 'unknown',
+          started_at: i['started_at'] ?? nowISO(),
+          commander: i['commander'] ?? 'unknown',
+          platform: this.platform,
+        }, ['apm-incident']),
+      );
+    }
+
+    // Extract environments if present in response
+    const environments = Array.isArray(record['environments']) ? record['environments'] : [];
+    for (const env of environments) {
+      const e = env as Record<string, unknown>;
+      entities.push(
+        this.makeEntity('environment', String(e['name'] ?? 'unknown-env'), {
+          tier: e['tier'] ?? 'development',
+          service_count: e['service_count'] ?? 0,
+          host_count: e['host_count'] ?? 0,
+          platform: this.platform,
+        }, [String(e['tier'] ?? 'development')]),
+      );
+    }
+
+    // Extract users if present in response
+    const users = Array.isArray(record['users']) ? record['users'] : [];
+    for (const user of users) {
+      const u = user as Record<string, unknown>;
+      entities.push(
+        this.makeEntity('user', String(u['name'] ?? u['username'] ?? 'unknown-user'), {
+          username: u['username'] ?? u['name'] ?? 'unknown',
+          role: u['role'] ?? 'devops_engineer',
           platform: this.platform,
         }, ['devops-team']),
-      );
-    }
-
-    // --- Performance metric entities ---
-    for (const metric of MOCK_PERFORMANCE_METRICS) {
-      entities.push(
-        this.makeEntity('performance_metric', metric.name, {
-          metric_type: metric.metric_type,
-          value: metric.value,
-          unit: metric.unit,
-          service: metric.service,
-          period: metric.period,
-          platform: this.platform,
-        }, ['apm-metric', metric.metric_type]),
-      );
-    }
-
-    // --- Infrastructure resource entities (hosts, containers, services) ---
-    for (const resource of MOCK_INFRA_RESOURCES) {
-      entities.push(
-        this.makeEntity('infrastructure_resource', resource.name, {
-          resource_type: resource.resource_type,
-          cpu_percent: resource.cpu_percent,
-          memory_percent: resource.memory_percent,
-          status: resource.status,
-          region: resource.region,
-          platform: this.platform,
-        }, [resource.resource_type, resource.status]),
-      );
-    }
-
-    // --- Alert entities (performance thresholds) ---
-    for (const alert of MOCK_ALERTS) {
-      entities.push(
-        this.makeEntity('alert', alert.name, {
-          severity: alert.severity,
-          metric: alert.metric,
-          threshold: alert.threshold,
-          current_value: alert.current_value,
-          owner: alert.owner,
-          status: alert.status,
-          breach_percent: Math.round((alert.current_value / alert.threshold) * 100),
-          platform: this.platform,
-        }, ['apm-alert', alert.severity]),
-      );
-    }
-
-    // --- Incident entities ---
-    for (const incident of MOCK_INCIDENTS) {
-      entities.push(
-        this.makeEntity('incident', incident.name, {
-          severity: incident.severity,
-          status: incident.status,
-          affected_service: incident.affected_service,
-          started_at: incident.started_at,
-          commander: incident.commander,
-          platform: this.platform,
-        }, ['apm-incident', incident.severity]),
-      );
-    }
-
-    // --- Environment entities ---
-    for (const env of MOCK_ENVIRONMENTS) {
-      entities.push(
-        this.makeEntity('environment', env.name, {
-          tier: env.tier,
-          service_count: env.service_count,
-          host_count: env.host_count,
-          platform: this.platform,
-        }, [env.tier]),
       );
     }
 

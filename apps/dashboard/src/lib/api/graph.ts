@@ -32,21 +32,6 @@ export interface SystemNode {
   connections: string[];
 }
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
-
-const MOCK_GRAPH_STATS: GraphStats = {
-  total_entities: 234,
-  total_relationships: 567,
-  entities_by_type: {
-    module: 42, function: 89, class: 28, interface: 31, api_endpoint: 16,
-    configuration: 8, ai_model: 4, ai_prompt: 6, database_table: 10,
-  },
-  relationships_by_type: {
-    imports: 156, depends_on: 98, exports: 87, calls: 72, implements: 34,
-    contains: 45, references: 38, uses_model: 12, queries: 25,
-  },
-};
-
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -54,10 +39,14 @@ const MOCK_GRAPH_STATS: GraphStats = {
  */
 export async function getGraphStats(): Promise<GraphStats> {
   try {
-    const raw = await apiFetch<{ data: GraphStats } | null>("/api/v1/graph/stats", null);
-    return raw?.data ?? MOCK_GRAPH_STATS;
+    return await apiFetch<GraphStats>("/api/v1/graph/stats");
   } catch {
-    return MOCK_GRAPH_STATS;
+    return {
+      total_entities: 0,
+      total_relationships: 0,
+      entities_by_type: {},
+      relationships_by_type: {},
+    };
   }
 }
 
@@ -71,11 +60,9 @@ export async function getGraphEntities(type?: string, search?: string, limit = 5
   query.set("limit", String(limit));
 
   try {
-    const raw = await apiFetch<{ data: GraphEntity[] } | null>(
+    return await apiFetch<GraphEntity[]>(
       `/api/v1/graph/entities?${query.toString()}`,
-      null,
     );
-    return raw?.data ?? [];
   } catch {
     return [];
   }
@@ -97,11 +84,9 @@ export async function searchGraphEntities(
   query.set("limit", String(limit));
 
   try {
-    const raw = await apiFetch<{ data: GraphEntity[] } | null>(
+    return await apiFetch<GraphEntity[]>(
       `/api/v1/graph/search?${query.toString()}`,
-      null,
     );
-    return raw?.data ?? [];
   } catch {
     return [];
   }
@@ -115,13 +100,10 @@ export async function getEntityWithRelationships(id: string): Promise<{
   relationships: Array<{ type: string; source_id: string; target_id: string }>;
 } | null> {
   try {
-    const raw = await apiFetch<{
-      data: {
-        entity: GraphEntity;
-        relationships: Array<{ type: string; source_id: string; target_id: string }>;
-      };
-    } | null>(`/api/v1/graph/entities/${encodeURIComponent(id)}`, null);
-    return raw?.data ?? null;
+    return await apiFetch<{
+      entity: GraphEntity;
+      relationships: Array<{ type: string; source_id: string; target_id: string }>;
+    }>(`/api/v1/graph/entities/${encodeURIComponent(id)}`);
   } catch {
     return null;
   }

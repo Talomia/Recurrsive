@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { FlaskConical, Play, AlertTriangle, TrendingUp, Clock, Zap, Loader2 } from 'lucide-react';
-import { getSimulations } from '@/lib/api';
+import { getSimulations, createSimulation } from '@/lib/api';
 import type { SimulationScenario } from '@/lib/api';
 // Types reuse SimulationScenario from api.ts
 type Simulation = SimulationScenario;
@@ -38,6 +38,8 @@ export default function SimulationPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Simulation | null>(null);
   const [newType, setNewType] = useState<string>(SIM_TYPES[0]);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     getSimulations()
@@ -47,6 +49,21 @@ export default function SimulationPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const handleLaunch = async () => {
+    setCreating(true);
+    setError(null);
+    try {
+      await createSimulation({ name: `${newType} simulation`, type: newType as SimulationScenario['type'] });
+      const data = await getSimulations();
+      setSimulations(data);
+      if (data.length > 0) setSelected(data[0]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create simulation');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -159,8 +176,16 @@ export default function SimulationPage() {
             </button>
           ))}
         </div>
-        <button className="w-full py-2 rounded-lg font-medium text-sm text-white" style={{ background: 'var(--color-accent)' }}>
-          Launch {newType} Simulation
+        {error && (
+          <p className="text-xs text-red-400 mb-3">{error}</p>
+        )}
+        <button
+          onClick={handleLaunch}
+          disabled={creating}
+          className="w-full py-2 rounded-lg font-medium text-sm text-white disabled:opacity-50 transition-all"
+          style={{ background: 'var(--color-accent)' }}
+        >
+          {creating ? 'Launching…' : `Launch ${newType} Simulation`}
         </button>
       </div>
     </div>

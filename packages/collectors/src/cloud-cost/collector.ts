@@ -6,9 +6,11 @@
  * from a cloud provider account and produces entities and relationships
  * for the knowledge graph.
  *
- * Since this collector is not yet connected to real API calls, it
- * generates synthetic data that mirrors the shape of real cloud cost
- * API responses for development and testing purposes.
+ * Supports reading cloud cost data from:
+ * - A local CSV export file (via CLOUD_COST_CSV_PATH)
+ * - AWS Cost Explorer (credentials checked, but direct API not yet implemented)
+ *
+ * If no credentials or CSV path are configured, returns empty results.
  *
  * Produces entities:
  * - `cost_metric` — monthly/daily/weekly cost aggregations
@@ -37,6 +39,8 @@ import {
   CollectorError,
 } from '@recurrsive/core';
 import { GovernanceFilter } from '../base/governance.js';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const logger = createLogger({ context: { module: 'cloud-cost-collector' } });
 
@@ -47,94 +51,14 @@ const logger = createLogger({ context: { module: 'cloud-cost-collector' } });
 /** Cloud provider type. */
 type CloudProvider = 'aws' | 'gcp' | 'azure';
 
-/** Synthetic cost report data. */
-interface MockCostReport {
-  name: string;
-  granularity: 'daily' | 'weekly' | 'monthly';
-  total_cost: number;
-  currency: string;
-  period_start: string;
-  period_end: string;
-}
-
-/** Synthetic budget data. */
-interface MockBudget {
-  name: string;
-  limit: number;
-  actual_spend: number;
-  currency: string;
-  owner: string;
-  threshold_percent: number;
-}
-
-/** Synthetic infrastructure resource data. */
-interface MockResource {
-  name: string;
-  resource_type: string;
+/** Parsed CSV row for cloud cost data. */
+interface CostCsvRow {
+  service: string;
+  resource: string;
   monthly_cost: number;
   region: string;
-  service: string;
-  status: 'running' | 'stopped' | 'terminated';
+  status: string;
 }
-
-/** Synthetic cloud service data. */
-interface MockService {
-  name: string;
-  category: string;
-  monthly_cost: number;
-  resource_count: number;
-}
-
-/** Synthetic environment data. */
-interface MockEnvironment {
-  name: string;
-  tier: 'production' | 'staging' | 'development';
-  monthly_cost: number;
-  resource_count: number;
-}
-
-// ---------------------------------------------------------------------------
-// Synthetic Data
-// ---------------------------------------------------------------------------
-
-const MOCK_USERS = ['budget-admin', 'cloud-ops-lead', 'finance-manager'];
-
-const MOCK_COST_REPORTS: MockCostReport[] = [
-  { name: 'daily-cost-report', granularity: 'daily', total_cost: 1247.83, currency: 'USD', period_start: '2026-06-30', period_end: '2026-06-30' },
-  { name: 'weekly-cost-report', granularity: 'weekly', total_cost: 8734.21, currency: 'USD', period_start: '2026-06-23', period_end: '2026-06-29' },
-  { name: 'monthly-cost-report', granularity: 'monthly', total_cost: 37892.50, currency: 'USD', period_start: '2026-06-01', period_end: '2026-06-30' },
-];
-
-const MOCK_BUDGETS: MockBudget[] = [
-  { name: 'engineering-budget', limit: 50000, actual_spend: 37892.50, currency: 'USD', owner: 'budget-admin', threshold_percent: 80 },
-  { name: 'infrastructure-budget', limit: 30000, actual_spend: 24150.00, currency: 'USD', owner: 'cloud-ops-lead', threshold_percent: 90 },
-];
-
-const MOCK_RESOURCES: MockResource[] = [
-  { name: 'api-server-01', resource_type: 'vm', monthly_cost: 450.00, region: 'us-east-1', service: 'compute', status: 'running' },
-  { name: 'api-server-02', resource_type: 'vm', monthly_cost: 450.00, region: 'us-east-1', service: 'compute', status: 'running' },
-  { name: 'primary-db', resource_type: 'database', monthly_cost: 1200.00, region: 'us-east-1', service: 'database', status: 'running' },
-  { name: 'replica-db', resource_type: 'database', monthly_cost: 800.00, region: 'us-west-2', service: 'database', status: 'running' },
-  { name: 'redis-cache-01', resource_type: 'cache', monthly_cost: 320.00, region: 'us-east-1', service: 'database', status: 'running' },
-  { name: 'app-lb', resource_type: 'load_balancer', monthly_cost: 180.00, region: 'us-east-1', service: 'networking', status: 'running' },
-  { name: 'ml-training-gpu', resource_type: 'vm', monthly_cost: 2400.00, region: 'us-west-2', service: 'ai_ml', status: 'running' },
-  { name: 'staging-server', resource_type: 'vm', monthly_cost: 225.00, region: 'us-east-1', service: 'compute', status: 'stopped' },
-];
-
-const MOCK_SERVICES: MockService[] = [
-  { name: 'compute', category: 'Compute', monthly_cost: 3525.00, resource_count: 3 },
-  { name: 'storage', category: 'Storage', monthly_cost: 890.00, resource_count: 4 },
-  { name: 'database', category: 'Database', monthly_cost: 2320.00, resource_count: 3 },
-  { name: 'networking', category: 'Networking', monthly_cost: 540.00, resource_count: 2 },
-  { name: 'ai-ml', category: 'AI/ML', monthly_cost: 2400.00, resource_count: 1 },
-  { name: 'monitoring', category: 'Monitoring', monthly_cost: 350.00, resource_count: 2 },
-];
-
-const MOCK_ENVIRONMENTS: MockEnvironment[] = [
-  { name: 'production', tier: 'production', monthly_cost: 28500.00, resource_count: 12 },
-  { name: 'staging', tier: 'staging', monthly_cost: 6200.00, resource_count: 5 },
-  { name: 'dev', tier: 'development', monthly_cost: 3192.50, resource_count: 4 },
-];
 
 // ---------------------------------------------------------------------------
 // CloudCostCollector
@@ -148,8 +72,8 @@ const MOCK_ENVIRONMENTS: MockEnvironment[] = [
  * Lifecycle:
  * 1. {@link initialize} — configure governance rules and provider.
  * 2. {@link validate} — verify the provider is supported.
- * 3. {@link collect} — generate entities & relationships from
- *    synthetic cloud cost data.
+ * 3. {@link collect} — read cost data from CSV or API and build
+ *    entities & relationships.
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -157,7 +81,7 @@ const MOCK_ENVIRONMENTS: MockEnvironment[] = [
  * const collector = new CloudCostCollector('aws');
  * await collector.initialize({
  *   governance: { masked_fields: [], excluded_patterns: [], pii_detection: true, audit_log: false, retention_days: 90 },
- *   custom: {},
+ *   custom: { cloud_cost_csv_path: './costs.csv' },
  * });
  * const result = await collector.collect();
  * console.log(`Found ${result.entities.length} entities`);
@@ -181,6 +105,8 @@ export class CloudCostCollector implements Collector {
   private governanceFilter!: GovernanceFilter;
   /** Whether this collector has been initialized. */
   private initialized = false;
+  /** Stored collector configuration. */
+  private config!: CollectorConfig;
 
   /**
    * @param provider - Cloud provider (default: `'aws'`).
@@ -199,6 +125,7 @@ export class CloudCostCollector implements Collector {
    * @param config - Collector configuration including governance rules.
    */
   async initialize(config: CollectorConfig): Promise<void> {
+    this.config = config;
     this.governanceFilter = new GovernanceFilter(config.governance);
 
     if (typeof config.custom['provider'] === 'string') {
@@ -233,6 +160,9 @@ export class CloudCostCollector implements Collector {
   /**
    * Perform the full collection run.
    *
+   * Reads cloud cost data from a CSV file or API. If no credentials
+   * or CSV path are configured, returns empty results.
+   *
    * @returns Entities, relationships, and run metadata.
    * @throws {CollectorError} If the collector has not been initialized.
    */
@@ -248,30 +178,92 @@ export class CloudCostCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build entities and relationships from synthetic data
-    const entities = this.buildEntities();
-    const relationships = this.buildRelationships(entities);
+    // Check for CSV path
+    const csvPath = (this.config.custom['cloud_cost_csv_path'] as string) ||
+      process.env['CLOUD_COST_CSV_PATH'];
 
-    // Apply governance masking
-    const maskedEntities = entities.map((e) => this.governanceFilter.maskEntity(e));
+    // Check for AWS credentials
+    const awsAccessKey = (this.config.custom['aws_access_key_id'] as string) ||
+      process.env['AWS_ACCESS_KEY_ID'];
 
+    // --- CSV path available: read and parse ---
+    if (csvPath) {
+      try {
+        const resolvedPath = resolve(process.cwd(), csvPath);
+        const csvContent = await readFile(resolvedPath, 'utf-8');
+        const rows = this.parseCsv(csvContent);
+
+        const entities = this.buildEntitiesFromCsv(rows);
+        const relationships = this.buildRelationships(entities);
+        const maskedEntities = entities.map((e) => this.governanceFilter.maskEntity(e));
+        const durationMs = Date.now() - startTime;
+
+        logger.info('CloudCostCollector collection complete (CSV)', {
+          entities: maskedEntities.length,
+          relationships: relationships.length,
+          durationMs,
+        });
+
+        return {
+          entities: maskedEntities,
+          relationships,
+          metadata: {
+            collector_id: this.id,
+            collected_at: nowISO(),
+            duration_ms: durationMs,
+            items_processed: rows.length,
+            errors,
+          },
+        };
+      } catch (err) {
+        const durationMs = Date.now() - startTime;
+        logger.warn('Failed to read cloud cost CSV file', { csvPath, error: err });
+        return {
+          entities: [],
+          relationships: [],
+          metadata: {
+            collector_id: this.id,
+            collected_at: nowISO(),
+            duration_ms: durationMs,
+            items_processed: 0,
+            errors: [{ message: `Failed to read CSV: ${err instanceof Error ? err.message : String(err)}` }],
+          },
+        };
+      }
+    }
+
+    // --- AWS credentials present but no CSV ---
+    if (awsAccessKey) {
+      const durationMs = Date.now() - startTime;
+      logger.warn(
+        'AWS Cost Explorer direct API integration not yet implemented. ' +
+        'Export costs to CSV and set CLOUD_COST_CSV_PATH.',
+      );
+      return {
+        entities: [],
+        relationships: [],
+        metadata: {
+          collector_id: this.id,
+          collected_at: nowISO(),
+          duration_ms: durationMs,
+          items_processed: 0,
+          errors: [],
+        },
+      };
+    }
+
+    // --- No credentials or CSV path ---
     const durationMs = Date.now() - startTime;
-
-    logger.info('CloudCostCollector collection complete', {
-      entities: maskedEntities.length,
-      relationships: relationships.length,
-      durationMs,
-    });
-
+    logger.warn('No cloud cost credentials configured, skipping collection');
     return {
-      entities: maskedEntities,
-      relationships,
+      entities: [],
+      relationships: [],
       metadata: {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed: MOCK_COST_REPORTS.length + MOCK_BUDGETS.length + MOCK_RESOURCES.length + MOCK_SERVICES.length + MOCK_ENVIRONMENTS.length,
-        errors,
+        items_processed: 0,
+        errors: [],
       },
     };
   }
@@ -282,6 +274,32 @@ export class CloudCostCollector implements Collector {
   async dispose(): Promise<void> {
     this.initialized = false;
     logger.info('CloudCostCollector disposed', { provider: this.provider });
+  }
+
+  // -----------------------------------------------------------------------
+  // Internal: CSV Parsing
+  // -----------------------------------------------------------------------
+
+  /**
+   * Parse CSV content into structured rows.
+   * Expected format: service,resource,monthly_cost,region,status
+   * First line is treated as header.
+   */
+  private parseCsv(content: string): CostCsvRow[] {
+    const lines = content.trim().split('\n');
+    if (lines.length <= 1) return [];
+
+    // Skip header line
+    return lines.slice(1).map((line) => {
+      const parts = line.split(',').map((p) => p.trim());
+      return {
+        service: parts[0] ?? '',
+        resource: parts[1] ?? '',
+        monthly_cost: parseFloat(parts[2] ?? '0') || 0,
+        region: parts[3] ?? 'unknown',
+        status: parts[4] ?? 'running',
+      };
+    }).filter((row) => row.service && row.resource);
   }
 
   // -----------------------------------------------------------------------
@@ -340,94 +358,78 @@ export class CloudCostCollector implements Collector {
   // -----------------------------------------------------------------------
 
   /**
-   * Build knowledge graph entities from synthetic cloud cost data.
+   * Build knowledge graph entities from parsed CSV data.
    *
    * Creates:
-   * - `user` entities for budget owners
-   * - `cost_metric` entities for cost reports (daily, weekly, monthly)
-   * - `alert` entities for budgets and spend thresholds
-   * - `infrastructure_resource` entities for cloud resources
-   * - `pipeline` entities for cloud service categories
-   * - `environment` entities for cost-allocated environments
+   * - `cost_metric` entities for aggregate costs by service
+   * - `infrastructure_resource` entities for each resource row
+   * - `pipeline` entities for unique service categories
+   * - `environment` entities (production, staging, dev)
    *
+   * @param rows - Parsed CSV rows.
    * @returns Array of entities.
    */
-  private buildEntities(): Entity[] {
+  private buildEntitiesFromCsv(rows: CostCsvRow[]): Entity[] {
     const entities: Entity[] = [];
 
-    // --- User entities (budget owners) ---
-    for (const username of MOCK_USERS) {
-      entities.push(
-        this.makeEntity('user', username, {
-          username,
-          role: 'cost_manager',
-          platform: this.provider,
-        }, ['cost-owner']),
-      );
+    // --- Cost metric entities (aggregate by service) ---
+    const serviceCosts = new Map<string, number>();
+    for (const row of rows) {
+      serviceCosts.set(row.service, (serviceCosts.get(row.service) ?? 0) + row.monthly_cost);
     }
-
-    // --- Cost metric entities (cost reports) ---
-    for (const report of MOCK_COST_REPORTS) {
+    for (const [service, totalCost] of serviceCosts) {
       entities.push(
-        this.makeEntity('cost_metric', report.name, {
-          granularity: report.granularity,
-          total_cost: report.total_cost,
-          currency: report.currency,
-          period_start: report.period_start,
-          period_end: report.period_end,
+        this.makeEntity('cost_metric', `${service}-monthly-cost`, {
+          granularity: 'monthly',
+          total_cost: totalCost,
+          currency: 'USD',
+          period_start: new Date().toISOString().slice(0, 7) + '-01',
+          period_end: new Date().toISOString().slice(0, 10),
           provider: this.provider,
-        }, ['cost-report', report.granularity]),
-      );
-    }
-
-    // --- Alert entities (budgets) ---
-    for (const budget of MOCK_BUDGETS) {
-      entities.push(
-        this.makeEntity('alert', budget.name, {
-          budget_limit: budget.limit,
-          actual_spend: budget.actual_spend,
-          currency: budget.currency,
-          owner: budget.owner,
-          threshold_percent: budget.threshold_percent,
-          utilization_percent: Math.round((budget.actual_spend / budget.limit) * 100),
-          provider: this.provider,
-        }, ['budget', 'cost-alert']),
+        }, ['cost-report', 'monthly']),
       );
     }
 
     // --- Infrastructure resource entities ---
-    for (const resource of MOCK_RESOURCES) {
+    for (const row of rows) {
       entities.push(
-        this.makeEntity('infrastructure_resource', resource.name, {
-          resource_type: resource.resource_type,
-          monthly_cost: resource.monthly_cost,
-          region: resource.region,
-          service: resource.service,
-          status: resource.status,
+        this.makeEntity('infrastructure_resource', row.resource, {
+          resource_type: 'cloud_resource',
+          monthly_cost: row.monthly_cost,
+          region: row.region,
+          service: row.service,
+          status: row.status,
           provider: this.provider,
-        }, [resource.resource_type, resource.status]),
+        }, ['cloud_resource', row.status]),
       );
     }
 
-    // --- Pipeline entities (cloud services) ---
-    for (const service of MOCK_SERVICES) {
+    // --- Pipeline entities (unique services) ---
+    const uniqueServices = new Set(rows.map((r) => r.service));
+    for (const service of uniqueServices) {
+      const serviceRows = rows.filter((r) => r.service === service);
       entities.push(
-        this.makeEntity('pipeline', service.name, {
-          category: service.category,
-          monthly_cost: service.monthly_cost,
-          resource_count: service.resource_count,
+        this.makeEntity('pipeline', service, {
+          category: service,
+          monthly_cost: serviceCosts.get(service) ?? 0,
+          resource_count: serviceRows.length,
           provider: this.provider,
-        }, ['cloud-service', service.category.toLowerCase()]),
+        }, ['cloud-service', service.toLowerCase()]),
       );
     }
 
     // --- Environment entities ---
-    for (const env of MOCK_ENVIRONMENTS) {
+    const envs = [
+      { name: 'production', tier: 'production' as const },
+      { name: 'staging', tier: 'staging' as const },
+      { name: 'dev', tier: 'development' as const },
+    ];
+    for (const env of envs) {
       entities.push(
         this.makeEntity('environment', env.name, {
           tier: env.tier,
-          monthly_cost: env.monthly_cost,
-          resource_count: env.resource_count,
+          monthly_cost: 0,
+          resource_count: 0,
           provider: this.provider,
         }, [env.tier]),
       );
@@ -444,11 +446,8 @@ export class CloudCostCollector implements Collector {
    * Build relationships between entities.
    *
    * Creates:
-   * - `monitors` — alert monitors cost_metric
    * - `contains` — pipeline (service) contains infrastructure_resource
    * - `deploys_to` — infrastructure_resource deployed to environment
-   * - `depends_on` — pipeline (service) depends on pipeline (service)
-   * - `owns` — user owns alert (budget)
    *
    * @param entities - All entities built from this collection.
    * @returns Array of relationships.
@@ -456,25 +455,9 @@ export class CloudCostCollector implements Collector {
   private buildRelationships(entities: Entity[]): Relationship[] {
     const relationships: Relationship[] = [];
 
-    const users = entities.filter((e) => e.type === 'user');
-    const costMetrics = entities.filter((e) => e.type === 'cost_metric');
-    const alerts = entities.filter((e) => e.type === 'alert');
     const resources = entities.filter((e) => e.type === 'infrastructure_resource');
     const services = entities.filter((e) => e.type === 'pipeline');
     const environments = entities.filter((e) => e.type === 'environment');
-
-    // Alert → Cost Metric (monitors) — each budget monitors the monthly cost report
-    const monthlyReport = costMetrics.find(
-      (c) => c.properties['granularity'] === 'monthly',
-    );
-    if (monthlyReport) {
-      for (const alert of alerts) {
-        relationships.push(this.makeRel('monitors', alert.id, monthlyReport.id, {
-          budget_name: alert.name,
-          threshold_percent: alert.properties['threshold_percent'],
-        }));
-      }
-    }
 
     // Pipeline (service) → Infrastructure Resource (contains)
     for (const resource of resources) {
@@ -491,60 +474,18 @@ export class CloudCostCollector implements Collector {
     }
 
     // Infrastructure Resource → Environment (deploys_to)
-    // Map resources to environments based on status
     const prodEnv = environments.find((e) => e.name === 'production');
-    const stagingEnv = environments.find((e) => e.name === 'staging');
     const devEnv = environments.find((e) => e.name === 'dev');
 
     for (const resource of resources) {
       const status = resource.properties['status'] as string;
       if (status === 'running' && prodEnv) {
-        // Running resources deploy to production (unless staging-named)
-        if (resource.name.includes('staging')) {
-          relationships.push(this.makeRel('deploys_to', resource.id, stagingEnv!.id, {
-            environment: 'staging',
-          }));
-        } else {
-          relationships.push(this.makeRel('deploys_to', resource.id, prodEnv.id, {
-            environment: 'production',
-          }));
-        }
+        relationships.push(this.makeRel('deploys_to', resource.id, prodEnv.id, {
+          environment: 'production',
+        }));
       } else if (status === 'stopped' && devEnv) {
         relationships.push(this.makeRel('deploys_to', resource.id, devEnv.id, {
           environment: 'dev',
-        }));
-      }
-    }
-
-    // Pipeline → Pipeline (depends_on) — service dependencies
-    const computeService = services.find((s) => s.name === 'compute');
-    const networkingService = services.find((s) => s.name === 'networking');
-    const databaseService = services.find((s) => s.name === 'database');
-    const monitoringService = services.find((s) => s.name === 'monitoring');
-
-    if (computeService && networkingService) {
-      relationships.push(this.makeRel('depends_on', computeService.id, networkingService.id, {
-        dependency_type: 'network_access',
-      }));
-    }
-    if (computeService && databaseService) {
-      relationships.push(this.makeRel('depends_on', computeService.id, databaseService.id, {
-        dependency_type: 'data_access',
-      }));
-    }
-    if (monitoringService && computeService) {
-      relationships.push(this.makeRel('depends_on', monitoringService.id, computeService.id, {
-        dependency_type: 'observability',
-      }));
-    }
-
-    // User → Alert (owns) — budget owners
-    for (const alert of alerts) {
-      const ownerName = alert.properties['owner'] as string;
-      const ownerEntity = users.find((u) => u.name === ownerName);
-      if (ownerEntity) {
-        relationships.push(this.makeRel('owns', ownerEntity.id, alert.id, {
-          role: 'budget_owner',
         }));
       }
     }

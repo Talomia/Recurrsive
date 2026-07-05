@@ -9,8 +9,14 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
 
 vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
@@ -19,6 +25,7 @@ vi.mock('../../output/terminal.js', () => ({
   bold: (s: string) => s,
   cyan: (s: string) => s,
   green: (s: string) => s,
+  yellow: (s: string) => s,
   red: (s: string) => s,
   dim: (s: string) => s,
   table: vi.fn(),
@@ -37,14 +44,15 @@ function createCLI(): Command {
   return program;
 }
 
-function mockApiResponse(data: unknown, status = 200): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  });
-}
+const MOCK_EXPORT = {
+  export_id: 'exp_test123',
+  format: 'json',
+  scope: 'findings',
+  status: 'completed',
+  download_url: '/api/v1/export/exp_test123/download',
+  record_count: 47,
+  generated_at: '2026-06-30T12:00:00.000Z',
+};
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -58,65 +66,46 @@ describe('export command', () => {
 
   describe('create', () => {
     it('creates an export via API', async () => {
-      mockApiResponse({
-        export_id: 'exp_test123',
-        format: 'json',
-        scope: 'findings',
-        status: 'completed',
-        download_url: '/api/v1/export/exp_test123/download',
-        record_count: 47,
-        generated_at: '2026-06-30T12:00:00.000Z',
-      }, 201);
+      mockApiRequest.mockResolvedValueOnce(MOCK_EXPORT);
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'export', 'create', 'findings', '--format', 'json']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/export'),
         expect.objectContaining({ method: 'POST' }),
       );
     });
 
-    it('falls back to mock data on server error', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'export', 'create', 'all']);
 
-      // Should not set exitCode — mock fallback succeeds
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
   });
 
   describe('history', () => {
     it('fetches and displays export history', async () => {
-      mockApiResponse({
-        data: [
-          {
-            export_id: 'exp_abc',
-            format: 'json',
-            scope: 'findings',
-            status: 'completed',
-            record_count: 10,
-            generated_at: '2026-06-30T12:00:00.000Z',
-          },
-        ],
+      mockApiRequest.mockResolvedValueOnce({
+        data: [MOCK_EXPORT],
         total: 1,
       });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'export', 'history']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/export/history'),
-        expect.any(Object),
       );
     });
   });
 
   describe('--json flag', () => {
     it('outputs JSON for create command', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce(MOCK_EXPORT);
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();

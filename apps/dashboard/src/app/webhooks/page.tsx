@@ -1,5 +1,13 @@
+'use client';
+/**
+ * Webhook Integrations page.
+ *
+ * Registered webhooks, event subscriptions, test delivery, and create form.
+ */
+
+import { useState, useEffect } from 'react';
 import Header from "@/components/header";
-import { getWebhooks, getWebhookEvents } from "@/lib/api";
+import { getWebhooks, getWebhookEvents, createWebhook, deleteWebhook, testWebhook } from "@/lib/api";
 import type { WebhookRegistration, WebhookEvent } from "@/lib/api";
 import {
   Webhook,
@@ -11,6 +19,7 @@ import {
   Plus,
   Radio,
   Zap,
+  Loader2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -35,7 +44,7 @@ function getEventColor(event: string) {
 // Webhook Card
 // ---------------------------------------------------------------------------
 
-function WebhookCard({ webhook }: { webhook: WebhookRegistration }) {
+function WebhookCard({ webhook, onTest, onDelete }: { webhook: WebhookRegistration; onTest: (id: string) => void; onDelete: (id: string) => void }) {
 
   const createdDate = new Date(webhook.created_at).toLocaleDateString("en-US", {
     month: "short",
@@ -123,6 +132,7 @@ function WebhookCard({ webhook }: { webhook: WebhookRegistration }) {
         {/* Actions */}
         <div className="flex items-center gap-2 flex-none">
           <button
+            onClick={() => onTest(webhook.id)}
             className="flex items-center gap-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors"
             title="Send test event"
           >
@@ -130,6 +140,7 @@ function WebhookCard({ webhook }: { webhook: WebhookRegistration }) {
             Test
           </button>
           <button
+            onClick={() => onDelete(webhook.id)}
             className="flex items-center justify-center rounded-lg bg-white/5 border border-white/10 p-1.5 text-text-muted hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-colors"
             title="Delete webhook"
           >
@@ -142,18 +153,89 @@ function WebhookCard({ webhook }: { webhook: WebhookRegistration }) {
 }
 
 // ---------------------------------------------------------------------------
-// Page component (server component)
+// All supported events for the create form
 // ---------------------------------------------------------------------------
 
-export default async function WebhooksPage() {
-  let webhooks: WebhookRegistration[] = [];
-  let events: WebhookEvent[] = [];
-  let error: string | null = null;
+const ALL_EVENTS = [
+  'analysis.complete',
+  'analysis.failed',
+  'opportunity.created',
+  'opportunity.updated',
+  'policy.violation',
+  'health.degraded',
+  'snapshot.created',
+];
 
-  try {
-    [webhooks, events] = await Promise.all([getWebhooks(), getWebhookEvents()]);
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Failed to load webhooks";
+// ---------------------------------------------------------------------------
+// Page component (client component)
+// ---------------------------------------------------------------------------
+
+export default function WebhooksPage() {
+  const [webhooks, setWebhooks] = useState<WebhookRegistration[]>([]);
+  const [events, setEvents] = useState<WebhookEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newUrl, setNewUrl] = useState('');
+  const [newEvents, setNewEvents] = useState<string[]>([]);
+  const [newSecret, setNewSecret] = useState('');
+
+  const reloadData = async () => {
+    const [wh, ev] = await Promise.all([getWebhooks(), getWebhookEvents()]);
+    setWebhooks(wh);
+    setEvents(ev);
+  };
+
+  useEffect(() => {
+    reloadData().finally(() => setLoading(false));
+  }, []);
+
+  const toggleEvent = (event: string) => {
+    setNewEvents(prev =>
+      prev.includes(event) ? prev.filter(e => e !== event) : [...prev, event]
+    );
+  };
+
+  const handleCreate = async () => {
+    try {
+      setError(null);
+      await createWebhook({ url: newUrl, events: newEvents, secret: newSecret || undefined });
+      setShowCreate(false);
+      setNewUrl('');
+      setNewEvents([]);
+      setNewSecret('');
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create webhook');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      setError(null);
+      await deleteWebhook(id);
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete webhook');
+    }
+  };
+
+  const handleTest = async (id: string) => {
+    try {
+      setError(null);
+      await testWebhook(id);
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to test webhook');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      </div>
+    );
   }
 
   const activeCount = webhooks.filter((w) => w.active).length;
@@ -169,16 +251,11 @@ export default async function WebhooksPage() {
         subtitle="Manage webhook endpoints for real-time event notifications"
       />
 
-      {/* Error state */}
+      {/* Error Banner */}
       {error && (
-        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-5 py-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-400 flex-none" />
-          <div>
-            <p className="text-sm font-medium text-red-400">
-              Failed to load webhooks
-            </p>
-            <p className="text-xs text-text-muted mt-0.5">{error}</p>
-          </div>
+        <div className="rounded-xl px-4 py-3 bg-red-500/10 border border-red-500/30 flex items-center justify-between">
+          <span className="text-sm text-red-400">{error}</span>
+          <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-300">Dismiss</button>
         </div>
       )}
 
@@ -233,11 +310,50 @@ export default async function WebhooksPage() {
               {webhooks.length}
             </span>
           </div>
-          <button className="flex items-center gap-1.5 rounded-xl bg-accent-blue/15 border border-accent-blue/25 px-4 py-2 text-xs font-semibold text-blue-400 hover:bg-accent-blue/25 transition-colors">
+          <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-1.5 rounded-xl bg-accent-blue/15 border border-accent-blue/25 px-4 py-2 text-xs font-semibold text-blue-400 hover:bg-accent-blue/25 transition-colors">
             <Plus className="h-3.5 w-3.5" />
             Add Webhook
           </button>
         </div>
+
+        {/* Create Webhook Form */}
+        {showCreate && (
+          <div className="rounded-2xl p-5 mb-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <h3 className="text-base font-semibold text-text-primary mb-3">Register New Webhook</h3>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <input placeholder="Webhook URL (https://...)" value={newUrl} onChange={e => setNewUrl(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+              <input placeholder="Secret (optional, for HMAC signing)" value={newSecret} onChange={e => setNewSecret(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            </div>
+            <div className="mb-3">
+              <p className="text-xs text-text-tertiary mb-2">Select events to subscribe to:</p>
+              <div className="flex flex-wrap gap-2">
+                {ALL_EVENTS.map(event => {
+                  const selected = newEvents.includes(event);
+                  const c = getEventColor(event);
+                  return (
+                    <button
+                      key={event}
+                      onClick={() => toggleEvent(event)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium border transition-all ${
+                        selected
+                          ? `${c.bg} ${c.text} ${c.border}`
+                          : 'bg-white/5 text-text-muted border-white/10 opacity-50'
+                      }`}
+                    >
+                      {event}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary">Cancel</button>
+              <button onClick={handleCreate} disabled={!newUrl || newEvents.length === 0} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newUrl && newEvents.length > 0 ? 'var(--color-accent)' : 'var(--color-border)', opacity: newUrl && newEvents.length > 0 ? 1 : 0.5 }}>
+                Register
+              </button>
+            </div>
+          </div>
+        )}
 
         {webhooks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -254,7 +370,7 @@ export default async function WebhooksPage() {
         ) : (
           <div className="space-y-3 stagger-children">
             {webhooks.map((wh) => (
-              <WebhookCard key={wh.id} webhook={wh} />
+              <WebhookCard key={wh.id} webhook={wh} onTest={handleTest} onDelete={handleDelete} />
             ))}
           </div>
         )}

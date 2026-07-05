@@ -9,13 +9,14 @@
  * - Extension submission and management
  * - Marketplace statistics
  *
- * Data is stored in-memory with realistic seeded content.
+ * Data is persisted via ServerStore with realistic seeded content.
  *
  * @packageDocumentation
  */
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,10 +57,8 @@ export interface ExtensionSubmission {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory extension catalog
+// Seed data definitions
 // ---------------------------------------------------------------------------
-
-const extensions: Map<string, MarketplaceExtension> = new Map();
 
 // Seed built-in analyzers
 const BUILT_IN_ANALYZERS: Array<{ name: string; slug: string; desc: string; tags: string[] }> = [
@@ -105,94 +104,84 @@ const COMMUNITY_EXTENSIONS: Array<{ name: string; slug: string; desc: string; ca
 ];
 
 // Seed all extensions
-function seedExtensions() {
+function seedIfEmpty(): void {
+  if (store.count('extensions') > 0) return;
+
   const now = nowISO();
-  let seeded = false;
 
   BUILT_IN_ANALYZERS.forEach((a) => {
     const id = `builtin-analyzer-${a.slug}`;
-    if (!extensions.has(id)) {
-      extensions.set(id, {
-        id,
-        name: a.name,
-        slug: a.slug,
-        category: 'analyzer',
-        source: 'built-in',
-        author: 'Recurrsive',
-        description: a.desc,
-        longDescription: `${a.desc}\n\nThis analyzer is part of the core Recurrsive platform and is maintained by the Recurrsive team. It integrates with the multi-agent reasoning pipeline for evidence-backed recommendations.`,
-        version: '0.5.0',
-        downloads: Math.floor(Math.random() * 15000) + 5000,
-        rating: 4.5 + Math.random() * 0.5,
-        ratingCount: Math.floor(Math.random() * 200) + 50,
-        status: 'published',
-        tags: a.tags,
-        repository: 'https://github.com/Talomia/Recurrsive',
-        documentation: 'https://recurrsive.dev/docs/plugin-sdk',
-        createdAt: '2026-06-01T00:00:00Z',
-        updatedAt: now,
-      });
-      seeded = true;
-    }
+    store.set<MarketplaceExtension>('extensions', id, {
+      id,
+      name: a.name,
+      slug: a.slug,
+      category: 'analyzer',
+      source: 'built-in',
+      author: 'Recurrsive',
+      description: a.desc,
+      longDescription: `${a.desc}\n\nThis analyzer is part of the core Recurrsive platform and is maintained by the Recurrsive team. It integrates with the multi-agent reasoning pipeline for evidence-backed recommendations.`,
+      version: '0.5.0',
+      downloads: 0,
+      rating: 0,
+      ratingCount: 0,
+      status: 'published',
+      tags: a.tags,
+      repository: 'https://github.com/Talomia/Recurrsive',
+      documentation: 'https://recurrsive.dev/docs/plugin-sdk',
+      createdAt: '2026-06-01T00:00:00Z',
+      updatedAt: now,
+    });
   });
 
   BUILT_IN_COLLECTORS.forEach((c) => {
     const id = `builtin-collector-${c.slug}`;
-    if (!extensions.has(id)) {
-      extensions.set(id, {
-        id,
-        name: c.name,
-        slug: c.slug,
-        category: 'collector',
-        source: 'built-in',
-        author: 'Recurrsive',
-        description: c.desc,
-        longDescription: `${c.desc}\n\nThis collector is included in the core Recurrsive platform. Configure it via recurrsive.config.ts or the CLI.`,
-        version: '0.5.0',
-        downloads: Math.floor(Math.random() * 12000) + 3000,
-        rating: 4.3 + Math.random() * 0.7,
-        ratingCount: Math.floor(Math.random() * 150) + 30,
-        status: 'published',
-        tags: c.tags,
-        repository: 'https://github.com/Talomia/Recurrsive',
-        documentation: 'https://recurrsive.dev/docs/plugin-sdk',
-        createdAt: '2026-06-01T00:00:00Z',
-        updatedAt: now,
-      });
-      seeded = true;
-    }
+    store.set<MarketplaceExtension>('extensions', id, {
+      id,
+      name: c.name,
+      slug: c.slug,
+      category: 'collector',
+      source: 'built-in',
+      author: 'Recurrsive',
+      description: c.desc,
+      longDescription: `${c.desc}\n\nThis collector is included in the core Recurrsive platform. Configure it via recurrsive.config.ts or the CLI.`,
+      version: '0.5.0',
+      downloads: 0,
+      rating: 0,
+      ratingCount: 0,
+      status: 'published',
+      tags: c.tags,
+      repository: 'https://github.com/Talomia/Recurrsive',
+      documentation: 'https://recurrsive.dev/docs/plugin-sdk',
+      createdAt: '2026-06-01T00:00:00Z',
+      updatedAt: now,
+    });
   });
 
   COMMUNITY_EXTENSIONS.forEach((e) => {
     const id = `community-${e.slug}`;
-    if (!extensions.has(id)) {
-      extensions.set(id, {
-        id,
-        name: e.name,
-        slug: e.slug,
-        category: e.category,
-        source: 'community',
-        author: e.author,
-        description: e.desc,
-        longDescription: `${e.desc}\n\nDeveloped and maintained by ${e.author}. Verified by the Recurrsive team for compatibility and security.`,
-        version: '1.0.0',
-        downloads: e.downloads,
-        rating: e.rating,
-        ratingCount: e.ratingCount,
-        status: 'published',
-        tags: e.tags,
-        repository: `https://github.com/${e.author.toLowerCase().replace(/\s+/g, '-')}/${e.slug}`,
-        createdAt: '2026-06-15T00:00:00Z',
-        updatedAt: now,
-      });
-      seeded = true;
-    }
+    store.set<MarketplaceExtension>('extensions', id, {
+      id,
+      name: e.name,
+      slug: e.slug,
+      category: e.category,
+      source: 'community',
+      author: e.author,
+      description: e.desc,
+      longDescription: `${e.desc}\n\nDeveloped and maintained by ${e.author}. Verified by the Recurrsive team for compatibility and security.`,
+      version: '1.0.0',
+      downloads: e.downloads,
+      rating: e.rating,
+      ratingCount: e.ratingCount,
+      status: 'published',
+      tags: e.tags,
+      repository: `https://github.com/${e.author.toLowerCase().replace(/\s+/g, '-')}/${e.slug}`,
+      createdAt: '2026-06-15T00:00:00Z',
+      updatedAt: now,
+    });
   });
-
-  return seeded;
 }
 
-seedExtensions();
+seedIfEmpty();
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -218,7 +207,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
       offset?: string;
     };
 
-    let results = Array.from(extensions.values())
+    let results = store.all<MarketplaceExtension>('extensions')
       .filter((e) => e.status === 'published');
 
     // Filter by category
@@ -285,7 +274,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
    */
   app.get(`${prefix}/extensions/:id`, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const ext = extensions.get(id);
+    const ext = store.get<MarketplaceExtension>('extensions', id);
     if (!ext) {
       return reply.status(404).send({ error: 'Not Found', message: 'Extension not found' });
     }
@@ -330,7 +319,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
       updatedAt: now,
     };
 
-    extensions.set(id, ext);
+    store.set<MarketplaceExtension>('extensions', id, ext);
 
     return reply.status(201).send({ data: ext, message: 'Extension submitted for review' });
   });
@@ -341,7 +330,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
    * List available categories with counts.
    */
   app.get(`${prefix}/categories`, async (_request, reply) => {
-    const all = Array.from(extensions.values()).filter((e) => e.status === 'published');
+    const all = store.all<MarketplaceExtension>('extensions').filter((e) => e.status === 'published');
     return reply.send({
       data: [
         { id: 'analyzer', name: 'Analyzers', description: 'Deep analysis of code, architecture, and patterns', count: all.filter((e) => e.category === 'analyzer').length },
@@ -358,7 +347,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
    * Marketplace statistics.
    */
   app.get(`${prefix}/stats`, async (_request, reply) => {
-    const all = Array.from(extensions.values());
+    const all = store.all<MarketplaceExtension>('extensions');
     const published = all.filter((e) => e.status === 'published');
     const totalDownloads = published.reduce((sum, e) => sum + e.downloads, 0);
     const avgRating = published.length > 0

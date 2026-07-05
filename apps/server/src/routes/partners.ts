@@ -10,13 +10,14 @@
  * - Certification track management
  * - Partner statistics
  *
- * Data is stored in-memory with realistic seeded content.
+ * Data is persisted via ServerStore with realistic seeded content.
  *
  * @packageDocumentation
  */
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,14 +73,9 @@ export interface PartnerApplication {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory stores
+// Seed data definitions
 // ---------------------------------------------------------------------------
 
-const partners: Map<string, Partner> = new Map();
-const certifications: Map<string, Certification> = new Map();
-const applications: Map<string, PartnerApplication> = new Map();
-
-// Seed partners
 const SEED_PARTNERS: Omit<Partner, 'id' | 'updatedAt'>[] = [
   {
     name: 'CloudForge Consulting',
@@ -227,22 +223,25 @@ const SEED_CERTIFICATIONS: Omit<Certification, 'id'>[] = [
 ];
 
 // Seed data
-function seedPartnerData() {
+function seedIfEmpty(): void {
   const now = nowISO();
-  SEED_PARTNERS.forEach((p) => {
-    const id = generateId();
-    if (partners.size < SEED_PARTNERS.length) {
-      partners.set(id, { ...p, id, updatedAt: now });
-    }
-  });
-  SEED_CERTIFICATIONS.forEach((c) => {
-    const id = `cert-${c.level}`;
-    if (!certifications.has(id)) {
-      certifications.set(id, { ...c, id });
-    }
-  });
+
+  if (store.count('partners') === 0) {
+    SEED_PARTNERS.forEach((p) => {
+      const id = generateId();
+      store.set<Partner>('partners', id, { ...p, id, updatedAt: now });
+    });
+  }
+
+  if (store.count('certifications') === 0) {
+    SEED_CERTIFICATIONS.forEach((c) => {
+      const id = `cert-${c.level}`;
+      store.set<Certification>('certifications', id, { ...c, id });
+    });
+  }
 }
-seedPartnerData();
+
+seedIfEmpty();
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -259,7 +258,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
   app.get(prefix, async (request, reply) => {
     const query = request.query as { tier?: PartnerTier; type?: PartnerType; region?: string };
 
-    let results = Array.from(partners.values());
+    let results = store.all<Partner>('partners');
 
     if (query.tier) {
       results = results.filter((p) => p.tier === query.tier);
@@ -293,7 +292,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    */
   app.get(`${prefix}/:id`, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const partner = partners.get(id);
+    const partner = store.get<Partner>('partners', id);
     if (!partner) {
       return reply.status(404).send({ error: 'Not Found', message: 'Partner not found' });
     }
@@ -331,7 +330,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
       submittedAt: now,
     };
 
-    applications.set(id, application);
+    store.set<PartnerApplication>('partner_applications', id, application);
 
     return reply.status(201).send({
       data: application,
@@ -346,7 +345,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    */
   app.get(`${prefix}/certifications`, async (_request, reply) => {
     return reply.send({
-      data: Array.from(certifications.values()),
+      data: store.all<Certification>('certifications'),
     });
   });
 
@@ -356,7 +355,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    * Partner program statistics.
    */
   app.get(`${prefix}/stats`, async (_request, reply) => {
-    const all = Array.from(partners.values());
+    const all = store.all<Partner>('partners');
     const totalEngineers = all.reduce((sum, p) => sum + p.certifiedEngineers, 0);
     const totalCustomers = all.reduce((sum, p) => sum + p.customerCount, 0);
 
@@ -365,8 +364,8 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
         totalPartners: all.length,
         totalCertifiedEngineers: totalEngineers,
         totalCustomersServed: totalCustomers,
-        certificationTracks: certifications.size,
-        pendingApplications: Array.from(applications.values()).filter((a) => a.status === 'pending').length,
+        certificationTracks: store.count('certifications'),
+        pendingApplications: store.all<PartnerApplication>('partner_applications').filter((a) => a.status === 'pending').length,
         tierDistribution: {
           platinum: all.filter((p) => p.tier === 'platinum').length,
           gold: all.filter((p) => p.tier === 'gold').length,

@@ -109,89 +109,6 @@ export interface AnalyticsSummary {
   trends: AnalyticsTrendPoint[];
 }
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
-
-import { seededRandom } from './client';
-
-const MOCK_FINDINGS_SUMMARY: FindingsSummary = {
-  total: 47,
-  by_severity: { critical: 3, high: 12, medium: 19, low: 13 },
-  by_category: { security: 8, performance: 11, architecture: 9, reliability: 7, cost: 5, documentation: 7 },
-  by_analyzer: { architecture: 9, security: 8, performance: 11, cost: 5, reliability: 7, documentation: 7 },
-};
-
-const MOCK_FINDINGS_PAGE: FindingsPageData = {
-  findings: [
-    { id: "FND-001", title: "SQL injection vulnerability in user search endpoint", severity: "critical", category: "Security", status: "open", assignee: "Alice Chen", created_at: "2026-06-30T08:12:00Z" },
-    { id: "FND-002", title: "Hardcoded API key in configuration module", severity: "critical", category: "Security", status: "open", assignee: "Bob Kim", created_at: "2026-06-29T14:30:00Z" },
-    { id: "FND-003", title: "Memory leak in WebSocket connection handler", severity: "high", category: "Performance", status: "open", assignee: "Carol Diaz", created_at: "2026-06-29T09:15:00Z" },
-    { id: "FND-004", title: "Missing rate limiting on public API endpoints", severity: "high", category: "Security", status: "open", assignee: "Alice Chen", created_at: "2026-06-28T16:45:00Z" },
-    { id: "FND-005", title: "Circular dependency between order and inventory modules", severity: "medium", category: "Architecture", status: "resolved", assignee: "Dave Patel", created_at: "2026-06-28T11:20:00Z" },
-    { id: "FND-006", title: "Unhandled promise rejection in payment callback", severity: "high", category: "Reliability", status: "open", assignee: "Eve Torres", created_at: "2026-06-27T15:00:00Z" },
-    { id: "FND-007", title: "Missing CSRF protection on state-changing endpoints", severity: "medium", category: "Security", status: "suppressed", assignee: "Alice Chen", created_at: "2026-06-27T10:30:00Z" },
-    { id: "FND-008", title: "Excessive logging causing disk space issues", severity: "low", category: "Operations", status: "resolved", assignee: "Frank Nguyen", created_at: "2026-06-26T14:15:00Z" },
-    { id: "FND-009", title: "Deprecated crypto algorithm in token generation", severity: "medium", category: "Security", status: "open", assignee: "Bob Kim", created_at: "2026-06-26T09:00:00Z" },
-    { id: "FND-010", title: "Missing health check endpoint for load balancer", severity: "low", category: "Reliability", status: "open", assignee: "Carol Diaz", created_at: "2026-06-25T17:30:00Z" },
-  ],
-  stats: { total: 10, critical: 2, high: 3, medium: 3, low: 2 },
-};
-
-function generateAnalyticsTrends(): AnalyticsTrendPoint[] {
-  const points: AnalyticsTrendPoint[] = [];
-  const baseDate = new Date("2026-04-06");
-
-  for (let week = 0; week < 12; week++) {
-    const date = new Date(baseDate);
-    date.setDate(date.getDate() + week * 7);
-    const dateStr = date.toISOString().slice(0, 10);
-
-    const noise = (s: number) => seededRandom(week * 137 + s) * 8 - 4;
-    const findings = Math.round(30 + week * 1.5 + noise(0));
-    const resolved = Math.round(findings * (0.45 + week * 0.015 + noise(1) * 0.03));
-    const health = Math.round(68 + week * 0.8 + noise(2));
-
-    points.push({
-      date: dateStr,
-      findings: Math.max(findings, 10),
-      resolved: Math.max(Math.min(resolved, findings), 0),
-      health: Math.max(Math.min(health, 100), 50),
-    });
-  }
-
-  return points;
-}
-
-const MOCK_ANALYTICS_TRENDS = generateAnalyticsTrends();
-
-const MOCK_ANALYTICS_SUMMARY: AnalyticsSummary = (() => {
-  const totalFindings = MOCK_ANALYTICS_TRENDS.reduce((s, t) => s + t.findings, 0);
-  const totalResolved = MOCK_ANALYTICS_TRENDS.reduce((s, t) => s + t.resolved, 0);
-  const avgHealth =
-    Math.round(
-      (MOCK_ANALYTICS_TRENDS.reduce((s, t) => s + t.health, 0) / MOCK_ANALYTICS_TRENDS.length) * 10,
-    ) / 10;
-
-  return {
-    analysis_runs: 47,
-    total_findings: totalFindings,
-    findings_resolved: totalResolved,
-    resolution_rate: Math.round((totalResolved / totalFindings) * 1000) / 10,
-    avg_health_score: avgHealth,
-    trends: MOCK_ANALYTICS_TRENDS,
-  };
-})();
-
-const MOCK_ANALYTICS_CATEGORIES: AnalyticsCategory[] = [
-  { name: "Security", count: 42, percentage: 13.5 },
-  { name: "Performance", count: 68, percentage: 21.8 },
-  { name: "Architecture", count: 54, percentage: 17.3 },
-  { name: "Reliability", count: 39, percentage: 12.5 },
-  { name: "Cost", count: 28, percentage: 9.0 },
-  { name: "Documentation", count: 35, percentage: 11.2 },
-  { name: "Testing", count: 26, percentage: 8.3 },
-  { name: "DevOps", count: 20, percentage: 6.4 },
-];
-
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -206,25 +123,14 @@ export async function getAnalysisStatus(): Promise<{
   error: string | null;
 }> {
   try {
-    const raw = await apiFetch<{
-      data: {
-        phase: string;
-        progress: number;
-        message: string;
-        startedAt: string | null;
-        completedAt: string | null;
-        error: string | null;
-      };
-    } | null>("/api/v1/analysis/status", null);
-
-    return raw?.data ?? {
-      phase: "idle",
-      progress: 0,
-      message: "No analysis running",
-      startedAt: null,
-      completedAt: null,
-      error: null,
-    };
+    return await apiFetch<{
+      phase: string;
+      progress: number;
+      message: string;
+      startedAt: string | null;
+      completedAt: string | null;
+      error: string | null;
+    }>("/api/v1/analysis/status");
   } catch {
     return {
       phase: "idle",
@@ -241,7 +147,11 @@ export async function getAnalysisStatus(): Promise<{
  * Get findings summary from `GET /api/v1/findings/summary`.
  */
 export async function getFindingsSummary(): Promise<FindingsSummary> {
-  return apiFetch("/api/v1/findings/summary", MOCK_FINDINGS_SUMMARY);
+  try {
+    return await apiFetch<FindingsSummary>("/api/v1/findings/summary");
+  } catch {
+    return { total: 0, by_severity: {}, by_category: {}, by_analyzer: {} };
+  }
 }
 
 /**
@@ -262,7 +172,11 @@ export async function getFindings(params?: {
   const qs = query.toString();
   const path = `/api/v1/findings${qs ? `?${qs}` : ""}`;
 
-  return apiFetch(path, { findings: [], total: 0 });
+  try {
+    return await apiFetch<{ findings: Finding[]; total: number }>(path);
+  } catch {
+    return { findings: [], total: 0 };
+  }
 }
 
 /**
@@ -270,11 +184,9 @@ export async function getFindings(params?: {
  */
 export async function getFinding(id: string): Promise<Finding | null> {
   try {
-    const finding = await apiFetch<Finding | null>(
+    return await apiFetch<Finding>(
       `/api/v1/findings/${encodeURIComponent(id)}`,
-      null,
     );
-    return finding;
   } catch {
     return null;
   }
@@ -285,13 +197,12 @@ export async function getFinding(id: string): Promise<Finding | null> {
  */
 export async function getFindingsPage(): Promise<FindingsPageData> {
   try {
-    const raw = await apiFetch<{ data: FindingsPageData } | null>(
-      "/api/v1/findings/page",
-      null,
-    );
-    return raw?.data ?? MOCK_FINDINGS_PAGE;
+    return await apiFetch<FindingsPageData>("/api/v1/findings/page");
   } catch {
-    return MOCK_FINDINGS_PAGE;
+    return {
+      findings: [],
+      stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+    };
   }
 }
 
@@ -300,14 +211,16 @@ export async function getFindingsPage(): Promise<FindingsPageData> {
  */
 export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
   try {
-    const raw = await apiFetch<AnalyticsSummary | null>(
-      "/api/v1/analytics/summary",
-      null,
-    );
-
-    return raw ?? MOCK_ANALYTICS_SUMMARY;
+    return await apiFetch<AnalyticsSummary>("/api/v1/analytics/summary");
   } catch {
-    return MOCK_ANALYTICS_SUMMARY;
+    return {
+      analysis_runs: 0,
+      total_findings: 0,
+      findings_resolved: 0,
+      resolution_rate: 0,
+      avg_health_score: 0,
+      trends: [],
+    };
   }
 }
 
@@ -316,13 +229,8 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
  */
 export async function getAnalyticsCategories(): Promise<AnalyticsCategory[]> {
   try {
-    const raw = await apiFetch<{
-      categories: AnalyticsCategory[];
-    } | null>("/api/v1/analytics/top-categories", null);
-
-    if (!raw?.categories?.length) return MOCK_ANALYTICS_CATEGORIES;
-    return raw.categories;
+    return await apiFetch<AnalyticsCategory[]>("/api/v1/analytics/top-categories");
   } catch {
-    return MOCK_ANALYTICS_CATEGORIES;
+    return [];
   }
 }

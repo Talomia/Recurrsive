@@ -6,9 +6,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Key, Lock, RefreshCcw, Shield, AlertTriangle, Loader2 } from 'lucide-react';
+import { Key, Lock, RefreshCcw, Shield, AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
 import type { DashboardSecret, DashboardAuditEntry } from '@/lib/api';
-import { getSecrets, getSecretAuditLog } from '@/lib/api';
+import { getSecrets, getSecretAuditLog, createSecret, deleteSecret, rotateSecret } from '@/lib/api';
 
 function BackendBadge({ backend }: { backend: string }) {
   const colors: Record<string, string> = {
@@ -44,16 +44,58 @@ export default function SecretsPage() {
   const [secrets, setSecrets] = useState<DashboardSecret[]>([]);
   const [audit, setAudit] = useState<DashboardAuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newKey, setNewKey] = useState('');
+  const [newValue, setNewValue] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newTags, setNewTags] = useState('');
+
+  const reloadData = async () => {
+    const [s, a] = await Promise.all([getSecrets(), getSecretAuditLog()]);
+    setSecrets(s);
+    setAudit(a);
+  };
 
   useEffect(() => {
-    async function load() {
-      const [s, a] = await Promise.all([getSecrets(), getSecretAuditLog()]);
-      setSecrets(s);
-      setAudit(a);
-      setLoading(false);
-    }
-    load();
+    reloadData().finally(() => setLoading(false));
   }, []);
+
+  const handleCreate = async () => {
+    try {
+      setError(null);
+      const tags = newTags.trim() ? newTags.split(',').map(t => t.trim()).filter(Boolean) : [];
+      await createSecret({ key: newKey, value: newValue, description: newDescription || undefined, tags: tags.length > 0 ? tags : undefined });
+      setShowCreate(false);
+      setNewKey('');
+      setNewValue('');
+      setNewDescription('');
+      setNewTags('');
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create secret');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      setError(null);
+      await deleteSecret(id);
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete secret');
+    }
+  };
+
+  const handleRotate = async (id: string) => {
+    try {
+      setError(null);
+      await rotateSecret(id);
+      await reloadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rotate secret');
+    }
+  };
 
   const needsRotation = secrets.filter(s => s.status === 'needs_rotation').length;
 
@@ -82,7 +124,37 @@ export default function SecretsPage() {
             <span className="text-sm font-medium text-red-400">{needsRotation} secret{needsRotation > 1 ? 's' : ''} need rotation</span>
           </div>
         )}
+        <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: 'var(--color-accent)' }}>
+          <Plus className="w-4 h-4" /> New Secret
+        </button>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-xl px-4 py-3 bg-red-500/10 border border-red-500/30 flex items-center justify-between">
+          <span className="text-sm text-red-400">{error}</span>
+          <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-300">Dismiss</button>
+        </div>
+      )}
+
+      {/* Create Secret Form */}
+      {showCreate && (
+        <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <h3 className="text-base font-semibold text-text-primary mb-3">Create New Secret</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <input placeholder="Secret Key (e.g. API_KEY)" value={newKey} onChange={e => setNewKey(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Secret Value" type="password" value={newValue} onChange={e => setNewValue(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Description (optional)" value={newDescription} onChange={e => setNewDescription(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Tags (comma-separated, optional)" value={newTags} onChange={e => setNewTags(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary">Cancel</button>
+            <button onClick={handleCreate} disabled={!newKey || !newValue} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newKey && newValue ? 'var(--color-accent)' : 'var(--color-border)', opacity: newKey && newValue ? 1 : 0.5 }}>
+              Create
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4">
@@ -121,6 +193,13 @@ export default function SecretsPage() {
               </tr>
             </thead>
             <tbody>
+              {secrets.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-sm text-text-secondary">
+                    No secrets stored yet. Add one using the form above.
+                  </td>
+                </tr>
+              )}
               {secrets.map(secret => (
                 <tr key={secret.id} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
                   <td className="py-3 font-mono text-text-primary text-xs">{secret.key}</td>
@@ -131,9 +210,14 @@ export default function SecretsPage() {
                   <td className="py-3"><RotationBadge status={secret.status} /></td>
                   <td className="py-3 text-text-tertiary text-xs">{secret.usedBy.join(', ')}</td>
                   <td className="py-3">
-                    <button className="p-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                      <RefreshCcw className="w-3.5 h-3.5 text-text-tertiary" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => handleRotate(secret.id)} className="p-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }} title="Rotate secret">
+                        <RefreshCcw className="w-3.5 h-3.5 text-text-tertiary" />
+                      </button>
+                      <button onClick={() => handleDelete(secret.id)} className="p-1.5 rounded-lg transition-all hover:opacity-80 hover:bg-red-500/10" style={{ background: 'var(--color-base)' }} title="Delete secret">
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

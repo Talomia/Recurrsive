@@ -16,6 +16,7 @@ import { OpportunityManager } from '@recurrsive/opportunities';
 import { AnalyzerRegistry, AnalyzerRunner, createDefaultAnalyzers } from '@recurrsive/analyzers';
 import { ReasoningEngine } from '@recurrsive/reasoning';
 import { GitCollector, DocumentationCollector, EnvironmentCollector, CICDCollector, DatabaseCollector } from '@recurrsive/collectors';
+import { ParsingPipeline } from '@recurrsive/parsers';
 import type {
   Finding,
   Opportunity,
@@ -208,6 +209,44 @@ export class ServerState {
       frameworks: detectedFrameworks,
       ai_providers: detectedAIProviders,
     };
+
+    // ── Step 1f: Parse source code ────────────────────────────────────
+    const uniqueLanguages = new Set(detectedLanguages);
+    const parsingPipeline = new ParsingPipeline();
+    await parsingPipeline.initialize([...uniqueLanguages]);
+
+    // Read source files from file entities
+    const { readFile } = await import('node:fs/promises');
+    const sourceFiles: Array<{ path: string; content: string; language: string }> = [];
+    const fileEntities = collectorResult.entities.filter(
+      (e) => e.type === 'file' && e.properties['is_source'] === true,
+    );
+    for (const entity of fileEntities) {
+      const filePath = entity.properties['absolute_path'];
+      if (typeof filePath !== 'string') continue;
+      const language = entity.properties['language'];
+      if (typeof language !== 'string') continue;
+      try {
+        const content = await readFile(filePath, 'utf-8');
+        const relativePath = filePath.startsWith(this.projectPath!)
+          ? filePath.slice(this.projectPath!.length + 1)
+          : filePath;
+        sourceFiles.push({ path: relativePath, content, language });
+      } catch {
+        // Skip unreadable files
+      }
+    }
+
+    if (sourceFiles.length > 0) {
+      const parseResult = await parsingPipeline.parseProject(sourceFiles);
+      for (const entity of parseResult.entities) {
+        await this.graphClient!.upsertEntity(entity);
+      }
+      for (const rel of parseResult.relationships) {
+        try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip FK violations */ }
+      }
+      logger.info(`Parsed ${sourceFiles.length} files → ${parseResult.entities.length} code entities`);
+    }
 
     // ── Step 2: Analyze ──────────────────────────────────────────────────
     const defaultAnalyzers = createDefaultAnalyzers();

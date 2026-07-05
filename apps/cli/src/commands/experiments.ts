@@ -18,6 +18,7 @@ import {
   bold,
   cyan,
   green,
+  yellow,
   dim,
   table,
 } from '../output/terminal.js';
@@ -43,35 +44,7 @@ interface Experiment {
 
 
 
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
 
-const MOCK_EXPERIMENTS: Experiment[] = [
-  {
-    id: 'exp_001',
-    name: 'tree-shaking-optimization',
-    hypothesis: 'Enabling tree-shaking will reduce bundle size by 40%',
-    status: 'complete',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    completed_at: new Date(Date.now() - 43200000).toISOString(),
-    results: { bundle_reduction: '38%', build_time_change: '+2s' },
-  },
-  {
-    id: 'exp_002',
-    name: 'connection-pooling',
-    hypothesis: 'Connection pooling will improve p99 latency by 30%',
-    status: 'running',
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: 'exp_003',
-    name: 'cache-layer-addition',
-    hypothesis: 'Adding Redis cache will reduce DB load by 50%',
-    status: 'draft',
-    created_at: new Date().toISOString(),
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Command Registration
@@ -101,11 +74,8 @@ export function registerExperimentsCommand(program: Command): void {
           const data = await apiRequest(`/api/v1/experiments${query}`) as { data: Experiment[] };
           result = data.data;
         } catch {
-          // Fallback — use mock data
-          result = MOCK_EXPERIMENTS;
-          if (opts.status) {
-            result = result.filter(e => e.status === opts.status);
-          }
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -152,14 +122,8 @@ export function registerExperimentsCommand(program: Command): void {
             body: JSON.stringify({ name, hypothesis: opts.hypothesis }),
           }) as Experiment;
         } catch {
-          // Fallback — simulate creation
-          result = {
-            id: `exp_${String(Date.now()).slice(-6)}`,
-            name,
-            hypothesis: opts.hypothesis,
-            status: 'draft',
-            created_at: new Date().toISOString(),
-          };
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -191,14 +155,8 @@ export function registerExperimentsCommand(program: Command): void {
         try {
           result = await apiRequest(`/api/v1/experiments/${id}`) as Experiment;
         } catch {
-          // Fallback
-          const mock = MOCK_EXPERIMENTS.find(e => e.id === id);
-          result = mock ?? {
-            id,
-            name: 'unknown-experiment',
-            status: 'draft',
-            created_at: new Date().toISOString(),
-          };
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {

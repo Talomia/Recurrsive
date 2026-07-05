@@ -15,6 +15,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,13 +77,11 @@ interface MarketplaceEntry {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory stores
+// Marketplace (read-only reference data)
 // ---------------------------------------------------------------------------
 
-const installed: Map<string, InstalledPlugin> = new Map();
 const marketplace: MarketplaceEntry[] = [];
 
-// Seed marketplace entries
 const marketplaceData: Array<Omit<MarketplaceEntry, 'id'>> = [
   { name: '@recurrsive/plugin-sonarqube', version: '1.0.0', description: 'Import SonarQube quality gates and issues as findings', author: 'Recurrsive Team', type: 'collector', tags: ['quality', 'sonarqube', 'static-analysis'], downloads: 12450, rating: 4.7, verified: true, createdAt: '2026-02-01T00:00:00Z' },
   { name: '@recurrsive/plugin-jira', version: '2.1.0', description: 'Sync Jira issues, sprints, and velocity metrics', author: 'Recurrsive Team', type: 'collector', tags: ['project-management', 'jira', 'agile'], downloads: 8920, rating: 4.5, verified: true, createdAt: '2026-01-15T00:00:00Z' },
@@ -100,29 +99,38 @@ for (const entry of marketplaceData) {
   marketplace.push({ ...entry, id: generateId() });
 }
 
-// Seed one installed plugin
-const snyk = marketplace.find(p => p.name.includes('snyk'))!;
-const installedSnyk: InstalledPlugin = {
-  id: snyk.id,
-  name: snyk.name,
-  version: snyk.version,
-  description: snyk.description,
-  author: snyk.author,
-  license: 'MIT',
-  type: snyk.type,
-  minVersion: '0.3.0',
-  entryPoint: 'dist/index.js',
-  configSchema: { type: 'object', properties: { apiToken: { type: 'string' }, orgId: { type: 'string' } } },
-  permissions: ['read:findings', 'write:findings'],
-  tags: snyk.tags,
-  status: 'enabled',
-  installedAt: '2026-05-01T00:00:00Z',
-  updatedAt: nowISO(),
-  config: { orgId: 'talomia-org' },
-  healthCheck: { status: 'healthy', lastCheck: nowISO(), message: 'Connected to Snyk API. Last sync: 2h ago.' },
-  stats: { totalRuns: 145, lastRunAt: '2026-07-01T06:00:00Z', avgDurationMs: 12000, errorRate: 0.02 },
-};
-installed.set(installedSnyk.id, installedSnyk);
+// ---------------------------------------------------------------------------
+// Seed installed plugin (only if store is empty)
+// ---------------------------------------------------------------------------
+
+function seedIfEmpty(): void {
+  if (store.count('plugins') > 0) return;
+
+  const snyk = marketplace.find(p => p.name.includes('snyk'))!;
+  const installedSnyk: InstalledPlugin = {
+    id: snyk.id,
+    name: snyk.name,
+    version: snyk.version,
+    description: snyk.description,
+    author: snyk.author,
+    license: 'MIT',
+    type: snyk.type,
+    minVersion: '0.3.0',
+    entryPoint: 'dist/index.js',
+    configSchema: { type: 'object', properties: { apiToken: { type: 'string' }, orgId: { type: 'string' } } },
+    permissions: ['read:findings', 'write:findings'],
+    tags: snyk.tags,
+    status: 'enabled',
+    installedAt: '2026-05-01T00:00:00Z',
+    updatedAt: nowISO(),
+    config: { orgId: 'talomia-org' },
+    healthCheck: { status: 'healthy', lastCheck: nowISO(), message: 'Connected to Snyk API. Last sync: 2h ago.' },
+    stats: { totalRuns: 145, lastRunAt: '2026-07-01T06:00:00Z', avgDurationMs: 12000, errorRate: 0.02 },
+  };
+  store.set<InstalledPlugin>('plugins', installedSnyk.id, installedSnyk);
+}
+
+seedIfEmpty();
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -166,21 +174,22 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   // ── Installed Plugins ─────────────────────────────────────────────────────
 
   app.get('/api/v1/plugins/installed', async (_request, reply) => {
+    const all = store.all<InstalledPlugin>('plugins');
     return reply.send({
-      data: Array.from(installed.values()),
-      total: installed.size,
+      data: all,
+      total: all.length,
     });
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', async (request, reply) => {
-    const plugin = installed.get(request.params.id);
+    const plugin = store.get<InstalledPlugin>('plugins', request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
     return reply.send({ data: plugin });
   });
 
   // Install plugin from marketplace
   app.post<{ Params: { id: string } }>('/api/v1/plugins/install/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (installed.has(request.params.id)) {
+    if (store.has('plugins', request.params.id)) {
       return reply.status(409).send({ error: 'Conflict', message: 'Plugin already installed' });
     }
 
@@ -208,50 +217,53 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
       stats: { totalRuns: 0, lastRunAt: null, avgDurationMs: 0, errorRate: 0 },
     };
 
-    installed.set(plugin.id, plugin);
+    store.set<InstalledPlugin>('plugins', plugin.id, plugin);
     return reply.status(201).send({ data: plugin });
   });
 
   // Uninstall plugin
   app.delete<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!installed.has(request.params.id)) {
+    if (!store.has('plugins', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
     }
-    installed.delete(request.params.id);
+    store.delete('plugins', request.params.id);
     return reply.status(204).send();
   });
 
   // Enable/disable plugin
   app.post<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/toggle', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const plugin = installed.get(request.params.id);
+    const plugin = store.get<InstalledPlugin>('plugins', request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
     plugin.status = plugin.status === 'enabled' ? 'disabled' : 'enabled';
     plugin.updatedAt = nowISO();
 
+    store.set<InstalledPlugin>('plugins', request.params.id, plugin);
     return reply.send({ data: plugin });
   });
 
   // Update plugin config
   app.put<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/config', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const plugin = installed.get(request.params.id);
+    const plugin = store.get<InstalledPlugin>('plugins', request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
     const body = request.body as Record<string, unknown>;
     plugin.config = { ...plugin.config, ...body };
     plugin.updatedAt = nowISO();
 
+    store.set<InstalledPlugin>('plugins', request.params.id, plugin);
     return reply.send({ data: plugin });
   });
 
   // Plugin health check
   app.get<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/health', async (request, reply) => {
-    const plugin = installed.get(request.params.id);
+    const plugin = store.get<InstalledPlugin>('plugins', request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
     // Refresh health check
     plugin.healthCheck.lastCheck = nowISO();
 
+    store.set<InstalledPlugin>('plugins', request.params.id, plugin);
     return reply.send({ data: plugin.healthCheck });
   });
 

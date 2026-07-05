@@ -101,6 +101,18 @@ export default function ConfidencePage() {
   useEffect(() => {
     getConfidenceData()
       .then(setData)
+      .catch(() => {
+        /* API unavailable – set empty data so fallbacks render */
+         setData({
+          brierScore: FALLBACK_BRIER,
+          brierTrend: 0,
+          calibration: [] as ConfidenceData['calibration'],
+          analyzerAccuracy: [] as ConfidenceData['analyzerAccuracy'],
+          recentPredictions: [] as ConfidenceData['recentPredictions'],
+          totalPredictions: 0,
+          accuracy: 0,
+        });
+      })
       .finally(() => setLoading(false));
   }, []);
 

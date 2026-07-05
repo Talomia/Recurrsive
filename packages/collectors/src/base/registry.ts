@@ -128,12 +128,12 @@ export class CollectorRegistry {
    * @param governance - Data governance rules to apply.
    * @returns Array of results, one per collector (including failures).
    */
-  async collectAll(governance: DataGovernance): Promise<CollectorResult[]> {
+  async collectAll(governance: DataGovernance, custom: Record<string, unknown> = {}): Promise<CollectorResult[]> {
     const results: CollectorResult[] = [];
 
     for (const collector of this.collectors.values()) {
       try {
-        const result = await this.runCollector(collector, governance);
+        const result = await this.runCollector(collector, governance, custom);
         results.push(result);
       } catch (err) {
         logger.error('Collector failed during collectAll', {
@@ -172,7 +172,7 @@ export class CollectorRegistry {
    * @returns The collection result.
    * @throws {CollectorError} If the collector is not registered.
    */
-  async collect(id: string, governance: DataGovernance): Promise<CollectorResult> {
+  async collect(id: string, governance: DataGovernance, custom: Record<string, unknown> = {}): Promise<CollectorResult> {
     const collector = this.collectors.get(id);
     if (!collector) {
       throw new CollectorError(
@@ -182,7 +182,7 @@ export class CollectorRegistry {
       );
     }
 
-    return this.runCollector(collector, governance);
+    return this.runCollector(collector, governance, custom);
   }
 
   /**
@@ -208,10 +208,11 @@ export class CollectorRegistry {
   private async runCollector(
     collector: Collector,
     governance: DataGovernance,
+    custom: Record<string, unknown> = {},
   ): Promise<CollectorResult> {
     const config: CollectorConfig = {
       governance,
-      custom: {},
+      custom,
     };
 
     logger.info('Initializing collector', { id: collector.id });

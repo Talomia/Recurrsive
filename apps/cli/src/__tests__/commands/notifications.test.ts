@@ -9,8 +9,14 @@ import { Command } from 'commander';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../../config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config.js')>();
+  return { ...actual, apiRequest: mockApiRequest };
+});
 
 vi.mock('../../output/terminal.js', () => ({
   banner: vi.fn(),
@@ -20,10 +26,12 @@ vi.mock('../../output/terminal.js', () => ({
   bold: (s: string) => s,
   cyan: (s: string) => s,
   green: (s: string) => s,
+  yellow: (s: string) => s,
   red: (s: string) => s,
   dim: (s: string) => s,
   table: vi.fn(),
 }));
+
 
 import { registerNotificationsCommand } from '../../commands/notifications.js';
 
@@ -36,15 +44,6 @@ function createCLI(): Command {
   program.exitOverride();
   registerNotificationsCommand(program);
   return program;
-}
-
-function mockApiResponse(data: unknown, status = 200): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -63,29 +62,32 @@ describe('notifications command', () => {
         { type: 'console', name: 'Console', enabled: true, config_required: [], description: 'Terminal output' },
         { type: 'slack', name: 'Slack', enabled: false, config_required: ['webhookUrl'], description: 'Slack messages' },
       ];
-      mockApiResponse({ channels });
+      mockApiRequest.mockResolvedValueOnce({ channels });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'channels']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/notifications/channels'),
-        expect.any(Object),
       );
     });
 
-    it('falls back to built-in channels when server unreachable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'channels']);
 
-      // Should not throw — falls back gracefully
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('outputs JSON when --json flag is set', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        channels: [
+          { type: 'console', name: 'Console', enabled: true, config_required: [], description: 'Terminal output' },
+          { type: 'slack', name: 'Slack', enabled: false, config_required: ['webhookUrl'], description: 'Slack messages' },
+        ],
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
@@ -98,12 +100,12 @@ describe('notifications command', () => {
 
   describe('test', () => {
     it('sends a test notification to the specified channel', async () => {
-      mockApiResponse({ status: 'sent', channel: 'console', message: 'Test notification sent' });
+      mockApiRequest.mockResolvedValueOnce({ status: 'sent', channel: 'console', message: 'Test notification sent' });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'test', 'console']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/notifications/test'),
         expect.objectContaining({ method: 'POST' }),
       );
@@ -116,22 +118,22 @@ describe('notifications command', () => {
       expect(process.exitCode).toBe(1);
     });
 
-    it('falls back gracefully when server unreachable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'test', 'slack']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('passes --url to server config', async () => {
-      mockApiResponse({ status: 'sent', channel: 'slack', message: 'Sent' });
+      mockApiRequest.mockResolvedValueOnce({ status: 'sent', channel: 'slack', message: 'Sent' });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'test', 'slack', '--url', 'https://hooks.slack.com/xxx']);
 
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const body = JSON.parse(mockApiRequest.mock.calls[0][1].body);
       expect(body.channel).toBe('slack');
       expect(body.config).toBeDefined();
     });
@@ -139,7 +141,7 @@ describe('notifications command', () => {
 
   describe('history', () => {
     it('fetches notification history from server', async () => {
-      mockApiResponse({
+      mockApiRequest.mockResolvedValueOnce({
         notifications: [
           { id: 'n1', channel: 'console', title: 'Analysis Done', severity: 'info', sent_at: new Date().toISOString(), status: 'delivered' },
         ],
@@ -148,32 +150,41 @@ describe('notifications command', () => {
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'history']);
 
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/notifications/history'),
-        expect.any(Object),
       );
     });
 
-    it('falls back to mock data when server unreachable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    it('exits with error on server failure', async () => {
+      mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'history']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(process.exitCode).toBe(1);
     });
 
     it('supports --channel filter', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        notifications: [
+          { id: 'notif_001', channel: 'slack', title: 'Deploy Complete', severity: 'info', sent_at: new Date().toISOString(), status: 'delivered' },
+        ],
+      });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'history', '--channel', 'slack']);
 
-      expect(process.exitCode).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        expect.stringContaining('channel=slack'),
+      );
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      mockApiRequest.mockResolvedValueOnce({
+        notifications: [
+          { id: 'notif_001', channel: 'console', title: 'Test', severity: 'info', sent_at: new Date().toISOString(), status: 'delivered' },
+        ],
+      });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();

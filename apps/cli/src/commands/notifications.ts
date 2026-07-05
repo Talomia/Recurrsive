@@ -18,6 +18,7 @@ import {
   bold,
   cyan,
   green,
+  yellow,
   dim,
   table,
 } from '../output/terminal.js';
@@ -52,36 +53,6 @@ interface NotificationEntry {
 // API helpers
 // ---------------------------------------------------------------------------
 
-
-
-// ---------------------------------------------------------------------------
-// Fallback data
-// ---------------------------------------------------------------------------
-
-const CHANNELS: NotificationChannel[] = [
-  {
-    type: 'console',
-    name: 'Console Output',
-    enabled: true,
-    config_required: [],
-    description: 'Print notifications to the terminal',
-  },
-  {
-    type: 'slack',
-    name: 'Slack',
-    enabled: false,
-    config_required: ['webhookUrl'],
-    description: 'Send Block Kit messages to a Slack channel',
-  },
-  {
-    type: 'http',
-    name: 'HTTP Webhook',
-    enabled: false,
-    config_required: ['url'],
-    description: 'POST JSON payloads to any HTTP endpoint',
-  },
-];
-
 // ---------------------------------------------------------------------------
 // Command Registration
 // ---------------------------------------------------------------------------
@@ -109,7 +80,8 @@ export function registerNotificationsCommand(program: Command): void {
           const data = await apiRequest('/api/v1/notifications/channels') as { channels: NotificationChannel[] };
           channels = data.channels;
         } catch {
-          channels = CHANNELS;
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -167,12 +139,8 @@ export function registerNotificationsCommand(program: Command): void {
             body: JSON.stringify(body),
           }) as typeof result;
         } catch {
-          // Fallback — simulate a test notification
-          result = {
-            status: 'sent',
-            channel,
-            message: `Test notification sent via ${channel} channel`,
-          };
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
@@ -206,33 +174,8 @@ export function registerNotificationsCommand(program: Command): void {
           const data = await apiRequest(`/api/v1/notifications/history?${params}`) as { notifications: NotificationEntry[] };
           entries = data.notifications;
         } catch {
-          // Fallback mock data
-          entries = [
-            {
-              id: 'notif_001',
-              channel: 'console',
-              title: 'Analysis Complete',
-              severity: 'info',
-              sent_at: new Date(Date.now() - 3600000).toISOString(),
-              status: 'delivered',
-            },
-            {
-              id: 'notif_002',
-              channel: 'slack',
-              title: 'Policy Violation Detected',
-              severity: 'high',
-              sent_at: new Date(Date.now() - 7200000).toISOString(),
-              status: 'delivered',
-            },
-            {
-              id: 'notif_003',
-              channel: 'http',
-              title: 'Health Score Degraded',
-              severity: 'medium',
-              sent_at: new Date(Date.now() - 10800000).toISOString(),
-              status: 'failed',
-            },
-          ];
+          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
+          process.exit(1);
         }
 
         if (opts.json) {
