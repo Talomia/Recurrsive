@@ -159,7 +159,7 @@ export default function UsersPage() {
     setEditLoading(true);
     try {
       await apiFetch(`/api/v1/users/${editUser.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         body: JSON.stringify({ role: editRole }),
       });
       setEditUser(null);
@@ -176,7 +176,7 @@ export default function UsersPage() {
   async function handleToggleStatus(u: User) {
     try {
       await apiFetch(`/api/v1/users/${u.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         body: JSON.stringify({ status: u.status === 'active' ? 'disabled' : 'active' }),
       });
       await fetchUsers();

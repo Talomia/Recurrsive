@@ -52,6 +52,10 @@ services:
       RECURRSIVE_WEBHOOK_MAX_RETRIES: ${RECURRSIVE_WEBHOOK_MAX_RETRIES:-3}
       # Auth configuration
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      ALLOW_DEMO_USERS: ${ALLOW_DEMO_USERS:-false}
+      # Tier configuration
+      ENABLE_ENTERPRISE: ${ENABLE_ENTERPRISE:-true}
+      ENABLE_ECOSYSTEM: ${ENABLE_ECOSYSTEM:-true}
     ports:
       - "3000:3000"
     volumes:

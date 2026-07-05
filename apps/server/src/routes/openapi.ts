@@ -939,6 +939,249 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'API key revoked' } },
       },
     },
+    '/api/v1/auth/change-password': {
+      put: {
+        tags: ['Auth'],
+        summary: 'Change own password',
+        operationId: 'changePassword',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  currentPassword: { type: 'string' },
+                  newPassword: { type: 'string', minLength: 6 },
+                },
+                required: ['currentPassword', 'newPassword'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Password changed successfully' },
+          '401': { description: 'Current password is incorrect' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // Setup
+    // -----------------------------------------------------------------------
+    '/api/v1/setup/status': {
+      get: {
+        tags: ['Auth'],
+        summary: 'Check if initial setup is required',
+        operationId: 'getSetupStatus',
+        responses: { '200': { description: 'Setup status' } },
+      },
+    },
+    '/api/v1/setup': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Complete initial setup by creating first admin',
+        operationId: 'completeSetup',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  username: { type: 'string' },
+                  email: { type: 'string', format: 'email' },
+                  password: { type: 'string', minLength: 6 },
+                  displayName: { type: 'string' },
+                },
+                required: ['username', 'email', 'password'],
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'Admin user created' },
+          '400': { description: 'Setup already completed' },
+        },
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // Users
+    // -----------------------------------------------------------------------
+    '/api/v1/users': {
+      get: {
+        tags: ['Auth'],
+        summary: 'List all users (admin only)',
+        operationId: 'getUsers',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'User list' } },
+      },
+      post: {
+        tags: ['Auth'],
+        summary: 'Create a new user (admin only)',
+        operationId: 'createUser',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  username: { type: 'string' },
+                  email: { type: 'string', format: 'email' },
+                  password: { type: 'string', minLength: 6 },
+                  role: { type: 'string', enum: ['admin', 'analyst', 'viewer'] },
+                  displayName: { type: 'string' },
+                },
+                required: ['username', 'email', 'password'],
+              },
+            },
+          },
+        },
+        responses: { '201': { description: 'User created' } },
+      },
+    },
+    '/api/v1/users/{id}': {
+      get: {
+        tags: ['Auth'],
+        summary: 'Get user by ID (admin only)',
+        operationId: 'getUser',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'User detail' } },
+      },
+      put: {
+        tags: ['Auth'],
+        summary: 'Update a user (admin only)',
+        operationId: 'updateUser',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: { 'application/json': { schema: { type: 'object' } } },
+        },
+        responses: { '200': { description: 'User updated' } },
+      },
+      delete: {
+        tags: ['Auth'],
+        summary: 'Soft-delete a user (admin only)',
+        operationId: 'deleteUser',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'User disabled' } },
+      },
+    },
+    '/api/v1/users/{id}/reset-password': {
+      put: {
+        tags: ['Auth'],
+        summary: 'Reset user password (admin only)',
+        operationId: 'resetUserPassword',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  password: { type: 'string', minLength: 6 },
+                },
+                required: ['password'],
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Password has been reset' },
+          '404': { description: 'User not found' },
+        },
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // Invites
+    // -----------------------------------------------------------------------
+    '/api/v1/invites': {
+      get: {
+        tags: ['Auth'],
+        summary: 'List all invites (admin only)',
+        operationId: 'getInvites',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Invite list' } },
+      },
+      post: {
+        tags: ['Auth'],
+        summary: 'Create a new invite (admin only)',
+        operationId: 'createInvite',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  email: { type: 'string', format: 'email' },
+                  role: { type: 'string', enum: ['admin', 'analyst', 'viewer'] },
+                },
+                required: ['email', 'role'],
+              },
+            },
+          },
+        },
+        responses: { '201': { description: 'Invite created with token' } },
+      },
+    },
+    '/api/v1/invites/{id}': {
+      delete: {
+        tags: ['Auth'],
+        summary: 'Cancel a pending invite (admin only)',
+        operationId: 'cancelInvite',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Invite cancelled' } },
+      },
+    },
+    '/api/v1/invites/{token}/validate': {
+      get: {
+        tags: ['Auth'],
+        summary: 'Validate an invite token (public)',
+        operationId: 'validateInvite',
+        parameters: [{ name: 'token', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'Invite info (email, role)' },
+          '404': { description: 'Invalid token' },
+          '410': { description: 'Invite expired' },
+        },
+      },
+    },
+    '/api/v1/invites/{token}/accept': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Accept an invite and create account (public)',
+        operationId: 'acceptInvite',
+        parameters: [{ name: 'token', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  username: { type: 'string' },
+                  password: { type: 'string', minLength: 6 },
+                  displayName: { type: 'string' },
+                },
+                required: ['username', 'password'],
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'User created and JWT token returned' },
+          '404': { description: 'Invalid token' },
+          '410': { description: 'Invite expired' },
+        },
+      },
+    },
 
     // -----------------------------------------------------------------------
     // SSO

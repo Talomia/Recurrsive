@@ -20,6 +20,7 @@ import { registerHealthRoutes } from './health.js';
 import { registerSetupRoutes } from './setup.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerUserRoutes } from './users.js';
+import { registerInviteRoutes } from './invites.js';
 import { registerAnalysisRoutes } from './analysis.js';
 import { registerGraphRoutes } from './graph.js';
 import { registerTimelineRoutes } from './timeline.js';
@@ -121,6 +122,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerSetupRoutes(app);
   await registerAuthRoutes(app);
   await registerUserRoutes(app);
+  await registerInviteRoutes(app);
   await registerOpportunityRoutes(app);
   await registerAnalysisRoutes(app);
   await registerGraphRoutes(app);

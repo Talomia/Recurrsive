@@ -129,6 +129,27 @@ Replaced hardcoded demo user array with a persistent, store-backed user manageme
 
 **Tests:** 13 new tests (4 setup wizard, 6 user management, 3 store-backed login)
 
+#### Team Invites & Password Management
+
+**Server:**
+- **Team invite system**: `POST/GET/DELETE /api/v1/invites` (admin) + `GET /api/v1/invites/:token/validate` and `POST /api/v1/invites/:token/accept` (public). 7-day expiry, `crypto.randomBytes(32)` tokens.
+- **Change password**: `PUT /api/v1/auth/change-password` — self-service password change for authenticated users
+- **Admin password reset**: `PUT /api/v1/users/:id/reset-password` — admins reset any user's password
+- **OpenAPI spec**: Added all new endpoints (setup, users, invites, change-password) to the OpenAPI 3.1 documentation
+
+**Dashboard:**
+- **Invites page**: `/invites` admin page with invite table, create modal, copy link, cancel
+- **Invite acceptance page**: `/invite/[token]` public page where invitees set username and password
+- **Auth guard**: Updated to support prefix-based public path matching (for `/invite/*` routes)
+- **Sidebar**: Added "Invites" to Administration section
+
+**Bug Fixes:**
+- **CRITICAL**: Dashboard users page was sending `PATCH` requests but server only had `PUT` handler — changed to `PUT`
+- **Tenant ownerId**: Changed default from `'unknown'` to authenticated user's ID
+- **Docker**: Added `ALLOW_DEMO_USERS`, `ENABLE_ENTERPRISE`, `ENABLE_ECOSYSTEM` to docker-compose.yml
+
+**Tests:** 10 new tests (5 invites, 3 password change, 2 admin password reset)
+
 ---
 
 ## [0.5.6] - 2026-07-04

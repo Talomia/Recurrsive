@@ -20,6 +20,7 @@ import {
   listUsers,
   updateUser,
   deleteUser,
+  resetUserPassword,
 } from '../middleware/users.js';
 import type { CreateUserInput, UpdateUserInput } from '../middleware/users.js';
 
@@ -198,5 +199,40 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
       data: { id },
       message: 'User has been disabled',
     });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PUT /api/v1/users/:id/reset-password
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Reset a user's password (admin only).
+   *
+   * Since no email service is available, admins can directly reset
+   * a user's password. Body: `{ password }`.
+   */
+  app.put<{ Params: { id: string }; Body: { password: string } }>('/api/v1/users/:id/reset-password', {
+    preHandler: [authMiddleware, requireRole('admin')],
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { password } = request.body ?? {};
+
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Password must be at least 6 characters',
+      });
+    }
+
+    const user = await resetUserPassword(id, password);
+    if (!user) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'User not found',
+      });
+    }
+
+    logger.info(`Admin reset password for user '${id}'`);
+    return reply.status(200).send({ data: user, message: 'Password has been reset' });
   });
 }

@@ -13,15 +13,15 @@ import { useEffect, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 
-/** Paths that don't require authentication. */
-const PUBLIC_PATHS = new Set(['/login', '/setup']);
+/** Path prefixes that don't require authentication. */
+const PUBLIC_PREFIXES = ['/login', '/setup', '/invite'];
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
-  const isPublic = PUBLIC_PATHS.has(pathname);
+  const isPublic = PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   useEffect(() => {
     if (loading) return;

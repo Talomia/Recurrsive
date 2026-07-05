@@ -322,3 +322,42 @@ export async function findOrCreateSSOUser(
   store.set<User>(USERS_TABLE, id, user);
   return toPublicUser(user);
 }
+
+// ---------------------------------------------------------------------------
+// Password Reset
+// ---------------------------------------------------------------------------
+
+/**
+ * Reset a user's password by ID.
+ *
+ * Hashes the new password and updates the user record.
+ *
+ * @param id - The user ID whose password should be reset.
+ * @param newPassword - The new plaintext password.
+ * @returns The updated {@link PublicUser}, or `null` if user not found.
+ */
+export async function resetUserPassword(id: string, newPassword: string): Promise<PublicUser | null> {
+  const user = findUserById(id);
+  if (!user) return null;
+  const { hash, salt } = await hashPassword(newPassword);
+  user.passwordHash = hash;
+  user.passwordSalt = salt;
+  user.updatedAt = nowISO();
+  store.set<User>(USERS_TABLE, id, user);
+  return toPublicUser(user);
+}
+
+// ---------------------------------------------------------------------------
+// Email Lookup
+// ---------------------------------------------------------------------------
+
+/**
+ * Find a user by email address.
+ *
+ * @param email - The email to search for.
+ * @returns The full {@link User} record, or `undefined` if not found.
+ */
+export function findUserByEmail(email: string): User | undefined {
+  const allUsers = store.all<User>(USERS_TABLE);
+  return allUsers.find((u) => u.email === email);
+}

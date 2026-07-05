@@ -18,6 +18,9 @@ import { generateApiKey, listApiKeys, revokeApiKey } from '../middleware/api-key
 import { requireRole } from '../middleware/rbac.js';
 import type { Role } from '../middleware/rbac.js';
 import { authenticateUser, findUserById } from '../middleware/users.js';
+import { hashPassword, verifyPassword } from '../middleware/passwords.js';
+import { store } from '../store.js';
+import type { User } from '../middleware/users.js';
 
 const logger = createLogger({ context: { component: 'server:routes:auth' } });
 
@@ -291,6 +294,67 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(200).send({
       data: { id },
       message: 'API key revoked',
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // PUT /api/v1/auth/change-password
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Change the current user's password.
+   *
+   * Requires authentication. Verifies the current password before
+   * updating to the new one.
+   */
+  app.put<{ Body: { currentPassword: string; newPassword: string } }>('/api/v1/auth/change-password', {
+    preHandler: authMiddleware,
+  }, async (request, reply) => {
+    const user = (request as typeof request & { user: AuthUser }).user;
+    const { currentPassword, newPassword } = request.body ?? {};
+
+    if (!currentPassword || !newPassword) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Both "currentPassword" and "newPassword" are required',
+      });
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'New password must be at least 6 characters',
+      });
+    }
+
+    // Look up the store-backed user
+    const storeUser = findUserById(user.id);
+    if (!storeUser) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'User not found in store',
+      });
+    }
+
+    // Verify the current password
+    const valid = await verifyPassword(currentPassword, storeUser.passwordHash, storeUser.passwordSalt);
+    if (!valid) {
+      return reply.status(401).send({
+        error: 'Unauthorized',
+        message: 'Current password is incorrect',
+      });
+    }
+
+    // Hash and save the new password
+    const { hash, salt } = await hashPassword(newPassword);
+    storeUser.passwordHash = hash;
+    storeUser.passwordSalt = salt;
+    storeUser.updatedAt = new Date().toISOString();
+    store.set<User>('users', storeUser.id, storeUser);
+
+    logger.info(`User '${user.id}' changed their password`);
+    return reply.status(200).send({
+      message: 'Password changed successfully',
     });
   });
 }

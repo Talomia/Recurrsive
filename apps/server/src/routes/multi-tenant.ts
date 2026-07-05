@@ -123,7 +123,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
       slug: body.slug,
       tier,
       status: tier === 'free' ? 'trial' : 'active',
-      ownerId: body.ownerId ?? 'unknown',
+      ownerId: body.ownerId ?? (request as typeof request & { user: { id: string } }).user.id,
       customDomain: null,
       quotas: tierQuotas[tier],
       features: tierFeatures[tier],

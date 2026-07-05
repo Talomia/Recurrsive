@@ -13,8 +13,17 @@
  * - Plugins (6 tests)
  * - SSO (6 tests)
  * - Scheduling (6 tests)
+ * - Marketplace (10 tests)
+ * - Partners (10 tests)
+ * - OpenAPI (3 tests)
+ * - Setup Wizard (4 tests)
+ * - User Management (6 tests)
+ * - Store-backed Login (3 tests)
+ * - Invite System (5 tests)
+ * - Password Change (3 tests)
+ * - Admin Password Reset (2 tests)
  *
- * Total: 84 tests
+ * Total: 130+ tests
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -2022,5 +2031,234 @@ describe('Store-backed login', () => {
     expect(res.statusCode).toBe(401);
     const body = res.json();
     expect(body.error).toBe('Unauthorized');
+  });
+});
+
+// ===========================================================================
+// Invite Endpoints (5 tests)
+// ===========================================================================
+
+describe('Invite endpoints', () => {
+  let inviteToken: string;
+  let inviteId: string;
+
+  it('POST /api/v1/invites creates an invite', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/invites',
+      payload: {
+        email: 'newuser@recurrsive.dev',
+        role: 'analyst',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.data).toHaveProperty('id');
+    expect(body.data).toHaveProperty('token');
+    expect(body.data.email).toBe('newuser@recurrsive.dev');
+    expect(body.data.role).toBe('analyst');
+    expect(body.data.status).toBe('pending');
+    inviteToken = body.data.token;
+    inviteId = body.data.id;
+  });
+
+  it('GET /api/v1/invites lists all invites', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/api/v1/invites',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.total).toBeGreaterThan(0);
+  });
+
+  it('GET /api/v1/invites/:token/validate validates a valid invite', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/invites/${inviteToken}/validate`,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.email).toBe('newuser@recurrsive.dev');
+    expect(body.data.role).toBe('analyst');
+    expect(body.data).toHaveProperty('expiresAt');
+  });
+
+  it('POST /api/v1/invites/:token/accept creates a user and returns token', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/invites/${inviteToken}/accept`,
+      payload: {
+        username: 'invited-user',
+        password: 'secure-pass-123',
+        displayName: 'Invited User',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.data).toHaveProperty('token');
+    expect(body.data).toHaveProperty('user');
+    expect(body.data.user.username).toBe('invited-user');
+    expect(body.data.user.email).toBe('newuser@recurrsive.dev');
+    expect(body.data.user.role).toBe('analyst');
+  });
+
+  it('Login works with the invited user credentials', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: {
+        username: 'invited-user',
+        password: 'secure-pass-123',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toHaveProperty('token');
+    expect(body.data.user.username).toBe('invited-user');
+    expect(body.data.user.role).toBe('analyst');
+  });
+});
+
+// ===========================================================================
+// Password Change (3 tests)
+// ===========================================================================
+
+describe('Password change endpoint', () => {
+  let userId: string;
+  let userToken: string;
+
+  beforeAll(async () => {
+    // Create a user to test password change on
+    const createRes = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/users',
+      payload: {
+        username: 'pwd-change-user',
+        email: 'pwdchange@recurrsive.dev',
+        password: 'old-password-123',
+        role: 'viewer',
+      },
+    });
+    userId = createRes.json().data.id;
+
+    // Login to get a JWT token
+    const loginRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: {
+        username: 'pwd-change-user',
+        password: 'old-password-123',
+      },
+    });
+    userToken = loginRes.json().data.token;
+  });
+
+  it('PUT /api/v1/auth/change-password succeeds with correct current password', async () => {
+    const res = await app.inject({
+      headers: { authorization: `Bearer ${userToken}` },
+      method: 'PUT',
+      url: '/api/v1/auth/change-password',
+      payload: {
+        currentPassword: 'old-password-123',
+        newPassword: 'new-password-456',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.message).toBe('Password changed successfully');
+  });
+
+  it('PUT /api/v1/auth/change-password fails with wrong current password', async () => {
+    const res = await app.inject({
+      headers: { authorization: `Bearer ${userToken}` },
+      method: 'PUT',
+      url: '/api/v1/auth/change-password',
+      payload: {
+        currentPassword: 'wrong-old-password',
+        newPassword: 'another-new-pass',
+      },
+    });
+    expect(res.statusCode).toBe(401);
+    const body = res.json();
+    expect(body.error).toBe('Unauthorized');
+    expect(body.message).toBe('Current password is incorrect');
+  });
+
+  it('PUT /api/v1/auth/change-password rejects short new password', async () => {
+    const res = await app.inject({
+      headers: { authorization: `Bearer ${userToken}` },
+      method: 'PUT',
+      url: '/api/v1/auth/change-password',
+      payload: {
+        currentPassword: 'new-password-456',
+        newPassword: '123',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json();
+    expect(body.error).toBe('Bad Request');
+    expect(body.message).toContain('at least 6 characters');
+  });
+});
+
+// ===========================================================================
+// Admin Password Reset (2 tests)
+// ===========================================================================
+
+describe('Admin password reset endpoint', () => {
+  let targetUserId: string;
+
+  beforeAll(async () => {
+    // Create a user for the admin to reset
+    const createRes = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/users',
+      payload: {
+        username: 'reset-target-user',
+        email: 'resettarget@recurrsive.dev',
+        password: 'original-password',
+        role: 'viewer',
+      },
+    });
+    targetUserId = createRes.json().data.id;
+  });
+
+  it('PUT /api/v1/users/:id/reset-password resets the password', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'PUT',
+      url: `/api/v1/users/${targetUserId}/reset-password`,
+      payload: {
+        password: 'admin-reset-password',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.message).toBe('Password has been reset');
+    expect(body.data).toHaveProperty('id');
+    expect(body.data.username).toBe('reset-target-user');
+  });
+
+  it('User can login with the new password after admin reset', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: {
+        username: 'reset-target-user',
+        password: 'admin-reset-password',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toHaveProperty('token');
+    expect(body.data.user.username).toBe('reset-target-user');
   });
 });
