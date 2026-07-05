@@ -165,12 +165,14 @@ describe('SlackNotifier', () => {
       expect(result.error).toBeUndefined();
     });
 
-    it('returns success using default mock sender', async () => {
-      const notifier = new SlackNotifier(defaultConfig);
+    it('returns success using injected mock sender', async () => {
+      const mockSender = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: 'OK' });
+      const notifier = new SlackNotifier(defaultConfig, mockSender);
       const result = await notifier.send(makeNotification());
 
       expect(result.success).toBe(true);
       expect(result.channel).toBe('slack');
+      expect(mockSender).toHaveBeenCalled();
     });
 
     it('sends correct payload to webhook URL', async () => {
@@ -270,12 +272,14 @@ describe('HttpNotifier', () => {
       expect(result.error).toBeUndefined();
     });
 
-    it('returns success using default mock sender', async () => {
-      const notifier = new HttpNotifier(defaultConfig);
+    it('returns success using injected mock sender', async () => {
+      const mockSender = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: 'OK' });
+      const notifier = new HttpNotifier(defaultConfig, mockSender);
       const result = await notifier.send(makeNotification());
 
       expect(result.success).toBe(true);
       expect(result.channel).toBe('http');
+      expect(mockSender).toHaveBeenCalled();
     });
 
     it('uses custom headers when provided', async () => {

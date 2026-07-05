@@ -19,7 +19,7 @@
 | Dashboard | ✅ Complete | Next.js, 40 pages (incl. detail pages), 8+ components, real-time WebSocket |
 | Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
-| Tests | ✅ Complete | 140 test files, 3,343 tests across 14 packages, integration tests for full pipeline |
+| Tests | ✅ Complete | 140 test files, 3,293 tests across 14 packages, integration tests for full pipeline |
 
 > [!NOTE]
 > All platform routes have real implementations. Enterprise features (SSO, secrets,

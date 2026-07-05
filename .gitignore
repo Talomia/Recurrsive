@@ -38,8 +38,16 @@ pnpm-debug.log*
 # Recurrsive output
 .recurrsive/
 
+# Database files (SQLite)
+data/
+*.db
+*.sqlite
+*.sqlite3
+
 # Misc
 *.tgz
 .cache/
-# GitHub Actions workflows excluded until OAuth token has workflow scope
+tmp/
+
+# GitHub Actions workflows (requires OAuth workflow scope to push)
 .github/

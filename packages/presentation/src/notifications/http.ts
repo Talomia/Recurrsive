@@ -29,8 +29,8 @@ export interface HttpNotifierConfig {
 
 /**
  * Function signature for sending HTTP requests.
- * Defaults to a no-op mock; replace with a real `fetch` wrapper
- * when actual integration is needed.
+ * Defaults to the native `fetch` API.
+ * Override with a custom sender for testing or custom HTTP clients.
  */
 export type HttpSenderFn = (
   url: string,
@@ -38,18 +38,16 @@ export type HttpSenderFn = (
 ) => Promise<{ ok: boolean; status: number; statusText: string }>;
 
 // ---------------------------------------------------------------------------
-// Default mock sender
+// Default fetch-based sender
 // ---------------------------------------------------------------------------
 
 /**
- * Mock HTTP sender that simulates a successful delivery.
- * No real network requests are made.
+ * HTTP sender that uses the native `fetch` API.
  */
-const mockHttpSender: HttpSenderFn = async () => ({
-  ok: true,
-  status: 200,
-  statusText: 'OK',
-});
+const fetchHttpSender: HttpSenderFn = async (url, init) => {
+  const res = await fetch(url, init);
+  return { ok: res.ok, status: res.status, statusText: res.statusText };
+};
 
 // ---------------------------------------------------------------------------
 // HttpNotifier
@@ -80,7 +78,7 @@ export class HttpNotifier implements NotificationChannel {
       'Content-Type': 'application/json',
       ...config.headers,
     };
-    this.sender = sender ?? mockHttpSender;
+    this.sender = sender ?? fetchHttpSender;
   }
 
   /**

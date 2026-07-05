@@ -77,8 +77,8 @@ export interface SlackConfig {
 
 /**
  * Function signature for sending HTTP requests.
- * Defaults to a no-op mock; replace with a real `fetch` wrapper
- * when actual Slack integration is needed.
+ * Defaults to the native `fetch` API.
+ * Override with a custom sender for testing or custom HTTP clients.
  */
 export type HttpSender = (
   url: string,
@@ -108,18 +108,16 @@ const SEVERITY_EMOJI: Record<Severity, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Default mock sender
+// Default fetch-based sender
 // ---------------------------------------------------------------------------
 
 /**
- * Mock HTTP sender that simulates a successful webhook delivery.
- * No real network requests are made.
+ * HTTP sender that uses the native `fetch` API.
  */
-const mockHttpSender: HttpSender = async () => ({
-  ok: true,
-  status: 200,
-  statusText: 'OK',
-});
+const fetchHttpSender: HttpSender = async (url, init) => {
+  const res = await fetch(url, init);
+  return { ok: res.ok, status: res.status, statusText: res.statusText };
+};
 
 // ---------------------------------------------------------------------------
 // SlackNotifier
@@ -143,7 +141,7 @@ export class SlackNotifier implements NotificationChannel {
    */
   constructor(config: SlackConfig, sender?: HttpSender) {
     this.config = config;
-    this.sender = sender ?? mockHttpSender;
+    this.sender = sender ?? fetchHttpSender;
   }
 
   /**

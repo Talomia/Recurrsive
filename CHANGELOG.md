@@ -30,7 +30,7 @@ All mock, synthetic, and seed data has been replaced with real implementations a
 - APM: Datadog/New Relic/Grafana API clients
 
 #### Documentation Alignment
-- **README.md**: Removed "seeds realistic initial data" language; updated test count to 3,343
+- **README.md**: Removed "seeds realistic initial data" language; updated test count to 3,293
 - **ROADMAP.md**: Removed all "scaffolded", "synthetic", "demo data" annotations across 8 sections
 - **ARCHITECTURE.md**: Updated GraphQL data source description (returns empty when uninitialized)
 - **openapi.yaml**: Fixed branding to "Engineering Intelligence Platform"
@@ -47,9 +47,44 @@ All mock, synthetic, and seed data has been replaced with real implementations a
 - Stale "mock data" / "demo data" comments in MCP governance resource, dashboard opportunities page, and auth module
 - Stale "Scaffolded" labels in ROADMAP.md Phase 4 section header
 
+#### Deep Audit — Seed Data Removal
+All `seedIfEmpty()` functions and seed data arrays removed from server routes:
+- **marketplace.ts**: Removed built-in analyzer/collector/extension seed data (~126 lines)
+- **partners.ts**: Removed seed partners and certification tracks (~170 lines)
+- **secrets.ts**: Removed seed secret entries (~27 lines)
+- **experiments.ts**: Removed seed experiments (~112 lines)
+- **sso.ts**: Removed seed Okta SSO config (~35 lines)
+- **projects.ts**: Removed seed projects (~93 lines)
+- **plugins.ts**: Removed seed Snyk plugin install
+- **simulation.ts**: Removed seed intelligence packs
+
+#### MCP Resources — Hardcoded Mock → Live API
+Five MCP resource files rewritten from hardcoded arrays to live server API calls:
+- **analytics.ts**: `apiRequest('/api/v1/analytics/summary')` + `apiRequest('/api/v1/health-score')`
+- **projects.ts**: `apiGet('/api/v1/projects')` + `apiGet('/api/v1/comparisons')` + `apiRequest('/api/v1/timeline')`
+- **platform.ts**: `apiRequest('/api/v1/health')` + `apiGet('/api/v1/plugins')` + `apiGet('/api/v1/multi-tenant/tenants')` + `apiGet('/api/v1/cloud/benchmarks')`
+- **experiments.ts**: `apiGet('/api/v1/experiments')` with status filtering
+- **governance.ts**: `apiGet('/api/v1/webhooks')`
+
+#### Notification Senders — Mock → Real Fetch
+- **SlackNotifier**: Default HTTP sender changed from no-op mock to real `fetch` API
+- **HttpNotifier**: Default HTTP sender changed from no-op mock to real `fetch` API
+- Tests updated to inject mock senders for isolation
+
+#### Infrastructure
+- **turbo.json**: Fixed test task outputs (removed stale `coverage/**` output)
+- **docker/.env.example**: Synced with root — added CORS, API_KEY, ALLOW_DEMO_USERS, New Relic, Grafana, AWS costs, webhook timeout
+- **.gitignore**: Added `*.db`/`*.sqlite`/`data/`/`tmp/` patterns; removed `.github/` exclusion to track CI/CD workflows
+- **Makefile**: Added `test-mcp` and `test-cli` targets; updated release version example
+- **sso.ts**: Fixed `@module` path (was `middleware/sso`, now `routes/sso`)
+- **secrets.ts**: Fixed typo ("usenstration" → real description)
+- **OpenAPI spec**: Added note that static spec is a subset of auto-generated spec at `/api/v1/openapi.json`
+
 ### Tests
-- 3,343 tests across 140 test files, 14 packages — all passing
-- 14/14 packages build successfully
+- All tests passing across 14 packages — 14/14 build successful
+- 15 server tests updated to not rely on seed data
+- 2 MCP tests updated with API mocks for new `apiGet`/`apiRequest` calls
+- 2 presentation tests updated for real fetch-based senders
 
 ---
 
