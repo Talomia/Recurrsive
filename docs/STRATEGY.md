@@ -213,7 +213,7 @@ That synthesis — connecting code, architecture, runtime, AI behavior, cost, an
 | Business reasoning | Medium | 🔶 Deferred — requires business data collectors |
 | Fully autonomous evolution | Low today | 🔶 Deferred — execution is Phase 3+ |
 | Marketing website | High | ✅ Built (23 pages, glassmorphism design) |
-| Marketplace | High | ✅ Built (UI + API, 33 seeded extensions) |
+| Marketplace | High | ✅ Built (UI + API, CRUD plugin management) |
 | Cloud offering | High | ✅ Built (landing + dashboard + billing pages) |
 | Partner program | High | ✅ Built (directory + certifications + application) |
 
