@@ -9,24 +9,15 @@ import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Shield, Lock, Fingerprint, AlertTriangle, Loader2 } from 'lucide-react';
 import type { DashboardMaskingPolicy, DashboardPiiDistribution, DashboardMaskingStrategy } from '@/lib/api';
 import { getMaskingPolicies, getPiiDistribution, getMaskingStrategies } from '@/lib/api';
+import { apiFetch } from '@/lib/api/client';
 
-// ─── Demo Scan Data ──────────────────────────────────────────────────────────
-
-const DEMO_INPUT = `{
+// Default sample text for the PII scanner
+const SAMPLE_TEXT = `{
   "user": {
     "name": "Jane Doe",
     "email": "jane.doe@example.com",
     "ssn": "123-45-6789",
     "phone": "555-867-5309"
-  }
-}`;
-
-const DEMO_OUTPUT = `{
-  "user": {
-    "name": "Jane Doe",
-    "email": "j***@*******.com",
-    "ssn": "[REDACTED]",
-    "phone": "tok_q8m2x1"
   }
 }`;
 
@@ -44,10 +35,11 @@ function StatusBadge({ status }: { status: string }) {
 function StrategyBadge({ strategy }: { strategy: string }) {
   const m: Record<string, string> = {
     redact: 'bg-red-500/20 text-red-400 border-red-500/30',
-    mask: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    partial: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     hash: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
     tokenize: 'bg-green-500/20 text-green-400 border-green-500/30',
-    encrypt: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    generalize: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    suppress: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
   };
   return <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${m[strategy] ?? ''}`}>{strategy}</span>;
 }
@@ -55,7 +47,10 @@ function StrategyBadge({ strategy }: { strategy: string }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function DataMaskingPage() {
-  const [showDemo, setShowDemo] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanInput, setScanInput] = useState(SAMPLE_TEXT);
+  const [scanOutput, setScanOutput] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [policies, setPolicies] = useState<DashboardMaskingPolicy[]>([]);
   const [piiDistribution, setPiiDistribution] = useState<DashboardPiiDistribution[]>([]);
@@ -184,29 +179,60 @@ export default function DataMaskingPage() {
         </div>
       </div>
 
-      {/* PII Scan Demo */}
+      {/* PII Scanner */}
       <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-            <h3 className="text-lg font-semibold text-text-primary">PII Scan Demo</h3>
+            <h3 className="text-lg font-semibold text-text-primary">PII Scanner</h3>
           </div>
-          <button onClick={() => setShowDemo(!showDemo)}
+          <button onClick={() => setShowScanner(!showScanner)}
             className="px-4 py-1.5 rounded-lg text-xs font-medium text-white"
             style={{ background: 'var(--color-accent)' }}>
-            {showDemo ? 'Hide' : 'Run Scan'}
+            {showScanner ? 'Hide' : 'Open Scanner'}
           </button>
         </div>
-        {showDemo && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {showScanner && (
+          <div className="space-y-4">
             <div>
-              <p className="text-xs text-text-tertiary uppercase mb-2">Input</p>
-              <pre className="p-3 rounded-lg text-xs font-mono text-text-secondary overflow-auto" style={{ background: 'var(--color-base)' }}>{DEMO_INPUT}</pre>
+              <p className="text-xs text-text-tertiary uppercase mb-2">Input Text</p>
+              <textarea
+                value={scanInput}
+                onChange={(e) => setScanInput(e.target.value)}
+                rows={6}
+                className="w-full p-3 rounded-lg text-xs font-mono text-text-secondary focus:outline-none focus:ring-2"
+                style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}
+                placeholder="Paste text containing PII to mask..."
+              />
             </div>
-            <div>
-              <p className="text-xs text-text-tertiary uppercase mb-2">Masked Output</p>
-              <pre className="p-3 rounded-lg text-xs font-mono text-green-400 overflow-auto" style={{ background: 'var(--color-base)' }}>{DEMO_OUTPUT}</pre>
-            </div>
+            <button
+              onClick={async () => {
+                setScanning(true);
+                try {
+                  const result = await apiFetch<{ masked: string }>('/api/v1/data-masking/mask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: scanInput, strategy: 'redact' }),
+                  });
+                  setScanOutput(result.masked);
+                } catch {
+                  setScanOutput('[Error: could not reach masking API]');
+                } finally {
+                  setScanning(false);
+                }
+              }}
+              disabled={scanning || !scanInput.trim()}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+              style={{ background: scanning ? 'var(--color-border)' : 'var(--color-accent)', opacity: scanning ? 0.6 : 1 }}
+            >
+              {scanning ? 'Scanning…' : 'Run Masking Scan'}
+            </button>
+            {scanOutput !== null && (
+              <div>
+                <p className="text-xs text-text-tertiary uppercase mb-2">Masked Output</p>
+                <pre className="p-3 rounded-lg text-xs font-mono text-green-400 overflow-auto" style={{ background: 'var(--color-base)' }}>{scanOutput}</pre>
+              </div>
+            )}
           </div>
         )}
       </div>

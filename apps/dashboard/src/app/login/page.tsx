@@ -1,7 +1,7 @@
 /**
  * @module Dashboard Login Page
  *
- * Authentication page with demo credentials.
+ * Authentication page for the Recurrsive platform.
  * Redirects to the main dashboard on successful login.
  *
  * @packageDocumentation
@@ -13,12 +13,7 @@ import { useState, type FormEvent } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-/** Demo users for the login form helper. */
-const DEMO_USERS = [
-  { username: 'admin', password: 'admin', role: 'Admin', desc: 'Full access' },
-  { username: 'analyst', password: 'analyst', role: 'Analyst', desc: 'Read/write analysis' },
-  { username: 'viewer', password: 'viewer', role: 'Viewer', desc: 'Read-only access' },
-] as const;
+
 
 export default function LoginPage() {
   const { login, loading, error } = useAuth();
@@ -36,14 +31,7 @@ export default function LoginPage() {
     }
   }
 
-  async function handleDemoLogin(user: string, pass: string) {
-    setUsername(user);
-    setPassword(pass);
-    const success = await login(user, pass);
-    if (success) {
-      router.push(redirectTo);
-    }
-  }
+
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6"
@@ -136,53 +124,8 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Demo Credentials */}
-        <div className="mt-6 rounded-xl p-5"
-             style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--color-border)' }}>
-          <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">
-            Demo Accounts
-          </p>
-          <div className="space-y-2">
-            {DEMO_USERS.map((demo) => (
-              <button
-                key={demo.username}
-                onClick={() => handleDemoLogin(demo.username, demo.password)}
-                disabled={loading}
-                className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-sm transition-all duration-150 hover:scale-[1.01]"
-                style={{
-                  background: 'var(--color-surface)',
-                  border: '1px solid var(--color-border)',
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold"
-                        style={{
-                          background: demo.role === 'Admin'
-                            ? 'rgba(139, 92, 246, 0.2)'
-                            : demo.role === 'Analyst'
-                              ? 'rgba(59, 130, 246, 0.2)'
-                              : 'rgba(107, 114, 128, 0.2)',
-                          color: demo.role === 'Admin'
-                            ? '#8b5cf6'
-                            : demo.role === 'Analyst'
-                              ? '#3b82f6'
-                              : '#6b7280',
-                        }}>
-                    {demo.role[0]}
-                  </span>
-                  <div className="text-left">
-                    <span className="text-text-primary font-medium">{demo.username}</span>
-                    <span className="text-text-tertiary ml-2 text-xs">{demo.desc}</span>
-                  </div>
-                </div>
-                <span className="text-text-tertiary text-xs">{demo.role}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         <p className="text-center text-xs text-text-tertiary mt-6">
-          Demo instance — no real authentication required
+          Recurrsive Engineering Intelligence Platform
         </p>
       </div>
     </div>
