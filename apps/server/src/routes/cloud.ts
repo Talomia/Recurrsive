@@ -10,7 +10,7 @@
  * - Partner certification program
  * - Recurrsive Cloud (fully managed SaaS) management
  *
- * All data is seed data for first-run experience.
+ * All data is managed via the API — no seed data.
  *
  * @packageDocumentation
  */

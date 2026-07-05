@@ -1,7 +1,7 @@
 /**
- * @module @recurrsive/server/middleware/sso
+ * @module @recurrsive/server/routes/sso
  *
- * SSO/SAML integration middleware.
+ * SSO/SAML integration routes.
  *
  * Provides SAML 2.0 Single Sign-On support with configurable identity
  * providers (Okta, Auth0, Azure AD, Google Workspace). Parses real
@@ -77,41 +77,7 @@ interface SSOSession {
   createdAt: string;
 }
 
-// ---------------------------------------------------------------------------
-// Seed demo SSO configuration (only if store is empty)
-// ---------------------------------------------------------------------------
-
-function seedIfEmpty(): void {
-  if (store.count('sso_configs') > 0) return;
-
-  const demoConfig: SSOConfig = {
-    provider: 'okta',
-    displayName: 'Talomia Okta',
-    entityId: 'https://talomia.okta.com/app/recurrsive',
-    ssoUrl: 'https://talomia.okta.com/app/recurrsive/sso/saml',
-    certificate: 'MIIDnjCCAoagAwIBAgIGAX0... (truncated demo cert)',
-    attributeMapping: {
-      userId: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
-      email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-      firstName: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname',
-      lastName: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
-      role: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/role',
-      groups: 'http://schemas.microsoft.com/ws/2008/06/identity/claims/groups',
-    },
-    autoProvision: true,
-    defaultRole: 'analyst',
-    groupRoleMapping: {
-      'engineering-leads': 'admin',
-      'senior-engineers': 'analyst',
-      'all-engineers': 'viewer',
-    },
-    createdAt: '2026-01-15T00:00:00Z',
-    updatedAt: nowISO(),
-  };
-  store.set<SSOConfig>('sso_configs', 'okta', demoConfig);
-}
-
-seedIfEmpty();
+// No seed data — SSO providers are configured by the user via the API.
 
 // ---------------------------------------------------------------------------
 // Synthetic SAML response processor

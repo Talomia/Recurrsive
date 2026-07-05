@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/parsers",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "private": true,
   "description": "Code analysis and AI pattern detection for Recurrsive",
   "license": "Apache-2.0",

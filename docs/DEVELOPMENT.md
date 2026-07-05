@@ -182,7 +182,7 @@ Supported providers: OpenAI, Anthropic (native), Azure, Ollama, vLLM, LiteLLM, O
 Tests use **Vitest** with the following patterns:
 - Unit tests: `src/__tests__/*.test.ts`
 - Integration tests: `src/__tests__/integration/*.test.ts`
-- **Expected**: 3,395+ tests passing across all 14 packages (9 core + 5 apps)
+- **Expected**: 3,343+ tests passing across all 14 packages (9 core + 5 apps)
 
 ```bash
 # Run with coverage

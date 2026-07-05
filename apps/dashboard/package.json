@@ -1,6 +1,6 @@
 {
   "name": "@recurrsive/dashboard",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "Engineering Intelligence Dashboard — 40 pages with real-time WebSocket updates",
   "license": "Apache-2.0",
   "private": true,

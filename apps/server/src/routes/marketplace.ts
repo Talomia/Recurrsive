@@ -9,7 +9,7 @@
  * - Extension submission and management
  * - Marketplace statistics
  *
- * Data is persisted via ServerStore with realistic seeded content.
+ * Data is persisted via ServerStore.
  *
  * @packageDocumentation
  */
@@ -56,132 +56,7 @@ export interface ExtensionSubmission {
   version: string;
 }
 
-// ---------------------------------------------------------------------------
-// Seed data definitions
-// ---------------------------------------------------------------------------
-
-// Seed built-in analyzers
-const BUILT_IN_ANALYZERS: Array<{ name: string; slug: string; desc: string; tags: string[] }> = [
-  { name: 'Architecture Analyzer', slug: 'architecture', desc: 'Detects coupling, cohesion, layering violations, and circular dependencies across your codebase.', tags: ['architecture', 'coupling', 'modules'] },
-  { name: 'Performance Analyzer', slug: 'performance', desc: 'Identifies N+1 queries, unbounded loops, memory leaks, and other runtime performance issues.', tags: ['performance', 'optimization', 'runtime'] },
-  { name: 'Security Analyzer', slug: 'security', desc: 'Scans for injection vulnerabilities, auth bypass, secret exposure, and OWASP Top 10 issues.', tags: ['security', 'vulnerabilities', 'owasp'] },
-  { name: 'Cost Analyzer', slug: 'cost', desc: 'Finds infrastructure waste, over-provisioning, idle resources, and cost optimization opportunities.', tags: ['cost', 'infrastructure', 'cloud'] },
-  { name: 'Data Analyzer', slug: 'data', desc: 'Detects schema drift, missing indexes, query inefficiencies, and data modeling issues.', tags: ['data', 'database', 'schema'] },
-  { name: 'Documentation Analyzer', slug: 'documentation', desc: 'Identifies documentation coverage gaps, stale docs, and missing API documentation.', tags: ['documentation', 'coverage', 'api-docs'] },
-  { name: 'DevOps Analyzer', slug: 'devops', desc: 'Detects CI/CD anti-patterns, deployment risks, and infrastructure-as-code issues.', tags: ['devops', 'ci-cd', 'deployment'] },
-  { name: 'API Contract Analyzer', slug: 'api-contract', desc: 'Validates API contracts, detects breaking changes, and checks OpenAPI compliance.', tags: ['api', 'contracts', 'openapi'] },
-  { name: 'Dependency Analyzer', slug: 'dependency', desc: 'Scans for CVEs, outdated packages, license conflicts, and supply chain risks.', tags: ['dependencies', 'security', 'supply-chain'] },
-  { name: 'Code Quality Analyzer', slug: 'code-quality', desc: 'Measures complexity, duplication, dead code, naming conventions, and code smells.', tags: ['quality', 'complexity', 'clean-code'] },
-  { name: 'Reliability Analyzer', slug: 'reliability', desc: 'Checks error handling patterns, retry logic, circuit breakers, and graceful degradation.', tags: ['reliability', 'resilience', 'error-handling'] },
-  { name: 'AI Runtime Analyzer', slug: 'ai-runtime', desc: 'Evaluates prompt quality, token usage, model selection, and LLM integration patterns.', tags: ['ai', 'llm', 'prompts'] },
-  { name: 'AI Patterns Analyzer', slug: 'ai-patterns', desc: 'Analyzes RAG quality, agent loops, tool misuse, and AI pipeline best practices.', tags: ['ai', 'rag', 'agents', 'patterns'] },
-];
-
-const BUILT_IN_COLLECTORS: Array<{ name: string; slug: string; desc: string; tags: string[] }> = [
-  { name: 'Git Collector', slug: 'git', desc: 'Collects repository history, commits, branches, and contributor data.', tags: ['git', 'vcs', 'history'] },
-  { name: 'GitHub Collector', slug: 'github', desc: 'Ingests pull requests, issues, reviews, actions, and deployment data from GitHub.', tags: ['github', 'prs', 'issues'] },
-  { name: 'GitLab Collector', slug: 'gitlab', desc: 'Ingests merge requests, issues, pipelines, and environments from GitLab.', tags: ['gitlab', 'pipelines', 'mrs'] },
-  { name: 'OpenTelemetry Collector', slug: 'opentelemetry', desc: 'Receives OTLP traces, metrics, and spans for runtime analysis.', tags: ['opentelemetry', 'traces', 'metrics'] },
-  { name: 'Cloud Cost Collector', slug: 'cloud-cost', desc: 'Pulls billing and usage data from AWS, GCP, and Azure.', tags: ['cloud', 'cost', 'billing'] },
-  { name: 'Error Tracking Collector', slug: 'error-tracking', desc: 'Integrates with Sentry, Bugsnag, and Rollbar for error data.', tags: ['errors', 'sentry', 'tracking'] },
-  { name: 'APM Collector', slug: 'apm', desc: 'Connects to Datadog, New Relic, and Grafana for APM data.', tags: ['apm', 'monitoring', 'datadog'] },
-  { name: 'Database Collector', slug: 'database', desc: 'Collects schema information from SQL, Prisma, and Drizzle ORMs.', tags: ['database', 'sql', 'orm'] },
-  { name: 'Langfuse Collector', slug: 'langfuse', desc: 'Ingests LLM traces and prompt analytics from Langfuse.', tags: ['langfuse', 'llm', 'traces'] },
-  { name: 'Arize Collector', slug: 'arize', desc: 'Pulls model monitoring and drift detection data from Arize.', tags: ['arize', 'ml', 'monitoring'] },
-  { name: 'Helicone Collector', slug: 'helicone', desc: 'Tracks LLM cost and usage data from Helicone.', tags: ['helicone', 'llm', 'cost'] },
-  { name: 'CI/CD Collector', slug: 'ci-cd', desc: 'Collects pipeline data from GitHub Actions and GitLab CI.', tags: ['ci-cd', 'pipelines', 'github-actions'] },
-  { name: 'Documentation Collector', slug: 'docs', desc: 'Scans Markdown files, JSDoc comments, and docstrings.', tags: ['docs', 'markdown', 'jsdoc'] },
-  { name: 'Environment Collector', slug: 'environment', desc: 'Collects Docker, Kubernetes, config files, and secrets metadata.', tags: ['environment', 'docker', 'k8s'] },
-];
-
-const COMMUNITY_EXTENSIONS: Array<{ name: string; slug: string; desc: string; category: ExtensionCategory; tags: string[]; author: string; downloads: number; rating: number; ratingCount: number }> = [
-  { name: 'Kubernetes Analyzer', slug: 'kubernetes', desc: 'Analyzes Kubernetes manifests, Helm charts, and cluster configurations for best practices.', category: 'analyzer', tags: ['kubernetes', 'k8s', 'helm'], author: 'CloudForge Labs', downloads: 3842, rating: 4.7, ratingCount: 89 },
-  { name: 'Healthcare Compliance Pack', slug: 'healthcare-compliance', desc: 'HIPAA compliance policies for healthcare engineering teams.', category: 'policy', tags: ['hipaa', 'healthcare', 'compliance'], author: 'MedTech Assurance', downloads: 1256, rating: 4.9, ratingCount: 42 },
-  { name: 'FinOps Optimizer', slug: 'finops-optimizer', desc: 'Advanced cost optimization intelligence pack for cloud-native applications.', category: 'intelligence-pack', tags: ['finops', 'cost', 'cloud'], author: 'FinTech Assurance Group', downloads: 2190, rating: 4.6, ratingCount: 67 },
-  { name: 'Terraform Collector', slug: 'terraform', desc: 'Collects infrastructure-as-code state from Terraform and OpenTofu.', category: 'collector', tags: ['terraform', 'iac', 'opentofu'], author: 'Platform Engineering Co', downloads: 4521, rating: 4.8, ratingCount: 112 },
-  { name: 'SOC 2 Compliance Pack', slug: 'soc2-compliance', desc: 'SOC 2 Type II compliance policies and audit evidence generation.', category: 'policy', tags: ['soc2', 'compliance', 'audit'], author: 'AI Safety Labs', downloads: 987, rating: 4.5, ratingCount: 31 },
-  { name: 'GraphQL Analyzer', slug: 'graphql-analyzer', desc: 'Analyzes GraphQL schemas for complexity, depth limiting, and performance anti-patterns.', category: 'analyzer', tags: ['graphql', 'api', 'schema'], author: 'DevOps Pro Solutions', downloads: 1678, rating: 4.4, ratingCount: 53 },
-];
-
-// Seed all extensions
-function seedIfEmpty(): void {
-  if (store.count('extensions') > 0) return;
-
-  const now = nowISO();
-
-  BUILT_IN_ANALYZERS.forEach((a) => {
-    const id = `builtin-analyzer-${a.slug}`;
-    store.set<MarketplaceExtension>('extensions', id, {
-      id,
-      name: a.name,
-      slug: a.slug,
-      category: 'analyzer',
-      source: 'built-in',
-      author: 'Recurrsive',
-      description: a.desc,
-      longDescription: `${a.desc}\n\nThis analyzer is part of the core Recurrsive platform and is maintained by the Recurrsive team. It integrates with the multi-agent reasoning pipeline for evidence-backed recommendations.`,
-      version: '0.5.0',
-      downloads: 0,
-      rating: 0,
-      ratingCount: 0,
-      status: 'published',
-      tags: a.tags,
-      repository: 'https://github.com/Talomia/Recurrsive',
-      documentation: 'https://recurrsive.dev/docs/plugin-sdk',
-      createdAt: '2026-06-01T00:00:00Z',
-      updatedAt: now,
-    });
-  });
-
-  BUILT_IN_COLLECTORS.forEach((c) => {
-    const id = `builtin-collector-${c.slug}`;
-    store.set<MarketplaceExtension>('extensions', id, {
-      id,
-      name: c.name,
-      slug: c.slug,
-      category: 'collector',
-      source: 'built-in',
-      author: 'Recurrsive',
-      description: c.desc,
-      longDescription: `${c.desc}\n\nThis collector is included in the core Recurrsive platform. Configure it via recurrsive.config.ts or the CLI.`,
-      version: '0.5.0',
-      downloads: 0,
-      rating: 0,
-      ratingCount: 0,
-      status: 'published',
-      tags: c.tags,
-      repository: 'https://github.com/Talomia/Recurrsive',
-      documentation: 'https://recurrsive.dev/docs/plugin-sdk',
-      createdAt: '2026-06-01T00:00:00Z',
-      updatedAt: now,
-    });
-  });
-
-  COMMUNITY_EXTENSIONS.forEach((e) => {
-    const id = `community-${e.slug}`;
-    store.set<MarketplaceExtension>('extensions', id, {
-      id,
-      name: e.name,
-      slug: e.slug,
-      category: e.category,
-      source: 'community',
-      author: e.author,
-      description: e.desc,
-      longDescription: `${e.desc}\n\nDeveloped and maintained by ${e.author}. Verified by the Recurrsive team for compatibility and security.`,
-      version: '1.0.0',
-      downloads: e.downloads,
-      rating: e.rating,
-      ratingCount: e.ratingCount,
-      status: 'published',
-      tags: e.tags,
-      repository: `https://github.com/${e.author.toLowerCase().replace(/\s+/g, '-')}/${e.slug}`,
-      createdAt: '2026-06-15T00:00:00Z',
-      updatedAt: now,
-    });
-  });
-}
-
-seedIfEmpty();
+// No seed data — extensions are created by the user via the API.
 
 // ---------------------------------------------------------------------------
 // Routes

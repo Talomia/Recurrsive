@@ -24,6 +24,38 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   })),
 }));
 
+vi.mock('../../api.js', () => ({
+  apiRequest: vi.fn().mockImplementation((path: string) => {
+    if (path === '/api/v1/analytics/summary') {
+      return Promise.resolve({
+        trends: [
+          { period: '2024-W48', health_score: 62, opportunities: 18, resolved: 4, findings: 45 },
+          { period: '2024-W49', health_score: 65, opportunities: 16, resolved: 6, findings: 41 },
+          { period: '2024-W50', health_score: 68, opportunities: 14, resolved: 5, findings: 38 },
+          { period: '2024-W51', health_score: 71, opportunities: 12, resolved: 7, findings: 33 },
+          { period: '2024-W52', health_score: 74, opportunities: 10, resolved: 4, findings: 29 },
+        ],
+        topCategories: [],
+      });
+    }
+    if (path === '/api/v1/health-score') {
+      return Promise.resolve({
+        score: 74,
+        dimensions: [
+          { name: 'Architecture', score: 78, trend: '↑' },
+          { name: 'Security', score: 65, trend: '↑' },
+          { name: 'Testing', score: 82, trend: '→' },
+          { name: 'Documentation', score: 55, trend: '↑' },
+          { name: 'Reliability', score: 70, trend: '↑' },
+          { name: 'Developer Experience', score: 73, trend: '→' },
+        ],
+      });
+    }
+    return Promise.reject(new Error('Unknown path'));
+  }),
+  apiGet: vi.fn(),
+}));
+
 import { registerAnalyticsResources } from '../../resources/analytics.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 

@@ -14,6 +14,32 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { apiGet, apiRequest } from '../api.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface Project {
+  name: string;
+  health: number;
+  opportunities: number;
+  lastAnalyzed: string;
+}
+
+interface Comparison {
+  name: string;
+  architecture: number;
+  security: number;
+  testing: number;
+  docs: number;
+  reliability: number;
+}
+
+interface TimelineEvent {
+  week: string;
+  [project: string]: string | number;
+}
 
 // ---------------------------------------------------------------------------
 // Resource Registration
@@ -36,19 +62,19 @@ export function registerProjectResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      const projects = [
-        { name: 'api-gateway', health: 82, opportunities: 5, lastAnalyzed: '2024-12-28T14:30:00Z' },
-        { name: 'web-dashboard', health: 71, opportunities: 9, lastAnalyzed: '2024-12-27T10:15:00Z' },
-        { name: 'auth-service', health: 91, opportunities: 2, lastAnalyzed: '2024-12-28T16:00:00Z' },
-        { name: 'data-pipeline', health: 64, opportunities: 12, lastAnalyzed: '2024-12-26T08:45:00Z' },
-        { name: 'mobile-app', health: 77, opportunities: 7, lastAnalyzed: '2024-12-28T12:00:00Z' },
-      ];
+      let projects: Project[] = [];
+
+      try {
+        projects = await apiGet<Project[]>('/api/v1/projects');
+      } catch {
+        // API unavailable — fall back to empty list
+      }
 
       const lines = [
         '# Projects Overview',
         '',
         `**Total Projects:** ${projects.length}`,
-        `**Average Health:** ${Math.round(projects.reduce((s, p) => s + p.health, 0) / projects.length)}/100`,
+        `**Average Health:** ${projects.length > 0 ? Math.round(projects.reduce((s, p) => s + p.health, 0) / projects.length) : 0}/100`,
         '',
         '| Project | Health | Opportunities | Last Analyzed |',
         '| --- | --- | --- | --- |',
@@ -73,13 +99,13 @@ export function registerProjectResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      const comparisons = [
-        { name: 'api-gateway', architecture: 85, security: 80, testing: 78, docs: 70, reliability: 88 },
-        { name: 'web-dashboard', architecture: 72, security: 68, testing: 75, docs: 60, reliability: 74 },
-        { name: 'auth-service', architecture: 90, security: 95, testing: 88, docs: 82, reliability: 92 },
-        { name: 'data-pipeline', architecture: 65, security: 58, testing: 62, docs: 50, reliability: 68 },
-        { name: 'mobile-app', architecture: 78, security: 74, testing: 80, docs: 65, reliability: 76 },
-      ];
+      let comparisons: Comparison[] = [];
+
+      try {
+        comparisons = await apiGet<Comparison[]>('/api/v1/comparisons');
+      } catch {
+        // API unavailable — fall back to empty list
+      }
 
       const lines = [
         '# Cross-Project Health Comparison',
@@ -109,25 +135,40 @@ export function registerProjectResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      const timeline = [
-        { week: 'W49', apiGw: 75, webDash: 65, auth: 88, dataPipe: 58, mobile: 70 },
-        { week: 'W50', apiGw: 78, webDash: 67, auth: 89, dataPipe: 60, mobile: 73 },
-        { week: 'W51', apiGw: 80, webDash: 69, auth: 90, dataPipe: 62, mobile: 75 },
-        { week: 'W52', apiGw: 82, webDash: 71, auth: 91, dataPipe: 64, mobile: 77 },
-      ];
+      let events: TimelineEvent[] = [];
+
+      try {
+        const response = await apiRequest<{ events: TimelineEvent[] }>('/api/v1/timeline');
+        events = response.events ?? [];
+      } catch {
+        // API unavailable — fall back to empty list
+      }
+
+      if (events.length === 0) {
+        const lines = [
+          '# Project Evolution Timeline',
+          '',
+          'No timeline data available. Ensure the Recurrsive server is running and projects have been analyzed.',
+        ];
+        return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }] };
+      }
+
+      // Dynamically build header from the keys of the first event (excluding 'week')
+      const projectKeys = Object.keys(events[0]!).filter(k => k !== 'week');
 
       const lines = [
         '# Project Evolution Timeline',
         '',
-        '| Week | api-gateway | web-dashboard | auth-service | data-pipeline | mobile-app |',
-        '| --- | --- | --- | --- | --- | --- |',
+        `| Week | ${projectKeys.join(' | ')} |`,
+        `| --- | ${projectKeys.map(() => '---').join(' | ')} |`,
       ];
 
-      for (const t of timeline) {
-        lines.push(`| ${t.week} | ${t.apiGw} | ${t.webDash} | ${t.auth} | ${t.dataPipe} | ${t.mobile} |`);
+      for (const t of events) {
+        const values = projectKeys.map(k => String(t[k] ?? ''));
+        lines.push(`| ${t.week} | ${values.join(' | ')} |`);
       }
 
-      lines.push('', '> All projects show positive health trends over the last 4 weeks.');
+      lines.push('', '> All projects show positive health trends over the observed period.');
 
       return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }] };
     },

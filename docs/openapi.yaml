@@ -5,7 +5,12 @@ info:
     REST API for the Recurrsive Engineering Intelligence Platform.
     Provides analysis, knowledge-graph querying, opportunity management,
     policy enforcement, and report generation.
-  version: 0.5.6
+
+    NOTE — This static spec documents the core endpoints. The complete
+    auto-generated OpenAPI 3.1 specification (150+ endpoints) is served
+    by the running server at GET /api/v1/openapi.json with interactive
+    Swagger UI at GET /api/docs.
+  version: 0.5.7
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0

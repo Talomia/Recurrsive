@@ -111,73 +111,7 @@ interface IntelligencePack {
 }
 
 // ---------------------------------------------------------------------------
-// Seed data
-// ---------------------------------------------------------------------------
-
-function seedIfEmpty(): void {
-  // Intelligence packs remain seeded since they represent domain-specific templates
-  if (store.count('intelligence_packs') === 0) {
-    const packs: Array<Omit<IntelligencePack, 'id'>> = [
-      {
-        name: 'Healthcare Intelligence Pack',
-        domain: 'healthcare',
-        version: '1.0.0',
-        description: 'HIPAA compliance, PHI data flow analysis, HL7/FHIR integration checks, clinical data governance.',
-        analyzers: ['hipaa-compliance', 'phi-data-flow', 'clinical-data-governance', 'fhir-conformance'],
-        frameworks: ['HIPAA', 'HITRUST', 'SOC2-Healthcare'],
-        entityTypes: ['patient_record', 'clinical_system', 'ehr_integration', 'consent_flow'],
-        ruleCount: 42,
-        status: 'available',
-        author: 'Recurrsive Team',
-      },
-      {
-        name: 'Finance Intelligence Pack',
-        domain: 'finance',
-        version: '1.0.0',
-        description: 'SOX compliance, PCI-DSS validation, fraud detection patterns, transaction integrity analysis.',
-        analyzers: ['sox-compliance', 'pci-dss-validator', 'fraud-pattern-detector', 'transaction-integrity'],
-        frameworks: ['SOX', 'PCI-DSS', 'SOC2', 'GLBA'],
-        entityTypes: ['transaction_flow', 'payment_gateway', 'audit_trail', 'financial_report'],
-        ruleCount: 56,
-        status: 'available',
-        author: 'Recurrsive Team',
-      },
-      {
-        name: 'Kubernetes Intelligence Pack',
-        domain: 'kubernetes',
-        version: '1.2.0',
-        description: 'K8s security policies, resource optimization, cluster health, Helm chart analysis.',
-        analyzers: ['k8s-security', 'resource-optimizer', 'cluster-health', 'helm-analyzer'],
-        frameworks: ['CIS-Kubernetes', 'NSA-CISA-K8s', 'Pod-Security-Standards'],
-        entityTypes: ['deployment', 'pod_template', 'network_policy', 'service_mesh'],
-        ruleCount: 38,
-        status: 'available',
-        author: 'Recurrsive Team',
-      },
-      {
-        name: 'AI Safety Intelligence Pack',
-        domain: 'ai-safety',
-        version: '0.9.0',
-        description: 'AI safety guardrails, bias detection, model explainability, prompt injection prevention.',
-        analyzers: ['ai-bias-detector', 'prompt-injection-scanner', 'model-explainability', 'safety-guardrails'],
-        frameworks: ['EU-AI-Act', 'NIST-AI-RMF', 'ISO-42001'],
-        entityTypes: ['ml_model', 'training_dataset', 'fairness_metric', 'safety_guardrail'],
-        ruleCount: 34,
-        status: 'available',
-        author: 'Recurrsive Team',
-      },
-    ];
-
-    for (const p of packs) {
-      const id = generateId();
-      store.set<IntelligencePack>('intelligence_packs', id, { ...p, id });
-    }
-  }
-
-  // No seed simulations or PRs — created via the API
-}
-
-seedIfEmpty();
+// No seed data — intelligence packs, simulations, and PRs are created via the API.
 
 // ---------------------------------------------------------------------------
 // Route registration

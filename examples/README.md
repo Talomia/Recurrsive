@@ -6,6 +6,7 @@ This directory contains example configuration files for different use cases.
 
 | File | Description |
 |------|-------------|
+| `config.yaml` | Full reference configuration with all options documented |
 | `basic-config.yaml` | Minimal configuration for a TypeScript project |
 | `ai-project-config.yaml` | Configuration for AI/ML projects with reasoning enabled |
 | `enterprise-config.yaml` | Enterprise configuration with governance and policies |

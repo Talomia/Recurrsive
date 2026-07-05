@@ -15,6 +15,41 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { apiGet, apiRequest } from '../api.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface HealthResponse {
+  status: string;
+  version: string;
+  uptime: string;
+}
+
+interface Plugin {
+  name: string;
+  version: string;
+  status: string;
+  type: string;
+}
+
+interface Tenant {
+  name: string;
+  tier: string;
+  projects: number;
+  usagePct: number;
+  activeUsers: number;
+}
+
+interface Benchmark {
+  name: string;
+  result: string;
+  baseline: string;
+  delta: string;
+  runDate?: string;
+  environment?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Resource Registration
@@ -37,28 +72,25 @@ export function registerPlatformResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
+      let status = 'Unknown';
+      let version = 'Unknown';
+      let uptime = 'Unknown';
+
+      try {
+        const health = await apiRequest<HealthResponse>('/api/v1/health');
+        status = health.status ?? 'Unknown';
+        version = health.version ?? 'Unknown';
+        uptime = health.uptime ?? 'Unknown';
+      } catch {
+        // API unavailable — show unknown values
+      }
+
       const lines = [
         '# Platform Status',
         '',
-        '**Version:** 0.1.0',
-        '**Uptime:** 14d 6h 32m',
-        '**Status:** Operational',
-        '',
-        '## Connected Services',
-        '',
-        '| Service | Status | Latency |',
-        '| --- | --- | --- |',
-        '| Graph Database | ✅ Online | 12ms |',
-        '| Analyzer Engine | ✅ Online | 45ms |',
-        '| Policy Engine | ✅ Online | 8ms |',
-        '| Notification Service | ✅ Online | 22ms |',
-        '',
-        '## System Resources',
-        '',
-        '- **Memory Usage:** 342 MB / 2048 MB (17%)',
-        '- **CPU Usage:** 8%',
-        '- **Active Connections:** 12',
-        '- **Queued Tasks:** 0',
+        `**Version:** ${version}`,
+        `**Uptime:** ${uptime}`,
+        `**Status:** ${status}`,
       ];
 
       return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }] };
@@ -75,13 +107,13 @@ export function registerPlatformResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      const plugins = [
-        { name: 'security-scanner', version: '1.2.0', status: 'active', type: 'analyzer' },
-        { name: 'license-checker', version: '0.9.1', status: 'active', type: 'analyzer' },
-        { name: 'slack-notifier', version: '2.0.0', status: 'active', type: 'notification' },
-        { name: 'jira-integration', version: '1.1.3', status: 'inactive', type: 'integration' },
-        { name: 'custom-reporter', version: '0.5.0', status: 'active', type: 'reporting' },
-      ];
+      let plugins: Plugin[] = [];
+
+      try {
+        plugins = await apiGet<Plugin[]>('/api/v1/plugins');
+      } catch {
+        // API unavailable — fall back to empty list
+      }
 
       const lines = [
         '# Installed Plugins',
@@ -113,11 +145,13 @@ export function registerPlatformResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      const tenants = [
-        { name: 'acme-corp', tier: 'enterprise', projects: 12, usagePct: 45, activeUsers: 28 },
-        { name: 'startup-inc', tier: 'pro', projects: 3, usagePct: 72, activeUsers: 8 },
-        { name: 'dev-agency', tier: 'team', projects: 7, usagePct: 60, activeUsers: 15 },
-      ];
+      let tenants: Tenant[] = [];
+
+      try {
+        tenants = await apiGet<Tenant[]>('/api/v1/multi-tenant/tenants');
+      } catch {
+        // API unavailable — fall back to empty list
+      }
 
       const lines = [
         '# Multi-Tenant Overview',
@@ -148,23 +182,33 @@ export function registerPlatformResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
+      let benchmarks: Benchmark[] = [];
+
+      try {
+        benchmarks = await apiGet<Benchmark[]>('/api/v1/cloud/benchmarks');
+      } catch {
+        // API unavailable — fall back to empty list
+      }
+
       const lines = [
         '# Latest Benchmarks',
         '',
-        '**Run Date:** 2024-12-28T18:00:00Z',
-        '**Environment:** cloud-standard-4cpu-8gb',
-        '',
-        '| Benchmark | Result | Baseline | Delta |',
-        '| --- | --- | --- | --- |',
-        '| Analysis Throughput | 1,240 files/sec | 1,100 files/sec | +12.7% |',
-        '| Graph Query (p50) | 8ms | 10ms | -20.0% |',
-        '| Graph Query (p99) | 45ms | 52ms | -13.5% |',
-        '| Memory per 1k entities | 12.4 MB | 14.1 MB | -12.1% |',
-        '| Snapshot Export | 320ms | 380ms | -15.8% |',
-        '| Policy Evaluation | 2.1ms | 2.5ms | -16.0% |',
-        '',
-        '> All benchmarks show improvement over the previous baseline.',
       ];
+
+      if (benchmarks.length === 0) {
+        lines.push('No benchmark data available. Ensure the Recurrsive server is running.');
+      } else {
+        lines.push(
+          '| Benchmark | Result | Baseline | Delta |',
+          '| --- | --- | --- | --- |',
+        );
+
+        for (const b of benchmarks) {
+          lines.push(`| ${b.name} | ${b.result} | ${b.baseline} | ${b.delta} |`);
+        }
+
+        lines.push('', '> Benchmarks are updated after each scheduled performance run.');
+      }
 
       return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }] };
     },

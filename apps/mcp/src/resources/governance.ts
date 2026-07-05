@@ -15,6 +15,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
 import { state } from '../state.js';
+import { apiGet } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Resource Registration
@@ -148,17 +149,21 @@ export function registerGovernanceResources(server: McpServer): void {
         'snapshot.created',
       ];
 
-      const webhooks = [
-        {
-          id: 'wh_000001',
-          url: 'https://ci.example.com/recurrsive/hooks',
-          events: ['analysis.complete', 'policy.violation'],
-          active: true,
-          created_at: new Date().toISOString(),
-          delivery_count: 42,
-          failure_count: 0,
-        },
-      ];
+      let webhooks: Array<{
+        id: string;
+        url: string;
+        events: string[];
+        active: boolean;
+        created_at: string;
+        delivery_count: number;
+        failure_count: number;
+      }> = [];
+
+      try {
+        webhooks = await apiGet<typeof webhooks>('/api/v1/webhooks');
+      } catch {
+        // API unavailable — fall back to empty list
+      }
 
       const totalDeliveries = webhooks.reduce((sum, w) => sum + w.delivery_count, 0);
       const totalFailures = webhooks.reduce((sum, w) => sum + w.failure_count, 0);

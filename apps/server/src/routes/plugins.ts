@@ -99,38 +99,7 @@ for (const entry of marketplaceData) {
   marketplace.push({ ...entry, id: generateId() });
 }
 
-// ---------------------------------------------------------------------------
-// Seed installed plugin (only if store is empty)
-// ---------------------------------------------------------------------------
-
-function seedIfEmpty(): void {
-  if (store.count('plugins') > 0) return;
-
-  const snyk = marketplace.find(p => p.name.includes('snyk'))!;
-  const installedSnyk: InstalledPlugin = {
-    id: snyk.id,
-    name: snyk.name,
-    version: snyk.version,
-    description: snyk.description,
-    author: snyk.author,
-    license: 'MIT',
-    type: snyk.type,
-    minVersion: '0.3.0',
-    entryPoint: 'dist/index.js',
-    configSchema: { type: 'object', properties: { apiToken: { type: 'string' }, orgId: { type: 'string' } } },
-    permissions: ['read:findings', 'write:findings'],
-    tags: snyk.tags,
-    status: 'enabled',
-    installedAt: '2026-05-01T00:00:00Z',
-    updatedAt: nowISO(),
-    config: { orgId: 'talomia-org' },
-    healthCheck: { status: 'healthy', lastCheck: nowISO(), message: 'Connected to Snyk API. Last sync: 2h ago.' },
-    stats: { totalRuns: 145, lastRunAt: '2026-07-01T06:00:00Z', avgDurationMs: 12000, errorRate: 0.02 },
-  };
-  store.set<InstalledPlugin>('plugins', installedSnyk.id, installedSnyk);
-}
-
-seedIfEmpty();
+// No seed data — plugins are installed by the user via the API.
 
 // ---------------------------------------------------------------------------
 // Route registration

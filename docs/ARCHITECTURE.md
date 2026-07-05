@@ -1,6 +1,6 @@
 # Recurrsive — Architecture Specification
 
-> **Version**: 0.5.6  
+> **Version**: 0.5.7  
 > **Last Updated**: 2026-07-04  
 > **Status**: Implementation-Complete  
 > **Audience**: Engineers implementing the system

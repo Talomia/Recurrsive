@@ -12,6 +12,35 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { apiRequest } from '../api.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface Trend {
+  period: string;
+  health_score: number;
+  opportunities: number;
+  resolved: number;
+  findings: number;
+}
+
+interface Dimension {
+  name: string;
+  score: number;
+  trend: string;
+}
+
+interface AnalyticsSummaryResponse {
+  trends: Trend[];
+  topCategories: unknown[];
+}
+
+interface HealthScoreResponse {
+  score: number;
+  dimensions: Dimension[];
+}
 
 // ---------------------------------------------------------------------------
 // Resource Registration
@@ -34,36 +63,45 @@ export function registerAnalyticsResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      // Mock analytics data representing trends over time
-      const trends = [
-        { period: '2024-W48', health_score: 62, opportunities: 18, resolved: 4, findings: 45 },
-        { period: '2024-W49', health_score: 65, opportunities: 16, resolved: 6, findings: 41 },
-        { period: '2024-W50', health_score: 68, opportunities: 14, resolved: 5, findings: 38 },
-        { period: '2024-W51', health_score: 71, opportunities: 12, resolved: 7, findings: 33 },
-        { period: '2024-W52', health_score: 74, opportunities: 10, resolved: 4, findings: 29 },
-      ];
+      let trends: Trend[] = [];
+      let dimensions: Dimension[] = [];
 
-      const dimensions = [
-        { name: 'Architecture', score: 78, trend: '↑' },
-        { name: 'Security', score: 65, trend: '↑' },
-        { name: 'Testing', score: 82, trend: '→' },
-        { name: 'Documentation', score: 55, trend: '↑' },
-        { name: 'Reliability', score: 70, trend: '↑' },
-        { name: 'Developer Experience', score: 73, trend: '→' },
-      ];
+      try {
+        const summary = await apiRequest<AnalyticsSummaryResponse>('/api/v1/analytics/summary');
+        trends = summary.trends ?? [];
+      } catch {
+        // API unavailable — fall back to empty trends
+      }
 
-      const latestScore = trends[trends.length - 1]!.health_score;
-      const previousScore = trends[0]!.health_score;
+      try {
+        const healthData = await apiRequest<HealthScoreResponse>('/api/v1/health-score');
+        dimensions = healthData.dimensions ?? [];
+      } catch {
+        // API unavailable — fall back to empty dimensions
+      }
+
+      if (trends.length === 0 && dimensions.length === 0) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/markdown',
+            text: '# Analytics Summary\n\nNo analytics data available. Ensure the Recurrsive server is running.',
+          }],
+        };
+      }
+
+      const latestScore = trends.length > 0 ? trends[trends.length - 1]!.health_score : 0;
+      const previousScore = trends.length > 0 ? trends[0]!.health_score : 0;
       const scoreDelta = latestScore - previousScore;
       const totalResolved = trends.reduce((sum, t) => sum + t.resolved, 0);
-      const totalFindings = trends[trends.length - 1]!.findings;
+      const totalFindings = trends.length > 0 ? trends[trends.length - 1]!.findings : 0;
 
       const lines = [
         `# Analytics Summary`,
         '',
         `**Current Health Score:** ${latestScore}/100`,
         `**Score Change (5-week):** ${scoreDelta > 0 ? '+' : ''}${scoreDelta} points`,
-        `**Open Opportunities:** ${trends[trends.length - 1]!.opportunities}`,
+        `**Open Opportunities:** ${trends.length > 0 ? trends[trends.length - 1]!.opportunities : 0}`,
         `**Resolved (5-week):** ${totalResolved}`,
         `**Active Findings:** ${totalFindings}`,
         '',
@@ -79,29 +117,34 @@ export function registerAnalyticsResources(server: McpServer): void {
         );
       }
 
-      lines.push(
-        '',
-        '## Dimension Breakdown',
-        '',
-        '| Dimension | Score | Trend |',
-        '| --- | --- | --- |',
-      );
+      if (dimensions.length > 0) {
+        lines.push(
+          '',
+          '## Dimension Breakdown',
+          '',
+          '| Dimension | Score | Trend |',
+          '| --- | --- | --- |',
+        );
 
-      for (const d of dimensions) {
-        lines.push(`| ${d.name} | ${d.score}/100 | ${d.trend} |`);
+        for (const d of dimensions) {
+          lines.push(`| ${d.name} | ${d.score}/100 | ${d.trend} |`);
+        }
+
+        const lowestDim = dimensions.reduce((min, d) => d.score < min.score ? d : min, dimensions[0]!);
+        const highestDim = dimensions.reduce((max, d) => d.score > max.score ? d : max, dimensions[0]!);
+
+        lines.push(
+          '',
+          '## Key Insights',
+          '',
+          `- Health score improved by **${scoreDelta > 0 ? '+' : ''}${scoreDelta} points** over the last 5 weeks`,
+          `- **${totalResolved} opportunities** resolved in this period`,
+          `- ${lowestDim.name} remains the lowest-scoring dimension at ${lowestDim.score}/100`,
+          `- ${highestDim.name} is the strongest dimension at ${highestDim.score}/100`,
+          '',
+          '> Use the `get_health_score` tool for real-time scores and `get_opportunities` for current opportunities.',
+        );
       }
-
-      lines.push(
-        '',
-        '## Key Insights',
-        '',
-        `- Health score improved by **${scoreDelta} points** over the last 5 weeks`,
-        `- **${totalResolved} opportunities** resolved in this period`,
-        `- Documentation remains the lowest-scoring dimension at ${dimensions.find(d => d.name === 'Documentation')?.score}/100`,
-        `- Testing is the strongest dimension at ${dimensions.find(d => d.name === 'Testing')?.score}/100`,
-        '',
-        '> Use the `get_health_score` tool for real-time scores and `get_opportunities` for current opportunities.',
-      );
 
       return {
         contents: [{

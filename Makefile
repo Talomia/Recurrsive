@@ -42,7 +42,7 @@ build-website: ## Build website only
 	pnpm build --filter @recurrsive/website
 
 # ── Test ──────────────────────────────────────────────────────────────────────
-test: ## Run all tests (573+)
+test: ## Run all tests (3,343+ across 140 test files)
 	pnpm test
 
 test-server: ## Run server tests (423)
@@ -53,6 +53,12 @@ test-dashboard: ## Run dashboard tests (81)
 
 test-website: ## Run website tests (69)
 	pnpm test --filter @recurrsive/website
+
+test-mcp: ## Run MCP server tests (254)
+	pnpm test --filter @recurrsive/mcp
+
+test-cli: ## Run CLI tests (308)
+	pnpm test --filter @recurrsive/cli
 
 test-pkg: ## Run tests for a specific package (PKG=reasoning)
 	pnpm test --filter @recurrsive/$(PKG)
@@ -100,9 +106,9 @@ clean-full: clean ## Full clean including node_modules
 	@echo "$(GREEN)✓ Full clean complete — run 'make install' to reinstall$(RESET)"
 
 # ── Release ───────────────────────────────────────────────────────────────────
-release: verify ## Create a release tag (VERSION=0.5.4)
+release: verify ## Create a release tag (VERSION=0.5.7)
 ifndef VERSION
-	$(error VERSION is required. Usage: make release VERSION=0.5.4)
+	$(error VERSION is required. Usage: make release VERSION=0.5.7)
 endif
 	git tag -a v$(VERSION) -m "Release v$(VERSION)"
 	@echo "$(GREEN)✓ Tagged v$(VERSION) — push with: git push origin v$(VERSION)$(RESET)"

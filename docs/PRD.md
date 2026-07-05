@@ -4,11 +4,11 @@
 
 | Field | Value |
 |---|---|
-| **Document Version** | 1.1.0 |
-| **Product Version** | 0.5.6 |
+| **Document Version** | 1.2.0 |
+| **Product Version** | 0.5.7 |
 | **Status** | APPROVED — Single Source of Truth |
 | **Created** | 2026-06-29 |
-| **Last Updated** | 2026-07-04 |
+| **Last Updated** | 2026-07-05 |
 | **Classification** | Internal / Confidential |
 
 ---
@@ -1168,7 +1168,7 @@ Learnings flow back into the system:
 
 ## 7. Evidence Sources — Complete Collector List
 
-Every integration is implemented as a **Collector Plugin** conforming to the `Collector` interface. Below is the complete list of supported and planned sources, organized by category. As of v0.5.6, 14 collectors are implemented (Git, Documentation, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone); the remainder are planned for future releases.
+Every integration is implemented as a **Collector Plugin** conforming to the `Collector` interface. Below is the complete list of supported and planned sources, organized by category. As of v0.5.7, 14 collectors are implemented (Git, Documentation, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone); the remainder are planned for future releases.
 
 ### 7.1 Code & Version Control
 
@@ -1644,9 +1644,9 @@ Recurrsive supports multiple deployment models to fit different organizational n
 └───────────────────────────────────────────────────────┘
 ```
 
-### 11.3 Current Implementation (v0.5.6)
+### 11.3 Current Implementation (v0.5.7)
 
-As of v0.5.6, the following deployment surface is implemented:
+As of v0.5.7, the following deployment surface is implemented:
 
 | Component | Count | Notes |
 |---|---|---|
@@ -2117,5 +2117,6 @@ The system tracks its own evolution:
 
 | Version | Date | Author | Changes |
 |---|---|---|---|
+| 1.2.0 | 2026-07-05 | Recurrsive Team | Updated to reflect v0.5.7: all synthetic/mock data removed from production code — SSO uses real SAML parsing, 9 collectors rewritten with real API clients (native fetch), GraphQL seed data removed, scheduling uses real cron parser, CLI simulation wired to server API. All docs aligned, 3,343 tests passing. |
 | 1.1.0 | 2026-07-04 | Recurrsive Team | Updated to reflect v0.5.6: added §11.3 current implementation stats (13 analyzers, 14 collectors, 19 specialists, 150+ endpoints across 34 route modules, 42 MCP tools, 25 CLI commands, 40 dashboard pages, 23 website pages), added EasyPanel and multi-tenant deployment options, added git URL analysis capability, clarified collector implementation status in §7 |
 | 1.0.0 | 2026-06-29 | Recurrsive Team | Initial comprehensive PRD |
