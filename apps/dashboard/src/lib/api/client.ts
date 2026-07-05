@@ -8,11 +8,16 @@
 /**
  * Base URL for API requests.
  *
- * In production, the Next.js rewrite proxy (next.config.ts) forwards
- * `/api/v1/*` requests to the server. For direct access or SSR, the
- * full URL is used.
+ * Client-side (browser): Uses empty string so requests go to `/api/v1/*`
+ * which the Next.js rewrite proxy forwards to the API server.
+ *
+ * Server-side (SSR): Uses `NEXT_PUBLIC_API_URL` for direct server-to-server
+ * calls where the proxy isn't available.
  */
-export const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+export const BASE_URL =
+  typeof window !== 'undefined'
+    ? ''  // Browser: use relative URLs → Next.js rewrite proxy
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000');
 
 /**
  * API error class for non-OK responses.

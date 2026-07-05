@@ -67,8 +67,12 @@ export interface UseWebSocketReturn {
 /**
  * Derive the WebSocket URL from the API URL. Converts http(s) to ws(s)
  * and appends /ws. Falls back to ws://localhost:3000/ws for local dev.
+ *
+ * In production with a reverse proxy (EasyPanel), derive the WS URL
+ * from the API server's URL since WebSockets can't go through Next.js rewrites.
  */
 function getDefaultWsUrl(): string {
+  // Server-side or build-time: use env var
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
   const wsUrl = apiUrl
     .replace(/^https:/, 'wss:')

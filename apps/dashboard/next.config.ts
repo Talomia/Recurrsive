@@ -43,9 +43,18 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  /** Proxy API calls to the Recurrsive server. */
+  /**
+   * Proxy API calls to the Recurrsive server.
+   *
+   * Uses INTERNAL_API_URL (runtime) or NEXT_PUBLIC_API_URL (build-time)
+   * to determine the upstream server. In EasyPanel/Docker, this is the
+   * internal service hostname (e.g. http://recurrsive_server:3000).
+   */
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    const apiUrl =
+      process.env.INTERNAL_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      "http://localhost:3000";
 
     return [
       {
