@@ -1725,3 +1725,302 @@ describe('OpenAPI Routes', () => {
     expect(html).toContain('Recurrsive API');
   });
 });
+
+// ===========================================================================
+// Setup Wizard (4 tests)
+// ===========================================================================
+
+describe('Setup Wizard endpoints', () => {
+  it('GET /api/v1/setup/status returns setup status', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/setup/status' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('setupRequired');
+    expect(body.data).toHaveProperty('hasUsers');
+    expect(typeof body.data.setupRequired).toBe('boolean');
+    expect(typeof body.data.hasUsers).toBe('boolean');
+  });
+
+  it('POST /api/v1/setup creates first admin user', async () => {
+    // First check if setup is needed (may already have users from prior tests)
+    const statusRes = await app.inject({ method: 'GET', url: '/api/v1/setup/status' });
+    const { setupRequired } = statusRes.json().data;
+
+    if (setupRequired) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/setup',
+        payload: {
+          username: 'setup-admin',
+          email: 'setup-admin@test.com',
+          password: 'secure-password-123',
+          displayName: 'Setup Admin',
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.data).toHaveProperty('token');
+      expect(body.data).toHaveProperty('user');
+      expect(body.data.user.username).toBe('setup-admin');
+      expect(body.data.user.role).toBe('admin');
+      expect(body).toHaveProperty('message');
+    } else {
+      // Setup already done — verify 409
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/setup',
+        payload: {
+          username: 'another-admin',
+          email: 'another@test.com',
+          password: 'password',
+        },
+      });
+      expect(res.statusCode).toBe(409);
+    }
+  });
+
+  it('POST /api/v1/setup returns 409 after setup is complete', async () => {
+    // Ensure setup has been done at least once
+    const statusRes = await app.inject({ method: 'GET', url: '/api/v1/setup/status' });
+    const { setupRequired } = statusRes.json().data;
+
+    if (setupRequired) {
+      // Do setup first
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/setup',
+        payload: {
+          username: 'first-admin',
+          email: 'first@test.com',
+          password: 'password-123',
+        },
+      });
+    }
+
+    // Now try again — should be 409
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/setup',
+      payload: {
+        username: 'duplicate-admin',
+        email: 'dup@test.com',
+        password: 'password',
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    const body = res.json();
+    expect(body.error).toBe('Conflict');
+  });
+
+  it('POST /api/v1/setup returns 400 without required fields', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/setup',
+      payload: { username: 'only-username' },
+    });
+    // Could be 400 (missing fields) or 409 (already set up)
+    expect([400, 409]).toContain(res.statusCode);
+  });
+});
+
+// ===========================================================================
+// User Management (6 tests)
+// ===========================================================================
+
+describe('User Management endpoints', () => {
+  it('POST /api/v1/users creates a new user (admin only)', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/users',
+      payload: {
+        username: 'test-newuser',
+        email: 'newuser@test.com',
+        password: 'user-password-456',
+        role: 'analyst',
+        displayName: 'Test New User',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.data).toHaveProperty('id');
+    expect(body.data.username).toBe('test-newuser');
+    expect(body.data.email).toBe('newuser@test.com');
+    expect(body.data.role).toBe('analyst');
+    expect(body.data.displayName).toBe('Test New User');
+    expect(body.data.status).toBe('active');
+    // Should NOT contain password fields
+    expect(body.data).not.toHaveProperty('passwordHash');
+    expect(body.data).not.toHaveProperty('passwordSalt');
+  });
+
+  it('GET /api/v1/users lists all users', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: '/api/v1/users',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('total');
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.total).toBeGreaterThan(0);
+  });
+
+  it('GET /api/v1/users/:id returns a specific user', async () => {
+    // Create user first
+    const createRes = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/users',
+      payload: {
+        username: 'lookup-user',
+        email: 'lookup@test.com',
+        password: 'password-789',
+        role: 'viewer',
+      },
+    });
+    const userId = createRes.json().data.id;
+
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: `/api/v1/users/${userId}`,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.id).toBe(userId);
+    expect(body.data.username).toBe('lookup-user');
+  });
+
+  it('PUT /api/v1/users/:id updates a user', async () => {
+    // Create user first
+    const createRes = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/users',
+      payload: {
+        username: 'update-target-user',
+        email: 'update-target@test.com',
+        password: 'password',
+        role: 'viewer',
+      },
+    });
+    const userId = createRes.json().data.id;
+
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'PUT',
+      url: `/api/v1/users/${userId}`,
+      payload: { displayName: 'Updated Display Name', role: 'analyst' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.displayName).toBe('Updated Display Name');
+    expect(body.data.role).toBe('analyst');
+  });
+
+  it('DELETE /api/v1/users/:id disables a user', async () => {
+    // Create user first
+    const createRes = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/users',
+      payload: {
+        username: 'delete-target-user',
+        email: 'delete-target@test.com',
+        password: 'password',
+      },
+    });
+    const userId = createRes.json().data.id;
+
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'DELETE',
+      url: `/api/v1/users/${userId}`,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().message).toContain('disabled');
+  });
+
+  it('POST /api/v1/users returns 400 without required fields', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/users',
+      payload: { displayName: 'Missing username/email/password' },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json();
+    expect(body.error).toBe('Bad Request');
+  });
+});
+
+// ===========================================================================
+// Store-backed Login (3 tests)
+// ===========================================================================
+
+describe('Store-backed login', () => {
+  it('Login works with a store-backed user', async () => {
+    // Create a user first
+    await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/users',
+      payload: {
+        username: 'login-test-user',
+        email: 'login-test@test.com',
+        password: 'my-secure-password',
+        role: 'analyst',
+      },
+    });
+
+    // Now login with those credentials
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: {
+        username: 'login-test-user',
+        password: 'my-secure-password',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toHaveProperty('token');
+    expect(body.data).toHaveProperty('user');
+    expect(body.data.user.username).toBe('login-test-user');
+    expect(body.data.user.role).toBe('analyst');
+  });
+
+  it('Login still works with demo users in test mode', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: {
+        username: 'admin',
+        password: 'admin',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toHaveProperty('token');
+    expect(body.data.user.username).toBe('admin');
+    expect(body.data.user.role).toBe('admin');
+  });
+
+  it('Login fails with wrong password for store-backed user', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: {
+        username: 'login-test-user',
+        password: 'wrong-password',
+      },
+    });
+    expect(res.statusCode).toBe(401);
+    const body = res.json();
+    expect(body.error).toBe('Unauthorized');
+  });
+});

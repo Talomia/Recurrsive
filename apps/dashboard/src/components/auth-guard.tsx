@@ -14,7 +14,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 
 /** Paths that don't require authentication. */
-const PUBLIC_PATHS = new Set(['/login']);
+const PUBLIC_PATHS = new Set(['/login', '/setup']);
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();

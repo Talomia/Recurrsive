@@ -9,9 +9,10 @@
 
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { apiFetch } from '@/lib/api/client';
 
 
 
@@ -22,6 +23,21 @@ export default function LoginPage() {
   const redirectTo = searchParams.get('redirect') ?? '/';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+
+  // Check if setup is required (fresh install) — redirect before showing login
+  useEffect(() => {
+    async function checkSetup() {
+      try {
+        const status = await apiFetch<{ setupRequired: boolean }>('/api/v1/setup/status');
+        if (status?.setupRequired) {
+          router.replace('/setup');
+        }
+      } catch {
+        // Endpoint not available — proceed with normal login
+      }
+    }
+    checkSetup();
+  }, [router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

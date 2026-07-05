@@ -57,6 +57,8 @@ export interface TokenPayload {
   iat: number;
   /** Expiry timestamp (Unix seconds). */
   exp: number;
+  /** Optional username (present for local/SSO users, absent for API keys). */
+  username?: string;
 }
 
 /** Shape of the `user` object decorated onto Fastify requests. */
@@ -67,6 +69,8 @@ export interface AuthUser {
   role: Role;
   /** Authentication method used. */
   authMethod: 'jwt' | 'api-key';
+  /** Username (present when authenticated via JWT with a username claim). */
+  username?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,16 +120,20 @@ function sign(headerPayload: string): string {
  * @param userId - User identifier (`sub` claim).
  * @param role - Role to embed in the token.
  * @param ttlSeconds - Token time-to-live in seconds (default: 3600).
+ * @param username - Optional username to embed in the token.
  * @returns A signed `header.payload.signature` JWT string.
  */
-export function createToken(userId: string, role: Role, ttlSeconds?: number): string {
+export function createToken(userId: string, role: Role, ttlSeconds?: number, username?: string): string {
   const now = Math.floor(Date.now() / 1000);
   const exp = now + (ttlSeconds ?? TOKEN_TTL_SECONDS);
 
+  const tokenPayload: TokenPayload = { sub: userId, role, iat: now, exp };
+  if (username) {
+    tokenPayload.username = username;
+  }
+
   const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = base64UrlEncode(
-    JSON.stringify({ sub: userId, role, iat: now, exp } satisfies TokenPayload),
-  );
+  const payload = base64UrlEncode(JSON.stringify(tokenPayload));
 
   const signature = sign(`${header}.${payload}`);
   return `${header}.${payload}.${signature}`;
@@ -201,11 +209,15 @@ function authenticateRequest(request: FastifyRequest): AuthUser | null {
     const token = authHeader.slice(7);
     const payload = verifyToken(token);
     if (payload) {
-      return {
+      const user: AuthUser = {
         id: payload.sub,
         role: payload.role,
         authMethod: 'jwt',
       };
+      if (payload.username) {
+        user.username = payload.username;
+      }
+      return user;
     }
     // Invalid token — fall through (don't try API key if Bearer was provided)
     return null;

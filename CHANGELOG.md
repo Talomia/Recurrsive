@@ -107,6 +107,28 @@ Clear runtime boundary between the downloadable OSS platform and the ecosystem s
 - **ARCHITECTURE.md**: Added `ENABLE_ENTERPRISE`, `ENABLE_ECOSYSTEM`, `ALLOW_DEMO_USERS` to env var appendix; ADR-009 for tier-gated registration
 - **ROADMAP.md**: Added "Tier Separation (v0.5.7)" subsection with 8 completed items
 
+#### Real User Authentication System
+Replaced hardcoded demo user array with a persistent, store-backed user management system with proper password hashing.
+
+**Server — Auth Rewrite:**
+- **JWT payload fix**: Token now includes `username` field (previously only `sub`, `role`, `iat`, `exp`)
+- **Password hashing**: New `passwords.ts` module using Node.js `crypto.scrypt` (N=16384, r=8, p=1, keylen=64) with 32-byte random salts — zero external dependencies
+- **User store**: New `users.ts` module with full CRUD operations against `users` store table. Includes `findOrCreateSSOUser()` for SSO auto-provisioning
+- **Setup wizard**: `GET /api/v1/setup/status` + `POST /api/v1/setup` — creates first admin on fresh installs. Returns 409 after setup.
+- **Login rewrite**: `POST /api/v1/auth/login` now checks store users first, falls back to demo users (dev mode only)
+- **User CRUD**: `GET/POST/PUT/DELETE /api/v1/users` (admin-only) — create, list, update, soft-delete users
+- **SSO auto-provision**: `POST /api/v1/sso/callback/:provider` now creates user records on first SSO login via `findOrCreateSSOUser()`
+
+**Dashboard — Auth Fixes:**
+- **JWT parsing fix**: `parseToken()` no longer requires `username` in payload — falls back to `sub`
+- **Response shape fix**: Login now reads `body.data?.token ?? body.token`
+- **Setup page**: New `/setup` wizard with glassmorphism design for first-admin creation
+- **Login redirect**: Login page checks setup status on mount — redirects to `/setup` if needed
+- **Users page**: New `/users` admin page with user table, create/edit/delete modals, role management
+- **Sidebar**: Added "Users" to Administration section
+
+**Tests:** 13 new tests (4 setup wizard, 6 user management, 3 store-backed login)
+
 ---
 
 ## [0.5.6] - 2026-07-04

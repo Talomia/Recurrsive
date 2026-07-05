@@ -2078,11 +2078,24 @@ graph BT
 
 | Layer | Mechanism | Details |
 |---|---|---|
-| REST API | API Key (header: `X-Api-Key`) | Keys stored as bcrypt hashes in `api_keys` table. Rate-limited per key. |
-| REST API | OAuth 2.0 (Authorization Code + PKCE) | For dashboard and third-party integrations. Supports GitHub, Google, Azure AD. |
+| REST API | JWT (HMAC-SHA256) | Custom implementation using Node.js `crypto`. Token payload: `{ sub, username, role, iat, exp }`. 1-hour TTL. Secret: `JWT_SECRET` env var. |
+| REST API | API Key (header: `X-API-Key`) | Keys stored as SHA-256 hashes in `api_keys` store table. Created by admins. |
+| REST API | SAML 2.0 SSO | Enterprise SSO via configurable IdP. SAML responses parsed from base64 XML. Auto-provisions user records on first login. |
 | MCP Server | Transport-level auth | Stdio: inherits process permissions. SSE/Streamable HTTP: Bearer token. |
-| Dashboard | Session-based (JWT in httpOnly cookie) | Short-lived access token (15m) + refresh token (7d). |
+| Dashboard | JWT in localStorage + cookie | Token stored client-side. Cookie set for Next.js middleware (server-side auth guard). |
 | CLI | Personal Access Token | Stored in configuration file (`~/.recurrsive/config`). |
+
+#### First-User Setup
+
+Fresh installations use a setup wizard (`POST /api/v1/setup`) to create the initial admin account. The endpoint only works when `countUsers() === 0` (no users exist in the store). After setup, the endpoint returns 409 Conflict.
+
+#### User Store
+
+Users are persisted in the `users` table of the SQLite store. Passwords are hashed using Node.js `crypto.scrypt` (N=16384, r=8, p=1, keylen=64) with per-user random 32-byte salts.
+
+#### Demo Users (Development Only)
+
+Three demo accounts (`admin/admin`, `analyst/analyst`, `viewer/viewer`) are available when `NODE_ENV !== 'production'` or `ALLOW_DEMO_USERS=true`. These are checked as a fallback after the real user store.
 
 ### 12.2 Authorization (RBAC)
 
@@ -2454,6 +2467,8 @@ stateDiagram-v2
 | `ENABLE_ENTERPRISE` | No | `true` | Set to `false` to disable Tier 2 Enterprise routes (SSO, multi-tenant, secrets, data masking) |
 | `ENABLE_ECOSYSTEM` | No | `true` | Set to `false` to disable Tier 3 Ecosystem routes (cloud, marketplace, partners) |
 | `ALLOW_DEMO_USERS` | No | `false` | Enable demo user accounts in production |
+| `JWT_SECRET` | Prod | `recurrsive-dev-secret` | HMAC-SHA256 secret for JWT signing. **Must** be changed in production. |
+| `DATABASE_PATH` | No | `./data/recurrsive.db` | SQLite database file path (`:memory:` in tests) |
 
 ## Appendix C: ADR Index
 
@@ -2470,3 +2485,4 @@ Architectural Decision Records referenced by this specification:
 | ADR-007 | Raw SQL over ORM | Direct Cypher and SQL queries; no ORM abstraction overhead; full AGE compatibility |
 | ADR-008 | Fastify over Express | 2–3× throughput; built-in schema validation; plugin system aligns with Recurrsive's architecture |
 | ADR-009 | Tier-gated route registration | OSS/Enterprise/Cloud routes in one server, gated by env vars. Avoids code duplication while enabling clear separation for self-hosted vs managed deployments |
+| ADR-010 | Node.js crypto.scrypt over bcrypt/argon2 | Zero external dependencies; built-in to Node.js; OWASP-recommended parameters (N=16384, r=8, p=1); timing-safe comparison |

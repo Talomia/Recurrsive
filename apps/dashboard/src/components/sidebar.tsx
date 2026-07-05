@@ -42,6 +42,7 @@ import {
   Cloud,
   Eye,
   Boxes,
+  Users,
 } from "lucide-react";
 
 interface NavSection {
@@ -99,6 +100,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Administration',
     items: [
+      { href: '/users', label: 'Users', icon: Users },
       { href: '/policies', label: 'Policies', icon: Shield },
       { href: '/audit', label: 'Audit Trail', icon: History },
       { href: '/secrets', label: 'Secrets', icon: Key },

@@ -48,6 +48,7 @@ describe('Sidebar', () => {
 
   it('renders admin and enterprise pages', () => {
     render(<Sidebar />);
+    expect(screen.getByText('Users')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('Plugins')).toBeInTheDocument();
     expect(screen.getByText('SSO')).toBeInTheDocument();

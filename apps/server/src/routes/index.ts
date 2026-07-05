@@ -17,7 +17,9 @@ import type { FastifyInstance } from 'fastify';
 // Tier 1 — OSS Core
 // ---------------------------------------------------------------------------
 import { registerHealthRoutes } from './health.js';
+import { registerSetupRoutes } from './setup.js';
 import { registerAuthRoutes } from './auth.js';
+import { registerUserRoutes } from './users.js';
 import { registerAnalysisRoutes } from './analysis.js';
 import { registerGraphRoutes } from './graph.js';
 import { registerTimelineRoutes } from './timeline.js';
@@ -116,7 +118,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // ── Tier 1 — OSS Core ───────────────────────────────────────────────────
   await registerHealthRoutes(app);
+  await registerSetupRoutes(app);
   await registerAuthRoutes(app);
+  await registerUserRoutes(app);
   await registerOpportunityRoutes(app);
   await registerAnalysisRoutes(app);
   await registerGraphRoutes(app);

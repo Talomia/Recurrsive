@@ -267,13 +267,30 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 # Start the server
 node apps/server/dist/bin.js
 
+# ── First-time setup (creates the initial admin account) ─────────
+curl http://localhost:3000/api/v1/setup/status
+# → { "data": { "setupRequired": true, "hasUsers": false } }
+
+curl -X POST http://localhost:3000/api/v1/setup \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "email": "admin@example.com", "password": "YourSecurePassword", "displayName": "Admin"}'
+# → { "data": { "token": "eyJ...", "user": { ... } } }
+
+# ── Authenticate ─────────────────────────────────────────────────
+TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "YourSecurePassword"}' | jq -r .data.token)
+
+# ── Use the API ──────────────────────────────────────────────────
 # Trigger analysis
 curl -X POST http://localhost:3000/api/v1/analyze \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"path": "/path/to/project"}'
 
 # Get opportunities
-curl http://localhost:3000/api/v1/opportunities?top=10
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3000/api/v1/opportunities?top=10
 
 # Health score
 curl http://localhost:3000/api/v1/health-score

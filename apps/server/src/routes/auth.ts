@@ -17,6 +17,7 @@ import type { AuthUser } from '../middleware/auth.js';
 import { generateApiKey, listApiKeys, revokeApiKey } from '../middleware/api-keys.js';
 import { requireRole } from '../middleware/rbac.js';
 import type { Role } from '../middleware/rbac.js';
+import { authenticateUser, findUserById } from '../middleware/users.js';
 
 const logger = createLogger({ context: { component: 'server:routes:auth' } });
 
@@ -97,32 +98,44 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    const user = DEMO_USERS.find(
-      (u) => u.username === username && u.password === password,
-    );
-
-    if (!user) {
-      logger.info(`Failed login attempt for username '${username}'`);
-      return reply.status(401).send({
-        error: 'Unauthorized',
-        message: 'Invalid username or password',
+    // 1. Try real (store-backed) users first
+    const realUser = await authenticateUser(username, password);
+    if (realUser) {
+      const token = createToken(realUser.id, realUser.role as Role, undefined, realUser.username);
+      logger.info(`User '${realUser.username}' logged in successfully (store)`);
+      return reply.status(200).send({
+        data: {
+          token,
+          user: realUser,
+        },
       });
     }
 
-    const token = createToken(user.id, user.role);
+    // 2. Fall back to demo users (dev/test mode only)
+    const demo = DEMO_USERS.find(
+      (u) => u.username === username && u.password === password,
+    );
 
-    logger.info(`User '${user.username}' logged in successfully`);
-
-    return reply.status(200).send({
-      data: {
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          role: user.role,
-          displayName: user.displayName,
+    if (demo) {
+      const token = createToken(demo.id, demo.role, undefined, demo.username);
+      logger.info(`User '${demo.username}' logged in successfully (demo)`);
+      return reply.status(200).send({
+        data: {
+          token,
+          user: {
+            id: demo.id,
+            username: demo.username,
+            role: demo.role,
+            displayName: demo.displayName,
+          },
         },
-      },
+      });
+    }
+
+    logger.info(`Failed login attempt for username '${username}'`);
+    return reply.status(401).send({
+      error: 'Unauthorized',
+      message: 'Invalid username or password',
     });
   });
 
@@ -141,7 +154,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const user = (request as typeof request & { user: AuthUser }).user;
 
-    const token = createToken(user.id, user.role);
+    const token = createToken(user.id, user.role, undefined, user.username);
 
     return reply.status(200).send({
       data: {
@@ -166,7 +179,22 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const user = (request as typeof request & { user: AuthUser }).user;
 
-    // Look up demo user for display name
+    // Look up real user from store first
+    const storeUser = findUserById(user.id);
+    if (storeUser) {
+      return reply.status(200).send({
+        data: {
+          id: storeUser.id,
+          role: storeUser.role,
+          authMethod: user.authMethod,
+          displayName: storeUser.displayName,
+          username: storeUser.username,
+          email: storeUser.email,
+        },
+      });
+    }
+
+    // Fall back to demo users
     const demo = DEMO_USERS.find((u) => u.id === user.id);
 
     return reply.status(200).send({

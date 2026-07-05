@@ -14,6 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { createToken, authMiddleware } from '../middleware/auth.js';
 import { store } from '../store.js';
+import { findOrCreateSSOUser } from '../middleware/users.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -324,8 +325,23 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
 
     const role = assertion.role as 'admin' | 'analyst' | 'viewer';
 
+    // Auto-provision or find existing user in the user store
+    const autoProvision = config.autoProvision !== false;
+    const ssoUser = await findOrCreateSSOUser(
+      request.params.provider,
+      assertion.email,
+      assertion.firstName,
+      assertion.lastName,
+      role,
+      autoProvision,
+    );
+
+    // Use the store user ID if available, otherwise fall back to assertion
+    const userId = ssoUser?.id ?? assertion.userId;
+    const username = ssoUser?.username ?? assertion.userId;
+
     // Create JWT token for the SSO user
-    const token = createToken(assertion.userId, role);
+    const token = createToken(userId, role, undefined, username);
 
     // Store session
     const sessionId = generateId();
@@ -340,7 +356,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
         token,
         sessionId,
         user: {
-          id: assertion.userId,
+          id: userId,
           email: assertion.email,
           name: `${assertion.firstName} ${assertion.lastName}`,
           role,

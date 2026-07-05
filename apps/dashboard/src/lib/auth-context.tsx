@@ -70,11 +70,12 @@ function parseToken(token: string): AuthUser | null {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const payload = JSON.parse(atob(parts[1]));
-    if (!payload.sub || !payload.username || !payload.role) return null;
+    if (!payload.sub || !payload.role) return null;
     if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+    // username is now optional — use sub as fallback
     return {
       userId: payload.sub,
-      username: payload.username,
+      username: payload.username ?? payload.sub,
       role: payload.role as Role,
     };
   } catch {
@@ -119,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const body = await res.json();
-      const newToken = body.token as string;
+      const newToken = (body.data?.token ?? body.token) as string;
       const parsed = parseToken(newToken);
 
       if (!parsed) {

@@ -18,7 +18,7 @@
 | REST API | ✅ Complete | 150+ endpoints, OpenAPI 3.1 spec, WebSocket streaming, JWT/API key auth, RBAC |
 | Dashboard | ✅ Complete | Next.js, 42 pages (incl. marketplace + partners), grouped sidebar navigation, real-time WebSocket |
 | Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
-| Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
+| Auth & Security | ✅ Complete | JWT auth (HMAC-SHA256), scrypt password hashing, setup wizard, user CRUD, SSO auto-provisioning, API key management, RBAC (admin/analyst/viewer) |
 | Tests | ✅ Complete | 140 test files, 3,293+ tests across 14 packages, integration tests for full pipeline |
 | Tier Separation | ✅ Complete | 3-tier model (OSS/Enterprise/Ecosystem) enforced at runtime via `ENABLE_ENTERPRISE` and `ENABLE_ECOSYSTEM` env vars |
 
