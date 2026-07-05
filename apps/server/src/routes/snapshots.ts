@@ -8,10 +8,13 @@
  * @packageDocumentation
  */
 
+import { readFileSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import type { Entity, Relationship } from '@recurrsive/core';
 import { nowISO, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+
+const PKG_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')).version as string;
 
 const logger = createLogger({ context: { component: 'server:routes:snapshots' } });
 
@@ -98,7 +101,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
       }
 
       const snapshot: Snapshot = {
-        version: '0.5.6',
+        version: PKG_VERSION,
         exported_at: nowISO(),
         project: state.getProjectPath() ?? 'unknown',
         entities: allEntities,

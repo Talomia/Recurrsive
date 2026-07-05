@@ -42,7 +42,7 @@ build-website: ## Build website only
 	pnpm build --filter @recurrsive/website
 
 # ── Test ──────────────────────────────────────────────────────────────────────
-test: ## Run all tests (3,343+ across 140 test files)
+test: ## Run all tests (3,293+ across 140 test files)
 	pnpm test
 
 test-server: ## Run server tests (423)

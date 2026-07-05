@@ -66,6 +66,7 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
    */
   app.get('/api/v1/analytics/summary', async (_request, reply) => {
     const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+    const healthScore = state.isInitialized() ? state.getHealthScore() : null;
 
     if (cache?.findings?.length) {
       const totalFindings = cache.findings.length;
@@ -75,14 +76,24 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
           ? Math.round((totalResolved / totalFindings) * 1000) / 10
           : 0;
 
+      const history = state.getAnalysisHistory();
+      const trends: TrendPoint[] = history
+        .filter(h => h.status === 'success')
+        .map(h => ({
+          date: h.startedAt.split('T')[0]!,
+          findings: h.findingCount,
+          resolved: h.opportunityCount,
+          health: healthScore?.overall ?? 0,
+        }));
+
       return reply.status(200).send({
         data: {
           analysis_runs: 1,
           total_findings: totalFindings,
           findings_resolved: totalResolved,
           resolution_rate: resolutionRate,
-          avg_health_score: 0,
-          trends: [],
+          avg_health_score: healthScore?.overall ?? 0,
+          trends,
         },
       });
     }

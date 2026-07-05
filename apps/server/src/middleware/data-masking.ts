@@ -84,25 +84,7 @@ const PII_PATTERNS: Array<{ type: PIIType; pattern: RegExp; confidence: number; 
 // Masking Engine
 // ---------------------------------------------------------------------------
 
-// Seed default policies
-const defaultPolicies: Array<Omit<MaskingPolicy, 'id' | 'createdAt'>> = [
-  { fieldPattern: '*.email', piiType: 'email', strategy: 'partial', enabled: true, reason: 'GDPR compliance — personal email addresses' },
-  { fieldPattern: '*.phone', piiType: 'phone', strategy: 'redact', enabled: true, reason: 'Privacy — phone numbers should not be exposed' },
-  { fieldPattern: '*.ssn', piiType: 'ssn', strategy: 'redact', enabled: true, reason: 'PCI/HIPAA — social security numbers' },
-  { fieldPattern: '*.credit_card', piiType: 'credit_card', strategy: 'redact', enabled: true, reason: 'PCI-DSS — credit card numbers' },
-  { fieldPattern: '*.ip_address', piiType: 'ip_address', strategy: 'hash', enabled: true, reason: 'Privacy — IP addresses can identify users' },
-  { fieldPattern: '*.api_key', piiType: 'api_key', strategy: 'redact', enabled: true, reason: 'Security — API keys should never be returned' },
-  { fieldPattern: '*.password', piiType: 'password', strategy: 'suppress', enabled: true, reason: 'Security — passwords should never be returned' },
-  { fieldPattern: '*.token', piiType: 'jwt_token', strategy: 'partial', enabled: true, reason: 'Security — JWT tokens should be partially masked' },
-];
 
-// Seed only on first startup (empty store)
-if (store.count('masking_policies') === 0) {
-  for (const p of defaultPolicies) {
-    const id = generateId();
-    store.set('masking_policies', id, { ...p, id, createdAt: '2026-01-01T00:00:00Z' });
-  }
-}
 
 /** Apply masking strategy to a value. */
 export function applyMask(value: string, strategy: MaskingStrategy): string {
@@ -312,9 +294,10 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
       data: [
         { id: 'redact', name: 'Redact', description: 'Replace with [REDACTED]' },
         { id: 'hash', name: 'Hash', description: 'Replace with SHA-256 hash' },
-        { id: 'mask', name: 'Mask', description: 'Partially mask the value (e.g., ****1234)' },
-        { id: 'tokenize', name: 'Tokenize', description: 'Replace with a reversible token' },
-        { id: 'encrypt', name: 'Encrypt', description: 'Encrypt with AES-256' },
+        { id: 'partial', name: 'Partial Mask', description: 'Show first/last N characters (e.g., j***@e***.com)' },
+        { id: 'tokenize', name: 'Tokenize', description: 'Replace with deterministic token (reversible with key)' },
+        { id: 'generalize', name: 'Generalize', description: 'Replace with generalized value (e.g., city → country)' },
+        { id: 'suppress', name: 'Suppress', description: 'Remove field entirely from output' },
       ],
     });
   });

@@ -11,8 +11,9 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { nowISO } from '@recurrsive/core';
+import { generateId, nowISO } from '@recurrsive/core';
 import { store } from '../store.js';
+import { state } from '../state.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -212,4 +213,67 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
       });
     },
   );
+
+  // Create a single prediction
+  app.post('/api/v1/confidence/predictions', async (request, reply) => {
+    const body = request.body as {
+      findingId?: string;
+      analyzer?: string;
+      predictedSeverity?: string;
+      predictedCategory?: string;
+      confidence?: number;
+    };
+
+    if (!body.findingId || !body.analyzer || !body.predictedSeverity || !body.predictedCategory || body.confidence === undefined) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'findingId, analyzer, predictedSeverity, predictedCategory, and confidence are required',
+      });
+    }
+
+    const id = generateId();
+    const prediction: Prediction = {
+      id,
+      analyzerId: body.analyzer,
+      findingId: body.findingId,
+      description: `Predicted ${body.predictedSeverity} ${body.predictedCategory} finding`,
+      predictedProbability: body.confidence,
+      actualOutcome: null,
+      severity: body.predictedSeverity as Prediction['severity'],
+      predictedAt: nowISO(),
+      resolvedAt: null,
+    };
+
+    store.set<Prediction>('predictions', id, prediction);
+    return reply.status(201).send({ data: prediction });
+  });
+
+  // Generate predictions from current analysis findings
+  app.post('/api/v1/confidence/predictions/generate', async (_request, reply) => {
+    const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+    const findings = cache?.findings ?? [];
+
+    let count = 0;
+    for (const finding of findings) {
+      const id = generateId();
+      const prediction: Prediction = {
+        id,
+        analyzerId: finding.analyzer_id,
+        findingId: finding.id,
+        description: `Predicted ${finding.severity} ${finding.category} finding`,
+        predictedProbability: finding.confidence,
+        actualOutcome: null,
+        severity: finding.severity as Prediction['severity'],
+        predictedAt: nowISO(),
+        resolvedAt: null,
+      };
+      store.set<Prediction>('predictions', id, prediction);
+      count++;
+    }
+
+    return reply.status(200).send({
+      data: { predictionsCreated: count },
+      message: `Generated ${count} predictions from analysis findings`,
+    });
+  });
 }

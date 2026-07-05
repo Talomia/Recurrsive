@@ -47,7 +47,7 @@ vi.mock('../state.js', () => ({
 // deep dependencies.
 
 vi.mock('@recurrsive/core', () => ({
-  VERSION: '0.5.6',
+  VERSION: '0.5.7',
   OpportunityCategorySchema: { safeParse: vi.fn() },
   SeveritySchema: { safeParse: vi.fn() },
   OpportunityStatusSchema: { safeParse: vi.fn() },
@@ -148,12 +148,12 @@ describe('MCP Server', () => {
       );
     });
 
-    it('creates a McpServer with version 0.5.6', () => {
+    it('creates a McpServer with version 0.5.7', () => {
       createServer();
 
       expect(McpServer).toHaveBeenCalledWith(
         expect.objectContaining({
-          version: '0.5.6',
+          version: '0.5.7',
         }),
       );
     });

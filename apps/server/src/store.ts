@@ -330,7 +330,7 @@ export class ServerStore {
    * @returns The generated record ID.
    */
   append<T>(table: string, value: T): string {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const id = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
     this.set(table, id, value);
     return id;
   }

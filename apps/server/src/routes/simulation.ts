@@ -216,6 +216,23 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       return reply.status(400).send({ error: 'Bad Request', message: 'title is required' });
     }
 
+    const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+    const findings = cache?.findings ?? [];
+
+    const changes = findings.map(f => ({
+      path: f.locations?.[0]?.file ?? 'unknown',
+      action: 'modify' as const,
+      additions: 0,
+      deletions: 0,
+      summary: f.suggested_fix ?? f.description,
+    }));
+
+    const impact = {
+      healthScoreChange: Math.min(findings.length * 2, 20),
+      findingsResolved: findings.length,
+      coverageChange: 0,
+    };
+
     const id = generateId();
     const pr: GeneratedPR = {
       id,
@@ -223,8 +240,8 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       title: body.title,
       description: body.description ?? '',
       branch: `auto/${body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
-      changes: [],
-      impact: { healthScoreChange: 0, findingsResolved: 0, coverageChange: 0 },
+      changes,
+      impact,
       status: 'draft',
       reviewers: [],
       labels: ['auto-generated'],

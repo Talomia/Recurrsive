@@ -104,63 +104,67 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
   app.get<{ Querystring: { horizon?: string; history?: string } }>(
     '/api/v1/forecasting/health',
     async (request, reply) => {
-      const horizon = Math.min(180, parseInt(request.query.horizon ?? '30', 10) || 30);
+      try {
+        const horizon = Math.min(180, parseInt(request.query.horizon ?? '30', 10) || 30);
 
-      // Use real health score as baseline if analysis has been run
-      const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
-      const baseScore = realScore ?? 72;
-      const timeline = buildTimeline(baseScore);
+        // Use real health score as baseline if analysis has been run
+        const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
+        const baseScore = realScore ?? 0;
+        const timeline = buildTimeline(baseScore);
 
-      // Fit linear regression
-      const points = timeline.map((p, i) => ({ x: i, y: p.score }));
-      const regression = linearRegression(points);
+        // Fit linear regression
+        const points = timeline.map((p, i) => ({ x: i, y: p.score }));
+        const regression = linearRegression(points);
 
-      // Project forward
-      const forecast: Array<{ date: string; predicted: number; lowerBound: number; upperBound: number }> = [];
-      const now = Date.now();
+        // Project forward
+        const forecast: Array<{ date: string; predicted: number; lowerBound: number; upperBound: number }> = [];
+        const now = Date.now();
 
-      for (let i = 1; i <= horizon; i++) {
-        const x = timeline.length + i;
-        const predicted = Math.min(100, Math.max(0, regression.slope * x + regression.intercept));
-        const uncertainty = Math.min(15, i * 0.25); // Grows with time
-        forecast.push({
-          date: new Date(now + i * 86400000).toISOString().split('T')[0]!,
-          predicted: Math.round(predicted * 10) / 10,
-          lowerBound: Math.round(Math.max(0, predicted - uncertainty) * 10) / 10,
-          upperBound: Math.round(Math.min(100, predicted + uncertainty) * 10) / 10,
+        for (let i = 1; i <= horizon; i++) {
+          const x = timeline.length + i;
+          const predicted = Math.min(100, Math.max(0, regression.slope * x + regression.intercept));
+          const uncertainty = Math.min(15, i * 0.25); // Grows with time
+          forecast.push({
+            date: new Date(now + i * 86400000).toISOString().split('T')[0]!,
+            predicted: Math.round(predicted * 10) / 10,
+            lowerBound: Math.round(Math.max(0, predicted - uncertainty) * 10) / 10,
+            upperBound: Math.round(Math.min(100, predicted + uncertainty) * 10) / 10,
+          });
+        }
+
+        // Trend classification
+        const trend = regression.slope > 0.1 ? 'improving' :
+                      regression.slope < -0.1 ? 'declining' : 'stable';
+
+        // Time to target estimates
+        const targets = [90, 80, 70, 60].map(target => {
+          if (regression.slope <= 0) return { target, daysToReach: null, reachable: false };
+          const currentScore = timeline[timeline.length - 1]!.score;
+          if (currentScore >= target) return { target, daysToReach: 0, reachable: true };
+          const days = Math.ceil((target - currentScore) / regression.slope);
+          return { target, daysToReach: days, reachable: days <= 365 };
         });
-      }
 
-      // Trend classification
-      const trend = regression.slope > 0.1 ? 'improving' :
-                    regression.slope < -0.1 ? 'declining' : 'stable';
-
-      // Time to target estimates
-      const targets = [90, 80, 70, 60].map(target => {
-        if (regression.slope <= 0) return { target, daysToReach: null, reachable: false };
-        const currentScore = timeline[timeline.length - 1]!.score;
-        if (currentScore >= target) return { target, daysToReach: 0, reachable: true };
-        const days = Math.ceil((target - currentScore) / regression.slope);
-        return { target, daysToReach: days, reachable: days <= 365 };
-      });
-
-      return reply.send({
-        data: {
-          currentScore: timeline[timeline.length - 1]!.score,
-          trend,
-          trendStrength: Math.abs(regression.slope),
-          confidence: Math.round(regression.r2 * 100) / 100,
-          history: timeline.slice(-30),
-          forecast: forecast.slice(0, 30),
-          targets,
-          regression: {
-            slope: Math.round(regression.slope * 1000) / 1000,
-            intercept: Math.round(regression.intercept * 100) / 100,
-            r2: Math.round(regression.r2 * 1000) / 1000,
+        return reply.send({
+          data: {
+            currentScore: timeline[timeline.length - 1]!.score,
+            trend,
+            trendStrength: Math.abs(regression.slope),
+            confidence: Math.round(regression.r2 * 100) / 100,
+            history: timeline.slice(-30),
+            forecast: forecast.slice(0, 30),
+            targets,
+            regression: {
+              slope: Math.round(regression.slope * 1000) / 1000,
+              intercept: Math.round(regression.intercept * 100) / 100,
+              r2: Math.round(regression.r2 * 1000) / 1000,
+            },
           },
-        },
-        generatedAt: nowISO(),
-      });
+          generatedAt: nowISO(),
+        });
+      } catch (err) {
+        return reply.status(500).send({ error: 'Internal server error', message: (err as Error).message });
+      }
     },
   );
 
@@ -171,84 +175,88 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
    * Body: { actions: [{ type, description, estimatedImpact }] }
    */
   app.post('/api/v1/forecasting/what-if', async (request, reply) => {
-    const body = request.body as {
-      actions?: Array<{
-        type: string;
-        description: string;
-        estimatedImpact?: number;
-      }>;
-    };
-
-    if (!body.actions || body.actions.length === 0) {
-      return reply.status(400).send({ error: 'Bad Request', message: 'At least one action is required' });
-    }
-
-    // Use real health score if available, otherwise use algorithmic baseline
-    const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
-    const currentScore = realScore ?? 78;
-    const results = [];
-    let cumulativeImpact = 0;
-
-    // Impact models per action type
-    const impactModels: Record<string, { baseImpact: number; confidence: number; timeToRealize: number }> = {
-      'fix-critical-findings': { baseImpact: 8.5, confidence: 0.90, timeToRealize: 7 },
-      'add-tests': { baseImpact: 4.2, confidence: 0.85, timeToRealize: 14 },
-      'upgrade-dependencies': { baseImpact: 3.8, confidence: 0.75, timeToRealize: 3 },
-      'add-monitoring': { baseImpact: 5.0, confidence: 0.80, timeToRealize: 21 },
-      'refactor-architecture': { baseImpact: 6.5, confidence: 0.60, timeToRealize: 30 },
-      'add-documentation': { baseImpact: 2.5, confidence: 0.92, timeToRealize: 7 },
-      'enable-strict-mode': { baseImpact: 3.0, confidence: 0.88, timeToRealize: 5 },
-      'add-rate-limiting': { baseImpact: 2.0, confidence: 0.95, timeToRealize: 2 },
-      'fix-security-issues': { baseImpact: 7.0, confidence: 0.85, timeToRealize: 5 },
-      'optimize-performance': { baseImpact: 4.5, confidence: 0.70, timeToRealize: 14 },
-    };
-
-    for (const action of body.actions) {
-      const model = impactModels[action.type] ?? {
-        baseImpact: action.estimatedImpact ?? 3.0,
-        confidence: 0.50,
-        timeToRealize: 14,
+    try {
+      const body = request.body as {
+        actions?: Array<{
+          type: string;
+          description: string;
+          estimatedImpact?: number;
+        }>;
       };
 
-      const impact = action.estimatedImpact ?? model.baseImpact;
-      cumulativeImpact += impact;
+      if (!body.actions || body.actions.length === 0) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'At least one action is required' });
+      }
 
-      results.push({
-        id: generateId(),
-        type: action.type,
-        description: action.description,
-        impact: {
-          healthScoreDelta: Math.round(impact * 10) / 10,
-          confidence: model.confidence,
-          timeToRealize: `${model.timeToRealize} days`,
-          affectedDimensions: getAffectedDimensions(action.type),
+      // Use real health score if available, otherwise use algorithmic baseline
+      const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
+      const currentScore = realScore ?? 0;
+      const results = [];
+      let cumulativeImpact = 0;
+
+      // Impact models per action type
+      const impactModels: Record<string, { baseImpact: number; confidence: number; timeToRealize: number }> = {
+        'fix-critical-findings': { baseImpact: 8.5, confidence: 0.90, timeToRealize: 7 },
+        'add-tests': { baseImpact: 4.2, confidence: 0.85, timeToRealize: 14 },
+        'upgrade-dependencies': { baseImpact: 3.8, confidence: 0.75, timeToRealize: 3 },
+        'add-monitoring': { baseImpact: 5.0, confidence: 0.80, timeToRealize: 21 },
+        'refactor-architecture': { baseImpact: 6.5, confidence: 0.60, timeToRealize: 30 },
+        'add-documentation': { baseImpact: 2.5, confidence: 0.92, timeToRealize: 7 },
+        'enable-strict-mode': { baseImpact: 3.0, confidence: 0.88, timeToRealize: 5 },
+        'add-rate-limiting': { baseImpact: 2.0, confidence: 0.95, timeToRealize: 2 },
+        'fix-security-issues': { baseImpact: 7.0, confidence: 0.85, timeToRealize: 5 },
+        'optimize-performance': { baseImpact: 4.5, confidence: 0.70, timeToRealize: 14 },
+      };
+
+      for (const action of body.actions) {
+        const model = impactModels[action.type] ?? {
+          baseImpact: action.estimatedImpact ?? 3.0,
+          confidence: 0.50,
+          timeToRealize: 14,
+        };
+
+        const impact = action.estimatedImpact ?? model.baseImpact;
+        cumulativeImpact += impact;
+
+        results.push({
+          id: generateId(),
+          type: action.type,
+          description: action.description,
+          impact: {
+            healthScoreDelta: Math.round(impact * 10) / 10,
+            confidence: model.confidence,
+            timeToRealize: `${model.timeToRealize} days`,
+            affectedDimensions: getAffectedDimensions(action.type),
+          },
+        });
+      }
+
+      const projectedScore = Math.min(100, currentScore + cumulativeImpact);
+
+      return reply.send({
+        data: {
+          currentScore,
+          projectedScore: Math.round(projectedScore * 10) / 10,
+          totalImpact: Math.round(cumulativeImpact * 10) / 10,
+          actions: results,
+          summary: {
+            highestImpact: results.sort((a, b) => b.impact.healthScoreDelta - a.impact.healthScoreDelta)[0]?.type ?? null,
+            totalActions: results.length,
+            avgConfidence: Math.round(
+              (results.reduce((s, r) => s + r.impact.confidence, 0) / results.length) * 100,
+            ) / 100,
+            recommendation: cumulativeImpact > 10
+              ? 'Strong improvement potential. Prioritize the highest-confidence actions first.'
+              : cumulativeImpact > 5
+                ? 'Moderate improvement expected. Consider bundling these changes into a focused sprint.'
+                : 'Minor improvements. These are good housekeeping tasks but won\'t dramatically change the health score.',
+          },
         },
+        generatedAt: nowISO(),
       });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: (err as Error).message });
     }
-
-    const projectedScore = Math.min(100, currentScore + cumulativeImpact);
-
-    return reply.send({
-      data: {
-        currentScore,
-        projectedScore: Math.round(projectedScore * 10) / 10,
-        totalImpact: Math.round(cumulativeImpact * 10) / 10,
-        actions: results,
-        summary: {
-          highestImpact: results.sort((a, b) => b.impact.healthScoreDelta - a.impact.healthScoreDelta)[0]?.type ?? null,
-          totalActions: results.length,
-          avgConfidence: Math.round(
-            (results.reduce((s, r) => s + r.impact.confidence, 0) / results.length) * 100,
-          ) / 100,
-          recommendation: cumulativeImpact > 10
-            ? 'Strong improvement potential. Prioritize the highest-confidence actions first.'
-            : cumulativeImpact > 5
-              ? 'Moderate improvement expected. Consider bundling these changes into a focused sprint.'
-              : 'Minor improvements. These are good housekeeping tasks but won\'t dramatically change the health score.',
-        },
-      },
-      generatedAt: nowISO(),
-    });
   });
 
   /**
@@ -257,80 +265,84 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
    * Auto-generated from real analysis history.
    */
   app.get('/api/v1/forecasting/evolution', async (_request, reply) => {
-    // Build evolution events from real analysis history
-    const history = state.isInitialized() ? state.getAnalysisHistory() : [];
-    const successfulRuns = history
-      .filter(h => h.status === 'success')
-      .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+    try {
+      // Build evolution events from real analysis history
+      const history = state.isInitialized() ? state.getAnalysisHistory() : [];
+      const successfulRuns = history
+        .filter(h => h.status === 'success')
+        .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
 
-    interface EvolutionEvent {
-      id: string;
-      date: string;
-      type: string;
-      title: string;
-      description: string;
-      outcome: string;
-      healthImpact: number;
-      learnings: string[];
-    }
+      interface EvolutionEvent {
+        id: string;
+        date: string;
+        type: string;
+        title: string;
+        description: string;
+        outcome: string;
+        healthImpact: number;
+        learnings: string[];
+      }
 
-    const events: EvolutionEvent[] = [];
-    let prevScore = 50; // baseline before any analysis
+      const events: EvolutionEvent[] = [];
+      let prevScore = 50; // baseline before any analysis
 
-    for (let i = 0; i < successfulRuns.length; i++) {
-      const run = successfulRuns[i]!;
-      const currentScore = Math.max(0, Math.min(100, 100 - run.findingCount * 2 + run.opportunityCount * 0.5));
-      const scoreDelta = Math.round((currentScore - prevScore) * 10) / 10;
+      for (let i = 0; i < successfulRuns.length; i++) {
+        const run = successfulRuns[i]!;
+        const currentScore = Math.max(0, Math.min(100, 100 - run.findingCount * 2 + run.opportunityCount * 0.5));
+        const scoreDelta = Math.round((currentScore - prevScore) * 10) / 10;
 
-      // Classify event type by score change
-      const eventType = scoreDelta > 5 ? 'milestone' :
-                        scoreDelta < -5 ? 'incident' :
-                        scoreDelta > 0 ? 'decision' : 'experiment';
+        // Classify event type by score change
+        const eventType = scoreDelta > 5 ? 'milestone' :
+                          scoreDelta < -5 ? 'incident' :
+                          scoreDelta > 0 ? 'decision' : 'experiment';
 
-      const outcome = scoreDelta >= 0 ? 'positive' : 'resolved';
+        const outcome = scoreDelta >= 0 ? 'positive' : 'resolved';
 
-      // Generate meaningful description and learnings from data
-      const learnings: string[] = [];
-      if (run.findingCount > 0) learnings.push(`${run.findingCount} finding(s) detected`);
-      if (run.opportunityCount > 0) learnings.push(`${run.opportunityCount} improvement opportunity(ies) identified`);
-      if (run.durationMs > 0) learnings.push(`Analysis completed in ${Math.round(run.durationMs / 1000)}s`);
-      if (run.includeReasoning) learnings.push('Multi-agent reasoning was applied');
+        // Generate meaningful description and learnings from data
+        const learnings: string[] = [];
+        if (run.findingCount > 0) learnings.push(`${run.findingCount} finding(s) detected`);
+        if (run.opportunityCount > 0) learnings.push(`${run.opportunityCount} improvement opportunity(ies) identified`);
+        if (run.durationMs > 0) learnings.push(`Analysis completed in ${Math.round(run.durationMs / 1000)}s`);
+        if (run.includeReasoning) learnings.push('Multi-agent reasoning was applied');
 
-      events.push({
-        id: run.id,
-        date: new Date(run.startedAt).toISOString().split('T')[0]!,
-        type: eventType,
-        title: `Analysis run #${i + 1}`,
-        description: `Completed with ${run.findingCount} findings and ${run.opportunityCount} opportunities. Health score: ${Math.round(currentScore)}.`,
-        outcome,
-        healthImpact: Math.round(scoreDelta),
-        learnings,
+        events.push({
+          id: run.id,
+          date: new Date(run.startedAt).toISOString().split('T')[0]!,
+          type: eventType,
+          title: `Analysis run #${i + 1}`,
+          description: `Completed with ${run.findingCount} findings and ${run.opportunityCount} opportunities. Health score: ${Math.round(currentScore)}.`,
+          outcome,
+          healthImpact: Math.round(scoreDelta),
+          learnings,
+        });
+
+        prevScore = currentScore;
+      }
+
+      // Calculate trajectory
+      let score = 50;
+      const trajectory = events.map(e => {
+        score = Math.max(0, Math.min(100, score + e.healthImpact));
+        return { date: e.date, score, event: e.title };
       });
 
-      prevScore = currentScore;
+      return reply.send({
+        data: {
+          events,
+          trajectory,
+          currentScore: events.length > 0 ? score : (state.isInitialized() ? state.getHealthScore().overall : 0),
+          totalDecisions: events.filter(e => e.type === 'decision').length,
+          totalMilestones: events.filter(e => e.type === 'milestone').length,
+          totalIncidents: events.filter(e => e.type === 'incident').length,
+          totalExperiments: events.filter(e => e.type === 'experiment').length,
+          netHealthImpact: events.reduce((s, e) => s + e.healthImpact, 0),
+          allLearnings: events.flatMap(e => e.learnings),
+        },
+        generatedAt: nowISO(),
+      });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: (err as Error).message });
     }
-
-    // Calculate trajectory
-    let score = 50;
-    const trajectory = events.map(e => {
-      score = Math.max(0, Math.min(100, score + e.healthImpact));
-      return { date: e.date, score, event: e.title };
-    });
-
-    return reply.send({
-      data: {
-        events,
-        trajectory,
-        currentScore: events.length > 0 ? score : (state.isInitialized() ? state.getHealthScore().overall : 0),
-        totalDecisions: events.filter(e => e.type === 'decision').length,
-        totalMilestones: events.filter(e => e.type === 'milestone').length,
-        totalIncidents: events.filter(e => e.type === 'incident').length,
-        totalExperiments: events.filter(e => e.type === 'experiment').length,
-        netHealthImpact: events.reduce((s, e) => s + e.healthImpact, 0),
-        allLearnings: events.flatMap(e => e.learnings),
-      },
-      generatedAt: nowISO(),
-    });
   });
 }
 

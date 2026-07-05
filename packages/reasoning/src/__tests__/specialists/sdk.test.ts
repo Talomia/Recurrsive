@@ -503,7 +503,7 @@ describe('SpecialistTemplate', () => {
 describe('getSDKInfo', () => {
   it('returns the SDK version', () => {
     const info = getSDKInfo();
-    expect(info.version).toBe('0.5.6');
+    expect(info.version).toBe('0.5.7');
   });
 
   it('lists supported methods', () => {

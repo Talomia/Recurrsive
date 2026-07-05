@@ -395,7 +395,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Global run history (all schedules)
-  app.get('/api/v1/schedules/history', async (_request, reply) => {
+  app.get('/api/v1/schedules/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const allRuns = store.all<ReportRun>('schedule_runs');
     const sorted = allRuns.sort((a, b) =>
       new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
