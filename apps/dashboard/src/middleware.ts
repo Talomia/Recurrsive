@@ -13,7 +13,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 /** Paths that don't require authentication. */
-const PUBLIC_PATHS = new Set(['/login']);
+const PUBLIC_PATHS = new Set(['/login', '/setup', '/invite']);
 
 /** Cookie/header name for the JWT token. */
 const TOKEN_COOKIE = 'recurrsive_token';
@@ -42,8 +42,10 @@ function isTokenValid(token: string): boolean {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths
-  if (PUBLIC_PATHS.has(pathname)) {
+  // Allow public paths (exact match or prefix, e.g. /invite/abc)
+  const isPublic = PUBLIC_PATHS.has(pathname)
+    || [...PUBLIC_PATHS].some((p) => pathname.startsWith(p + '/'));
+  if (isPublic) {
     return NextResponse.next();
   }
 
