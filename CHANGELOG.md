@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.7] - 2026-07-05
+
+### Changed
+
+#### Complete Real Implementation — Zero Synthetic Data
+All mock, synthetic, and seed data has been replaced with real implementations across the entire platform. No `Math.random()` remains in production routes.
+
+**Server Routes:**
+- **SSO/SAML**: Real base64 XML parsing, SAMLAuthnRequest generation, timestamp/issuer validation (replaces hardcoded demo users)
+- **Forecasting**: `buildTimeline()` reads `state.getAnalysisHistory()` for real data; evolution events auto-generated from run history
+- **Simulation**: Real analysis-based impact scoring from state; findings sourced from actual analysis cache
+- **Cloud Benchmarking**: Store-backed patterns/partners; removed fake benchmark seeds
+- **GraphQL**: Removed `buildSeedData()` (~160 lines) and all `SEED_DATA` fallbacks; resolvers return empty data when uninitialized
+- **Scheduling**: Real cron expression parser (replaces simplified "next Monday 9am" logic); supports `*`, ranges, steps, comma-separated lists
+- **CLI `simulate run`**: Now calls `POST /api/v1/simulations` via server API (was local-only with `Math.random()`)
+
+**Collectors (9 rewritten):**
+- GitHub, GitLab: Real API calls via native `fetch` with pagination and rate-limit awareness
+- Langfuse, Helicone, Arize: Real API clients with credential auth
+- OpenTelemetry: Local JSON file reader
+- Cloud Cost: CSV/AWS API import
+- Error Tracking: Sentry API client
+- APM: Datadog/New Relic/Grafana API clients
+
+#### Documentation Alignment
+- **README.md**: Removed "seeds realistic initial data" language; updated test count to 3,343
+- **ROADMAP.md**: Removed all "scaffolded", "synthetic", "demo data" annotations across 8 sections
+- **ARCHITECTURE.md**: Updated GraphQL data source description (returns empty when uninitialized)
+- **openapi.yaml**: Fixed branding to "Engineering Intelligence Platform"
+- **Core README**: Fixed `contentHash()` description (DJB2, not SHA-256)
+- **Auth docstrings**: Clarified demo users are disabled in production unless `ALLOW_DEMO_USERS=true`
+- **SSO docstrings**: Updated from "synthetic" to real SAML parsing
+- **MCP api.ts**: Removed "demo data" reference
+
+#### Configuration
+- **.env.example**: Added all collector credential env vars (GitHub, GitLab, Sentry, Datadog, New Relic, Grafana, Langfuse, Arize, Helicone, AWS, Slack), `RECURRSIVE_LLM_API_KEY`, and `RECURRSIVE_WEBHOOK_TIMEOUT_MS`
+- **easypanel.json**: Fixed `GRAPH_PROVIDER=sqlite` → `postgresql_age` to match PostgreSQL `DATABASE_URL`
+
+### Fixed
+- Stale "mock data" / "demo data" comments in MCP governance resource, dashboard opportunities page, and auth module
+- Stale "Scaffolded" labels in ROADMAP.md Phase 4 section header
+
+### Tests
+- 3,343 tests across 140 test files, 14 packages — all passing
+- 14/14 packages build successfully
+
+---
+
 ## [0.5.6] - 2026-07-04
 
 ### Added

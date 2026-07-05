@@ -54,7 +54,7 @@ pnpm add @recurrsive/core
 | `durationMs(start, end)` | Calculate duration in milliseconds |
 | `formatDuration(ms)` | Human-readable duration (e.g., "2m 30s") |
 | `isOlderThan(date, ms)` | Check if date exceeds age threshold |
-| `contentHash(content)` | SHA-256 content fingerprint |
+| `contentHash(content)` | Deterministic DJB2 content fingerprint |
 | `sanitizeInput(str)` | Strip dangerous characters |
 | `validateEmail(str)` | Email format validation |
 | `validateUrl(str)` | URL format validation |

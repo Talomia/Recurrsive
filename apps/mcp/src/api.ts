@@ -4,7 +4,7 @@
  * Shared HTTP client for communicating with the Recurrsive server API.
  *
  * All MCP tools that need data from the Recurrsive server should use
- * {@link apiRequest} instead of hardcoded demo data.
+ * {@link apiRequest} to fetch data from the server.
  *
  * @packageDocumentation
  */

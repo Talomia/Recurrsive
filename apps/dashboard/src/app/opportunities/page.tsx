@@ -57,7 +57,7 @@ export default function OpportunitiesPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("All Categories");
   const [severityFilter, setSeverityFilter] = useState<string>("All Severities");
 
-  // Fetch from API on mount, falls back to mock data automatically
+  // Fetch opportunities from API on mount
   useEffect(() => {
     let cancelled = false;
     getOpportunities().then((data) => {

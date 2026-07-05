@@ -64,7 +64,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 | 📦 MCP resources | 16 |
 | 🖥️ Dashboard pages | 40 |
 | 🌐 Website pages | 23 |
-| ✅ Tests | 3,395+ |
+| ✅ Tests | 3,343+ |
 | 📁 Packages | 14 (9 core + 5 apps) |
 
 ---
@@ -72,9 +72,8 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 ## Quick Start
 
 > **Note**: Recurrsive works out-of-the-box without external services. The server
-> uses an embedded SQLite database for persistence and seeds realistic initial
-> data on first run. As you connect live sources via collectors, the platform
-> seamlessly transitions to real data. See [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+> uses an embedded SQLite database for persistence. Run an analysis to populate
+> the knowledge graph and start seeing results. See [ARCHITECTURE.md](docs/ARCHITECTURE.md)
 > for details.
 
 ### Prerequisites

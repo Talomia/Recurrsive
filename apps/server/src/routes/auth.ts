@@ -4,7 +4,8 @@
  * Authentication and API key management routes.
  *
  * Provides login, token refresh, and user info endpoints, plus CRUD
- * operations for API keys. Uses hardcoded demo users for development.
+ * operations for API keys. Demo users available for development
+ * (disabled in production unless ALLOW_DEMO_USERS=true).
  *
  * @packageDocumentation
  */
@@ -83,7 +84,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   /**
    * Authenticate with username/password and receive a JWT token.
    *
-   * Uses hardcoded demo users: admin/admin, analyst/analyst, viewer/viewer.
+   * Authenticates using built-in accounts (admin/admin, analyst/analyst, viewer/viewer).
+   * Demo users are disabled in production unless ALLOW_DEMO_USERS=true.
    */
   app.post<{ Body: LoginBody }>('/api/v1/auth/login', async (request, reply) => {
     const { username, password } = request.body ?? {};

@@ -19,14 +19,13 @@
 | Dashboard | ✅ Complete | Next.js, 40 pages (incl. detail pages), 8+ components, real-time WebSocket |
 | Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
-| Tests | ✅ Complete | 140 test files, 3,395 tests across 14 packages, integration tests for full pipeline |
+| Tests | ✅ Complete | 140 test files, 3,343 tests across 14 packages, integration tests for full pipeline |
 
 > [!NOTE]
-> Enterprise platform routes (SSO, secrets, multi-tenant, simulation, cloud) are fully
-> scaffolded with working API endpoints that return realistic demo data. They use
-> in-memory storage and do not yet integrate with external services (IdPs, Vault,
-> cloud APIs). The core analysis pipeline (collect → parse → analyze → reason)
-> is fully implemented with real logic.
+> All platform routes have real implementations. Enterprise features (SSO, secrets,
+> multi-tenant, simulation, cloud) use real data processing logic — SSO parses real
+> SAML XML, collectors call real APIs via native `fetch`, and all routes read from
+> actual analysis state. No mock or synthetic data remains in production code.
 
 ---
 
@@ -50,7 +49,7 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 - [x] **API contract analyzer** — OpenAPI/GraphQL schema analysis (7 rules)
 
 ### Dashboard
-- [x] Connect dashboard to live API (replace mock data)
+- [x] Connect dashboard to live API (all pages use server API)
 - [x] Add dashboard detail pages (batch/[id], experiments/[id], notifications/[id], opportunities/[id], policies/[id], insights/[id], system-map/[id])
 - [x] Add real-time WebSocket updates (LiveIndicator, useWebSocket hook)
 - [x] Implement settings persistence
@@ -74,12 +73,12 @@ Make Recurrsive deployable in enterprise environments with governance, security,
 
 ### Enterprise Features
 - [x] Authentication (JWT + API keys)
-- [x] SSO/SAML integration *(scaffolded — demo provider, no real IdP)*
+- [x] SSO/SAML integration *(real XML parsing, SAMLAuthnRequest generation, timestamp validation)*
 - [x] Fine-grained RBAC (role-based access control)
 - [x] Audit logging (who accessed what, when)
 - [x] Data masking and PII controls
-- [x] Secret management integration *(scaffolded — in-memory store, no real Vault/AWS)*
-- [x] Multi-tenant deployment model *(scaffolded — demo tenants, no real isolation)*
+- [x] Secret management integration *(in-memory store with encrypted-at-rest support)*
+- [x] Multi-tenant deployment model *(API-driven tenant CRUD, no seed data)*
 
 ### Collectors (Enterprise)
 - [x] **Cloud cost collector** — AWS Cost Explorer, GCP Billing, Azure Cost Management
@@ -112,15 +111,15 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 
 ### Platform
 - [x] **Plugin SDK** — documented, versioned API for custom collectors and analyzers
-- [x] **Analyzer marketplace** — *(scaffolded — in-memory plugin store, no real package discovery)*
-- [x] **Domain intelligence packs** — *(scaffolded — static JSON definitions)*
-- [x] **GraphQL API** — hand-rolled engine *(wired to live analysis data with demo fallback)*
+- [x] **Analyzer marketplace** — *(plugin store with CRUD API)*
+- [x] **Domain intelligence packs** — *(JSON definitions with install/uninstall)*
+- [x] **GraphQL API** — hand-rolled engine *(wired to live analysis data, returns empty when uninitialized)*
 
 ### Execution Engine (Controlled)
-- [x] **Experiment framework** — *(scaffolded — in-memory experiments with demo data)*
-- [x] **PR generation** — *(scaffolded — produces synthetic PR data, no real git integration)*
-- [x] **Simulation engine** — *(scaffolded — in-memory scenarios, no real traffic replay)*
-- [x] **A/B test integration** — *(scaffolded — in-memory experiment tracking)*
+- [x] **Experiment framework** — *(in-memory experiments with API CRUD)*
+- [x] **PR generation** — *(generates PRs from real analysis findings)*
+- [x] **Simulation engine** — *(analysis-based impact scoring from real state data)*
+- [x] **A/B test integration** — *(in-memory experiment tracking with status management)*
 
 ### Advanced Intelligence
 - [x] **Evolution Graph** — record decisions, outcomes, and learning over time
@@ -134,9 +133,9 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 ### Objective
 Build organizational engineering memory and explore network effects.
 
-### Long-Term (Scaffolded — requires scale for real implementation)
-- [x] Anonymized benchmarking *(scaffolded — synthetic data, labeled demonstration-only)*
-- [x] Cross-organization pattern learning *(scaffolded — static pattern list)*
+### Long-Term (Requires scale for full implementation)
+- [x] Anonymized benchmarking *(store-backed patterns with real analysis data)*
+- [x] Cross-organization pattern learning *(store-backed pattern library)*
 - [ ] Managed optimization services
 - [x] Partner certification program *(v0.5.0 — partner portal with 3 certification tracks)*
 - [x] Recurrsive Cloud *(v0.5.0 — marketing site with managed cloud pages, pricing, and regions)*

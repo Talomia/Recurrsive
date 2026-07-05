@@ -2,7 +2,7 @@ openapi: '3.0.3'
 info:
   title: Recurrsive API
   description: >-
-    REST API for the Recurrsive codebase intelligence engine.
+    REST API for the Recurrsive Engineering Intelligence Platform.
     Provides analysis, knowledge-graph querying, opportunity management,
     policy enforcement, and report generation.
   version: 0.5.6

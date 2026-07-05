@@ -136,8 +136,8 @@ export function registerGovernanceResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      // Use the same mock data as the MCP webhook tools since webhooks
-      // are stored in-memory on the server side.
+      // Webhooks are stored in the server's SQLite store.
+      // Build a summary from supported events and API webhook list.
       const supportedEvents = [
         'analysis.complete',
         'analysis.failed',

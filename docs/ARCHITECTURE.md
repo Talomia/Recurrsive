@@ -1474,9 +1474,9 @@ Policies are evaluated at two gates:
 **Framework**: Hand-rolled GraphQL over Fastify (custom regex parser + resolvers).
 
 **Data Source**: Resolvers read from `state.getAnalysisCache()` when an analysis has
-been run, falling back to built-in demo data when the server hasn't analyzed anything.
-This means the GraphQL API returns realistic data immediately on first boot and switches
-to live analysis data after `POST /api/v1/analyze` completes.
+been run. When the server hasn't analyzed anything yet, resolvers return empty arrays
+and zero scores. Run `POST /api/v1/analyze` to populate the knowledge graph and see
+real data in the GraphQL API.
 
 ```graphql
 type Query {
