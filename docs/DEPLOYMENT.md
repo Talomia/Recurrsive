@@ -41,6 +41,17 @@ docker compose -f docker/docker-compose.yml down
 docker compose -f docker/docker-compose.yml down -v
 ```
 
+### First-Time Setup
+
+After starting the services for the first time:
+
+1. Visit `http://localhost:3100` (dashboard)
+2. You are automatically redirected to the **Setup Wizard**
+3. Create your admin account (username, email, password)
+4. You are logged in and can start using the platform
+
+To invite team members, go to **Administration → Invites** in the sidebar.
+
 ---
 
 ## EasyPanel (One-Click Deploy)
