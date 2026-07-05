@@ -29,7 +29,10 @@ function isTokenValid(token: string): boolean {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return false;
-    const payload = JSON.parse(atob(parts[1]!));
+    // JWT uses base64url encoding — convert to standard base64 for atob
+    const b64 = parts[1]!.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=');
+    const payload = JSON.parse(atob(padded));
     if (!payload.sub || !payload.role) return false;
     // Check expiry
     if (payload.exp && payload.exp * 1000 < Date.now()) return false;

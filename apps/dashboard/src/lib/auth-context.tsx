@@ -64,12 +64,21 @@ export function useAuth(): AuthContextValue {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
+/** Decode a base64url string to a regular string (handles JWT encoding). */
+function base64UrlDecode(input: string): string {
+  // Convert base64url → standard base64
+  const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  // Add padding if needed
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+  return atob(padded);
+}
+
 /** Parse a simple JWT payload without verification (client-side only). */
 function parseToken(token: string): AuthUser | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
+    const payload = JSON.parse(base64UrlDecode(parts[1]));
     if (!payload.sub || !payload.role) return null;
     if (payload.exp && payload.exp * 1000 < Date.now()) return null;
     // username is now optional — use sub as fallback
