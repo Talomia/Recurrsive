@@ -415,7 +415,7 @@ export default function AboutPage() {
               <Mail size={18} /> Get in Touch
             </a>
             <a
-              href="https://github.com/recurrsive"
+              href="https://github.com/Talomia/Recurrsive"
               className="btn btn-secondary btn-lg"
               target="_blank"
               rel="noopener noreferrer"

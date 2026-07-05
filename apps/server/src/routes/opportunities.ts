@@ -11,6 +11,7 @@ import type { OpportunityCategory, OpportunityStatus, Severity } from '@recurrsi
 import type { ExportFormat } from '@recurrsive/opportunities';
 import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:opportunities' } });
 
@@ -57,6 +58,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    */
   app.get<{ Querystring: ListOpportunitiesQuery }>(
     '/api/v1/opportunities',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { category, status, severity, limit: limitStr, offset: offsetStr } = request.query;
 
@@ -90,6 +92,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    */
   app.get<{ Params: OpportunityParams }>(
     '/api/v1/opportunities/:id',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
       const manager = state.getOpportunities();
@@ -118,6 +121,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    */
   app.patch<{ Params: OpportunityParams; Body: UpdateStatusBody }>(
     '/api/v1/opportunities/:id',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
       const { status, reason } = request.body;
@@ -162,6 +166,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    */
   app.get<{ Params: ExportParams }>(
     '/api/v1/opportunities/export/:format',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { format } = request.params;
 

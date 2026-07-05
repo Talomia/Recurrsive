@@ -12,6 +12,7 @@
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -38,7 +39,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
    *
    * List all active policy sets and their rules.
    */
-  app.get('/api/v1/policies', async (_request, reply) => {
+  app.get('/api/v1/policies', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const pe = getEngine();
     const policySets = pe.getPolicies();
 
@@ -68,7 +69,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
    *
    * Return a single policy set by its ID with full rule details.
    */
-  app.get<{ Params: { id: string } }>('/api/v1/policies/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/policies/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const pe = getEngine();
     const ps = pe.getPolicySet(request.params.id);
 
@@ -112,6 +113,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
    */
   app.post<{ Body: { opportunity_ids?: string[] } }>(
     '/api/v1/policies/evaluate',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       if (!state.isInitialized()) {
         return reply.status(503).send({
@@ -178,7 +180,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
    * Quick compliance check — returns the overall compliance rate
    * without full evaluation details.
    */
-  app.get('/api/v1/policies/compliance', async (_request, reply) => {
+  app.get('/api/v1/policies/compliance', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',

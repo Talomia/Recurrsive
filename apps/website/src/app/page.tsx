@@ -141,7 +141,7 @@ export default function HomePage() {
                 <ArrowRight size={18} />
               </a>
               <a
-                href="https://github.com/recurrsive/recurrsive"
+                href="https://github.com/Talomia/Recurrsive"
                 className="btn btn-secondary btn-lg"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -226,7 +226,7 @@ export default function HomePage() {
                 <br />
                 <div>
                   <span className="keyword">{'▸'} Discovery</span>{'   '}
-                  <span className="string">138 endpoints</span>{' · '}
+                  <span className="string">160+ endpoints</span>{' · '}
                   <span className="string">42 MCP tools</span>{' · '}
                   <span className="string">13 analyzers</span>
                 </div>
@@ -278,7 +278,7 @@ export default function HomePage() {
             }}
           >
             {[
-              { value: '138', label: 'API Endpoints', icon: Globe },
+              { value: '160+', label: 'API Endpoints', icon: Globe },
               { value: '42', label: 'MCP Tools', icon: Puzzle },
               { value: '13', label: 'Analyzers', icon: Search },
               { value: '25', label: 'CLI Commands', icon: Terminal },
@@ -942,7 +942,7 @@ export default function HomePage() {
                 control. No vendor lock-in. No black boxes.
               </p>
               <a
-                href="https://github.com/recurrsive/recurrsive"
+                href="https://github.com/Talomia/Recurrsive"
                 className="btn btn-secondary btn-lg"
                 target="_blank"
                 rel="noopener noreferrer"

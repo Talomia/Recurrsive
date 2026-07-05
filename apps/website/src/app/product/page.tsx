@@ -296,8 +296,8 @@ export default function ProductPage() {
           </div>
           <div className="grid-3">
             {[
-              { icon: Globe, title: 'REST API', stat: '138 endpoints', desc: 'Full CRUD, WebSocket streaming, JWT + API key auth, RBAC' },
-              { icon: Terminal, title: 'CLI', stat: '25 commands', desc: 'Analyze, graph, report, batch, export, simulate, and more' },
+              { icon: Globe, title: 'REST API', stat: '160+ endpoints', desc: 'Full CRUD, WebSocket streaming, JWT + API key auth, RBAC' },
+              { icon: Terminal, title: 'CLI', stat: '28 commands', desc: 'Analyze, graph, report, batch, export, simulate, and more' },
               { icon: Puzzle, title: 'MCP Server', stat: '42 tools · 21 prompts', desc: 'Model Context Protocol for AI assistant integration' },
               { icon: MessageSquare, title: 'GraphQL', stat: 'Full schema', desc: 'Query your knowledge graph with rich relationship traversal' },
               { icon: Wrench, title: 'Plugin SDK', stat: 'Extensible', desc: 'Build custom collectors and analyzers with a documented API' },

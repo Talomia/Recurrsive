@@ -168,6 +168,30 @@ Replaced hardcoded demo user array with a persistent, store-backed user manageme
 - **GETTING_STARTED.md**: Added setup wizard flow, team invite instructions, and first-time setup guide
 - Updated endpoint count from 150 to 160+ across all docs
 
+#### Security Hardening
+
+**Server:**
+- **Auth middleware**: Added `authMiddleware` to 13 previously unprotected route files (48 routes total): analysis, batch, confidence, findings, graph, intelligence-packs, marketplace, opportunities, partners, policies, reports, search, snapshots
+- **Security headers**: Added `@fastify/helmet` for X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security, etc. CSP disabled for Swagger UI compatibility.
+- **Deployment guide**: Added first-time setup wizard instructions to DEPLOYMENT.md
+
+**CLI:**
+- **Auth token support**: `apiRequest()` now automatically injects `Authorization: Bearer` header from `RECURRSIVE_TOKEN` env var or `~/.recurrsive/config`
+- **`login` command**: Interactive login with username/password prompt, saves JWT to `~/.recurrsive/config` (mode 0600)
+- **`logout` command**: Removes saved token from config
+- **`whoami` command**: Shows currently authenticated user, role, and email
+
+**Website:**
+- Fixed 138 → 160+ endpoint count in 5 pages (home, changelog, product, pricing, docs sections)
+- Fixed GitHub URL inconsistency: standardized to `github.com/Talomia/Recurrsive` across all pages
+- Fixed email domain inconsistency: standardized to `hello@recurrsive.dev`
+- Replaced 10 `href="#"` placeholder links with real navigation targets
+- Fixed "Join Community Slack" label → "Join Community Discussions"
+
+**Packages:**
+- Added missing `vitest` devDependency to opportunities, policy, and presentation packages
+- Fixed MCP server doc: 43 → 42 tools to match actual registration count
+
 ---
 
 ## [0.5.6] - 2026-07-04

@@ -50,8 +50,8 @@ const QUICK_START = [
   {
     icon: Terminal,
     title: 'CLI Reference',
-    description: 'Command-line interface for automation, scripting, and CI/CD integration with 25 commands.',
-    tag: '25 commands',
+    description: 'Command-line interface for automation, scripting, and CI/CD integration with 28 commands.',
+    tag: '28 commands',
     tagColor: 'var(--cyan)',
     href: '/docs/cli-reference',
   },
@@ -125,14 +125,14 @@ const POPULAR_GUIDES = [
 ];
 
 const API_SECTIONS = [
-  { name: 'Authentication', endpoints: 5, icon: Shield },
-  { name: 'Analysis', endpoints: 23, icon: BarChart3 },
-  { name: 'Repositories', endpoints: 18, icon: GitBranch },
-  { name: 'Knowledge Graph', endpoints: 15, icon: Database },
-  { name: 'Policies', endpoints: 12, icon: Settings },
-  { name: 'Integrations', endpoints: 21, icon: Layers },
-  { name: 'MCP Server', endpoints: 28, icon: Cpu },
-  { name: 'Admin', endpoints: 16, icon: Zap },
+  { name: 'Authentication', endpoints: 8, icon: Shield },
+  { name: 'Analysis', endpoints: 25, icon: BarChart3 },
+  { name: 'Repositories', endpoints: 20, icon: GitBranch },
+  { name: 'Knowledge Graph', endpoints: 18, icon: Database },
+  { name: 'Policies', endpoints: 14, icon: Settings },
+  { name: 'Integrations', endpoints: 25, icon: Layers },
+  { name: 'MCP Server', endpoints: 32, icon: Cpu },
+  { name: 'Admin', endpoints: 20, icon: Zap },
 ];
 
 export default function DocsPage() {
@@ -500,7 +500,7 @@ export default function DocsPage() {
               <ExternalLink size={18} /> GitHub Discussions
             </Link>
             <Link href="https://github.com/Talomia/Recurrsive/discussions" className="btn btn-secondary btn-lg" target="_blank">
-              Join Community Slack <ArrowRight size={18} />
+              Join Community Discussions <ArrowRight size={18} />
             </Link>
           </div>
         </div>

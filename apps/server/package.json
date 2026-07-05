@@ -22,19 +22,20 @@
     "lint": "eslint src/"
   },
   "dependencies": {
+    "@fastify/cors": "^10.0.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/websocket": "^11.0.0",
+    "@recurrsive/analyzers": "workspace:*",
+    "@recurrsive/collectors": "workspace:*",
     "@recurrsive/core": "workspace:*",
     "@recurrsive/graph": "workspace:*",
-    "@recurrsive/collectors": "workspace:*",
-    "@recurrsive/parsers": "workspace:*",
-    "@recurrsive/analyzers": "workspace:*",
-    "@recurrsive/reasoning": "workspace:*",
     "@recurrsive/opportunities": "workspace:*",
+    "@recurrsive/parsers": "workspace:*",
     "@recurrsive/policy": "workspace:*",
     "@recurrsive/presentation": "workspace:*",
-    "fastify": "^5.0.0",
-    "@fastify/cors": "^10.0.0",
-    "@fastify/websocket": "^11.0.0",
-    "better-sqlite3": "^11.0.0"
+    "@recurrsive/reasoning": "workspace:*",
+    "better-sqlite3": "^11.0.0",
+    "fastify": "^5.0.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",

@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Entity, EntityType } from '@recurrsive/core';
 import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:graph' } });
 
@@ -48,7 +49,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
    * Return aggregate statistics about the knowledge graph: entity and
    * relationship counts, grouped by type.
    */
-  app.get('/api/v1/graph/stats', async (_request, reply) => {
+  app.get('/api/v1/graph/stats', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -86,6 +87,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get<{ Querystring: GraphEntitiesQuery }>(
     '/api/v1/graph/entities',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       if (!state.isInitialized()) {
         return reply.status(503).send({
@@ -177,6 +179,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get<{ Params: EntityParams }>(
     '/api/v1/graph/entities/:id',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       if (!state.isInitialized()) {
         return reply.status(503).send({
@@ -225,6 +228,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get<{ Params: EntityParams; Querystring: NeighborsQuery }>(
     '/api/v1/graph/entities/:id/neighbors',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       if (!state.isInitialized()) {
         return reply.status(503).send({
@@ -292,6 +296,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get<{ Querystring: { q?: string; type?: string; limit?: string } }>(
     '/api/v1/graph/search',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       if (!state.isInitialized()) {
         return reply.status(503).send({

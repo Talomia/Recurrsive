@@ -196,6 +196,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
   it('1. POST /api/v1/analyze returns accepted or rejects bad input', async () => {
     // Without path or gitUrl → 400
     const badRes = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/analyze',
       payload: {},
@@ -204,6 +205,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
 
     // With valid path in allowed directory → 202 or 500 (path may not exist)
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/analyze',
       payload: { path: '/tmp/recurrsive-repos/integration-test' },
@@ -220,7 +222,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
   });
 
   it('2. GET /api/v1/analysis/status returns status shape', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analysis/status' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analysis/status' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -232,7 +234,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
   });
 
   it('3. GET /api/v1/findings returns findings list shape', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/findings' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/findings' });
     // May be 200 (findings available) or 404 (no analysis cache yet)
     expect([200, 404]).toContain(res.statusCode);
     if (res.statusCode === 200) {
@@ -243,7 +245,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
   });
 
   it('4. GET /api/v1/opportunities returns paginated opportunities', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/opportunities' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -268,7 +270,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
   });
 
   it('6. GET /api/v1/reports/json returns report or 404', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/reports/json' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/reports/json' });
     // 200 with report data, or 404 if no analysis cache
     expect([200, 404]).toContain(res.statusCode);
     if (res.statusCode === 200) {
@@ -287,6 +289,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
   it('7. POST /api/v1/webhooks registers a webhook', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
@@ -327,6 +330,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
     try {
       const res = await app.inject({
+      headers: authHeaders,
         headers: authHeaders,
         method: 'POST',
         url: `/api/v1/webhooks/${webhookId}/test`,
@@ -353,6 +357,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
   it('10. GET /api/v1/webhooks/:id/deliveries returns delivery history', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'GET',
       url: `/api/v1/webhooks/${webhookId}/deliveries`,
     });
@@ -366,6 +371,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
   it('11. DELETE /api/v1/webhooks/:id removes the webhook', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'DELETE',
       url: `/api/v1/webhooks/${webhookId}`,
@@ -395,6 +401,7 @@ describe('Flow: Batch Lifecycle (start → status → history)', () => {
 
   it('13. POST /api/v1/batch/analyze starts a batch', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/batch/analyze',
       payload: { projects: ['/project-alpha', '/project-beta', '/project-gamma'] },
@@ -411,6 +418,7 @@ describe('Flow: Batch Lifecycle (start → status → history)', () => {
 
   it('14. GET /api/v1/batch/status/:id returns batch status', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: `/api/v1/batch/status/${batchId}`,
     });
@@ -425,6 +433,7 @@ describe('Flow: Batch Lifecycle (start → status → history)', () => {
 
   it('15. GET /api/v1/batch/history includes the batch in history', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/batch/history',
     });
@@ -491,6 +500,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
   it('19. POST /api/v1/notifications/test sends a test notification', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: { channel: 'console' },
@@ -532,6 +542,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
 
   it('21. POST /api/v1/experiments creates a new experiment', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
@@ -579,6 +590,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
   it('24. PUT /api/v1/experiments/:id/status starts the experiment', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${experimentId}/status`,
       payload: { status: 'running' },
@@ -592,6 +604,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
 
   it('25. PUT /api/v1/experiments/:id/status completes the experiment', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${experimentId}/status`,
@@ -623,6 +636,7 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
     const token = createToken('integ-admin', 'admin');
 
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit',
       headers: { Authorization: `Bearer ${token}` },
@@ -639,6 +653,7 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
     const token = createToken('integ-admin', 'admin');
 
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit/stats',
       headers: { Authorization: `Bearer ${token}` },
@@ -652,7 +667,7 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
   });
 
   it('29. GET /api/v1/analytics/summary returns trend data', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/summary' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analytics/summary' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -663,7 +678,7 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
   });
 
   it('30. GET /api/v1/analytics/top-categories returns category breakdown', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/top-categories' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analytics/top-categories' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -677,7 +692,7 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
 
 describe('Flow: Search (query → filter → verify)', () => {
   it('31. GET /api/v1/search?q=auth returns valid response', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=auth' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=auth' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -690,7 +705,7 @@ describe('Flow: Search (query → filter → verify)', () => {
   });
 
   it('32. Search results have correct shape when data is available', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=auth' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=auth' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     // Validate shape of any results that are present
@@ -709,6 +724,7 @@ describe('Flow: Search (query → filter → verify)', () => {
 
   it('33. GET /api/v1/search?q=injection&scope=findings limits to findings', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/search?q=injection&scope=findings',
     });

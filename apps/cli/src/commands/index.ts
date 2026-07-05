@@ -2,7 +2,7 @@
  * @module @recurrsive/cli/commands
  *
  * Barrel export for all CLI command registration functions.
- * Exports 25 command registration functions for the full CLI suite.
+ * Exports 28 command registration functions for the full CLI suite.
  *
  * @packageDocumentation
  */
@@ -32,3 +32,4 @@ export { registerPluginsCommand } from './plugins.js';
 export { registerProjectsCommand } from './projects.js';
 export { registerSecretsCommand } from './secrets.js';
 export { registerSimulationCommand } from './simulation.js';
+export { registerLoginCommand } from './login.js';

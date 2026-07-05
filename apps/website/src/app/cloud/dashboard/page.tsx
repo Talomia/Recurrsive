@@ -141,7 +141,7 @@ export default function CloudDashboardPage() {
               <Link href="/cloud/billing" className="btn btn-secondary btn-sm">
                 Billing
               </Link>
-              <Link href="#" className="btn btn-primary btn-sm">
+              <Link href="/cloud/dashboard" className="btn btn-primary btn-sm">
                 Manage <ArrowRight size={14} />
               </Link>
             </div>

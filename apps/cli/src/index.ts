@@ -29,6 +29,9 @@
  * - `secrets` — Secret rotation and audit
  * - `simulate` — Simulation engine
  * - `cloud` — Cloud benchmarks and patterns
+ * - `login` — Authenticate with the server
+ * - `logout` — Remove saved credentials
+ * - `whoami` — Show current user
  *
  * @packageDocumentation
  */
@@ -62,6 +65,7 @@ import { registerPluginsCommand } from './commands/plugins.js';
 import { registerSecretsCommand } from './commands/secrets.js';
 import { registerSimulationCommand } from './commands/simulation.js';
 import { registerCloudCommand } from './commands/cloud.js';
+import { registerLoginCommand } from './commands/login.js';
 
 /**
  * Create the Recurrsive CLI program with all commands registered.
@@ -110,6 +114,7 @@ export function createProgram(): Command {
   registerSecretsCommand(program);
   registerSimulationCommand(program);
   registerCloudCommand(program);
+  registerLoginCommand(program);
 
   return program;
 }

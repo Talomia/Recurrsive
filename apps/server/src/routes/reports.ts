@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 import { generateReport } from '@recurrsive/presentation';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:reports' } });
 
@@ -39,6 +40,7 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
    */
   app.get<{ Params: ReportParams }>(
     '/api/v1/reports/:format',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const cache = state.getAnalysisCache();
       if (!cache) {

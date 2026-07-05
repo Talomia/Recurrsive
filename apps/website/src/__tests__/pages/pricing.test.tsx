@@ -67,7 +67,7 @@ describe('Pricing Page', () => {
     render(<PricingPage />);
     const collectors = screen.getAllByText('14 data collectors');
     const analyzers = screen.getAllByText('13 built-in analyzers (89+ rules)');
-    const cli = screen.getAllByText('CLI with 25 commands');
+    const cli = screen.getAllByText('CLI with 28 commands');
     expect(collectors.length).toBeGreaterThanOrEqual(1);
     expect(analyzers.length).toBeGreaterThanOrEqual(1);
     expect(cli.length).toBeGreaterThanOrEqual(1);

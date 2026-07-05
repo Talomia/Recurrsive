@@ -17,7 +17,7 @@ import {
 export const metadata: Metadata = {
   title: 'CLI Reference — Recurrsive Docs',
   description:
-    'Complete command-line interface reference for Recurrsive. 25 commands across 6 groups for analysis, reporting, and automation.',
+    'Complete command-line interface reference for Recurrsive. 28 commands across 7 groups for analysis, reporting, and automation.',
 };
 
 const COMMAND_GROUPS = [
@@ -88,6 +88,16 @@ const COMMAND_GROUPS = [
       { cmd: 'cloud', desc: 'Cloud platform insights and status', example: 'recurrsive cloud' },
     ],
   },
+  {
+    name: 'Auth',
+    icon: Shield,
+    color: 'var(--green)',
+    commands: [
+      { cmd: 'login', desc: 'Authenticate with Recurrsive Cloud', example: 'recurrsive login' },
+      { cmd: 'logout', desc: 'Log out and clear stored credentials', example: 'recurrsive logout' },
+      { cmd: 'whoami', desc: 'Display the currently authenticated user', example: 'recurrsive whoami' },
+    ],
+  },
 ];
 
 const GLOBAL_FLAGS = [
@@ -111,7 +121,7 @@ export default function CliReferencePage() {
         <div className="glow-orb glow-cyan" style={{ width: 500, height: 500, top: -200, left: '50%' }} />
         <div className="container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
           <div className="badge badge-accent" style={{ marginBottom: 'var(--space-lg)' }}>
-            <Terminal size={14} /> 25 commands
+            <Terminal size={14} /> 28 commands
           </div>
           <h1 style={{ marginBottom: 'var(--space-md)' }}>
             <span className="text-gradient">CLI Reference</span>

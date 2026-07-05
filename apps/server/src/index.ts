@@ -11,6 +11,7 @@
 
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import { registerRoutes } from './routes/index.js';
 import { registerWebSocket } from './ws/index.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
@@ -73,6 +74,11 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
       : true); // Allow all in dev; set CORS_ORIGIN in production
   await app.register(cors, {
     origin: corsOrigin,
+  });
+
+  // Register security headers (X-Frame-Options, CSP, etc.)
+  await app.register(helmet, {
+    contentSecurityPolicy: false, // Allow Swagger UI inline scripts
   });
 
   // Register rate limiting (skip if explicitly disabled)

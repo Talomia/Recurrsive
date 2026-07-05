@@ -446,7 +446,7 @@ export default function PartnersPage() {
                 </div>
                 {/* CTA */}
                 <Link
-                  href="#"
+                  href="/contact"
                   className="btn btn-secondary btn-sm"
                   style={{ alignSelf: 'center', flexShrink: 0 }}
                 >
@@ -598,7 +598,7 @@ export default function PartnersPage() {
             Join our ecosystem and help organizations unlock the full potential of engineering intelligence. We&apos;ll review your application within 5 business days.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="#" className="btn btn-primary btn-lg">
+            <Link href="/partners/apply" className="btn btn-primary btn-lg">
               <Handshake size={18} /> Apply to Partner Program
             </Link>
             <Link href="/docs" className="btn btn-secondary btn-lg">

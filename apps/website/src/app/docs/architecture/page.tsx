@@ -67,7 +67,7 @@ const CORE_PACKAGES = [
   { name: '@recurrsive/reasoning', desc: 'Multi-agent debate engine and specialist framework' },
   { name: '@recurrsive/types', desc: '43 entity types + 43 relationship types (shared schema)' },
   { name: '@recurrsive/sdk', desc: 'Plugin SDK for custom collectors and analyzers' },
-  { name: '@recurrsive/cli', desc: 'Command-line interface (25 commands)' },
+  { name: '@recurrsive/cli', desc: 'Command-line interface (28 commands)' },
   { name: '@recurrsive/mcp', desc: 'Model Context Protocol server (42 tools, 21 prompts)' },
 ];
 

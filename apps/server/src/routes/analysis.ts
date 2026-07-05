@@ -11,6 +11,7 @@ import path from 'node:path';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 import { validateBody, ANALYZE_REQUEST_FIELDS } from '../middleware/validate.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:analysis' } });
 
@@ -46,7 +47,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
    * /api/v1/analysis/status endpoint or WebSocket events.
    */
   app.post<{ Body: AnalyzeBody }>('/api/v1/analyze', {
-    preHandler: validateBody(ANALYZE_REQUEST_FIELDS),
+    preHandler: [authMiddleware, validateBody(ANALYZE_REQUEST_FIELDS)],
   }, async (request, reply) => {
     const { path: projectPath, gitUrl, analyzers, include_reasoning } = request.body;
 
@@ -166,7 +167,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
    * Return the current status of the analysis pipeline, including
    * phase, progress percentage, and any error information.
    */
-  app.get('/api/v1/analysis/status', async (_request, reply) => {
+  app.get('/api/v1/analysis/status', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.status(200).send({
       data: state.getAnalysisStatus(),
     });
@@ -178,7 +179,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
    * Return the history of all analysis runs performed during this
    * server session, ordered newest-first.
    */
-  app.get('/api/v1/analysis/history', async (_request, reply) => {
+  app.get('/api/v1/analysis/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const history = state.getAnalysisHistory();
 
     return reply.status(200).send({

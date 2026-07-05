@@ -331,7 +331,7 @@ export default function PartnerDirectoryPage() {
 
                 {/* Contact Button */}
                 <Link
-                  href="#"
+                  href="/contact"
                   className="btn btn-secondary btn-sm"
                   style={{ alignSelf: 'center', flexShrink: 0 }}
                 >

@@ -14,6 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { store } from '../store.js';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -108,7 +109,7 @@ function calibrationCurve(preds: Prediction[]): CalibrationBucket[] {
 
 export async function registerConfidenceRoutes(app: FastifyInstance): Promise<void> {
   // Overall calibration metrics
-  app.get('/api/v1/confidence/overview', async (_request, reply) => {
+  app.get('/api/v1/confidence/overview', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const all = store.all<Prediction>('predictions');
     const resolved = all.filter(p => p.actualOutcome !== null);
 
@@ -153,7 +154,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Record outcome for a prediction
-  app.post<{ Params: { id: string } }>('/api/v1/confidence/predictions/:id/outcome', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/confidence/predictions/:id/outcome', { preHandler: [authMiddleware] }, async (request, reply) => {
     const prediction = store.get<Prediction>('predictions', request.params.id);
     if (!prediction) return reply.status(404).send({ error: 'Not Found', message: 'Prediction not found' });
 
@@ -172,6 +173,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   // List predictions with filtering
   app.get<{ Querystring: { analyzer?: string; status?: string; severity?: string } }>(
     '/api/v1/confidence/predictions',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       let preds = store.all<Prediction>('predictions');
 
@@ -197,6 +199,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   // Get calibration curve for specific analyzer
   app.get<{ Params: { analyzerId: string } }>(
     '/api/v1/confidence/calibration/:analyzerId',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const preds = store.all<Prediction>('predictions').filter(p => p.analyzerId === request.params.analyzerId);
       if (preds.length === 0) {
@@ -215,7 +218,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   );
 
   // Create a single prediction
-  app.post('/api/v1/confidence/predictions', async (request, reply) => {
+  app.post('/api/v1/confidence/predictions', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as {
       findingId?: string;
       analyzer?: string;
@@ -249,7 +252,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Generate predictions from current analysis findings
-  app.post('/api/v1/confidence/predictions/generate', async (_request, reply) => {
+  app.post('/api/v1/confidence/predictions/generate', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const cache = state.isInitialized() ? state.getAnalysisCache() : null;
     const findings = cache?.findings ?? [];
 

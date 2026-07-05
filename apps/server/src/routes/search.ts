@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:search' } });
 
@@ -154,6 +155,7 @@ export async function registerSearchRoutes(app: FastifyInstance): Promise<void> 
    */
   app.get<{ Querystring: SearchQuery }>(
     '/api/v1/search',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { q, scope = 'all' } = request.query;
 

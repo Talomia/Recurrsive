@@ -310,7 +310,7 @@ export default function CloudPage() {
                   ))}
                 </ul>
                 <Link
-                  href="#"
+                  href="/cloud/dashboard"
                   className={`btn ${plan.highlighted ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ width: '100%' }}
                 >
@@ -500,7 +500,7 @@ export default function CloudPage() {
           >
             Start your free 14-day trial today. No credit card required. Full access to all features.
           </p>
-          <Link href="#" className="btn btn-primary btn-lg">
+          <Link href="/cloud/dashboard" className="btn btn-primary btn-lg">
             <Zap size={18} /> Start Free 14-Day Trial
           </Link>
         </div>

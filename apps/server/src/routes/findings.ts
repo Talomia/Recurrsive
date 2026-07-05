@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:findings' } });
 
@@ -46,6 +47,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
    */
   app.get<{ Querystring: FindingsQuery }>(
     '/api/v1/findings',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const cache = state.getAnalysisCache();
       if (!cache) {
@@ -92,6 +94,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
    */
   app.get<{ Params: FindingParams }>(
     '/api/v1/findings/:id',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const cache = state.getAnalysisCache();
       if (!cache) {
@@ -118,7 +121,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
    *
    * Get a summary of findings grouped by severity and category.
    */
-  app.get('/api/v1/findings/summary', async (_request, reply) => {
+  app.get('/api/v1/findings/summary', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const cache = state.getAnalysisCache();
     if (!cache) {
       return reply.status(404).send({
@@ -160,7 +163,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
   // Dashboard findings page — returns findings with severity stats.
   // Maps core Finding objects to the FindingsPageItem shape.
 
-  app.get('/api/v1/findings/page', async (_request, reply) => {
+  app.get('/api/v1/findings/page', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const cache = state.getAnalysisCache();
     if (!cache) {
       return reply.status(503).send({

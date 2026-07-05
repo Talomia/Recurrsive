@@ -204,7 +204,7 @@ describe('Health endpoints', () => {
 
 describe('Analysis endpoints', () => {
   it('GET /api/v1/analysis/status returns status object', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analysis/status' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analysis/status' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -214,7 +214,7 @@ describe('Analysis endpoints', () => {
   });
 
   it('GET /api/v1/analysis/history returns data array', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analysis/history' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analysis/history' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -223,6 +223,7 @@ describe('Analysis endpoints', () => {
 
   it('POST /api/v1/analyze returns 400 without projectPath', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/analyze',
       payload: {},
@@ -232,6 +233,7 @@ describe('Analysis endpoints', () => {
 
   it('POST /api/v1/analyze returns 400 with empty projectPath', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/analyze',
       payload: { projectPath: '' },
@@ -246,44 +248,45 @@ describe('Analysis endpoints', () => {
 
 describe('Pre-initialization endpoint behavior', () => {
   it('GET /api/v1/graph/stats returns 503 before init', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/graph/stats' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/stats' });
     expect(res.statusCode).toBe(503);
   });
 
   it('GET /api/v1/graph/entities returns 503 before init', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/graph/entities' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/entities' });
     expect(res.statusCode).toBe(503);
   });
 
   it('GET /api/v1/timeline returns 503 before init', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/timeline' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/timeline' });
     expect(res.statusCode).toBe(503);
   });
 
   it('GET /api/v1/timeline/snapshots returns 503 before init', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/timeline/snapshots' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/timeline/snapshots' });
     expect(res.statusCode).toBe(503);
   });
 
   it('GET /api/v1/timeline/trends returns 503 before init', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/timeline/trends' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/timeline/trends' });
     expect(res.statusCode).toBe(503);
   });
 
   it('GET /api/v1/findings returns 404 before analysis', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/findings' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/findings' });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.payload);
     expect(body.error).toBe('No analysis results available');
   });
 
   it('GET /api/v1/findings/summary returns 404 before analysis', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/findings/summary' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/findings/summary' });
     expect(res.statusCode).toBe(404);
   });
 
   it('POST /api/v1/policies/evaluate returns 503 before init', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/policies/evaluate',
       payload: {},
@@ -295,6 +298,7 @@ describe('Pre-initialization endpoint behavior', () => {
 
   it('GET /api/v1/policies/compliance returns 503 before init', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/policies/compliance',
     });
@@ -305,6 +309,7 @@ describe('Pre-initialization endpoint behavior', () => {
 
   it('GET /api/v1/snapshots/export returns 503 before init', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/snapshots/export',
     });
@@ -315,6 +320,7 @@ describe('Pre-initialization endpoint behavior', () => {
 
   it('GET /api/v1/analysis/compare returns 503 before init', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/analysis/compare',
     });
@@ -330,7 +336,7 @@ describe('Pre-initialization endpoint behavior', () => {
 
 describe('Opportunities endpoints', () => {
   it('GET /api/v1/opportunities returns paginated response', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/opportunities' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -341,7 +347,7 @@ describe('Opportunities endpoints', () => {
   });
 
   it('GET /api/v1/opportunities respects limit parameter', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/opportunities?limit=5' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/opportunities?limit=5' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body.limit).toBe(5);
@@ -354,20 +360,20 @@ describe('Opportunities endpoints', () => {
 
 describe('Reports endpoints (require analysis cache)', () => {
   it('GET /api/v1/reports/json returns 404 without cache', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/reports/json' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/reports/json' });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.payload);
     expect(body.error).toBe('No analysis results available');
   });
 
   it('GET /api/v1/reports/invalid returns 404 without cache', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/reports/invalid' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/reports/invalid' });
     // Without cache, returns 404 before checking format
     expect(res.statusCode).toBe(404);
   });
 
   it('GET /api/v1/reports/markdown returns 404 without cache', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/reports/markdown' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/reports/markdown' });
     expect(res.statusCode).toBe(404);
   });
 });
@@ -378,7 +384,7 @@ describe('Reports endpoints (require analysis cache)', () => {
 
 describe('Graph search endpoint', () => {
   it('GET /api/v1/graph/search returns 503 before initialization', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/graph/search?q=auth' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/search?q=auth' });
     expect(res.statusCode).toBe(503);
     const body = JSON.parse(res.payload);
     expect(body.error).toBe('Server not initialized');
@@ -388,12 +394,12 @@ describe('Graph search endpoint', () => {
     // Even though 503 takes priority when not initialized, we test
     // that the route itself exists and handles the missing-q case.
     // Since the server isn't initialized, we expect 503 first.
-    const res = await app.inject({ method: 'GET', url: '/api/v1/graph/search' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/search' });
     expect(res.statusCode).toBe(503);
   });
 
   it('GET /api/v1/graph/search returns 400 when q is empty string', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/graph/search?q=' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/search?q=' });
     // 503 takes priority over 400 when not initialized
     expect(res.statusCode).toBe(503);
   });
@@ -405,12 +411,13 @@ describe('Graph search endpoint', () => {
 
 describe('Graph entity detail and neighbors (pre-init)', () => {
   it('GET /api/v1/graph/entities/:id returns 503 before init', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/graph/entities/e1' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/entities/e1' });
     expect(res.statusCode).toBe(503);
   });
 
   it('GET /api/v1/graph/entities/:id/neighbors returns 503 before init', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/graph/entities/e1/neighbors',
     });
@@ -420,6 +427,7 @@ describe('Graph entity detail and neighbors (pre-init)', () => {
   it('GET /api/v1/graph/entities/:id/neighbors validates depth range', async () => {
     // Depth validation is behind the init check, so we get 503 first
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/graph/entities/e1/neighbors?depth=10',
     });
@@ -433,7 +441,7 @@ describe('Graph entity detail and neighbors (pre-init)', () => {
 
 describe('Metrics endpoint', () => {
   it('GET /api/v1/metrics/performance returns 404 without analysis data', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/metrics/performance' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/metrics/performance' });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.payload);
     expect(body.error).toBe('No analysis data');
@@ -446,7 +454,7 @@ describe('Metrics endpoint', () => {
 
 describe('Findings detail endpoints', () => {
   it('GET /api/v1/findings/:id returns 404 without analysis cache', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/findings/nonexistent' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/findings/nonexistent' });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.payload);
     expect(body.error).toBe('No analysis results available');
@@ -460,6 +468,7 @@ describe('Findings detail endpoints', () => {
 describe('Opportunities detail and update endpoints', () => {
   it('GET /api/v1/opportunities/:id returns 404 for unknown ID', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/opportunities/nonexistent-id',
     });
@@ -470,6 +479,7 @@ describe('Opportunities detail and update endpoints', () => {
 
   it('PATCH /api/v1/opportunities/:id returns 400 without status field', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/opportunities/opp-1',
       payload: {},
@@ -481,6 +491,7 @@ describe('Opportunities detail and update endpoints', () => {
 
   it('PATCH /api/v1/opportunities/:id returns 400 for invalid status', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/opportunities/opp-1',
       payload: { status: 'invalid_status' },
@@ -492,6 +503,7 @@ describe('Opportunities detail and update endpoints', () => {
 
   it('GET /api/v1/opportunities/export/:format returns 400 for invalid format', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/opportunities/export/xml',
     });
@@ -503,6 +515,7 @@ describe('Opportunities detail and update endpoints', () => {
 
   it('GET /api/v1/opportunities respects offset parameter', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/opportunities?offset=10',
     });
@@ -518,17 +531,17 @@ describe('Opportunities detail and update endpoints', () => {
 
 describe('Reports format validation', () => {
   it('GET /api/v1/reports/sarif returns 404 without cache', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/reports/sarif' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/reports/sarif' });
     expect(res.statusCode).toBe(404);
   });
 
   it('GET /api/v1/reports/html returns 404 without cache', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/reports/html' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/reports/html' });
     expect(res.statusCode).toBe(404);
   });
 
   it('GET /api/v1/reports/md returns 404 without cache', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/reports/md' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/reports/md' });
     expect(res.statusCode).toBe(404);
   });
 });
@@ -540,6 +553,7 @@ describe('Reports format validation', () => {
 describe('Analysis concurrency', () => {
   it('POST /api/v1/analyze returns 400 with non-string projectPath', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/analyze',
       payload: { path: 123 },
@@ -558,7 +572,7 @@ describe('Analysis concurrency', () => {
 
 describe('Policy endpoints', () => {
   it('GET /api/v1/policies returns policy list with data and total', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/policies' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/policies' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -569,7 +583,7 @@ describe('Policy endpoints', () => {
   });
 
   it('GET /api/v1/policies returns individual rules within policy sets', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/policies' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/policies' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     if (body.data.length > 0) {
@@ -596,6 +610,7 @@ describe('Policy endpoints', () => {
     await state.initialize('/tmp/test-policy-project');
 
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/policies/evaluate',
       payload: {},
@@ -613,6 +628,7 @@ describe('Policy endpoints', () => {
   it('GET /api/v1/policies/compliance returns compliance rate when initialized', async () => {
     // state was initialized in a previous test
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/policies/compliance',
     });
@@ -635,6 +651,7 @@ describe('Snapshot endpoints', () => {
   it('GET /api/v1/snapshots/export returns snapshot data when initialized', async () => {
     // state was initialized in the policies test
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/snapshots/export',
     });
@@ -650,6 +667,7 @@ describe('Snapshot endpoints', () => {
 
   it('POST /api/v1/snapshots/import validates body', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/snapshots/import',
       payload: { invalid: true },
@@ -663,6 +681,7 @@ describe('Snapshot endpoints', () => {
   it('GET /api/v1/analysis/compare returns 404 without analysis cache', async () => {
     // state is initialized but no analysis has been run, so no cache
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/analysis/compare',
     });
@@ -689,6 +708,7 @@ describe('Webhook endpoints', () => {
   it('POST /api/v1/webhooks creates a webhook with valid data', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -709,6 +729,7 @@ describe('Webhook endpoints', () => {
   it('POST /api/v1/webhooks returns 400 for missing url', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -724,6 +745,7 @@ describe('Webhook endpoints', () => {
   it('POST /api/v1/webhooks returns 400 for missing events', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -738,6 +760,7 @@ describe('Webhook endpoints', () => {
 
   it('POST /api/v1/webhooks returns 400 for invalid event types', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
@@ -773,6 +796,7 @@ describe('Webhook endpoints', () => {
   it('DELETE /api/v1/webhooks/:id returns 404 for unknown ID', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'DELETE',
       url: '/api/v1/webhooks/wh_nonexistent',
     });
@@ -783,6 +807,7 @@ describe('Webhook endpoints', () => {
 
   it('POST /api/v1/webhooks/:id/test returns 404 for unknown ID', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks/wh_nonexistent/test',
@@ -795,6 +820,7 @@ describe('Webhook endpoints', () => {
   it('PATCH /api/v1/webhooks/:id returns 404 for unknown ID', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/webhooks/wh_nonexistent',
       payload: { active: false },
@@ -806,6 +832,7 @@ describe('Webhook endpoints', () => {
 
   it('GET /api/v1/webhooks/:id/deliveries returns 404 for unknown ID', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'GET',
       url: '/api/v1/webhooks/wh_nonexistent/deliveries',
@@ -871,6 +898,7 @@ describe('Config endpoints', () => {
   it('PATCH /api/v1/config returns 200 with valid overrides', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { severityThreshold: 'high' },
@@ -886,6 +914,7 @@ describe('Config endpoints', () => {
   it('PATCH /api/v1/config returns 400 for invalid severityThreshold value', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { severityThreshold: 'extreme' },
@@ -897,6 +926,7 @@ describe('Config endpoints', () => {
 
   it('PATCH /api/v1/config returns 400 for invalid reportFormat value', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
@@ -910,6 +940,7 @@ describe('Config endpoints', () => {
   it('PATCH /api/v1/config returns 400 for invalid analyzer IDs', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { enabledAnalyzers: ['nonexistent.analyzer'] },
@@ -922,6 +953,7 @@ describe('Config endpoints', () => {
 
   it('PATCH /api/v1/config accepts graphProvider as any string', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
@@ -966,6 +998,7 @@ describe('Notification endpoints', () => {
   it('POST /api/v1/notifications/test sends a test notification', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: { channel: 'console' },
@@ -980,6 +1013,7 @@ describe('Notification endpoints', () => {
   it('POST /api/v1/notifications/test returns 400 for missing channel', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: {},
@@ -992,6 +1026,7 @@ describe('Notification endpoints', () => {
 
   it('POST /api/v1/notifications/test returns 400 for invalid channel', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
@@ -1052,6 +1087,7 @@ describe('CORS', () => {
 describe('Batch endpoints', () => {
   it('POST /api/v1/batch/analyze returns 400 without projects', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/batch/analyze',
       payload: {},
@@ -1063,6 +1099,7 @@ describe('Batch endpoints', () => {
 
   it('POST /api/v1/batch/analyze returns 400 with empty projects', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/batch/analyze',
       payload: { projects: [] },
@@ -1073,6 +1110,7 @@ describe('Batch endpoints', () => {
   it('POST /api/v1/batch/analyze returns 400 with >10 projects', async () => {
     const projects = Array.from({ length: 11 }, (_, i) => `/project-${i}`);
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/batch/analyze',
       payload: { projects },
@@ -1082,6 +1120,7 @@ describe('Batch endpoints', () => {
 
   it('POST /api/v1/batch/analyze returns 202 with valid projects', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/batch/analyze',
       payload: { projects: ['/project-a', '/project-b'] },
@@ -1095,6 +1134,7 @@ describe('Batch endpoints', () => {
 
   it('GET /api/v1/batch/status/:id returns 404 for unknown batch', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/batch/status/nonexistent',
     });
@@ -1103,6 +1143,7 @@ describe('Batch endpoints', () => {
 
   it('GET /api/v1/batch/history returns array', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/batch/history',
     });
@@ -1129,6 +1170,7 @@ describe('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit',
       headers: { Authorization: `Bearer ${token}` },
@@ -1145,6 +1187,7 @@ describe('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit?limit=3',
       headers: { Authorization: `Bearer ${token}` },
@@ -1159,6 +1202,7 @@ describe('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit/stats',
       headers: { Authorization: `Bearer ${token}` },
@@ -1178,7 +1222,7 @@ describe('Audit Routes', () => {
 
 describe('Analytics Routes', () => {
   it('GET /api/v1/analytics/summary returns summary', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/summary' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analytics/summary' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -1191,7 +1235,7 @@ describe('Analytics Routes', () => {
   });
 
   it('GET /api/v1/analytics/summary has correct shape', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/summary' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analytics/summary' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -1203,7 +1247,7 @@ describe('Analytics Routes', () => {
   });
 
   it('GET /api/v1/analytics/top-categories returns categories', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/top-categories' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analytics/top-categories' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -1211,7 +1255,7 @@ describe('Analytics Routes', () => {
   });
 
   it('GET /api/v1/analytics/top-categories returns valid array', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/analytics/top-categories' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analytics/top-categories' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -1254,6 +1298,7 @@ describe('Experiment Routes', () => {
   it('POST /api/v1/experiments creates a new experiment', async () => {
     const res = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: {
@@ -1281,6 +1326,7 @@ describe('Experiment Routes', () => {
 
   it('POST /api/v1/experiments validates required fields', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
@@ -1319,6 +1365,7 @@ describe('Experiment Routes', () => {
     // Create an experiment first
     const createRes = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: { name: 'Status Update Test', hypothesis: 'Testing status updates' },
@@ -1326,6 +1373,7 @@ describe('Experiment Routes', () => {
     const expId = JSON.parse(createRes.payload).data.id;
 
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${expId}/status`,
@@ -1343,6 +1391,7 @@ describe('Experiment Routes', () => {
     // Create an experiment first
     const createRes = await app.inject({
       headers: authHeaders,
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: { name: 'Validate Status Test', hypothesis: 'Testing validation' },
@@ -1350,6 +1399,7 @@ describe('Experiment Routes', () => {
     const expId = JSON.parse(createRes.payload).data.id;
 
     const res = await app.inject({
+      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${expId}/status`,
@@ -1369,6 +1419,7 @@ describe('Experiment Routes', () => {
 describe('Export Routes', () => {
   it('POST /api/v1/export creates export', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/export',
       payload: { format: 'json', scope: 'findings' },
@@ -1387,6 +1438,7 @@ describe('Export Routes', () => {
 
   it('POST /api/v1/export validates format', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/export',
       payload: { format: 'xml', scope: 'findings' },
@@ -1398,6 +1450,7 @@ describe('Export Routes', () => {
 
   it('POST /api/v1/export validates scope', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/export',
       payload: { format: 'json', scope: 'invalid' },
@@ -1410,6 +1463,7 @@ describe('Export Routes', () => {
   it('GET /api/v1/export/:id/download returns content', async () => {
     // First create an export to get an ID
     const createRes = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/export',
       payload: { format: 'json', scope: 'findings' },
@@ -1418,6 +1472,7 @@ describe('Export Routes', () => {
     const export_id = data.export_id;
 
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: `/api/v1/export/${export_id}/download`,
     });
@@ -1427,6 +1482,7 @@ describe('Export Routes', () => {
 
   it('GET /api/v1/export/history returns list', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/export/history',
     });
@@ -1440,6 +1496,7 @@ describe('Export Routes', () => {
 
   it('POST /api/v1/export with filters works', async () => {
     const res = await app.inject({
+      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/export',
       payload: {
@@ -1461,7 +1518,7 @@ describe('Export Routes', () => {
 
 describe('Search Routes', () => {
   it('GET /api/v1/search returns results for valid query', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=auth' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=auth' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');
@@ -1473,7 +1530,7 @@ describe('Search Routes', () => {
   });
 
   it('GET /api/v1/search returns 400 without query param', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/search' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search' });
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.payload);
     expect(body.error).toBe('Bad request');
@@ -1481,21 +1538,21 @@ describe('Search Routes', () => {
   });
 
   it('GET /api/v1/search filters by scope (findings, opportunities, entities)', async () => {
-    const findingsRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=findings' });
+    const findingsRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=a&scope=findings' });
     expect(findingsRes.statusCode).toBe(200);
     const findingsBody = JSON.parse(findingsRes.payload);
     for (const r of findingsBody.data) {
       expect(r.type).toBe('finding');
     }
 
-    const oppsRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=opportunities' });
+    const oppsRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=a&scope=opportunities' });
     expect(oppsRes.statusCode).toBe(200);
     const oppsBody = JSON.parse(oppsRes.payload);
     for (const r of oppsBody.data) {
       expect(r.type).toBe('opportunity');
     }
 
-    const entitiesRes = await app.inject({ method: 'GET', url: '/api/v1/search?q=a&scope=entities' });
+    const entitiesRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=a&scope=entities' });
     expect(entitiesRes.statusCode).toBe(200);
     const entitiesBody = JSON.parse(entitiesRes.payload);
     for (const r of entitiesBody.data) {
@@ -1504,7 +1561,7 @@ describe('Search Routes', () => {
   });
 
   it('GET /api/v1/search returns empty array for non-matching query', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=zzzznonexistent' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=zzzznonexistent' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body.data).toEqual([]);
@@ -1513,7 +1570,7 @@ describe('Search Routes', () => {
 
   it('GET /api/v1/search returns empty when no analysis data is available', async () => {
     // With no analysis run, search returns empty results (no seed/mock data)
-    const res = await app.inject({ method: 'GET', url: '/api/v1/search?q=notification' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=notification' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body).toHaveProperty('data');

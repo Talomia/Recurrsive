@@ -27,7 +27,7 @@ import { state } from './state.js';
  * registered.
  *
  * The server exposes:
- * - **43 tools** for analysis, inspection, governance, batch operations,
+ * - **42 tools** for analysis, inspection, governance, batch operations,
  *   webhooks, forecasting, simulation, and platform management
  * - **6 resource modules** for read-only access to health, opportunities,
  *   graph statistics, timeline, analytics, and configuration

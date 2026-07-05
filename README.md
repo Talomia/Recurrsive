@@ -98,7 +98,7 @@ pnpm build
 pnpm test
 ```
 
-### CLI Usage (25 commands)
+### CLI Usage (28 commands)
 
 ```bash
 # Link the CLI globally (after building)
@@ -339,7 +339,7 @@ recurrsive/
 │   ├── policy/         # Policy engine + 5 built-in policies
 │   └── presentation/   # Reports + notifications + terminal
 ├── apps/
-│   ├── cli/            # Commander.js CLI — 25 commands
+│   ├── cli/            # Commander.js CLI — 28 commands
 │   ├── mcp/            # MCP server — 42 tools, 16 resources, 21 prompts
 │   ├── server/         # Fastify REST + WebSocket + GraphQL API — 160+ endpoints
 │   ├── dashboard/      # Next.js dashboard — 45+ pages

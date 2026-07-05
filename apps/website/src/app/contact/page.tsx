@@ -16,14 +16,14 @@ const contactCards = [
   {
     icon: Mail,
     title: 'Email Us',
-    value: 'hello@recurrsive.com',
+    value: 'hello@recurrsive.dev',
     description: 'For general inquiries and partnerships',
     color: 'var(--purple)',
   },
   {
     icon: Github,
     title: 'GitHub',
-    value: 'github.com/recurrsive',
+    value: 'github.com/Talomia/Recurrsive',
     description: 'Star the repo, open issues, contribute',
     color: 'var(--blue)',
   },

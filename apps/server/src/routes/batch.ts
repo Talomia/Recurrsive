@@ -12,6 +12,7 @@ import path from 'node:path';
 import { store } from '../store.js';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -180,7 +181,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       projects: string[];
       options?: Record<string, unknown>;
     };
-  }>('/api/v1/batch/analyze', async (request, reply) => {
+  }>('/api/v1/batch/analyze', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as Record<string, unknown> | null;
 
     if (!body || typeof body !== 'object') {
@@ -273,7 +274,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get<{
     Params: { id: string };
-  }>('/api/v1/batch/status/:id', async (request, reply) => {
+  }>('/api/v1/batch/status/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params;
     const batch = store.get<BatchRun>('batches', id);
 
@@ -294,7 +295,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
    *
    * Return past batch runs, ordered newest first.
    */
-  app.get('/api/v1/batch/history', async (_request, reply) => {
+  app.get('/api/v1/batch/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const runs = store.recent<BatchRun>('batches');
 
     return reply.status(200).send({

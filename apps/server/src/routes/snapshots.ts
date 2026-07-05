@@ -13,6 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Entity, Relationship } from '@recurrsive/core';
 import { nowISO, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const PKG_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')).version as string;
 
@@ -69,7 +70,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
    * Export the current knowledge graph state as a portable JSON snapshot.
    * Returns a full dump of all entities and relationships with metadata.
    */
-  app.get('/api/v1/snapshots/export', async (_request, reply) => {
+  app.get('/api/v1/snapshots/export', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -138,7 +139,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
    * Import a previously exported snapshot into the knowledge graph.
    * Upserts all entities and relationships from the snapshot file.
    */
-  app.post<{ Body: Snapshot }>('/api/v1/snapshots/import', async (request, reply) => {
+  app.post<{ Body: Snapshot }>('/api/v1/snapshots/import', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -205,6 +206,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
    */
   app.get<{ Querystring: { baseline?: string } }>(
     '/api/v1/analysis/compare',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       if (!state.isInitialized()) {
         return reply.status(503).send({

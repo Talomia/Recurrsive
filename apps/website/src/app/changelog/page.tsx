@@ -59,7 +59,7 @@ const releases = [
     changes: [
       'Enterprise landing and pricing pages',
       '45+ dashboard pages covering all analysis domains',
-      '138 fully-typed REST API endpoints',
+      '160+ fully-typed REST API endpoints',
       'Real-time analysis progress with WebSocket streaming',
       'Custom dashboard builder with drag-and-drop widgets',
       'Executive summary PDF export with trend analysis',
@@ -311,7 +311,7 @@ export default function ChangelogPage() {
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
             <a
-              href="https://github.com/recurrsive"
+              href="https://github.com/Talomia/Recurrsive"
               className="btn btn-primary btn-lg"
               target="_blank"
               rel="noopener noreferrer"

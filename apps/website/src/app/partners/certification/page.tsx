@@ -357,7 +357,7 @@ export default function CertificationPage() {
                   </div>
                 </div>
 
-                <Link href="#" className="btn btn-primary" style={{ width: '100%' }}>
+                <Link href="/partners/apply" className="btn btn-primary" style={{ width: '100%' }}>
                   <GraduationCap size={16} /> Enroll — {cert.cost}
                 </Link>
               </div>
@@ -427,7 +427,7 @@ export default function CertificationPage() {
             Start with the Analyst certification and build your expertise from the ground up.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="#" className="btn btn-primary btn-lg">
+            <Link href="/partners/apply" className="btn btn-primary btn-lg">
               <Sparkles size={18} /> Start Learning
             </Link>
             <Link href="/partners" className="btn btn-secondary btn-lg">

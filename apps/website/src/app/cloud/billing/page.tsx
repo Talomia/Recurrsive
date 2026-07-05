@@ -358,7 +358,7 @@ export default function CloudBillingPage() {
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                       <Link
-                        href="#"
+                        href="/cloud/dashboard"
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',

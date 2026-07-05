@@ -202,11 +202,11 @@ export default function MarketplaceSubmitPage() {
                   </p>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                     Check the{' '}
-                    <Link href="/docs" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
+                    <Link href="/docs/plugin-sdk" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
                       Plugin SDK docs
                     </Link>{' '}
                     or join our{' '}
-                    <Link href="#" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
+                    <Link href="https://github.com/Talomia/Recurrsive/discussions" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
                       community Slack
                     </Link>{' '}
                     for guidance.
