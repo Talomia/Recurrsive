@@ -86,6 +86,27 @@ Five MCP resource files rewritten from hardcoded arrays to live server API calls
 - 2 MCP tests updated with API mocks for new `apiGet`/`apiRequest` calls
 - 2 presentation tests updated for real fetch-based senders
 
+### Added
+
+#### OSS ↔ Ecosystem Tier Separation
+Clear runtime boundary between the downloadable OSS platform and the ecosystem services (website, marketplace, cloud, partners).
+
+**Server Routes:**
+- **Tier-gated registration**: `ENABLE_ENTERPRISE` env var gates SSO, multi-tenant, secrets, data masking routes. `ENABLE_ECOSYSTEM` gates cloud, marketplace, partner routes. Default: both enabled.
+- **Intelligence packs extraction**: Moved 4 endpoints from `simulation.ts` to new `intelligence-packs.ts` route file
+- **Cloud/partner deduplication**: Removed duplicate `/api/v1/cloud/partners/*` routes from `cloud.ts` (use `/api/v1/partners/*` instead)
+- **Plugin catalog migration**: 10 hardcoded marketplace entries moved to store-backed seeding at startup (only when store is empty)
+
+**Dashboard:**
+- **Sidebar grouping**: 32 flat nav items reorganized into 7 labelled sections (Intelligence, Analysis, Operations, Integrations, Administration, Enterprise, Cloud) with tier badges
+- **Marketplace page**: New dashboard page for browsing extensions, categories, and stats (wired to marketplace API)
+- **Partners page**: New dashboard page for partner directory, certifications, and stats (wired to partners API)
+
+**Documentation:**
+- **STRATEGY.md**: New "Runtime Tier Boundaries" section with codebase boundary map and env var table
+- **ARCHITECTURE.md**: Added `ENABLE_ENTERPRISE`, `ENABLE_ECOSYSTEM`, `ALLOW_DEMO_USERS` to env var appendix; ADR-009 for tier-gated registration
+- **ROADMAP.md**: Added "Tier Separation (v0.5.7)" subsection with 8 completed items
+
 ---
 
 ## [0.5.6] - 2026-07-04

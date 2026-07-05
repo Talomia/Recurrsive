@@ -44,40 +44,85 @@ import {
   Boxes,
 } from "lucide-react";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Intelligence Overview", icon: LayoutDashboard },
-  { href: "/executive", label: "Executive View", icon: Crown },
-  { href: "/forecasting", label: "Forecasting", icon: Brain },
-  { href: "/projects", label: "Projects", icon: FolderGit2 },
-  { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
-  { href: "/findings", label: "Findings", icon: ShieldAlert },
-  { href: "/insights", label: "Insights", icon: Sparkles },
-  { href: "/system-map", label: "System Map", icon: Network },
-  { href: "/timeline", label: "Timeline", icon: Clock },
-  { href: "/health", label: "Health", icon: HeartPulse },
-  { href: "/confidence", label: "Confidence", icon: Target },
-  { href: "/simulation", label: "Simulation", icon: FlaskConical },
-  { href: "/snapshots", label: "Snapshots", icon: Camera },
-  { href: "/webhooks", label: "Webhooks", icon: Webhook },
-  { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/batch", label: "Batch", icon: Layers },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/experiments", label: "Experiments", icon: GitCompare },
-  { href: "/comparisons", label: "Comparisons", icon: GitCompare },
-  { href: "/audit", label: "Audit Trail", icon: History },
-  { href: "/search", label: "Search", icon: Search },
-  { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/scheduling", label: "Scheduling", icon: Calendar },
-  { href: "/policies", label: "Policies", icon: Shield },
-  { href: "/plugins", label: "Plugins", icon: Package },
-  { href: "/intelligence-packs", label: "Intelligence Packs", icon: Boxes },
-  { href: "/cloud", label: "Cloud", icon: Cloud },
-  { href: "/secrets", label: "Secrets", icon: Key },
-  { href: "/sso", label: "SSO", icon: KeyRound },
-  { href: "/tenants", label: "Tenants", icon: Building2 },
-  { href: "/data-masking", label: "Data Masking", icon: Eye },
-  { href: "/settings", label: "Settings", icon: Settings },
-] as const;
+interface NavSection {
+  label: string;
+  tier?: 'enterprise' | 'ecosystem';
+  items: ReadonlyArray<{ readonly href: string; readonly label: string; readonly icon: any }>;
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Intelligence',
+    items: [
+      { href: '/', label: 'Overview', icon: LayoutDashboard },
+      { href: '/executive', label: 'Executive', icon: Crown },
+      { href: '/forecasting', label: 'Forecasting', icon: Brain },
+      { href: '/confidence', label: 'Confidence', icon: Target },
+    ],
+  },
+  {
+    label: 'Analysis',
+    items: [
+      { href: '/projects', label: 'Projects', icon: FolderGit2 },
+      { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
+      { href: '/findings', label: 'Findings', icon: ShieldAlert },
+      { href: '/insights', label: 'Insights', icon: Sparkles },
+      { href: '/system-map', label: 'System Map', icon: Network },
+      { href: '/health', label: 'Health', icon: HeartPulse },
+      { href: '/timeline', label: 'Timeline', icon: Clock },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { href: '/batch', label: 'Batch', icon: Layers },
+      { href: '/scheduling', label: 'Scheduling', icon: Calendar },
+      { href: '/reports', label: 'Reports', icon: FileText },
+      { href: '/search', label: 'Search', icon: Search },
+      { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+      { href: '/experiments', label: 'Experiments', icon: FlaskConical },
+      { href: '/comparisons', label: 'Comparisons', icon: GitCompare },
+    ],
+  },
+  {
+    label: 'Integrations',
+    items: [
+      { href: '/webhooks', label: 'Webhooks', icon: Webhook },
+      { href: '/notifications', label: 'Notifications', icon: Bell },
+      { href: '/snapshots', label: 'Snapshots', icon: Camera },
+      { href: '/simulation', label: 'Simulation', icon: Bot },
+      { href: '/plugins', label: 'Plugins', icon: Package },
+      { href: '/intelligence-packs', label: 'Intelligence Packs', icon: Boxes },
+      { href: '/marketplace', label: 'Marketplace', icon: Zap },
+    ],
+  },
+  {
+    label: 'Administration',
+    items: [
+      { href: '/policies', label: 'Policies', icon: Shield },
+      { href: '/audit', label: 'Audit Trail', icon: History },
+      { href: '/secrets', label: 'Secrets', icon: Key },
+      { href: '/data-masking', label: 'Data Masking', icon: Eye },
+      { href: '/settings', label: 'Settings', icon: Settings },
+    ],
+  },
+  {
+    label: 'Enterprise',
+    tier: 'enterprise',
+    items: [
+      { href: '/sso', label: 'SSO', icon: KeyRound },
+      { href: '/tenants', label: 'Tenants', icon: Building2 },
+    ],
+  },
+  {
+    label: 'Cloud',
+    tier: 'ecosystem',
+    items: [
+      { href: '/cloud', label: 'Cloud Dashboard', icon: Cloud },
+      { href: '/partners', label: 'Partners', icon: Building2 },
+    ],
+  },
+];
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -153,38 +198,58 @@ export default function Sidebar() {
 
         {/* ── Nav links ──────────────────────────────────── */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Main navigation">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active =
-              href === "/" ? pathname === "/" : pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setMobileOpen(false)}
-                className={clsx(
-                  "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 group",
-                  active
-                    ? "bg-white/8 text-text-primary"
-                    : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
-                )}
-                aria-current={active ? "page" : undefined}
-              >
-                {active && <span className="nav-active-indicator" aria-hidden="true" />}
-                <Icon
-                  className={clsx(
-                    "h-[18px] w-[18px] shrink-0 transition-colors",
-                    active ? "text-accent-blue" : "text-text-muted group-hover:text-text-secondary"
-                  )}
-                />
-                {!collapsed && <span>{label}</span>}
-                {!collapsed && href === "/opportunities" && (
-                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-blue/15 px-1.5 text-[10px] font-semibold text-blue-400">
-                    {opportunityCount}
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.label} className="mb-1">
+              {/* Section header — only shown when sidebar is expanded */}
+              {!collapsed && (
+                <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5">
+                  <span className="text-text-tertiary text-[10px] font-semibold uppercase tracking-widest">
+                    {section.label}
                   </span>
-                )}
-              </Link>
-            );
-          })}
+                  {section.tier === 'enterprise' && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" title="Enterprise tier" />
+                  )}
+                  {section.tier === 'ecosystem' && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" title="Ecosystem tier" />
+                  )}
+                </div>
+              )}
+
+              {/* Section items */}
+              {section.items.map(({ href, label, icon: Icon }) => {
+                const active =
+                  href === "/" ? pathname === "/" : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMobileOpen(false)}
+                    className={clsx(
+                      "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 group",
+                      active
+                        ? "bg-white/8 text-text-primary"
+                        : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
+                    )}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {active && <span className="nav-active-indicator" aria-hidden="true" />}
+                    <Icon
+                      className={clsx(
+                        "h-[18px] w-[18px] shrink-0 transition-colors",
+                        active ? "text-accent-blue" : "text-text-muted group-hover:text-text-secondary"
+                      )}
+                    />
+                    {!collapsed && <span>{label}</span>}
+                    {!collapsed && href === "/opportunities" && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-blue/15 px-1.5 text-[10px] font-semibold text-blue-400">
+                        {opportunityCount}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* ── Bottom ─────────────────────────────────────── */}

@@ -881,8 +881,8 @@ describe('Cloud endpoints', () => {
     expect(body.total).toBeGreaterThanOrEqual(0);
   });
 
-  it('GET /api/v1/cloud/partners returns partner list', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/cloud/partners' });
+  it('GET /api/v1/partners returns partner list', async () => {
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -937,20 +937,22 @@ describe('Cloud endpoints', () => {
     expect(body.data).toHaveProperty('message');
   });
 
-  it('POST /api/v1/cloud/partners/apply submits partner application', async () => {
+  it('POST /api/v1/partners/apply submits partner application', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
-      url: '/api/v1/cloud/partners/apply',
+      url: '/api/v1/partners/apply',
       payload: {
-        partnerName: 'Test Partner Inc',
-        specializations: ['cloud-migration', 'security'],
+        companyName: 'Test Partner Inc',
+        contactEmail: 'partner@test.com',
+        partnerType: 'consulting',
+        description: 'Cloud migration and security consulting',
       },
     });
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.data).toHaveProperty('id');
-    expect(body.data.partnerName).toBe('Test Partner Inc');
+    expect(body.data.companyName).toBe('Test Partner Inc');
     expect(body.data.status).toBe('pending');
     expect(body).toHaveProperty('message');
   });

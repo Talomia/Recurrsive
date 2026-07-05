@@ -15,17 +15,23 @@
 | Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
 | CLI | ✅ Complete | 25 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export, projects, forecast, plugins, secrets, simulate, cloud) |
 | MCP Server | ✅ Complete | 42 tools, 16 resources, 21 prompts |
-| REST API | ✅ Complete | 150 endpoints, OpenAPI 3.1 spec, WebSocket streaming, JWT/API key auth, RBAC |
-| Dashboard | ✅ Complete | Next.js, 40 pages (incl. detail pages), 8+ components, real-time WebSocket |
+| REST API | ✅ Complete | 150+ endpoints, OpenAPI 3.1 spec, WebSocket streaming, JWT/API key auth, RBAC |
+| Dashboard | ✅ Complete | Next.js, 42 pages (incl. marketplace + partners), grouped sidebar navigation, real-time WebSocket |
 | Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth, API key management, RBAC (admin/analyst/viewer) |
-| Tests | ✅ Complete | 140 test files, 3,293 tests across 14 packages, integration tests for full pipeline |
+| Tests | ✅ Complete | 140 test files, 3,293+ tests across 14 packages, integration tests for full pipeline |
+| Tier Separation | ✅ Complete | 3-tier model (OSS/Enterprise/Ecosystem) enforced at runtime via `ENABLE_ENTERPRISE` and `ENABLE_ECOSYSTEM` env vars |
 
 > [!NOTE]
 > All platform routes have real implementations. Enterprise features (SSO, secrets,
 > multi-tenant, simulation, cloud) use real data processing logic — SSO parses real
 > SAML XML, collectors call real APIs via native `fetch`, and all routes read from
 > actual analysis state. No mock or synthetic data remains in production code.
+>
+> The 3-tier model (OSS → Enterprise → Ecosystem) is enforced at runtime:
+> - **Tier 1 (OSS)**: 27 route modules, always enabled
+> - **Tier 2 (Enterprise)**: SSO, multi-tenant, secrets, data masking — gated by `ENABLE_ENTERPRISE`
+> - **Tier 3 (Ecosystem)**: Cloud, marketplace, partners — gated by `ENABLE_ECOSYSTEM`
 
 ---
 
@@ -153,6 +159,16 @@ Build organizational engineering memory and explore network effects.
 - [x] **SEO** — sitemap.xml, robots.txt, not-found, loading, error pages
 - [x] **Dashboard wiring** — 9 dashboard pages wired to server APIs with mock fallback
 - [x] **Navigation** — 5 dropdown menus with 17+ quick-access links
+
+### Tier Separation (v0.5.7)
+- [x] **3-tier route gating** — `ENABLE_ENTERPRISE` and `ENABLE_ECOSYSTEM` env vars for runtime control
+- [x] **Intelligence packs extraction** — moved from simulation.ts to own route file
+- [x] **Cloud/partner deduplication** — removed duplicate partner routes from cloud.ts
+- [x] **Plugin catalog migration** — hardcoded marketplace data moved to store
+- [x] **Dashboard sidebar grouping** — 7 labelled sections (Intelligence, Analysis, Operations, Integrations, Administration, Enterprise, Cloud)
+- [x] **Dashboard marketplace page** — new page wired to marketplace API
+- [x] **Dashboard partners page** — new page wired to partners API
+- [x] **Documentation** — STRATEGY.md, ARCHITECTURE.md, ROADMAP.md updated with tier boundary specs
 
 ---
 

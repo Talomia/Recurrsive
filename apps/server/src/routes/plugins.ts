@@ -77,12 +77,10 @@ interface MarketplaceEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Marketplace (read-only reference data)
+// Marketplace seed data (written to store on first run)
 // ---------------------------------------------------------------------------
 
-const marketplace: MarketplaceEntry[] = [];
-
-const marketplaceData: Array<Omit<MarketplaceEntry, 'id'>> = [
+const marketplaceSeedData: Array<Omit<MarketplaceEntry, 'id'>> = [
   { name: '@recurrsive/plugin-sonarqube', version: '1.0.0', description: 'Import SonarQube quality gates and issues as findings', author: 'Recurrsive Team', type: 'collector', tags: ['quality', 'sonarqube', 'static-analysis'], downloads: 12450, rating: 4.7, verified: true, createdAt: '2026-02-01T00:00:00Z' },
   { name: '@recurrsive/plugin-jira', version: '2.1.0', description: 'Sync Jira issues, sprints, and velocity metrics', author: 'Recurrsive Team', type: 'collector', tags: ['project-management', 'jira', 'agile'], downloads: 8920, rating: 4.5, verified: true, createdAt: '2026-01-15T00:00:00Z' },
   { name: '@recurrsive/plugin-slack-reporter', version: '1.2.0', description: 'Send analysis reports and alerts to Slack channels', author: 'Community', type: 'reporter', tags: ['notifications', 'slack', 'reports'], downloads: 6340, rating: 4.3, verified: true, createdAt: '2026-03-10T00:00:00Z' },
@@ -95,23 +93,27 @@ const marketplaceData: Array<Omit<MarketplaceEntry, 'id'>> = [
   { name: '@recurrsive/plugin-confluence', version: '0.9.0', description: 'Collect documentation from Confluence spaces', author: 'Community', type: 'collector', tags: ['documentation', 'confluence', 'wiki'], downloads: 1890, rating: 3.8, verified: false, createdAt: '2026-05-15T00:00:00Z' },
 ];
 
-for (const entry of marketplaceData) {
-  marketplace.push({ ...entry, id: generateId() });
-}
-
-// No seed data — plugins are installed by the user via the API.
+// No seed data for installed plugins — plugins are installed by the user via the API.
 
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
 export async function registerPluginRoutes(app: FastifyInstance): Promise<void> {
+  // Seed marketplace data into store if empty (idempotent on restart)
+  if (store.count('plugin_marketplace') === 0) {
+    for (const entry of marketplaceSeedData) {
+      const id = generateId();
+      store.set<MarketplaceEntry>('plugin_marketplace', id, { ...entry, id });
+    }
+  }
+
   // ── Marketplace ───────────────────────────────────────────────────────────
 
   app.get<{ Querystring: { type?: string; search?: string; sort?: string } }>(
     '/api/v1/plugins/marketplace',
     async (request, reply) => {
-      let results = [...marketplace];
+      let results = store.all<MarketplaceEntry>('plugin_marketplace');
 
       if (request.query.type) {
         results = results.filter(p => p.type === request.query.type);
@@ -135,7 +137,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   );
 
   app.get<{ Params: { id: string } }>('/api/v1/plugins/marketplace/:id', async (request, reply) => {
-    const entry = marketplace.find(p => p.id === request.params.id);
+    const entry = store.get<MarketplaceEntry>('plugin_marketplace', request.params.id);
     if (!entry) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not found in marketplace' });
     return reply.send({ data: entry });
   });
@@ -162,7 +164,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
       return reply.status(409).send({ error: 'Conflict', message: 'Plugin already installed' });
     }
 
-    const entry = marketplace.find(p => p.id === request.params.id);
+    const entry = store.get<MarketplaceEntry>('plugin_marketplace', request.params.id);
     if (!entry) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not found in marketplace' });
 
     const plugin: InstalledPlugin = {

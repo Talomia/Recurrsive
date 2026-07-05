@@ -139,6 +139,76 @@ Third parties publish analyzers, collectors, policies, and reports. Recurrsive t
 
 ---
 
+## Runtime Tier Boundaries
+
+The 3-tier model is enforced at runtime through environment variables and codebase structure.
+
+### Environment Variables
+
+| Variable | Default | Effect |
+|---|---|---|
+| `ENABLE_ENTERPRISE` | `true` (enabled) | Set to `false` to disable SSO, multi-tenant, secrets, and data masking routes |
+| `ENABLE_ECOSYSTEM` | `true` (enabled) | Set to `false` to disable cloud, marketplace, and partner routes |
+
+### Codebase Boundary Map
+
+```
+recurrsive/
+├── packages/               ← ALL packages are Tier 1 OSS (Apache 2.0)
+│   ├── core/               ← Type system, schemas
+│   ├── graph/              ← Knowledge graph engine
+│   ├── collectors/         ← 14 data collectors
+│   ├── parsers/            ← Code analysis
+│   ├── analyzers/          ← 13 analysis engines
+│   ├── reasoning/          ← Multi-agent reasoning
+│   ├── opportunities/      ← Opportunity lifecycle
+│   ├── policy/             ← Policy engine
+│   └── presentation/       ← Reports & notifications
+│
+├── apps/
+│   ├── cli/                ← Tier 1 OSS — downloadable CLI
+│   ├── mcp/                ← Tier 1 OSS — MCP server for AI assistants
+│   ├── server/             ← Mixed — serves all tiers from one process
+│   │   └── src/routes/
+│   │       ├── analysis.ts         ← Tier 1 (26 route files)
+│   │       ├── sso.ts              ← Tier 2 Enterprise (gated)
+│   │       ├── multi-tenant.ts     ← Tier 2 Enterprise (gated)
+│   │       ├── secrets.ts          ← Tier 2 Enterprise (gated)
+│   │       ├── data-masking.ts     ← Tier 2 Enterprise (gated)
+│   │       ├── cloud.ts            ← Tier 3 Ecosystem (gated)
+│   │       ├── marketplace.ts      ← Tier 3 Ecosystem (gated)
+│   │       └── partners.ts         ← Tier 3 Ecosystem (gated)
+│   │
+│   ├── dashboard/          ← Tier 1 OSS — but includes pages for all tiers
+│   │                         (Enterprise/Cloud pages show "feature unavailable"
+│   │                          when their tier is disabled)
+│   │
+│   └── website/            ← NOT part of downloadable OSS
+│                             Marketing site for recurrsive.dev
+│                             Static content with optional API integration
+```
+
+### What Ships in the OSS Download
+
+The downloadable OSS package includes ALL code in the monorepo, but:
+
+1. **Tier 2 & 3 routes are disabled** when their env vars are set to `false`
+2. **The website app** (`apps/website/`) is included in the repo but is NOT part of the standard `docker compose up` deployment — it's deployed separately as the marketing site
+3. **Dashboard pages** for disabled tiers show a clear "Feature requires Enterprise/Cloud" message
+
+### What Runs as Ecosystem Services
+
+These services are NOT part of the self-hosted OSS deployment:
+
+| Service | Location | Deployment |
+|---|---|---|
+| **recurrsive.dev** (marketing site) | `apps/website/` | Separate Vercel/Netlify deployment |
+| **Recurrsive Cloud** (managed SaaS) | `apps/server/` with `ENABLE_ECOSYSTEM=true` | Managed infrastructure |
+| **Marketplace** (extension catalog) | Server route + website page | Part of Cloud deployment |
+| **Partner Program** | Server route + website page | Part of Cloud deployment |
+
+---
+
 ## Pricing Philosophy
 
 - **No per-seat pricing** — encourages adoption

@@ -7,7 +7,6 @@
  * - Anonymized benchmarking (opt-in, aggregated)
  * - Cross-organization pattern learning (privacy-preserved)
  * - Managed optimization services
- * - Partner certification program
  * - Recurrsive Cloud (fully managed SaaS) management
  *
  * All data is managed via the API — no seed data.
@@ -84,20 +83,6 @@ interface LearnedPattern {
 }
 
 // ---------------------------------------------------------------------------
-// Types — Partner Certification
-// ---------------------------------------------------------------------------
-
-interface PartnerCert {
-  id: string;
-  partnerName: string;
-  tier: 'silver' | 'gold' | 'platinum';
-  specializations: string[];
-  certifiedAt: string;
-  expiresAt: string;
-  status: 'active' | 'pending' | 'expired';
-}
-
-// ---------------------------------------------------------------------------
 // Types — Managed Services
 // ---------------------------------------------------------------------------
 
@@ -122,7 +107,7 @@ const managedServices: ManagedService[] = [
   { id: 'ms-oaas', name: 'Optimization-as-a-Service', description: 'Our expert team reviews your findings and implements improvements on your behalf.', tier: 'addon', features: ['Monthly review sessions', 'PR generation', 'Architecture recommendations', 'Dedicated success engineer'], priceRange: '$2,000/mo', sla: 'Included with Enterprise' },
 ];
 
-// No seed data — benchmarks, patterns, and partner data are created via API or analysis.
+// No seed data — benchmarks and patterns are created via API or analysis.
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -199,36 +184,6 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ data: pattern });
   });
 
-  // ── Partner Certification ─────────────────────────────────────────────────
-
-  app.get('/api/v1/cloud/partners', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const partners = store.all<PartnerCert>('cloud_applications');
-    return reply.send({ data: partners, total: partners.length });
-  });
-
-  app.get<{ Params: { id: string } }>('/api/v1/cloud/partners/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const partner = store.get<PartnerCert>('cloud_applications', request.params.id);
-    if (!partner) return reply.status(404).send({ error: 'Not Found', message: 'Partner not found' });
-    return reply.send({ data: partner });
-  });
-
-  app.post('/api/v1/cloud/partners/apply', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const body = request.body as { partnerName?: string; specializations?: string[] };
-    if (!body.partnerName) return reply.status(400).send({ error: 'Bad Request', message: 'partnerName is required' });
-
-    const cert: PartnerCert = {
-      id: generateId(),
-      partnerName: body.partnerName,
-      tier: 'silver',
-      specializations: body.specializations ?? [],
-      certifiedAt: nowISO(),
-      expiresAt: new Date(Date.now() + 365 * 86400000).toISOString(),
-      status: 'pending',
-    };
-    store.set<PartnerCert>('cloud_applications', cert.id, cert);
-    return reply.status(201).send({ data: cert, message: 'Application submitted. Review in 5 business days.' });
-  });
-
   // ── Managed Services ──────────────────────────────────────────────────────
 
   app.get('/api/v1/cloud/services', { preHandler: [authMiddleware] }, async (_request, reply) => {
@@ -249,7 +204,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
           benchmarking: { status: 'active', participants: benchmarkCount },
           patternLearning: { status: 'active', patterns: store.count('cloud_patterns') },
           managedServices: { status: 'active', tiers: managedServices.length },
-          partnerProgram: { status: 'active', partners: store.count('cloud_applications') },
+          partnerProgram: { status: 'active', note: 'See /api/v1/partners for partner data' },
         },
         upcomingFeatures: [
           'Multi-region failover',

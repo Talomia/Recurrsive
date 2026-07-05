@@ -2451,6 +2451,9 @@ stateDiagram-v2
 | `ENCRYPTION_KEY` | Prod | — | 32-byte hex key for config encryption |
 | `GITHUB_TOKEN` | No | — | GitHub personal access token for collectors |
 | `SLACK_WEBHOOK_URL` | No | — | Slack notification webhook |
+| `ENABLE_ENTERPRISE` | No | `true` | Set to `false` to disable Tier 2 Enterprise routes (SSO, multi-tenant, secrets, data masking) |
+| `ENABLE_ECOSYSTEM` | No | `true` | Set to `false` to disable Tier 3 Ecosystem routes (cloud, marketplace, partners) |
+| `ALLOW_DEMO_USERS` | No | `false` | Enable demo user accounts in production |
 
 ## Appendix C: ADR Index
 
@@ -2466,3 +2469,4 @@ Architectural Decision Records referenced by this specification:
 | ADR-006 | Visitor pattern for plugins over eval/VM | Type-safe; debuggable; testable; no security concerns of dynamic evaluation |
 | ADR-007 | Raw SQL over ORM | Direct Cypher and SQL queries; no ORM abstraction overhead; full AGE compatibility |
 | ADR-008 | Fastify over Express | 2–3× throughput; built-in schema validation; plugin system aligns with Recurrsive's architecture |
+| ADR-009 | Tier-gated route registration | OSS/Enterprise/Cloud routes in one server, gated by env vars. Avoids code duplication while enabling clear separation for self-hosted vs managed deployments |
