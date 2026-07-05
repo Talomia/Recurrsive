@@ -69,9 +69,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/dashboard/.next/static ./app
 EXPOSE 3100
 
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3100/',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+# Health check — use /login which is always accessible (no auth required)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3100/login',(r)=>process.exit(r.statusCode>=200&&r.statusCode<400?0:1)).on('error',()=>process.exit(1))"
 
 # Run as non-root
 USER nextjs
