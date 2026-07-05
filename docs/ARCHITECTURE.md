@@ -1884,7 +1884,7 @@ recurrsive/
 │   │   ├── src/
 │   │   │   ├── bin.ts        # Server entry point
 │   │   │   ├── index.ts      # Fastify application setup
-│   │   │   ├── routes/       # REST route handlers (34 route files)
+│   │   │   ├── routes/       # REST route handlers (37 route files)
 │   │   │   │   ├── marketplace.ts   # Marketplace extension endpoints
 │   │   │   │   ├── partners.ts      # Partner program endpoints
 │   │   │   │   ├── openapi.ts       # OpenAPI 3.1 spec + Swagger UI
@@ -1919,7 +1919,7 @@ recurrsive/
 │   │
 │   ├── dashboard/            # Next.js dashboard
 │   │   ├── src/
-│   │   │   ├── app/          # App Router pages (45+ pages)
+│   │   │   ├── app/          # App Router pages (46 pages)
 │   │   │   ├── components/   # React components
 │   │   │   ├── hooks/        # Custom hooks
 │   │   │   └── lib/          # Utilities

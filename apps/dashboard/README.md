@@ -1,6 +1,6 @@
 # Recurrsive Dashboard
 
-**Engineering Intelligence Dashboard** — 45+ pages, dark theme with glassmorphism design, built on Next.js App Router with real-time WebSocket updates.
+**Engineering Intelligence Dashboard** — 46 pages, dark theme with glassmorphism design, built on Next.js App Router with real-time WebSocket updates.
 
 ## Overview
 
@@ -45,7 +45,7 @@ Open [http://localhost:3100](http://localhost:3100) to view the dashboard.
 
 ## Pages (40)
 
-The dashboard includes 45+ pages organized across these sections:
+The dashboard includes 46 pages organized across these sections:
 
 - **Dashboard** — Overview, health summary, recent activity
 - **Analysis** — Run history, findings, detail views

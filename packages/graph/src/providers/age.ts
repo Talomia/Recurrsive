@@ -114,6 +114,19 @@ export interface ExtendedGraphClient extends GraphClient {
    * Close all connections and release resources.
    */
   dispose(): Promise<void>;
+
+  /**
+   * Full-text search across entities by name, description, and type.
+   * Returns entities ordered by relevance.
+   *
+   * @param query - Search query string (space-separated terms).
+   * @param options - Optional type filter and result limit.
+   * @returns Matching entities.
+   */
+  searchEntities?(
+    query: string,
+    options?: { type?: string; limit?: number },
+  ): Promise<Entity[]>;
 }
 
 // ---------------------------------------------------------------------------

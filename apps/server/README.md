@@ -1,6 +1,6 @@
 # Recurrsive Server
 
-**REST API + WebSocket Server** — 160+ endpoints across 34 route modules, powered by Fastify with OpenAPI 3.1 documentation and real-time WebSocket support.
+**REST API + WebSocket Server** — 160+ endpoints across 37 route modules, powered by Fastify with OpenAPI 3.1 documentation and real-time WebSocket support.
 
 ## Overview
 

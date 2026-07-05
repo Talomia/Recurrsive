@@ -53,6 +53,8 @@ services:
       # Auth configuration
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       ALLOW_DEMO_USERS: ${ALLOW_DEMO_USERS:-false}
+      # CORS — allow dashboard and website origins
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3100,http://localhost:3200}
       # Tier configuration
       ENABLE_ENTERPRISE: ${ENABLE_ENTERPRISE:-true}
       ENABLE_ECOSYSTEM: ${ENABLE_ECOSYSTEM:-true}

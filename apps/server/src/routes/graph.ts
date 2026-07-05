@@ -321,8 +321,8 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
         const graph = state.getGraph();
 
         // Try FTS5 search if the client supports it
-        if ('searchEntities' in graph && typeof (graph as any).searchEntities === 'function') {
-          const results = await (graph as any).searchEntities(q.trim(), {
+        if ('searchEntities' in graph && typeof graph.searchEntities === 'function') {
+          const results = await graph.searchEntities!(q.trim(), {
             type: type || undefined,
             limit,
           });

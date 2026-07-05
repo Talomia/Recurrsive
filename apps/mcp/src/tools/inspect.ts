@@ -819,8 +819,8 @@ ORDER BY rt.depth;`.trim();
         let results: Entity[];
 
         // Use FTS5 search if available (SQLite client)
-        if ('searchEntities' in graph && typeof (graph as any).searchEntities === 'function') {
-          results = await (graph as any).searchEntities(query, {
+        if ('searchEntities' in graph && typeof graph.searchEntities === 'function') {
+          results = await graph.searchEntities!(query, {
             type: type || undefined,
             limit,
           });

@@ -29,7 +29,7 @@ This starts four services:
 |---------|------|-------------|
 | `postgres` | 5432 | PostgreSQL with Apache AGE graph extension |
 | `server` | 3000 | REST API + WebSocket server (160+ endpoints, Swagger UI at `/api/docs`) |
-| `dashboard` | 3100 | Next.js dashboard UI (45+ pages) |
+| `dashboard` | 3100 | Next.js dashboard UI (46 pages) |
 | `website` | 3200 | Marketing website (23 pages, sitemap, robots) |
 
 ### Stopping

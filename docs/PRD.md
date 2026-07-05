@@ -1584,7 +1584,7 @@ Recurrsive supports multiple deployment models to fit different organizational n
 | **GitLab App** | Installed as a GitLab integration | Teams using GitLab, automated MR analysis | Cloud API (managed) |
 | **IDE Extensions** | VS Code, JetBrains, Neovim plugins | Individual developers, real-time feedback | Local models or cloud API |
 | **MCP Server** | Model Context Protocol server for AI assistants | AI-assisted development workflows | Via MCP client |
-| **REST API** | 150+ endpoints across 34 route modules | Custom integrations, dashboards, automation | N/A (API only) |
+| **REST API** | 160+ endpoints across 37 route modules | Custom integrations, dashboards, automation | N/A (API only) |
 | **GraphQL API** | GraphQL API for flexible querying | Complex queries, custom UIs, data exploration | N/A (API only) |
 | **SDK** | TypeScript, Python, Go SDKs | Embedding Recurrsive in other tools | N/A (SDK only) |
 | **Managed Cloud** | Fully managed SaaS with multi-tenant support | Teams wanting zero-ops, fastest onboarding | Managed (customer-isolated) |
@@ -1650,7 +1650,7 @@ As of v0.5.7, the following deployment surface is implemented:
 
 | Component | Count | Notes |
 |---|---|---|
-| **REST Endpoints** | 150+ | Across 34 route modules |
+| **REST Endpoints** | 160+ | Across 37 route modules |
 | **Built-in Analyzers** | 13 | 89+ analysis rules |
 | **Built-in Collectors** | 14 | Including enterprise integrations (GitHub, GitLab, OpenTelemetry, Langfuse, Arize, Helicone, Cloud Cost, Error Tracking, APM) |
 | **Specialist Agents** | 19 | With Custom Specialist Agent SDK |
@@ -2118,5 +2118,5 @@ The system tracks its own evolution:
 | Version | Date | Author | Changes |
 |---|---|---|---|
 | 1.2.0 | 2026-07-05 | Recurrsive Team | Updated to reflect v0.5.7: all synthetic/mock data removed from production code — SSO uses real SAML parsing, 9 collectors rewritten with real API clients (native fetch), GraphQL seed data removed, scheduling uses real cron parser, CLI simulation wired to server API. All docs aligned, 3,293 tests passing. |
-| 1.1.0 | 2026-07-04 | Recurrsive Team | Updated to reflect v0.5.6: added §11.3 current implementation stats (13 analyzers, 14 collectors, 19 specialists, 160+ endpoints across 34 route modules, 42 MCP tools, 28 CLI commands, 45+ dashboard pages, 23 website pages), added EasyPanel and multi-tenant deployment options, added git URL analysis capability, clarified collector implementation status in §7 |
+| 1.1.0 | 2026-07-04 | Recurrsive Team | Updated to reflect v0.5.6: added §11.3 current implementation stats (13 analyzers, 14 collectors, 19 specialists, 160+ endpoints across 37 route modules, 42 MCP tools, 28 CLI commands, 46 dashboard pages, 23 website pages), added EasyPanel and multi-tenant deployment options, added git URL analysis capability, clarified collector implementation status in §7 |
 | 1.0.0 | 2026-06-29 | Recurrsive Team | Initial comprehensive PRD |

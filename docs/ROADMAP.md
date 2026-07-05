@@ -15,7 +15,7 @@
 | Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
 | CLI | ✅ Complete | 28 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export, projects, forecast, plugins, secrets, simulate, cloud, login, logout, whoami) |
 | MCP Server | ✅ Complete | 42 tools, 16 resources, 21 prompts |
-| REST API | ✅ Complete | 150+ endpoints, OpenAPI 3.1 spec, WebSocket streaming, JWT/API key auth, RBAC |
+| REST API | ✅ Complete | 160+ endpoints, OpenAPI 3.1 spec, WebSocket streaming, JWT/API key auth, RBAC |
 | Dashboard | ✅ Complete | Next.js, 42 pages (incl. marketplace + partners), grouped sidebar navigation, real-time WebSocket |
 | Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth (HMAC-SHA256), scrypt password hashing, setup wizard, user CRUD, SSO auto-provisioning, API key management, RBAC (admin/analyst/viewer) |

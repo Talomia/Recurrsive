@@ -235,7 +235,7 @@ After setup, admins can invite team members:
 
 ### Dashboard Features
 
-The dashboard provides 45+ pages including:
+The dashboard provides 46 pages including:
 - Health score gauge and trend charts
 - Opportunity browser with filtering
 - Knowledge graph visualization
