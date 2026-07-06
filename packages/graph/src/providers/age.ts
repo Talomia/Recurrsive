@@ -679,44 +679,94 @@ export class AgeGraphClient implements ExtendedGraphClient {
    */
   async getStats(): Promise<GraphStats> {
     try {
-      // Get entity counts by type
-      const entityRows = await this.executeCypher(
-        `MATCH (n) RETURN n.type AS type, count(n) AS cnt`,
-        'type agtype, cnt agtype',
-      );
-
+      // Instead of a slow full-graph Cypher scan (MATCH (n) RETURN ...),
+      // query each known label's table directly via SQL COUNT(*).
+      // AGE stores each vertex/edge label as a table under the graph schema.
       const entityCountsByType: Record<string, number> = {};
       let totalEntities = 0;
-      for (const row of entityRows) {
-        const r = row as Record<string, unknown>;
-        const type = String(r['type'] ?? 'unknown').replace(/"/g, '');
-        const count = Number(r['cnt'] ?? 0);
-        entityCountsByType[type] = count;
-        totalEntities += count;
+
+      const client = await this.pool.connect();
+      try {
+        await this.prepareConnection(client);
+
+        // Get the graph's internal schema name from ag_catalog
+        const graphRes = await client.query(
+          `SELECT nspid FROM ag_catalog.ag_graph WHERE name = 'recurrsive';`,
+        );
+        if (graphRes.rows.length === 0) {
+          return {
+            entityCountsByType: {},
+            totalEntities: 0,
+            relationshipCountsByType: {},
+            totalRelationships: 0,
+          };
+        }
+        const nspid = graphRes.rows[0]['nspid'];
+
+        // Resolve the actual schema name from the namespace OID
+        const nspRes = await client.query(
+          `SELECT nspname FROM pg_namespace WHERE oid = $1;`,
+          [nspid],
+        );
+        const schemaName = nspRes.rows[0]?.['nspname'] ?? 'recurrsive';
+
+        // Query each vertex label's row count via information_schema or
+        // direct table access. We use ag_label to find actual labels.
+        const labelRes = await client.query(
+          `SELECT name, kind FROM ag_catalog.ag_label
+           WHERE graph = $1 AND name NOT IN ('_ag_label_vertex', '_ag_label_edge')
+           ORDER BY name;`,
+          [nspid],
+        );
+
+        for (const label of labelRes.rows) {
+          const labelName = label['name'] as string;
+          const kind = label['kind'] as string;
+          try {
+            const countRes = await client.query(
+              `SELECT COUNT(*) AS cnt FROM "${schemaName}"."${labelName}";`,
+            );
+            const count = Number(countRes.rows[0]?.['cnt'] ?? 0);
+            if (kind === 'v' && count > 0) {
+              entityCountsByType[labelName] = count;
+              totalEntities += count;
+            }
+          } catch {
+            // Label table may not exist; skip silently
+          }
+        }
+
+        // Relationship counts by label
+        const relationshipCountsByType: Record<string, number> = {};
+        let totalRelationships = 0;
+
+        for (const label of labelRes.rows) {
+          const labelName = label['name'] as string;
+          const kind = label['kind'] as string;
+          if (kind !== 'e') continue;
+          try {
+            const countRes = await client.query(
+              `SELECT COUNT(*) AS cnt FROM "${schemaName}"."${labelName}";`,
+            );
+            const count = Number(countRes.rows[0]?.['cnt'] ?? 0);
+            if (count > 0) {
+              relationshipCountsByType[labelName] = count;
+              totalRelationships += count;
+            }
+          } catch {
+            // Label table may not exist; skip silently
+          }
+        }
+
+        return {
+          entityCountsByType,
+          totalEntities,
+          relationshipCountsByType,
+          totalRelationships,
+        };
+      } finally {
+        client.release();
       }
-
-      // Get relationship counts by type
-      const relRows = await this.executeCypher(
-        `MATCH ()-[r]-() RETURN r.type AS type, count(r) AS cnt`,
-        'type agtype, cnt agtype',
-      );
-
-      const relationshipCountsByType: Record<string, number> = {};
-      let totalRelationships = 0;
-      for (const row of relRows) {
-        const r = row as Record<string, unknown>;
-        const type = String(r['type'] ?? 'unknown').replace(/"/g, '');
-        const count = Number(r['cnt'] ?? 0);
-        relationshipCountsByType[type] = count;
-        totalRelationships += count;
-      }
-
-      return {
-        entityCountsByType,
-        totalEntities,
-        relationshipCountsByType,
-        totalRelationships,
-      };
     } catch (error) {
       throw new GraphError(
         'Failed to gather graph statistics',
