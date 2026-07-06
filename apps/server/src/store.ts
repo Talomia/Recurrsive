@@ -254,13 +254,21 @@ export class ServerStore {
     const orderBy = options?.orderBy ?? 'created_at';
     const order = options?.order ?? 'desc';
 
+    // Defence-in-depth: validate interpolated values even though TypeScript
+    // constrains them at compile time — prevents SQL injection if type safety
+    // is ever bypassed (e.g. via `as any` or unvalidated user input).
+    const SAFE_ORDER_BY = new Set(['created_at', 'updated_at']);
+    const SAFE_ORDER = new Set(['asc', 'desc']);
+    const safeOrderBy = SAFE_ORDER_BY.has(orderBy) ? orderBy : 'created_at';
+    const safeOrder = SAFE_ORDER.has(order) ? order : 'desc';
+
     const total = (this.stmtCount.get(table) as { count: number }).count;
 
     // Dynamic ORDER BY requires string interpolation, but values are
     // constrained to safe enum values above.
     const rows = this.db
       .prepare(
-        `SELECT data FROM kv_store WHERE table_name = ? ORDER BY ${orderBy} ${order} LIMIT ? OFFSET ?`,
+        `SELECT data FROM kv_store WHERE table_name = ? ORDER BY ${safeOrderBy} ${safeOrder} LIMIT ? OFFSET ?`,
       )
       .all(table, limit, offset) as Array<{ data: string }>;
 

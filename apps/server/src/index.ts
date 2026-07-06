@@ -62,6 +62,7 @@ export interface ServerOptions {
 export async function createServer(options?: ServerOptions): Promise<FastifyInstance> {
   const app = Fastify({
     logger: options?.logger ?? true,
+    trustProxy: true, // Behind EasyPanel reverse proxy — trust X-Forwarded-* headers
   });
 
   // Register global error handler

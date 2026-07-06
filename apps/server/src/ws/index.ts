@@ -38,8 +38,12 @@ const logger = createLogger({ context: { component: 'server:ws' } });
  * @param app - The Fastify application instance.
  */
 export async function registerWebSocket(app: FastifyInstance): Promise<void> {
-  // Register the websocket plugin
-  await app.register(websocket);
+  // Register the websocket plugin with message size limits
+  await app.register(websocket, {
+    options: {
+      maxPayload: 64 * 1024, // 64 KB max message size
+    },
+  });
 
   // Wire up the broadcast function so ServerState events reach WS clients
   state.setWSBroadcast(createBroadcast());
