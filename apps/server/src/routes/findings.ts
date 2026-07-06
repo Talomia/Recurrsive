@@ -194,4 +194,43 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
 
     return reply.send({ data: { findings: items, stats } });
   });
+
+  /**
+   * GET /api/v1/findings/categories
+   *
+   * Return categories of findings with counts and highest severity per category.
+   */
+  app.get('/api/v1/findings/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const cache = state.getAnalysisCache();
+    if (!cache) {
+      return reply.status(200).send({ data: [], total: 0 });
+    }
+
+    const { findings } = cache;
+
+    // Aggregate by category: count + track highest severity
+    const severityOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+    const categoryMap = new Map<string, { count: number; severity: string; severityRank: number }>();
+
+    for (const f of findings) {
+      const existing = categoryMap.get(f.category);
+      const rank = severityOrder[f.severity] ?? 0;
+
+      if (existing) {
+        existing.count += 1;
+        if (rank > existing.severityRank) {
+          existing.severity = f.severity;
+          existing.severityRank = rank;
+        }
+      } else {
+        categoryMap.set(f.category, { count: 1, severity: f.severity, severityRank: rank });
+      }
+    }
+
+    const categories = Array.from(categoryMap.entries())
+      .map(([name, { count, severity }]) => ({ name, count, severity }))
+      .sort((a, b) => b.count - a.count);
+
+    return reply.send({ data: categories, total: categories.length });
+  });
 }

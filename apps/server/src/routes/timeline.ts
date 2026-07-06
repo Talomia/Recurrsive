@@ -8,6 +8,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -127,4 +128,58 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
       total: trends.length,
     });
   });
+
+  /**
+   * GET /api/v1/timeline/events
+   *
+   * Return timeline events with limit/offset pagination.
+   * Events are derived from evolution snapshots and analysis history.
+   */
+  app.get<{ Querystring: { limit?: string; offset?: string } }>(
+    '/api/v1/timeline/events',
+    { preHandler: [authMiddleware] },
+    async (request, reply) => {
+      if (!state.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Server not initialized',
+          message: 'Run POST /api/v1/analyze first.',
+        });
+      }
+
+      const limit = Math.min(100, Math.max(1, parseInt(request.query.limit ?? '50', 10) || 50));
+      const offset = Math.max(0, parseInt(request.query.offset ?? '0', 10) || 0);
+
+      // Build events from analysis history
+      const history = state.getAnalysisHistory();
+      const events = history
+        .filter(h => h.status === 'success')
+        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+        .map(entry => {
+          const score = Math.max(0, Math.min(100, 100 - entry.findingCount * 2));
+          return {
+            id: entry.id,
+            type: score >= 80 ? 'milestone' : score >= 50 ? 'analysis' : 'incident',
+            timestamp: entry.completedAt,
+            title: `Analysis completed`,
+            description: `Produced ${entry.findingCount} findings and ${entry.opportunityCount} opportunities in ${Math.round(entry.durationMs / 1000)}s`,
+            metadata: {
+              finding_count: entry.findingCount,
+              opportunity_count: entry.opportunityCount,
+              duration_ms: entry.durationMs,
+              health_score: score,
+              include_reasoning: entry.includeReasoning,
+            },
+          };
+        });
+
+      const total = events.length;
+      const paginated = events.slice(offset, offset + limit);
+
+      return reply.status(200).send({
+        data: paginated,
+        total,
+        limit,
+      });
+    },
+  );
 }

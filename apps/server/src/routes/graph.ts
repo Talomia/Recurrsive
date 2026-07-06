@@ -312,9 +312,20 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
 
       try {
         const graph = state.getGraph();
-        const stats = await graph.getStats();
 
-        // Gather all relationships by iterating entities and deduplicating
+        // Use direct SQL listing if the provider supports it (AGE)
+        if ('listRelationships' in graph && typeof graph.listRelationships === 'function') {
+          const result = await graph.listRelationships({ type, limit, offset });
+          return reply.status(200).send({
+            data: result.data,
+            total: result.total,
+            limit,
+            offset,
+          });
+        }
+
+        // Fallback for providers without listRelationships
+        const stats = await graph.getStats();
         const allRelationships: Relationship[] = [];
         const seenIds = new Set<string>();
 
@@ -335,7 +346,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           }
         }
 
-        // Apply type filter if provided
         let filtered = allRelationships;
         if (type) {
           filtered = allRelationships.filter((r) => r.type === type);

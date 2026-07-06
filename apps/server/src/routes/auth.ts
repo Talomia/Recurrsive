@@ -357,4 +357,35 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       message: 'Password changed successfully',
     });
   });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // GET /api/v1/auth/sessions
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Return active sessions for the current user.
+   *
+   * Since the server uses stateless JWT tokens, the current request
+   * represents the only "session." This endpoint returns a single
+   * entry representing the active session.
+   */
+  app.get('/api/v1/auth/sessions', {
+    preHandler: authMiddleware,
+  }, async (request, reply) => {
+    const user = (request as typeof request & { user: AuthUser }).user;
+    const now = new Date().toISOString();
+
+    // Derive session info from the current request
+    const sessions = [
+      {
+        id: `session_${user.id}_current`,
+        created_at: now,
+        ip_address: request.ip ?? '127.0.0.1',
+        user_agent: request.headers['user-agent'] ?? 'unknown',
+        current: true,
+      },
+    ];
+
+    return reply.status(200).send({ data: sessions });
+  });
 }

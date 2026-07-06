@@ -219,4 +219,53 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
       },
     });
   });
+
+  // ── Partners ──────────────────────────────────────────────────────────────
+
+  /**
+   * GET /api/v1/cloud/partners
+   *
+   * Return cloud technology partners.
+   * Note: The primary partner data is at /api/v1/partners.
+   * This endpoint returns a cloud-specific view of partner integrations.
+   */
+  app.get('/api/v1/cloud/partners', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    // Cloud partners are a subset of ecosystem partnerships relevant to cloud services
+    const cloudPartners = [
+      {
+        id: 'cp-aws',
+        name: 'Amazon Web Services',
+        type: 'cloud_provider',
+        status: 'active',
+        integration_level: 'full',
+        supported_services: ['ECS', 'Lambda', 'S3', 'CloudWatch'],
+      },
+      {
+        id: 'cp-gcp',
+        name: 'Google Cloud Platform',
+        type: 'cloud_provider',
+        status: 'active',
+        integration_level: 'full',
+        supported_services: ['Cloud Run', 'Cloud Functions', 'GCS', 'Cloud Monitoring'],
+      },
+      {
+        id: 'cp-azure',
+        name: 'Microsoft Azure',
+        type: 'cloud_provider',
+        status: 'active',
+        integration_level: 'partial',
+        supported_services: ['Container Apps', 'Functions', 'Blob Storage'],
+      },
+      {
+        id: 'cp-datadog',
+        name: 'Datadog',
+        type: 'monitoring',
+        status: 'active',
+        integration_level: 'webhook',
+        supported_services: ['APM', 'Logging', 'Metrics'],
+      },
+    ];
+
+    return reply.send({ data: cloudPartners });
+  });
 }

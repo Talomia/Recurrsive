@@ -450,4 +450,68 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
       ],
     });
   });
+
+  /**
+   * GET /api/v1/settings
+   *
+   * Return all current settings values. Combines defaults with
+   * any persisted overrides.
+   */
+  app.get('/api/v1/settings', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const settings = getSettings();
+
+    return reply.status(200).send({
+      data: {
+        platform_name: settings.platform_name ?? 'Recurrsive',
+        auto_analyze: settings.auto_analyze ?? true,
+        require_mfa: settings.require_mfa ?? false,
+        session_timeout: settings.session_timeout ?? 60,
+        enable_notifications: settings.enable_notifications ?? true,
+        data_retention_days: settings.data_retention_days ?? 90,
+        max_concurrent: settings.max_concurrent ?? 3,
+        rate_limit: settings.rate_limit ?? 100,
+        enable_reasoning: settings.enable_reasoning ?? true,
+        max_findings: settings.max_findings ?? 500,
+        email_notifications: settings.email_notifications ?? true,
+        slack_enabled: settings.slack_enabled ?? false,
+        webhook_url: settings.webhook_url ?? '',
+      },
+    });
+  });
+
+  /**
+   * GET /api/v1/settings/preferences
+   *
+   * Return user-facing preferences (notification, display, and
+   * workflow settings). A subset of the full settings object.
+   */
+  app.get('/api/v1/settings/preferences', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const settings = getSettings();
+
+    return reply.status(200).send({
+      data: {
+        notifications: {
+          enable_notifications: settings.enable_notifications ?? true,
+          email_notifications: settings.email_notifications ?? true,
+          slack_enabled: settings.slack_enabled ?? false,
+          webhook_url: settings.webhook_url ?? '',
+        },
+        analysis: {
+          auto_analyze: settings.auto_analyze ?? true,
+          enable_reasoning: settings.enable_reasoning ?? true,
+          max_findings: settings.max_findings ?? 500,
+          max_concurrent: settings.max_concurrent ?? 3,
+        },
+        security: {
+          require_mfa: settings.require_mfa ?? false,
+          session_timeout: settings.session_timeout ?? 60,
+          rate_limit: settings.rate_limit ?? 100,
+        },
+        general: {
+          platform_name: settings.platform_name ?? 'Recurrsive',
+          data_retention_days: settings.data_retention_days ?? 90,
+        },
+      },
+    });
+  });
 }

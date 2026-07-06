@@ -235,4 +235,55 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
     logger.info(`Admin reset password for user '${id}'`);
     return reply.status(200).send({ data: user, message: 'Password has been reset' });
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GET /api/v1/users/roles
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Return available user roles with their permissions.
+   *
+   * Requires admin role.
+   */
+  app.get('/api/v1/users/roles', {
+    preHandler: [authMiddleware, requireRole('admin')],
+  }, async (_request, reply) => {
+    const roles = [
+      {
+        id: 'admin',
+        name: 'Administrator',
+        permissions: [
+          'users:read', 'users:write', 'users:delete',
+          'analysis:read', 'analysis:write',
+          'config:read', 'config:write',
+          'audit:read',
+          'api-keys:read', 'api-keys:write',
+          'export:read', 'export:write',
+          'plugins:read', 'plugins:write',
+        ],
+      },
+      {
+        id: 'analyst',
+        name: 'Analyst',
+        permissions: [
+          'analysis:read', 'analysis:write',
+          'config:read',
+          'audit:read',
+          'export:read', 'export:write',
+          'plugins:read',
+        ],
+      },
+      {
+        id: 'viewer',
+        name: 'Viewer',
+        permissions: [
+          'analysis:read',
+          'config:read',
+          'export:read',
+        ],
+      },
+    ];
+
+    return reply.status(200).send({ data: roles });
+  });
 }

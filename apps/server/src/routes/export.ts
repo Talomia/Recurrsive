@@ -323,25 +323,36 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
           }
         }
 
-        // Gather all relationships (deduplicated)
-        const allRels: Array<{ id: string; source_id: string; target_id: string; type: string }> = [];
-        const seenIds = new Set<string>();
-        for (const entity of allEntities) {
-          try {
-            const rels = await graph.getRelationships(entity.id);
-            for (const rel of rels) {
-              if (!seenIds.has(rel.id)) {
-                seenIds.add(rel.id);
-                allRels.push({
-                  id: rel.id,
-                  source_id: rel.source_id,
-                  target_id: rel.target_id,
-                  type: rel.type,
-                });
+        // Gather all relationships using direct SQL listing if available
+        let allRels: Array<{ id: string; source_id: string; target_id: string; type: string }> = [];
+        if ('listRelationships' in graph && typeof graph.listRelationships === 'function') {
+          const result = await graph.listRelationships({ limit: 10000 });
+          allRels = result.data.map((rel: { id: string; source_id: string; target_id: string; type: string }) => ({
+            id: rel.id,
+            source_id: rel.source_id,
+            target_id: rel.target_id,
+            type: rel.type,
+          }));
+        } else {
+          // Fallback for non-AGE providers
+          const seenIds = new Set<string>();
+          for (const entity of allEntities) {
+            try {
+              const rels = await graph.getRelationships(entity.id);
+              for (const rel of rels) {
+                if (!seenIds.has(rel.id)) {
+                  seenIds.add(rel.id);
+                  allRels.push({
+                    id: rel.id,
+                    source_id: rel.source_id,
+                    target_id: rel.target_id,
+                    type: rel.type,
+                  });
+                }
               }
+            } catch {
+              // Skip errors
             }
-          } catch {
-            // Skip errors
           }
         }
 
@@ -411,6 +422,55 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
           message,
         });
       }
+    },
+  );
+
+  /**
+   * GET /api/v1/export/report
+   *
+   * Generate a comprehensive report and return metadata with download URL.
+   * Accepts optional `format` query param (json, csv, markdown; default: markdown).
+   */
+  app.get<{ Querystring: { format?: string } }>(
+    '/api/v1/export/report',
+    async (request, reply) => {
+      const format = (request.query.format ?? 'markdown') as ExportFormat;
+
+      if (!VALID_FORMATS.includes(format)) {
+        return reply.status(400).send({
+          error: 'Invalid format',
+          message: `Format must be one of: ${VALID_FORMATS.join(', ')}`,
+          valid_formats: VALID_FORMATS,
+        });
+      }
+
+      const exportId = `rpt_${generateId().slice(0, 8)}`;
+      const generatedAt = nowISO();
+
+      // Compute record count from analysis state
+      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+      const recordCount = (cache?.findings.length ?? 0) + (cache?.opportunities.length ?? 0) + 1;
+
+      const record: ExportRecord = {
+        export_id: exportId,
+        format,
+        scope: 'all',
+        status: 'completed',
+        download_url: `/api/v1/export/${exportId}/download`,
+        record_count: recordCount,
+        generated_at: generatedAt,
+      };
+
+      store.set<ExportRecord>('exports', exportId, record);
+      logger.info(`Report generated: ${exportId} (${format})`);
+
+      return reply.status(200).send({
+        data: {
+          report_url: record.download_url,
+          format,
+          generated_at: generatedAt,
+        },
+      });
     },
   );
 }

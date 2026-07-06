@@ -289,4 +289,41 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       },
     });
   });
+
+  /**
+   * GET /api/v1/health-score/history
+   *
+   * Return historical health scores derived from analysis history.
+   * Each entry maps to a score based on finding count and a letter grade.
+   */
+  app.get('/api/v1/health-score/history', async (_request, reply) => {
+    if (!state.isInitialized()) {
+      return reply.status(503).send({
+        error: 'Server not initialized',
+        message: 'Run POST /api/v1/analyze with a project path first.',
+      });
+    }
+
+    const history = state.getAnalysisHistory();
+    const successfulRuns = history.filter(h => h.status === 'success');
+
+    const scoreHistory = successfulRuns.map(entry => {
+      // Derive health score: base 100, subtract 2 per finding, cap at 0
+      const score = Math.max(0, Math.min(100, 100 - entry.findingCount * 2));
+
+      // Assign letter grade
+      const grade = score >= 90 ? 'A' :
+                    score >= 80 ? 'B' :
+                    score >= 70 ? 'C' :
+                    score >= 60 ? 'D' : 'F';
+
+      return {
+        timestamp: entry.completedAt,
+        score,
+        grade,
+      };
+    });
+
+    return reply.status(200).send({ data: scoreHistory });
+  });
 }

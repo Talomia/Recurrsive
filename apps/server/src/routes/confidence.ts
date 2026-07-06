@@ -279,4 +279,82 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
       message: `Generated ${count} predictions from analysis findings`,
     });
   });
+
+  /**
+   * GET /api/v1/confidence/factors
+   *
+   * Return confidence scoring factors derived from prediction data.
+   * Factors include per-severity accuracy, per-analyzer calibration,
+   * and data volume considerations.
+   */
+  app.get('/api/v1/confidence/factors', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const all = store.all<Prediction>('predictions');
+    const resolved = all.filter(p => p.actualOutcome !== null);
+
+    // Per-severity accuracy factor
+    const severities = ['critical', 'high', 'medium', 'low'] as const;
+    const severityFactors = severities.map(sev => {
+      const preds = resolved.filter(p => p.severity === sev);
+      const accurate = preds.filter(p =>
+        (p.predictedProbability >= 0.5 && p.actualOutcome) ||
+        (p.predictedProbability < 0.5 && !p.actualOutcome),
+      );
+      return {
+        name: `severity_${sev}`,
+        type: 'accuracy',
+        value: preds.length > 0 ? Math.round((accurate.length / preds.length) * 1000) / 1000 : 0,
+        sample_size: preds.length,
+        description: `Prediction accuracy for ${sev}-severity findings`,
+      };
+    });
+
+    // Per-analyzer calibration factor
+    const analyzerIds = [...new Set(all.map(p => p.analyzerId))];
+    const analyzerFactors = analyzerIds.map(aid => {
+      const preds = all.filter(p => p.analyzerId === aid);
+      return {
+        name: `analyzer_${aid}`,
+        type: 'calibration',
+        value: brierScore(preds),
+        sample_size: preds.length,
+        description: `Brier score for analyzer ${aid} (lower = better)`,
+      };
+    });
+
+    // Data volume factor
+    const dataVolumeFactor = {
+      name: 'data_volume',
+      type: 'coverage',
+      value: Math.min(1, all.length / 100),
+      sample_size: all.length,
+      description: 'Confidence based on prediction data volume (1.0 = 100+ predictions)',
+    };
+
+    // Resolution rate factor
+    const resolutionFactor = {
+      name: 'resolution_rate',
+      type: 'coverage',
+      value: all.length > 0 ? Math.round((resolved.length / all.length) * 1000) / 1000 : 0,
+      sample_size: all.length,
+      description: 'Fraction of predictions that have been resolved with outcomes',
+    };
+
+    const factors = [...severityFactors, ...analyzerFactors, dataVolumeFactor, resolutionFactor];
+
+    // Overall confidence: weighted average of non-zero accuracy factors + data volume
+    const accuracyFactors = severityFactors.filter(f => f.sample_size > 0);
+    const avgAccuracy = accuracyFactors.length > 0
+      ? accuracyFactors.reduce((s, f) => s + f.value, 0) / accuracyFactors.length
+      : 0;
+    const overall_confidence = Math.round(
+      ((avgAccuracy * 0.6) + (dataVolumeFactor.value * 0.2) + (resolutionFactor.value * 0.2)) * 1000,
+    ) / 1000;
+
+    return reply.send({
+      data: {
+        factors,
+        overall_confidence,
+      },
+    });
+  });
 }

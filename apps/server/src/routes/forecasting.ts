@@ -344,6 +344,66 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
       return reply.status(500).send({ error: 'Internal server error', message: (err as Error).message });
     }
   });
+
+  /**
+   * GET /api/v1/forecasting/predictions
+   *
+   * Return forecasting predictions based on analysis history.
+   * Uses linear regression on health trajectory to predict
+   * future scores and generate actionable predictions.
+   */
+  app.get<{ Querystring: { horizon?: string } }>(
+    '/api/v1/forecasting/predictions',
+    async (request, reply) => {
+      try {
+        const horizonDays = Math.min(90, parseInt(request.query.horizon ?? '30', 10) || 30);
+
+        const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
+        const baseScore = realScore ?? 0;
+        const timeline = buildTimeline(baseScore);
+
+        // Fit linear regression
+        const points = timeline.map((p, i) => ({ x: i, y: p.score }));
+        const regression = linearRegression(points);
+
+        const trend = regression.slope > 0.1 ? 'improving' :
+                      regression.slope < -0.1 ? 'declining' : 'stable';
+
+        // Generate predictions for key future intervals
+        const intervals = [7, 14, 30, 60, 90].filter(d => d <= horizonDays);
+        const predictions = intervals.map(days => {
+          const x = timeline.length + days;
+          const predicted = Math.min(100, Math.max(0, regression.slope * x + regression.intercept));
+          const uncertainty = Math.min(20, days * 0.3);
+          return {
+            days_ahead: days,
+            date: new Date(Date.now() + days * 86400000).toISOString().split('T')[0]!,
+            predicted_score: Math.round(predicted * 10) / 10,
+            lower_bound: Math.round(Math.max(0, predicted - uncertainty) * 10) / 10,
+            upper_bound: Math.round(Math.min(100, predicted + uncertainty) * 10) / 10,
+            trend,
+          };
+        });
+
+        // Overall confidence from R²
+        const confidence = Math.round(regression.r2 * 100) / 100;
+
+        return reply.send({
+          data: {
+            predictions,
+            confidence,
+            horizon: `${horizonDays} days`,
+            current_score: baseScore,
+            trend,
+            data_points: timeline.length,
+          },
+          generatedAt: nowISO(),
+        });
+      } catch (err) {
+        return reply.status(500).send({ error: 'Internal server error', message: (err as Error).message });
+      }
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------

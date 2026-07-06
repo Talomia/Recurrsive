@@ -272,4 +272,18 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
       max_retained: MAX_HISTORY,
     });
   });
+
+  /**
+   * GET /api/v1/notifications
+   *
+   * Return list of notifications. Alias for /notifications/history
+   * with a simplified response shape.
+   */
+  app.get('/api/v1/notifications', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const recent = store.recent<NotificationRecord>('notifications', MAX_HISTORY);
+    return reply.status(200).send({
+      data: recent,
+      total: store.count('notifications'),
+    });
+  });
 }

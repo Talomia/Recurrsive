@@ -152,4 +152,29 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
       data: stats,
     });
   });
+
+  /**
+   * GET /api/v1/audit/summary
+   *
+   * Return summary statistics of audit events.
+   * Derived from the same data as /audit/stats but in a simplified shape.
+   */
+  app.get('/api/v1/audit/summary', {
+    preHandler: [authMiddleware, requireRole('analyst')],
+  }, async (_request, reply) => {
+    const stats = getAuditStats();
+
+    // Count recent events (last 24 hours)
+    const { events: allEvents } = getAuditEvents({ limit: 1000 });
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const recentCount = allEvents.filter(e => e.timestamp >= oneDayAgo).length;
+
+    return reply.status(200).send({
+      data: {
+        total_events: stats.total,
+        by_action: stats.byAction,
+        recent_count: recentCount,
+      },
+    });
+  });
 }

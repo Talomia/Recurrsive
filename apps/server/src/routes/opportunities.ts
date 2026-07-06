@@ -216,4 +216,26 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
       }
     },
   );
+
+  /**
+   * GET /api/v1/opportunities/categories
+   *
+   * Return opportunity categories with counts.
+   */
+  app.get('/api/v1/opportunities/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const manager = state.getOpportunities();
+    const all = manager.list({});
+
+    // Group by category
+    const categoryMap = new Map<string, number>();
+    for (const opp of all) {
+      categoryMap.set(opp.category, (categoryMap.get(opp.category) ?? 0) + 1);
+    }
+
+    const categories = Array.from(categoryMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return reply.status(200).send({ data: categories, total: categories.length });
+  });
 }

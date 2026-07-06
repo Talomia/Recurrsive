@@ -47,6 +47,7 @@ import { registerGraphQLRoutes } from './graphql.js';
 import { registerOpenAPIRoutes } from './openapi.js';
 import { registerIntelligencePackRoutes } from './intelligence-packs.js';
 import { registerOpportunityRoutes } from './opportunities.js';
+import { registerActivityRoutes } from './activity.js';
 
 // ---------------------------------------------------------------------------
 // Tier 2 — Enterprise
@@ -62,6 +63,7 @@ import { registerDataMaskingRoutes } from '../middleware/data-masking.js';
 import { registerCloudRoutes } from './cloud.js';
 import { registerMarketplaceRoutes } from './marketplace.js';
 import { registerPartnerRoutes } from './partners.js';
+import { registerEcosystemRoutes } from './ecosystem.js';
 
 /**
  * Register all REST API routes on the Fastify application.
@@ -149,6 +151,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerGraphQLRoutes(app);
   await registerOpenAPIRoutes(app);
   await registerIntelligencePackRoutes(app);
+  await registerActivityRoutes(app);
 
   // ── Tier 2 — Enterprise ─────────────────────────────────────────────────
   if (enableEnterprise) {
@@ -163,5 +166,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     await registerCloudRoutes(app);
     await registerMarketplaceRoutes(app);
     await registerPartnerRoutes(app);
+    await registerEcosystemRoutes(app);
   }
 }
