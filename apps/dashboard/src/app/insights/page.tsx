@@ -121,131 +121,144 @@ function generateInsights(summary: {
 // ---------------------------------------------------------------------------
 
 export default async function InsightsPage() {
-  const summary = await getFindingsSummary();
-  const { findings } = await getFindings({ limit: 10 });
-  const insights = summary.total > 0
-    ? generateInsights(summary)
-    : [];
+  try {
+    const summary = await getFindingsSummary();
+    const { findings } = await getFindings({ limit: 10 });
+    const insights = summary.total > 0
+      ? generateInsights(summary)
+      : [];
 
-  return (
-    <div className="flex flex-col min-h-screen">
-      <Header title="Insights" subtitle="Evidence-backed intelligence from your engineering knowledge graph" />
-      <div className="flex-1 p-6 space-y-6">
-        {/* Hero */}
-        <div className="glass-card p-6 flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-purple to-accent-blue">
-            <Sparkles className="h-6 w-6 text-white" aria-hidden="true" />
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header title="Insights" subtitle="Evidence-backed intelligence from your engineering knowledge graph" />
+        <div className="flex-1 p-6 space-y-6">
+          {/* Hero */}
+          <div className="glass-card p-6 flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-purple to-accent-blue">
+              <Sparkles className="h-6 w-6 text-white" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-text-primary">
+                AI-Generated Insights
+              </h2>
+              <p className="text-sm text-text-secondary">
+                {insights.length} active insights · {summary.total} findings analyzed
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-bold text-text-primary">
-              AI-Generated Insights
-            </h2>
-            <p className="text-sm text-text-secondary">
-              {insights.length} active insights · {summary.total} findings analyzed
-            </p>
-          </div>
-        </div>
 
-        {/* Summary bar */}
-        {summary.total > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 stagger-children">
-            {Object.entries(summary.by_severity).map(([level, count]) => (
-              <div key={level} className="glass-card p-3 flex items-center gap-3">
-                <div className={`h-2 w-2 rounded-full ${
-                  level === "critical" ? "bg-red-500" :
-                  level === "high" ? "bg-amber-500" :
-                  level === "medium" ? "bg-blue-500" : "bg-green-500"
-                }`} />
-                <div>
-                  <p className="text-lg font-bold text-text-primary tabular-nums">{count}</p>
-                  <p className="text-[10px] text-text-muted capitalize">{level}</p>
+          {/* Summary bar */}
+          {summary.total > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 stagger-children">
+              {Object.entries(summary.by_severity).map(([level, count]) => (
+                <div key={level} className="glass-card p-3 flex items-center gap-3">
+                  <div className={`h-2 w-2 rounded-full ${
+                    level === "critical" ? "bg-red-500" :
+                    level === "high" ? "bg-amber-500" :
+                    level === "medium" ? "bg-blue-500" : "bg-green-500"
+                  }`} />
+                  <div>
+                    <p className="text-lg font-bold text-text-primary tabular-nums">{count}</p>
+                    <p className="text-[10px] text-text-muted capitalize">{level}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {/* Insights grid */}
-        {insights.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">
-            {insights.map((insight, i) => {
-              const Icon = insight.icon;
-              return (
-                <div key={i} className="glass-card p-5 hover:scale-[1.01] transition-transform duration-200">
-                  <div className="flex items-start gap-4">
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${insight.bg}`}>
-                      <Icon className={`h-5 w-5 ${insight.color}`} aria-hidden="true" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-text-primary">{insight.title}</h3>
-                        <span className={`text-xs font-bold tabular-nums ${insight.color}`}>{insight.trend}</span>
+          {/* Insights grid */}
+          {insights.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">
+              {insights.map((insight, i) => {
+                const Icon = insight.icon;
+                return (
+                  <div key={i} className="glass-card p-5 hover:scale-[1.01] transition-transform duration-200">
+                    <div className="flex items-start gap-4">
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${insight.bg}`}>
+                        <Icon className={`h-5 w-5 ${insight.color}`} aria-hidden="true" />
                       </div>
-                      <p className="mt-2 text-sm text-text-secondary leading-relaxed">{insight.description}</p>
-                      <div className="mt-3 flex items-center gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-text-muted">Confidence</span>
-                          <div className="h-1.5 w-16 rounded-full bg-white/5 overflow-hidden">
-                            <div className="h-full rounded-full bg-accent-blue" style={{ width: `${insight.confidence}%` }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-sm font-semibold text-text-primary">{insight.title}</h3>
+                          <span className={`text-xs font-bold tabular-nums ${insight.color}`}>{insight.trend}</span>
+                        </div>
+                        <p className="mt-2 text-sm text-text-secondary leading-relaxed">{insight.description}</p>
+                        <div className="mt-3 flex items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-text-muted">Confidence</span>
+                            <div className="h-1.5 w-16 rounded-full bg-white/5 overflow-hidden">
+                              <div className="h-full rounded-full bg-accent-blue" style={{ width: `${insight.confidence}%` }} />
+                            </div>
+                            <span className="text-[10px] font-semibold text-text-secondary tabular-nums">{insight.confidence}%</span>
                           </div>
-                          <span className="text-[10px] font-semibold text-text-secondary tabular-nums">{insight.confidence}%</span>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="glass-card p-12 text-center">
-            <Sparkles className="h-12 w-12 mx-auto text-text-muted mb-4" />
-            <h3 className="text-lg font-medium text-text-primary mb-2">No Insights Available</h3>
-            <p className="text-sm text-text-secondary">Run your first analysis to generate actionable insights from your codebase.</p>
-          </div>
-        )}
-
-        {/* Recent Findings list */}
-        {findings.length > 0 && (
-          <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-text-primary">Recent Findings</h2>
-              <span className="text-xs text-text-muted">{findings.length} shown</span>
-            </div>
-            <div className="space-y-2 stagger-children">
-              {findings.map((finding: Finding) => {
-                const sevColor: Record<string, string> = {
-                  critical: "bg-red-500",
-                  high: "bg-orange-500",
-                  medium: "bg-amber-500",
-                  low: "bg-green-500",
-                  info: "bg-blue-500",
-                };
-                return (
-                  <Link
-                    key={finding.id}
-                    href={`/insights/${finding.id}`}
-                    className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
-                  >
-                    <div className={`h-2 w-2 rounded-full shrink-0 ${sevColor[finding.severity] ?? "bg-blue-500"}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-text-primary truncate group-hover:text-accent-blue transition-colors">
-                        {finding.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-text-muted capitalize">{finding.category.replace(/_/g, " ")}</span>
-                        <span className="h-0.5 w-0.5 rounded-full bg-white/20" />
-                        <span className="text-[10px] text-text-muted">{finding.analyzer_id}</span>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-text-muted shrink-0 group-hover:text-text-secondary transition-colors" />
-                  </Link>
                 );
               })}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="glass-card p-12 text-center">
+              <Sparkles className="h-12 w-12 mx-auto text-text-muted mb-4" />
+              <h3 className="text-lg font-medium text-text-primary mb-2">No Insights Available</h3>
+              <p className="text-sm text-text-secondary">Run your first analysis to generate actionable insights from your codebase.</p>
+            </div>
+          )}
+
+          {/* Recent Findings list */}
+          {findings.length > 0 && (
+            <div className="glass-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-text-primary">Recent Findings</h2>
+                <span className="text-xs text-text-muted">{findings.length} shown</span>
+              </div>
+              <div className="space-y-2 stagger-children">
+                {findings.map((finding: Finding) => {
+                  const sevColor: Record<string, string> = {
+                    critical: "bg-red-500",
+                    high: "bg-orange-500",
+                    medium: "bg-amber-500",
+                    low: "bg-green-500",
+                    info: "bg-blue-500",
+                  };
+                  return (
+                    <Link
+                      key={finding.id}
+                      href={`/insights/${finding.id}`}
+                      className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
+                    >
+                      <div className={`h-2 w-2 rounded-full shrink-0 ${sevColor[finding.severity] ?? "bg-blue-500"}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-text-primary truncate group-hover:text-accent-blue transition-colors">
+                          {finding.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-text-muted capitalize">{finding.category.replace(/_/g, " ")}</span>
+                          <span className="h-0.5 w-0.5 rounded-full bg-white/20" />
+                          <span className="text-[10px] text-text-muted">{finding.analyzer_id}</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-text-muted shrink-0 group-hover:text-text-secondary transition-colors" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  } catch {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header title="Insights" subtitle="Evidence-backed intelligence from your engineering knowledge graph" />
+        <div className="flex-1 p-6">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-text-muted">
+            Unable to load data. The API may be unavailable.
+          </div>
+        </div>
+      </div>
+    );
+  }
 }

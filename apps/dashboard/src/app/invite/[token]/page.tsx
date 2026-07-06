@@ -12,6 +12,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { apiFetch, ApiError } from '@/lib/api/client';
 
 interface InviteInfo {
   email: string;
@@ -41,16 +42,10 @@ export default function AcceptInvitePage() {
   useEffect(() => {
     async function validate() {
       try {
-        const res = await fetch(`/api/v1/invites/${token}/validate`);
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body.message ?? 'This invite link is invalid or has expired.');
-          return;
-        }
-        const body = await res.json();
-        setInvite(body.data ?? body);
-      } catch {
-        setError('Failed to validate invite link.');
+        const data = await apiFetch<InviteInfo>(`/api/v1/invites/${token}/validate`);
+        setInvite(data);
+      } catch (err) {
+        setError(err instanceof ApiError ? 'This invite link is invalid or has expired.' : 'Failed to validate invite link.');
       } finally {
         setLoading(false);
       }
@@ -79,19 +74,12 @@ export default function AcceptInvitePage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/v1/invites/${token}/accept`, {
+      const body = await apiFetch<{ data?: { token?: string }; token?: string }>(`/api/v1/invites/${token}/accept`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        unwrap: false,
         body: JSON.stringify({ username, password, displayName: displayName || username }),
       });
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setSubmitError(body.message ?? 'Failed to accept invite');
-        return;
-      }
-
-      const body = await res.json();
       const newToken = body.data?.token ?? body.token;
 
       if (newToken) {

@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
 import { state } from '../state.js';
 import { store } from '../store.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:export' } });
 
@@ -290,6 +291,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    */
   app.get<{ Params: { format: string } }>(
     '/api/v1/export/findings/:format',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { format } = request.params;
 
@@ -330,6 +332,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    */
   app.get<{ Params: { format: string } }>(
     '/api/v1/export/graph/:format',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { format } = request.params;
       const validGraphFormats = ['json', 'csv', 'graphml'];

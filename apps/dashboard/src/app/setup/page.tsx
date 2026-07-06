@@ -76,9 +76,9 @@ export default function SetupPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/v1/setup', {
+      const body = await apiFetch<{ data?: { token?: string }; token?: string }>('/api/v1/setup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        unwrap: false,
         body: JSON.stringify({
           username: username.trim(),
           email: email.trim(),
@@ -87,14 +87,6 @@ export default function SetupPage() {
         }),
       });
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: 'Setup failed' }));
-        setError(body.error ?? body.message ?? 'Setup failed');
-        setSubmitting(false);
-        return;
-      }
-
-      const body = await res.json();
       const token = (body.data?.token ?? body.token) as string | undefined;
 
       if (token) {

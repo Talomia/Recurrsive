@@ -128,6 +128,7 @@ export function validateBody(fields: FieldSchema[]): preHandlerHookHandler {
         statusCode: 400,
         issues,
       });
+      return;
     }
   };
 }

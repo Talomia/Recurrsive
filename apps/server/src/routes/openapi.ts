@@ -58,6 +58,8 @@ const OPENAPI_SPEC = {
     { name: 'IntelligencePacks', description: 'Pre-built reasoning configurations' },
     { name: 'Findings', description: 'Analysis findings' },
     { name: 'Data Masking', description: 'PII detection and data masking' },
+    { name: 'Activity', description: 'Activity tracking and statistics' },
+    { name: 'Ecosystem', description: 'Ecosystem overview and metrics' },
   ],
   paths: {
     // -----------------------------------------------------------------------
@@ -98,6 +100,22 @@ const OPENAPI_SPEC = {
         summary: 'Overall project health score',
         operationId: 'getHealthScore',
         responses: { '200': { description: 'Health score with component breakdown' } },
+      },
+    },
+    '/api/v1/health/dashboard': {
+      get: {
+        tags: ['Health'],
+        summary: 'Health dashboard metrics',
+        operationId: 'getHealthDashboard',
+        responses: { '200': { description: 'Health dashboard metrics' } },
+      },
+    },
+    '/api/v1/health-score/history': {
+      get: {
+        tags: ['Health'],
+        summary: 'Historical health scores',
+        operationId: 'getHealthScoreHistory',
+        responses: { '200': { description: 'Historical health score data' } },
       },
     },
     '/api/v1/metrics/performance': {
@@ -146,24 +164,16 @@ const OPENAPI_SPEC = {
               schema: {
                 type: 'object',
                 properties: {
-                  target: { type: 'string', description: 'Target path or repository URL' },
-                  options: { type: 'object', description: 'Analysis options' },
+                  path: { type: 'string', description: 'Absolute local path to project' },
+                  gitUrl: { type: 'string', description: 'Git repository URL to clone and analyze' },
+                  analyzers: { type: 'array', items: { type: 'string' }, description: 'Specific analyzers to run' },
+                  include_reasoning: { type: 'boolean', description: 'Include LLM reasoning pass' },
                 },
-                required: ['target'],
               },
             },
           },
         },
-        responses: { '202': { description: 'Analysis started' } },
-      },
-    },
-    '/api/v1/analysis/{id}': {
-      get: {
-        tags: ['Analysis'],
-        summary: 'Get analysis status and results',
-        operationId: 'getAnalysis',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'Analysis result' } },
+        responses: { '202': { description: 'Analysis started' }, '409': { description: 'Analysis already in progress' } },
       },
     },
     '/api/v1/analysis/status': {
@@ -180,17 +190,6 @@ const OPENAPI_SPEC = {
         summary: 'List analysis history',
         operationId: 'getAnalysisHistory',
         responses: { '200': { description: 'List of past analysis runs' } },
-      },
-    },
-    '/api/v1/analysis/compare': {
-      get: {
-        tags: ['Analysis'],
-        summary: 'Compare current analysis against a baseline',
-        operationId: 'getAnalysisCompare',
-        parameters: [
-          { name: 'baseline', in: 'query', schema: { type: 'string' }, description: 'Baseline history index to compare against' },
-        ],
-        responses: { '200': { description: 'Diff of findings and opportunities' } },
       },
     },
 
@@ -229,6 +228,26 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Findings summary' } },
       },
     },
+    '/api/v1/findings/page': {
+      get: {
+        tags: ['Findings'],
+        summary: 'Paginated findings list',
+        operationId: 'getFindingsPage',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
+        ],
+        responses: { '200': { description: 'Paginated findings' } },
+      },
+    },
+    '/api/v1/findings/categories': {
+      get: {
+        tags: ['Findings'],
+        summary: 'Finding categories',
+        operationId: 'getFindingCategories',
+        responses: { '200': { description: 'Finding category list' } },
+      },
+    },
 
     // -----------------------------------------------------------------------
     // Opportunities
@@ -243,6 +262,39 @@ const OPENAPI_SPEC = {
           { name: 'priority', in: 'query', schema: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] } },
         ],
         responses: { '200': { description: 'Opportunities list' } },
+      },
+    },
+    '/api/v1/opportunities/{id}': {
+      get: {
+        tags: ['Opportunities'],
+        summary: 'Get opportunity by ID',
+        operationId: 'getOpportunity',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Opportunity detail' } },
+      },
+      patch: {
+        tags: ['Opportunities'],
+        summary: 'Update opportunity status',
+        operationId: 'updateOpportunityStatus',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Opportunity updated' } },
+      },
+    },
+    '/api/v1/opportunities/export/{format}': {
+      get: {
+        tags: ['Opportunities'],
+        summary: 'Export opportunities',
+        operationId: 'exportOpportunities',
+        parameters: [{ name: 'format', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Exported opportunities' } },
+      },
+    },
+    '/api/v1/opportunities/categories': {
+      get: {
+        tags: ['Opportunities'],
+        summary: 'List opportunity categories',
+        operationId: 'listOpportunityCategories',
+        responses: { '200': { description: 'Opportunity category list' } },
       },
     },
 
@@ -328,23 +380,6 @@ const OPENAPI_SPEC = {
     // -----------------------------------------------------------------------
     // Reports
     // -----------------------------------------------------------------------
-    '/api/v1/reports': {
-      get: {
-        tags: ['Reports'],
-        summary: 'List available reports',
-        operationId: 'getReports',
-        responses: { '200': { description: 'Reports list' } },
-      },
-      post: {
-        tags: ['Reports'],
-        summary: 'Generate a new report',
-        operationId: 'generateReport',
-        requestBody: {
-          content: { 'application/json': { schema: { type: 'object', properties: { format: { type: 'string', enum: ['html', 'json', 'pdf', 'markdown'] } } } } },
-        },
-        responses: { '202': { description: 'Report generation started' } },
-      },
-    },
     '/api/v1/reports/{format}': {
       get: {
         tags: ['Reports'],
@@ -425,6 +460,30 @@ const OPENAPI_SPEC = {
         summary: 'Get top finding categories',
         operationId: 'getTopCategories',
         responses: { '200': { description: 'Category breakdown with counts and percentages' } },
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // Activity
+    // -----------------------------------------------------------------------
+    '/api/v1/activity/stats': {
+      get: {
+        tags: ['Activity'],
+        summary: 'Activity statistics',
+        operationId: 'listActivityStats',
+        responses: { '200': { description: 'Activity statistics' } },
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // Ecosystem
+    // -----------------------------------------------------------------------
+    '/api/v1/ecosystem/overview': {
+      get: {
+        tags: ['Ecosystem'],
+        summary: 'Ecosystem overview',
+        operationId: 'getEcosystemOverview',
+        responses: { '200': { description: 'Ecosystem overview data' } },
       },
     },
 
@@ -736,26 +795,6 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Cloud partner list' } },
       },
     },
-    '/api/v1/cloud/partners/{id}': {
-      get: {
-        tags: ['Cloud'],
-        summary: 'Get cloud partner by ID',
-        operationId: 'getCloudPartner',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'Cloud partner detail' } },
-      },
-    },
-    '/api/v1/cloud/partners/apply': {
-      post: {
-        tags: ['Cloud'],
-        summary: 'Apply to become a cloud partner',
-        operationId: 'applyCloudPartner',
-        requestBody: {
-          content: { 'application/json': { schema: { type: 'object' } } },
-        },
-        responses: { '201': { description: 'Cloud partner application submitted' } },
-      },
-    },
 
     // -----------------------------------------------------------------------
     // Marketplace
@@ -913,6 +952,14 @@ const OPENAPI_SPEC = {
         summary: 'Get current user info',
         operationId: 'getCurrentUser',
         responses: { '200': { description: 'Current user profile' } },
+      },
+    },
+    '/api/v1/auth/sessions': {
+      get: {
+        tags: ['Auth'],
+        summary: 'List active sessions',
+        operationId: 'listAuthSessions',
+        responses: { '200': { description: 'Active session list' } },
       },
     },
     '/api/v1/api-keys': {
@@ -1082,6 +1129,14 @@ const OPENAPI_SPEC = {
         security: [{ bearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { '200': { description: 'User disabled' } },
+      },
+    },
+    '/api/v1/users/roles': {
+      get: {
+        tags: ['Auth'],
+        summary: 'List available user roles',
+        operationId: 'listUserRoles',
+        responses: { '200': { description: 'Available role list' } },
       },
     },
     '/api/v1/users/{id}/reset-password': {
@@ -1298,6 +1353,14 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Audit statistics' } },
       },
     },
+    '/api/v1/audit/summary': {
+      get: {
+        tags: ['Audit'],
+        summary: 'Audit log summary',
+        operationId: 'getAuditSummary',
+        responses: { '200': { description: 'Audit log summary' } },
+      },
+    },
 
     // -----------------------------------------------------------------------
     // Policies
@@ -1468,6 +1531,14 @@ const OPENAPI_SPEC = {
     // -----------------------------------------------------------------------
     // Notifications
     // -----------------------------------------------------------------------
+    '/api/v1/notifications': {
+      get: {
+        tags: ['Notifications'],
+        summary: 'List notifications',
+        operationId: 'listNotifications',
+        responses: { '200': { description: 'Notification list' } },
+      },
+    },
     '/api/v1/notifications/channels': {
       get: {
         tags: ['Notifications'],
@@ -1669,6 +1740,14 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Schedule toggled' } },
       },
     },
+    '/api/v1/schedules/history': {
+      get: {
+        tags: ['Scheduling'],
+        summary: 'Schedule execution history',
+        operationId: 'getScheduleHistory',
+        responses: { '200': { description: 'Schedule execution history' } },
+      },
+    },
 
     // -----------------------------------------------------------------------
     // Batch
@@ -1710,6 +1789,14 @@ const OPENAPI_SPEC = {
         summary: 'Get batch analysis history',
         operationId: 'getBatchHistory',
         responses: { '200': { description: 'Batch run history' } },
+      },
+    },
+    '/api/v1/batch/status': {
+      get: {
+        tags: ['Batch'],
+        summary: 'Current batch status',
+        operationId: 'getCurrentBatchStatus',
+        responses: { '200': { description: 'Current batch status' } },
       },
     },
 
@@ -1936,6 +2023,34 @@ const OPENAPI_SPEC = {
         ],
         responses: { '200': { description: 'Prediction list' } },
       },
+      post: {
+        tags: ['Confidence'],
+        summary: 'Submit prediction',
+        operationId: 'submitPrediction',
+        requestBody: {
+          content: { 'application/json': { schema: { type: 'object' } } },
+        },
+        responses: { '201': { description: 'Prediction submitted' } },
+      },
+    },
+    '/api/v1/confidence/predictions/generate': {
+      post: {
+        tags: ['Confidence'],
+        summary: 'Generate predictions',
+        operationId: 'generatePredictions',
+        requestBody: {
+          content: { 'application/json': { schema: { type: 'object' } } },
+        },
+        responses: { '200': { description: 'Generated predictions' } },
+      },
+    },
+    '/api/v1/confidence/factors': {
+      get: {
+        tags: ['Confidence'],
+        summary: 'List confidence factors',
+        operationId: 'listConfidenceFactors',
+        responses: { '200': { description: 'Confidence factor list' } },
+      },
     },
     '/api/v1/confidence/predictions/{id}/outcome': {
       post: {
@@ -1987,6 +2102,30 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Feature flag list' } },
       },
     },
+    '/api/v1/settings/sections': {
+      get: {
+        tags: ['Config'],
+        summary: 'Available settings sections',
+        operationId: 'getSettingsSections',
+        responses: { '200': { description: 'Settings section list' } },
+      },
+    },
+    '/api/v1/settings': {
+      get: {
+        tags: ['Config'],
+        summary: 'Current settings values',
+        operationId: 'getSettings',
+        responses: { '200': { description: 'Current settings' } },
+      },
+    },
+    '/api/v1/settings/preferences': {
+      get: {
+        tags: ['Config'],
+        summary: 'User preferences',
+        operationId: 'getUserPreferences',
+        responses: { '200': { description: 'User preference values' } },
+      },
+    },
     '/api/v1/data-masking/status': {
       get: {
         tags: ['Data Masking'],
@@ -2007,6 +2146,32 @@ const OPENAPI_SPEC = {
         summary: 'Create a masking policy',
         operationId: 'createMaskingPolicy',
         responses: { '201': { description: 'Created policy' } },
+      },
+    },
+    '/api/v1/data-masking/policies/{id}': {
+      get: {
+        tags: ['Data Masking'],
+        summary: 'Get masking policy',
+        operationId: 'getMaskingPolicy',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Masking policy detail' } },
+      },
+      put: {
+        tags: ['Data Masking'],
+        summary: 'Update masking policy',
+        operationId: 'updateMaskingPolicy',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: { 'application/json': { schema: { type: 'object' } } },
+        },
+        responses: { '200': { description: 'Masking policy updated' } },
+      },
+      delete: {
+        tags: ['Data Masking'],
+        summary: 'Remove masking policy',
+        operationId: 'deleteMaskingPolicy',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Masking policy deleted' } },
       },
     },
     '/api/v1/data-masking/strategies': {
