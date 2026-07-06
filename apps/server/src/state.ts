@@ -440,6 +440,12 @@ export class ServerState {
     let dbCollector: InstanceType<typeof DatabaseCollector> | null = null;
 
     try {
+      // ── Step 0: Clear stale graph data ────────────────────────────────
+      // Prevent entity duplication across runs — each collector generates
+      // new UUIDs, so old entities would accumulate without clearing.
+      this.updateStatus('collecting', 5, 'Clearing previous analysis data…');
+      await this.graphClient!.clearAll();
+
       // ── Step 1: Collect ──────────────────────────────────────────────────
       this.updateStatus('collecting', 10, 'Running git collector…');
 

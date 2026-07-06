@@ -671,6 +671,15 @@ export class SqliteGraphClient implements ExtendedGraphClient {
   }
 
   /**
+   * Delete all entities and relationships from the graph.
+   */
+  async clearAll(): Promise<void> {
+    const db = this.getDb();
+    db.exec('DELETE FROM relationships');
+    db.exec('DELETE FROM entities');
+  }
+
+  /**
    * Close the database connection and release resources.
    */
   async dispose(): Promise<void> {

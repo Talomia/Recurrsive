@@ -30,9 +30,11 @@ interface Certification {
 
 interface PartnerStats {
   totalPartners: number;
-  totalCertified: number;
-  totalProjects: number;
-  satisfactionRate: number;
+  totalCertifiedEngineers: number;
+  totalCustomersServed: number;
+  certificationTracks: number;
+  pendingApplications: number;
+  tierDistribution: Record<string, number>;
 }
 
 function TierBadge({ tier }: { tier: string }) {
@@ -109,10 +111,10 @@ export default function PartnersPage() {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Partners', value: stats.totalPartners },
-            { label: 'Certified', value: stats.totalCertified },
-            { label: 'Projects', value: stats.totalProjects.toLocaleString() },
-            { label: 'Satisfaction', value: `${stats.satisfactionRate}%` },
+            { label: 'Partners', value: stats.totalPartners ?? 0 },
+            { label: 'Certified', value: stats.totalCertifiedEngineers ?? 0 },
+            { label: 'Projects Served', value: (stats.totalCustomersServed ?? 0).toLocaleString() },
+            { label: 'Cert Tracks', value: stats.certificationTracks ?? 0 },
           ].map((s) => (
             <div
               key={s.label}

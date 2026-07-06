@@ -198,7 +198,8 @@ export async function togglePlugin(id: string): Promise<InstalledPlugin> {
 
 export async function getCloudBenchmarks(): Promise<CloudBenchmark[]> {
   try {
-    return await apiFetch<CloudBenchmark[]>('/api/v1/cloud/benchmarks/report');
+    const result = await apiFetch<CloudBenchmark[] | Record<string, unknown>>('/api/v1/cloud/benchmarks/report');
+    return Array.isArray(result) ? result : [];
   } catch {
     return [];
   }
@@ -206,7 +207,8 @@ export async function getCloudBenchmarks(): Promise<CloudBenchmark[]> {
 
 export async function getCloudPatterns(): Promise<CloudLearnedPattern[]> {
   try {
-    return await apiFetch<CloudLearnedPattern[]>('/api/v1/cloud/patterns');
+    const result = await apiFetch<CloudLearnedPattern[] | Record<string, unknown>>('/api/v1/cloud/patterns');
+    return Array.isArray(result) ? result : [];
   } catch {
     return [];
   }
@@ -214,7 +216,8 @@ export async function getCloudPatterns(): Promise<CloudLearnedPattern[]> {
 
 export async function getCloudPartners(): Promise<CloudPartner[]> {
   try {
-    return await apiFetch<CloudPartner[]>('/api/v1/cloud/partners');
+    const result = await apiFetch<CloudPartner[] | Record<string, unknown>>('/api/v1/cloud/partners');
+    return Array.isArray(result) ? result : [];
   } catch {
     return [];
   }
@@ -222,7 +225,8 @@ export async function getCloudPartners(): Promise<CloudPartner[]> {
 
 export async function getCloudServices(): Promise<CloudServiceTier[]> {
   try {
-    return await apiFetch<CloudServiceTier[]>('/api/v1/cloud/services');
+    const result = await apiFetch<CloudServiceTier[] | Record<string, unknown>>('/api/v1/cloud/services');
+    return Array.isArray(result) ? result : [];
   } catch {
     return [];
   }

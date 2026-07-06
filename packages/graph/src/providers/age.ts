@@ -116,6 +116,12 @@ export interface ExtendedGraphClient extends GraphClient {
   dispose(): Promise<void>;
 
   /**
+   * Delete all entities and relationships from the graph.
+   * Used to reset the graph before a fresh analysis run.
+   */
+  clearAll(): Promise<void>;
+
+  /**
    * Full-text search across entities by name, description, and type.
    * Returns entities ordered by relevance.
    *
@@ -831,6 +837,19 @@ export class AgeGraphClient implements ExtendedGraphClient {
         'QUERY_FAILED',
         error,
       );
+    }
+  }
+
+  /**
+   * Delete all entities and relationships from the graph.
+   */
+  async clearAll(): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('DELETE FROM relationships');
+      await client.query('DELETE FROM entities');
+    } finally {
+      client.release();
     }
   }
 

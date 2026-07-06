@@ -172,7 +172,8 @@ export async function getTimeline(): Promise<TimelinePoint[]> {
  */
 export async function getTimelineHistory(): Promise<AnalysisHistoryEntry[]> {
   try {
-    return await apiFetch<AnalysisHistoryEntry[]>("/api/v1/analysis/history");
+    const result = await apiFetch<AnalysisHistoryEntry[]>("/api/v1/analysis/history");
+    return Array.isArray(result) ? result : [];
   } catch {
     return [];
   }
@@ -183,7 +184,8 @@ export async function getTimelineHistory(): Promise<AnalysisHistoryEntry[]> {
  */
 export async function getTimelineSnapshots(): Promise<EvolutionSnapshot[]> {
   try {
-    return await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
+    const result = await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
+    return Array.isArray(result) ? result : [];
   } catch {
     return [];
   }
@@ -194,7 +196,13 @@ export async function getTimelineSnapshots(): Promise<EvolutionSnapshot[]> {
  */
 export async function getTimelineTrends(): Promise<TrendData> {
   try {
-    return await apiFetch<TrendData>("/api/v1/timeline/trends");
+    // apiFetch unwraps { data: [...] } → returns the raw TrendSeries[]
+    const raw = await apiFetch<TrendSeries[] | TrendData>("/api/v1/timeline/trends");
+    if (Array.isArray(raw)) {
+      return { series: raw, total: raw.length };
+    }
+    // If the API ever returns { series, total } directly
+    return raw && 'series' in raw ? raw : { series: [], total: 0 };
   } catch {
     return { series: [], total: 0 };
   }
@@ -205,7 +213,21 @@ export async function getTimelineTrends(): Promise<TrendData> {
  */
 export async function getSnapshots(): Promise<ProjectSnapshot[]> {
   try {
-    return await apiFetch<ProjectSnapshot[]>("/api/v1/timeline/snapshots");
+    // Server returns EvolutionSnapshot[], transform to ProjectSnapshot[]
+    const raw = await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
+    if (!Array.isArray(raw)) return [];
+    return raw.map(snap => ({
+      id: snap.id,
+      date: snap.timestamp,
+      health_score: snap.overall_health ?? 0,
+      findings_count: snap.risk_count ?? 0,
+      opportunities_count: snap.opportunity_count ?? 0,
+      trigger: 'scheduled' as const,
+      summary: snap.top_opportunities?.[0] ?? '',
+      dimensions: Object.fromEntries(
+        (snap.maturity_scores ?? []).map(s => [s.dimension, s.score])
+      ),
+    }));
   } catch {
     return [];
   }

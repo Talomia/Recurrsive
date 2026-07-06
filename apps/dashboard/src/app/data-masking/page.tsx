@@ -175,14 +175,16 @@ export default function DataMaskingPage() {
               <h4 className="text-sm font-semibold text-text-primary mb-1">{s.name}</h4>
               <p className="text-xs text-text-secondary mb-3">{s.description}</p>
               <div className="flex items-center gap-3 text-xs mb-2">
-                <span className={s.reversible ? 'text-green-400' : 'text-red-400'}>{s.reversible ? 'Reversible' : 'Irreversible'}</span>
-                <span className="text-text-tertiary">Perf: {s.performanceImpact}</span>
+                {'reversible' in s && <span className={s.reversible ? 'text-green-400' : 'text-red-400'}>{s.reversible ? 'Reversible' : 'Irreversible'}</span>}
+                {'performanceImpact' in s && <span className="text-text-tertiary">Perf: {(s as any).performanceImpact}</span>}
               </div>
-              <div className="p-2 rounded-lg font-mono text-xs" style={{ background: 'var(--color-surface)' }}>
-                <span className="text-text-tertiary">{s.example.input}</span>
-                <span className="text-text-tertiary mx-2">→</span>
-                <span className="text-text-primary">{s.example.output}</span>
-              </div>
+              {s.example && (
+                <div className="p-2 rounded-lg font-mono text-xs" style={{ background: 'var(--color-surface)' }}>
+                  <span className="text-text-tertiary">{s.example.input}</span>
+                  <span className="text-text-tertiary mx-2">→</span>
+                  <span className="text-text-primary">{s.example.output}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
