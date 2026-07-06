@@ -315,7 +315,6 @@ export class AgeGraphClient implements ExtendedGraphClient {
 
   /**
    * Execute a raw Cypher query via AGE and return parsed rows.
-   *
    * @param cypher - Cypher query body (without the `cypher()` wrapper).
    * @param returnColumns - Column definition for the `AS (...)` clause.
    * @returns Parsed result rows.
@@ -327,6 +326,8 @@ export class AgeGraphClient implements ExtendedGraphClient {
     const client = await this.pool.connect();
     try {
       await this.prepareConnection(client);
+      // Set a per-query timeout to prevent slow Cypher scans from hanging
+      await client.query(`SET statement_timeout = '15s';`);
       const sql = `SELECT * FROM cypher('recurrsive', $$ ${cypher} $$) AS (${returnColumns});`;
       const result = await client.query(sql);
       return result.rows.map((row: Record<string, unknown>) => {
