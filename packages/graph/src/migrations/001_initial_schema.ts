@@ -93,6 +93,23 @@ $$;
     `.trim());
   }
 
+  // Create GIN indexes on the properties column of every vertex label
+  // so that Cypher property-match patterns like {id: '...'} use an index
+  // scan instead of a full sequential scan across the entire label table.
+  for (const entityType of EntityTypeSchema.options) {
+    stmts.push(
+      `CREATE INDEX IF NOT EXISTS idx_recurrsive_${entityType}_props ON recurrsive."${entityType}" USING GIN (properties);`,
+    );
+  }
+
+  // Create GIN indexes on edge label properties too — required for
+  // relationship lookups by {id: '...'}, {source_id: '...'}, etc.
+  for (const relationType of RelationTypeSchema.options) {
+    stmts.push(
+      `CREATE INDEX IF NOT EXISTS idx_recurrsive_${relationType}_props ON recurrsive."${relationType}" USING GIN (properties);`,
+    );
+  }
+
   // Create an auxiliary metadata table for tracking migrations
   stmts.push(`
 CREATE TABLE IF NOT EXISTS recurrsive_migrations (

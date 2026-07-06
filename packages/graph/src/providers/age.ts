@@ -327,7 +327,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
     try {
       await this.prepareConnection(client);
       // Set a per-query timeout to prevent slow Cypher scans from hanging
-      await client.query(`SET statement_timeout = '15s';`);
+      await client.query(`SET statement_timeout = '30s';`);
       const sql = `SELECT * FROM cypher('recurrsive', $$ ${cypher} $$) AS (${returnColumns});`;
       const result = await client.query(sql);
       return result.rows.map((row: Record<string, unknown>) => {
@@ -337,6 +337,17 @@ export class AgeGraphClient implements ExtendedGraphClient {
         }
         return parsed;
       });
+    } catch (error) {
+      // Surface a clear error for statement timeouts instead of a cryptic
+      // Postgres "canceling statement" message
+      if (error instanceof Error && error.message.includes('statement timeout')) {
+        throw new GraphError(
+          `Cypher query timed out (30s limit): ${cypher.slice(0, 120)}…`,
+          'QUERY_TIMEOUT',
+          error,
+        );
+      }
+      throw error;
     } finally {
       client.release();
     }
@@ -468,7 +479,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
           break;
         case 'both':
         default:
-          cypher = `MATCH (n {id: '${safeId}'})-[r]-(m) RETURN r`;
+          cypher = `MATCH (n {id: '${safeId}'})-[r]-(m) RETURN DISTINCT r`;
           break;
       }
 

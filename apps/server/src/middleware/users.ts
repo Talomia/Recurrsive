@@ -176,7 +176,8 @@ export function findUserById(id: string): User | undefined {
  * @returns The {@link PublicUser} on success, or `null` on failure.
  */
 export async function authenticateUser(username: string, password: string): Promise<PublicUser | null> {
-  const user = findUserByUsername(username);
+  // Try exact username match first, then fall back to email match
+  const user = findUserByUsername(username) ?? findUserByEmail(username);
   if (!user) return null;
 
   // Only active users can log in
