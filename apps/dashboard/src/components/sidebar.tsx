@@ -267,10 +267,10 @@ export default function Sidebar() {
                   Recurrsive AI
                 </p>
                 <p className="text-[10px] text-text-muted truncate">
-                  Analyzing your codebase…
+                  Ready for analysis
                 </p>
               </div>
-              <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse-dot shrink-0" />
+              <span className="h-2 w-2 rounded-full bg-purple-400 shrink-0" />
             </div>
           )}
           {collapsed && (

@@ -1,5 +1,6 @@
+import Link from "next/link";
 import Header from "@/components/header";
-import { Network, Box, ArrowRight, Layers } from "lucide-react";
+import { Network, Box, ArrowRight, Layers, FolderGit2 } from "lucide-react";
 import { getGraphStats } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -77,6 +78,35 @@ function healthColor(count: number, maxCount: number) {
 export default async function SystemMapPage() {
   try {
     const stats = await getGraphStats();
+
+    // ---------- Empty state ----------
+    if (stats.total_entities === 0) {
+      return (
+        <div className="flex flex-col min-h-screen">
+          <Header title="System Map" subtitle="Knowledge graph topology and entity distribution" />
+          <div className="flex-1 p-6 flex items-center justify-center">
+            <div className="glass-card p-12 max-w-lg text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10 mx-auto mb-5">
+                <Network className="h-7 w-7 text-text-muted" />
+              </div>
+              <h3 className="text-lg font-semibold text-text-primary mb-2">System map is empty</h3>
+              <p className="text-sm text-text-secondary mb-6">
+                Run an analysis to discover your codebase architecture &mdash; files, modules, dependencies, and relationships.
+              </p>
+              <Link
+                href="/projects"
+                className="inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/20 px-4 py-2.5 text-sm font-medium text-blue-400 hover:bg-accent-blue/20 transition-colors"
+              >
+                <FolderGit2 className="h-4 w-4" />
+                Run Your First Analysis
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const { nodes, edges } = layoutFromStats(stats.entities_by_type, stats.relationships_by_type);
     const maxCount = Math.max(...nodes.map((n) => n.count), 1);
 

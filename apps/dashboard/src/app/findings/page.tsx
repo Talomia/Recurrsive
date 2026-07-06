@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff } from "lucide-react";
+import Link from "next/link";
+import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff, ArrowRight } from "lucide-react";
 import Header from "@/components/header";
 import { getFindingsPage, type FindingsPageData } from "@/lib/api";
 import clsx from "clsx";
@@ -209,7 +210,25 @@ export default function FindingsPage() {
             })}
           </tbody>
         </table>
-        {filtered.length === 0 && (
+        {filtered.length === 0 && data.stats.total === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10 mb-5">
+              <ShieldAlert className="h-7 w-7 text-text-muted" />
+            </div>
+            <h3 className="text-lg font-semibold text-text-primary mb-2">No findings yet</h3>
+            <p className="text-sm text-text-secondary max-w-md mb-6">
+              Run an analysis on your project to discover security findings, code quality issues, and improvement opportunities.
+            </p>
+            <Link
+              href="/projects"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/20 px-4 py-2.5 text-sm font-medium text-blue-400 hover:bg-accent-blue/20 transition-colors"
+            >
+              Go to Projects
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        )}
+        {filtered.length === 0 && data.stats.total > 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <ShieldAlert className="h-8 w-8 text-text-muted mb-3" />
             <p className="text-sm text-text-muted">No findings match your filters</p>

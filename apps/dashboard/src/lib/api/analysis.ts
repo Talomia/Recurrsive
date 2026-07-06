@@ -235,3 +235,26 @@ export async function getAnalyticsCategories(): Promise<AnalyticsCategory[]> {
     return [];
   }
 }
+
+// ─── Analysis Triggers ──────────────────────────────────────────────────────
+
+export interface AnalysisResult {
+  status: string;
+  message: string;
+  analysisId?: string;
+}
+
+/**
+ * Trigger a single-project analysis via `POST /api/v1/analyze`.
+ *
+ * @param gitUrl - The repository URL to analyze.
+ */
+export async function triggerAnalysis(gitUrl: string): Promise<AnalysisResult> {
+  return await apiFetch<AnalysisResult>('/api/v1/analyze', {
+    method: 'POST',
+    body: JSON.stringify({ gitUrl }),
+    headers: { 'Content-Type': 'application/json' },
+    unwrap: false,
+  });
+}
+

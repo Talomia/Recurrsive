@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Header from "@/components/header";
-import { Sparkles, TrendingUp, Eye, Zap, GitBranch, AlertTriangle, Shield, BarChart3, Layers, ChevronRight } from "lucide-react";
+import { Sparkles, TrendingUp, Eye, Zap, GitBranch, AlertTriangle, Shield, BarChart3, Layers, ChevronRight, ArrowRight } from "lucide-react";
 import { getFindingsSummary, getFindings } from "@/lib/api";
 import type { Finding } from "@/lib/api";
 import type { LucideIcon } from "lucide-react";
@@ -200,9 +200,20 @@ export default async function InsightsPage() {
             </div>
           ) : (
             <div className="glass-card p-12 text-center">
-              <Sparkles className="h-12 w-12 mx-auto text-text-muted mb-4" />
-              <h3 className="text-lg font-medium text-text-primary mb-2">No Insights Available</h3>
-              <p className="text-sm text-text-secondary">Run your first analysis to generate actionable insights from your codebase.</p>
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10 mx-auto mb-5">
+                <Sparkles className="h-7 w-7 text-text-muted" />
+              </div>
+              <h3 className="text-lg font-semibold text-text-primary mb-2">No insights generated yet</h3>
+              <p className="text-sm text-text-secondary max-w-md mx-auto mb-6">
+                Insights are generated from analysis findings. Run an analysis on your project to discover patterns and recommendations.
+              </p>
+              <Link
+                href="/projects"
+                className="inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/20 px-4 py-2.5 text-sm font-medium text-blue-400 hover:bg-accent-blue/20 transition-colors"
+              >
+                Go to Projects
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           )}
 
