@@ -33,6 +33,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
+import { store } from './store.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -790,6 +791,26 @@ export class ServerState {
           opportunityCount: cache.opportunities.length,
         },
       });
+
+      // Update any project records in the store with the new health score
+      // so the projects list reflects "Analyzed" status with the real score.
+      try {
+        const { overall } = this.getHealthScore();
+        const projects = store.all<{ id: string; healthScore: number; lastAnalysis: string | null; updatedAt: string }>('projects');
+        for (const project of projects) {
+          store.set('projects', project.id, {
+            ...project,
+            healthScore: overall,
+            lastAnalysis: completedAt,
+            updatedAt: completedAt,
+          });
+        }
+        if (projects.length > 0) {
+          logger.info(`Updated ${projects.length} project(s) with health score ${overall}`);
+        }
+      } catch (err) {
+        logger.warn(`Failed to update project records after analysis: ${err instanceof Error ? err.message : String(err)}`);
+      }
 
       return cache;
     } catch (err) {
