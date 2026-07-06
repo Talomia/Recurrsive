@@ -14,6 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { state } from '../state.js';
 import { store } from '../store.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types — Simulation Engine
@@ -97,18 +98,18 @@ interface GeneratedPR {
 export async function registerSimulationRoutes(app: FastifyInstance): Promise<void> {
   // ── Simulation Engine ─────────────────────────────────────────────────────
 
-  app.get('/api/v1/simulations', async (_request, reply) => {
+  app.get('/api/v1/simulations', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const all = store.all<SimulationScenario>('simulations');
     return reply.send({ data: all, total: all.length });
   });
 
-  app.get<{ Params: { id: string } }>('/api/v1/simulations/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/simulations/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const sim = store.get<SimulationScenario>('simulations', request.params.id);
     if (!sim) return reply.status(404).send({ error: 'Not Found', message: 'Simulation not found' });
     return reply.send({ data: sim });
   });
 
-  app.post('/api/v1/simulations', async (request, reply) => {
+  app.post('/api/v1/simulations', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as { name?: string; description?: string; type?: SimulationScenario['type']; parameters?: Record<string, unknown> };
     if (!body.name || !body.type) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and type are required' });
@@ -176,18 +177,18 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
 
   // ── PR Generation ─────────────────────────────────────────────────────────
 
-  app.get('/api/v1/pull-requests', async (_request, reply) => {
+  app.get('/api/v1/pull-requests', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const all = store.all<GeneratedPR>('pull_requests');
     return reply.send({ data: all, total: all.length });
   });
 
-  app.get<{ Params: { id: string } }>('/api/v1/pull-requests/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/pull-requests/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const pr = store.get<GeneratedPR>('pull_requests', request.params.id);
     if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
     return reply.send({ data: pr });
   });
 
-  app.post('/api/v1/pull-requests/generate', async (request, reply) => {
+  app.post('/api/v1/pull-requests/generate', { preHandler: [authMiddleware] }, async (request, reply) => {
     const body = request.body as { sourceId?: string; title?: string; description?: string };
     if (!body.title) {
       return reply.status(400).send({ error: 'Bad Request', message: 'title is required' });
@@ -229,7 +230,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     return reply.status(201).send({ data: pr });
   });
 
-  app.post<{ Params: { id: string } }>('/api/v1/pull-requests/:id/submit', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/pull-requests/:id/submit', { preHandler: [authMiddleware] }, async (request, reply) => {
     const pr = store.get<GeneratedPR>('pull_requests', request.params.id);
     if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
 

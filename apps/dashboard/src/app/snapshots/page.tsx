@@ -53,7 +53,12 @@ function formatDate(iso: string): string {
 // ---------------------------------------------------------------------------
 
 export default async function SnapshotsPage() {
-  const snapshots = await getSnapshots();
+  let snapshots: Awaited<ReturnType<typeof getSnapshots>> = [];
+  try {
+    snapshots = await getSnapshots();
+  } catch {
+    // Will use fallback
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">

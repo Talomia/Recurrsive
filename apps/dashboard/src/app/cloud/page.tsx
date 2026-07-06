@@ -26,6 +26,7 @@ function TierBadge({ tier }: { tier: string }) {
 export default function CloudPage() {
   const [activeTab, setActiveTab] = useState<'benchmarks' | 'patterns' | 'partners' | 'services'>('benchmarks');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [benchmarks, setBenchmarks] = useState<CloudBenchmark[]>([]);
   const [patterns, setPatterns] = useState<CloudLearnedPattern[]>([]);
   const [partners, setPartners] = useState<CloudPartner[]>([]);
@@ -44,7 +45,7 @@ export default function CloudPage() {
       setPartners(pr);
       setServices(s);
     }
-    load().catch(() => { /* API unavailable */ }).finally(() => setLoading(false));
+    load().catch(() => { setError('Failed to load cloud resources.'); }).finally(() => setLoading(false));
   }, []);
 
   const tabs = [
@@ -72,6 +73,14 @@ export default function CloudPage() {
         </h1>
         <p className="text-sm text-text-secondary mt-1">Industry benchmarks, collective intelligence, partner ecosystem, and managed services.</p>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400">✕</button>
+        </div>
+      )}
 
       {/* Tab Bar */}
       <div className="flex gap-2">

@@ -31,12 +31,12 @@ const JWT_SECRET = process.env['JWT_SECRET'] ?? 'recurrsive-dev-secret';
 
 if (JWT_SECRET === 'recurrsive-dev-secret') {
   if (process.env['NODE_ENV'] === 'production') {
-    console.error(
-      '[SECURITY] CRITICAL: JWT_SECRET is using the default insecure value in production. ' +
+    logger.error(
+      'CRITICAL: JWT_SECRET is using the default insecure value in production. ' +
       'Set a strong JWT_SECRET environment variable before deploying.',
     );
   } else {
-    console.warn('[SECURITY] JWT_SECRET is using the default dev-only value. Set JWT_SECRET in production.');
+    logger.warn('JWT_SECRET is using the default dev-only value. Set JWT_SECRET in production.');
   }
 }
 

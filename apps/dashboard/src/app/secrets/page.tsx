@@ -58,7 +58,9 @@ export default function SecretsPage() {
   };
 
   useEffect(() => {
-    reloadData().finally(() => setLoading(false));
+    reloadData()
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load secrets.'))
+      .finally(() => setLoading(false));
   }, []);
 
   const handleCreate = async () => {

@@ -116,7 +116,7 @@ function MetricRow({
 
 function ActiveExperimentCard({ experiment }: { experiment: DashboardExperiment }) {
   // Calculate simulated progress for running experiments
-  const progress = experiment.status === "running" ? 60 : 0;
+  const progress = experiment.status === "running" ? ((experiment as unknown as { progress?: number }).progress ?? 50) : experiment.status === "completed" ? 100 : 0;
 
   return (
     <div className="glass-card p-5 border-l-2 border-blue-400">

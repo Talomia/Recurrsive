@@ -22,12 +22,20 @@ import {
 } from "@/lib/api";
 
 export default async function OverviewPage() {
-  const [health, timeline, opportunities, perfMetrics] = await Promise.all([
-    getHealthMetrics(),
-    getTimeline(),
-    getOpportunities(),
-    getPerformanceMetrics(),
-  ]);
+  let health: Awaited<ReturnType<typeof getHealthMetrics>> = { healthScore: 0, healthTrend: 0, qualityScore: 0, qualityTrend: 0, opportunities: 0, newOpportunities: 0, techDebt: 0, techDebtTrend: 0, aiQualityScore: 0, aiQualityTrend: 0 };
+  let timeline: Awaited<ReturnType<typeof getTimeline>> = [];
+  let opportunities: Awaited<ReturnType<typeof getOpportunities>> = [];
+  let perfMetrics: Awaited<ReturnType<typeof getPerformanceMetrics>> = [];
+  try {
+    [health, timeline, opportunities, perfMetrics] = await Promise.all([
+      getHealthMetrics(),
+      getTimeline(),
+      getOpportunities(),
+      getPerformanceMetrics(),
+    ]);
+  } catch {
+    // Will use fallback values
+  }
 
   const PERF_ICONS = [Clock, Globe, AlertTriangle, CheckCircle];
   const PERF_COLORS = ["#3b82f6", "#22c55e", "#ef4444", "#22d3ee"];

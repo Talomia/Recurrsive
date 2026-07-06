@@ -187,7 +187,9 @@ export default function WebhooksPage() {
   };
 
   useEffect(() => {
-    reloadData().finally(() => setLoading(false));
+    reloadData()
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load webhooks.'))
+      .finally(() => setLoading(false));
   }, []);
 
   const toggleEvent = (event: string) => {

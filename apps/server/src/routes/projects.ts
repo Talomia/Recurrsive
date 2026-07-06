@@ -47,7 +47,7 @@ interface Project {
 
 export async function registerProjectRoutes(app: FastifyInstance): Promise<void> {
   // List all projects
-  app.get('/api/v1/projects', async (_request, reply) => {
+  app.get('/api/v1/projects', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const list = store.all<Project>('projects')
       .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -58,7 +58,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   });
 
   // Get single project
-  app.get<{ Params: { id: string } }>('/api/v1/projects/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const project = store.get<Project>('projects', request.params.id);
     if (!project) {
       return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
@@ -135,7 +135,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   });
 
   // Get project health comparison (across all projects)
-  app.get('/api/v1/projects/compare/health', async (_request, reply) => {
+  app.get('/api/v1/projects/compare/health', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const comparison = store.all<Project>('projects').map(p => ({
       id: p.id,
       name: p.name,

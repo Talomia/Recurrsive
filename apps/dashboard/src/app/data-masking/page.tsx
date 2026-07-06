@@ -52,6 +52,7 @@ export default function DataMaskingPage() {
   const [scanOutput, setScanOutput] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [policies, setPolicies] = useState<DashboardMaskingPolicy[]>([]);
   const [piiDistribution, setPiiDistribution] = useState<DashboardPiiDistribution[]>([]);
   const [strategies, setStrategies] = useState<DashboardMaskingStrategy[]>([]);
@@ -67,7 +68,7 @@ export default function DataMaskingPage() {
       setPiiDistribution(pii);
       setStrategies(strat);
     }
-    load().catch(() => { /* API unavailable */ }).finally(() => setLoading(false));
+    load().catch(() => { setError('Failed to load data masking configuration.'); }).finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -88,6 +89,14 @@ export default function DataMaskingPage() {
         </h1>
         <p className="text-sm text-text-secondary mt-1">Configure masking policies, audit PII exposure, and test data protection rules.</p>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400">✕</button>
+        </div>
+      )}
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

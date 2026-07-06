@@ -12,6 +12,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,7 +65,7 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
    * Uses live analysis data when available, returns zeros when no analysis
    * has been run yet.
    */
-  app.get('/api/v1/analytics/summary', async (_request, reply) => {
+  app.get('/api/v1/analytics/summary', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const cache = state.isInitialized() ? state.getAnalysisCache() : null;
     const healthScore = state.isInitialized() ? state.getHealthScore() : null;
 
@@ -118,7 +119,7 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
    * Uses live analysis data when available, returns empty array when
    * no analysis has been run yet.
    */
-  app.get('/api/v1/analytics/top-categories', async (_request, reply) => {
+  app.get('/api/v1/analytics/top-categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const cache = state.isInitialized() ? state.getAnalysisCache() : null;
 
     if (cache?.findings?.length) {

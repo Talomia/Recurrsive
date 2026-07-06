@@ -40,6 +40,7 @@ export default function SSOPage() {
         setProviders(p);
         setSessions(s);
       })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load SSO data.'))
       .finally(() => setLoading(false));
   }, []);
 

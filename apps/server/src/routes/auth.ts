@@ -52,9 +52,9 @@ const DEMO_USERS: DemoUser[] =
     : _ALL_DEMO_USERS;
 
 if (DEMO_USERS.length === 0) {
-  console.warn('[AUTH] Demo users disabled in production. Set ALLOW_DEMO_USERS=true to override.');
+  logger.warn('Demo users disabled in production. Set ALLOW_DEMO_USERS=true to override.');
 } else if (process.env['NODE_ENV'] === 'production') {
-  console.warn('[AUTH] WARNING: Demo users are enabled in production (ALLOW_DEMO_USERS=true).');
+  logger.warn('Demo users are enabled in production (ALLOW_DEMO_USERS=true).');
 }
 
 // ---------------------------------------------------------------------------

@@ -242,13 +242,78 @@ export async function testNotificationChannel(channel: string): Promise<{ status
 
 // ─── Audit Trail API ─────────────────────────────────────────────────────────
 
+/** Server-side audit event shape (auto-captured HTTP request logs). */
+interface ServerAuditEvent {
+  id: string;
+  timestamp: string;
+  userId?: string;
+  username?: string;
+  role?: string;
+  method: string;
+  url: string;
+  statusCode: number;
+  action: string;        // 'read' | 'write' | 'delete' | 'auth' | 'admin'
+  duration_ms: number;
+  ip: string;
+  userAgent: string;
+  resourceType?: string;
+  resourceId?: string;
+}
+
+/** Map server action values to dashboard AuditEventType. */
+const ACTION_TO_TYPE: Record<string, AuditEventType> = {
+  read: 'analysis',
+  write: 'config',
+  delete: 'config',
+  auth: 'notification',
+  admin: 'policy',
+};
+
+/** Map server action values to dashboard AuditAction. */
+const ACTION_TO_DASHBOARD: Record<string, AuditAction> = {
+  read: 'executed',
+  write: 'updated',
+  delete: 'deleted',
+  auth: 'executed',
+  admin: 'configured',
+};
+
 export async function getAuditLog(type?: AuditEventType): Promise<AuditEvent[]> {
   try {
     const query = new URLSearchParams();
     query.set("limit", "50");
-    if (type) query.set("type", type);
+    // Server uses 'action' filter, not 'type'.
+    // Map dashboard AuditEventType → server action values.
+    if (type) {
+      const typeToAction: Record<string, string> = {
+        analysis: 'read',
+        config: 'write',
+        webhook: 'write',
+        notification: 'auth',
+        batch: 'admin',
+        policy: 'admin',
+      };
+      const action = typeToAction[type];
+      if (action) query.set("action", action);
+    }
 
-    return await apiFetch<AuditEvent[]>(`/api/v1/audit?${query.toString()}`);
+    const res = await apiFetch<{ data: ServerAuditEvent[]; total: number }>(
+      `/api/v1/audit?${query.toString()}`,
+      { unwrap: false },
+    );
+    const events = res.data ?? [];
+    return events.map((e) => ({
+      id: e.id,
+      type: (ACTION_TO_TYPE[e.action] ?? 'config') as AuditEventType,
+      action: (ACTION_TO_DASHBOARD[e.action] ?? 'executed') as AuditAction,
+      actor: e.username ?? e.userId ?? 'system',
+      target: e.resourceType
+        ? `${e.resourceType}${e.resourceId ? `/${e.resourceId}` : ''}`
+        : e.url,
+      details: `${e.method} ${e.url} → ${e.statusCode} (${e.duration_ms}ms)`,
+      timestamp: e.timestamp,
+      ip: e.ip,
+    }));
   } catch {
     return [];
   }

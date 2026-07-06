@@ -74,7 +74,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    *
    * Return list of experiments.
    */
-  app.get('/api/v1/experiments', async (request, reply) => {
+  app.get('/api/v1/experiments', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { status } = request.query as { status?: string };
 
     let filtered = store.all<Experiment>('experiments');
@@ -130,7 +130,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    *
    * Return single experiment details.
    */
-  app.get('/api/v1/experiments/:id', async (request, reply) => {
+  app.get('/api/v1/experiments/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const experiment = store.get<Experiment>('experiments', id);
 

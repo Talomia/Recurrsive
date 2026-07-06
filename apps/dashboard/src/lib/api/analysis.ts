@@ -173,7 +173,8 @@ export async function getFindings(params?: {
   const path = `/api/v1/findings${qs ? `?${qs}` : ""}`;
 
   try {
-    return await apiFetch<{ findings: Finding[]; total: number }>(path);
+    const res = await apiFetch<{ data: Finding[]; total: number }>(path, { unwrap: false });
+    return { findings: res.data ?? [], total: res.total ?? 0 };
   } catch {
     return { findings: [], total: 0 };
   }

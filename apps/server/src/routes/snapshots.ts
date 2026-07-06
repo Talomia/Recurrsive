@@ -10,7 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import type { Entity, Relationship } from '@recurrsive/core';
+import type { Entity, Relationship, EntityType } from '@recurrsive/core';
 import { nowISO, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -85,7 +85,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
       // Fetch all entities by type
       const allEntities: Entity[] = [];
       for (const type of Object.keys(graphStats.entityCountsByType)) {
-        const typed = await graph.getEntities(type as any);
+        const typed = await graph.getEntities(type as EntityType);
         allEntities.push(...typed);
       }
 

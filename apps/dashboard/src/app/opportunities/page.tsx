@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink } from "lucide-react";
+import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink, Loader2 } from "lucide-react";
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
@@ -56,16 +56,25 @@ export default function OpportunitiesPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [categoryFilter, setCategoryFilter] = useState<string>("All Categories");
   const [severityFilter, setSeverityFilter] = useState<string>("All Severities");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch opportunities from API on mount
   useEffect(() => {
     let cancelled = false;
-    getOpportunities().then((data) => {
-      if (!cancelled) {
-        setOpportunities(data);
-        if (data.length > 0) setSelectedId(data[0]!.id);
-      }
-    });
+    getOpportunities()
+      .then((data) => {
+        if (!cancelled) {
+          setOpportunities(data);
+          if (data.length > 0) setSelectedId(data[0]!.id);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError('Failed to load opportunities.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -98,7 +107,7 @@ export default function OpportunitiesPage() {
 
   const selected = filtered.find((o) => o.id === selectedId) ?? filtered[0];
 
-  if (!selected) {
+  if (loading) {
     return (
       <div className="flex flex-col h-screen">
         <Header
@@ -106,6 +115,21 @@ export default function OpportunitiesPage() {
           subtitle="AI-discovered improvement opportunities across your codebase"
         />
         <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!selected) {
+    return (
+      <div className="flex flex-col h-screen">
+        <Header
+          title="Opportunities"
+          subtitle="AI-discovered improvement opportunities across your codebase"
+        />
+        <div className="flex-1 flex items-center justify-center flex-col gap-2">
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <p className="text-text-muted text-lg">No opportunities found</p>
         </div>
       </div>

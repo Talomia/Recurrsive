@@ -22,6 +22,15 @@ const logger = createLogger({ context: { component: 'server:ws:events' } });
 /** Set of active WebSocket connections. */
 const clients = new Set<WebSocket>();
 
+/** Tracks which clients have responded to the latest ping. */
+const alive = new WeakSet<WebSocket>();
+
+/** Heartbeat interval handle (30 seconds). */
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Heartbeat period in milliseconds. */
+const HEARTBEAT_MS = 30_000;
+
 /**
  * Register a new WebSocket client connection.
  *
@@ -32,6 +41,10 @@ const clients = new Set<WebSocket>();
  */
 export function registerClient(socket: WebSocket): void {
   clients.add(socket);
+  alive.add(socket);
+
+  // Start heartbeat if this is the first client
+  if (clients.size === 1) startHeartbeat();
 
   logger.info(`WebSocket client connected (total: ${clients.size})`);
 
@@ -49,6 +62,7 @@ export function registerClient(socket: WebSocket): void {
 
   // Handle incoming messages from the client
   socket.on('message', (rawData: Buffer | ArrayBuffer | Buffer[]) => {
+    alive.add(socket); // Any message counts as alive
     try {
       const data = JSON.parse(rawData.toString()) as Record<string, unknown>;
       handleClientMessage(socket, data);
@@ -64,16 +78,23 @@ export function registerClient(socket: WebSocket): void {
     }
   });
 
+  // Handle pong responses (mark client as alive)
+  socket.on('pong', () => {
+    alive.add(socket);
+  });
+
   // Clean up on close
   socket.on('close', () => {
     clients.delete(socket);
     logger.info(`WebSocket client disconnected (total: ${clients.size})`);
+    if (clients.size === 0) stopHeartbeat();
   });
 
   // Clean up on error
   socket.on('error', (err: Error) => {
     clients.delete(socket);
     logger.error(`WebSocket client error: ${err.message}`);
+    if (clients.size === 0) stopHeartbeat();
   });
 }
 
@@ -203,6 +224,7 @@ export function getClientCount(): number {
  * Sends a close frame to each client before removing them.
  */
 export function disconnectAll(): void {
+  stopHeartbeat();
   for (const client of clients) {
     try {
       client.close(1001, 'Server shutting down');
@@ -212,4 +234,69 @@ export function disconnectAll(): void {
   }
   clients.clear();
   logger.info('All WebSocket clients disconnected');
+}
+
+// ---------------------------------------------------------------------------
+// Heartbeat — detect and clean up zombie connections
+// ---------------------------------------------------------------------------
+
+/**
+ * Start the heartbeat interval.
+ *
+ * Every {@link HEARTBEAT_MS} (30 s), the server:
+ * 1. Terminates any client that did not respond to the previous ping.
+ * 2. Resets the alive flag for all remaining clients.
+ * 3. Sends a new ping frame to each client.
+ */
+function startHeartbeat(): void {
+  if (heartbeatInterval) return; // Already running
+
+  heartbeatInterval = setInterval(() => {
+    const deadClients: WebSocket[] = [];
+
+    for (const client of clients) {
+      if (!alive.has(client)) {
+        // Did not respond to the last ping — terminate
+        deadClients.push(client);
+        continue;
+      }
+
+      // Reset flag and send a new ping
+      alive.delete(client);
+      try {
+        client.ping();
+      } catch {
+        deadClients.push(client);
+      }
+    }
+
+    // Clean up dead connections
+    for (const dead of deadClients) {
+      clients.delete(dead);
+      try {
+        dead.terminate();
+      } catch {
+        // Already gone
+      }
+    }
+
+    if (deadClients.length > 0) {
+      logger.info(`Heartbeat: removed ${deadClients.length} stale connection(s) (remaining: ${clients.size})`);
+    }
+
+    if (clients.size === 0) stopHeartbeat();
+  }, HEARTBEAT_MS);
+
+  logger.debug('WebSocket heartbeat started');
+}
+
+/**
+ * Stop the heartbeat interval.
+ */
+function stopHeartbeat(): void {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+    logger.debug('WebSocket heartbeat stopped');
+  }
 }

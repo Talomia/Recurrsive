@@ -180,9 +180,80 @@ export async function getWhatIfAnalysis(params: {
   }
 }
 
+/** Server-side simulation shape (differs from dashboard's SimulationScenario). */
+interface ServerSimulation {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  parameters: Record<string, unknown>;
+  status: string;
+  results: {
+    impactScore: number;
+    riskLevel: string;
+    findings: Array<{ area: string; impact: string; probability: number; recommendation: string }>;
+    metrics: {
+      estimatedLatencyChangeMs: number;
+      estimatedErrorRateChange: number;
+      estimatedCostChangePct: number;
+      estimatedAvailabilityChange: number;
+    };
+    timeline: Array<{ timestamp: string; event: string; metric: string; value: number }>;
+  } | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/** Map simulation type strings between server and dashboard. */
+const SIM_TYPE_MAP: Record<string, SimulationScenario['type']> = {
+  'traffic-replay': 'monte-carlo',
+  'load-test': 'stress-test',
+  'failure-injection': 'chaos',
+  'dependency-change': 'what-if',
+  'architecture-change': 'what-if',
+};
+
 export async function getSimulations(): Promise<SimulationScenario[]> {
   try {
-    return await apiFetch<SimulationScenario[]>('/api/v1/simulations', { unwrap: false });
+    const res = await apiFetch<{ data: ServerSimulation[]; total: number }>(
+      '/api/v1/simulations',
+      { unwrap: false },
+    );
+    const sims = res.data ?? [];
+    return sims.map((s) => {
+      const results = s.results;
+      const metrics: SimulationScenario['metrics'] = results
+        ? [
+            { label: 'Latency Δ', value: `${results.metrics.estimatedLatencyChangeMs}ms` },
+            { label: 'Error Rate Δ', value: `${(results.metrics.estimatedErrorRateChange * 100).toFixed(1)}%` },
+            { label: 'Cost Δ', value: `${results.metrics.estimatedCostChangePct}%` },
+            { label: 'Availability Δ', value: `${(results.metrics.estimatedAvailabilityChange * 100).toFixed(2)}%` },
+          ]
+        : [];
+      const timeline: SimulationScenario['timeline'] = (results?.timeline ?? []).map((t) => ({
+        time: t.timestamp,
+        label: t.event,
+        impact: t.value,
+      }));
+      // Compute duration from createdAt → completedAt
+      let duration = '—';
+      if (s.createdAt && s.completedAt) {
+        const ms = new Date(s.completedAt).getTime() - new Date(s.createdAt).getTime();
+        duration = ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+      }
+      return {
+        id: s.id,
+        name: s.name,
+        type: SIM_TYPE_MAP[s.type] ?? 'what-if',
+        status: (s.status === 'pending' ? 'queued' : s.status) as SimulationScenario['status'],
+        riskLevel: (results?.riskLevel ?? 'low') as SimulationScenario['riskLevel'],
+        impactScore: results?.impactScore ?? 0,
+        duration,
+        createdAt: s.createdAt,
+        metrics,
+        timeline,
+      };
+    });
   } catch {
     return [];
   }

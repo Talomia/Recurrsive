@@ -91,11 +91,48 @@ export async function getExperiment(id: string): Promise<DashboardExperiment | n
 }
 
 /**
+ * Server shape returned by `GET /api/v1/analysis/history`.
+ */
+interface ServerAnalysisHistoryEntry {
+  id: string;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  findingCount: number;
+  opportunityCount: number;
+  includeReasoning: boolean;
+  status: 'success' | 'error';
+  error: string | null;
+}
+
+/**
  * Get all analysis runs for comparison selection.
+ *
+ * Transforms the server's `AnalysisHistoryEntry` shape into the dashboard's
+ * `AnalysisRun` shape expected by the comparisons page.
  */
 export async function getAnalysisRuns(): Promise<AnalysisRun[]> {
   try {
-    return await apiFetch<AnalysisRun[]>("/api/v1/analysis/history");
+    const res = await apiFetch<{ data: ServerAnalysisHistoryEntry[]; total: number }>(
+      "/api/v1/analysis/history",
+      { unwrap: false },
+    );
+    const entries = res.data ?? [];
+    return entries.map((entry) => {
+      const date = new Date(entry.startedAt);
+      const label = `Run ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      // Approximate health score: fewer findings = higher score (cap 0–100)
+      const health_score = Math.max(0, Math.round(100 - entry.findingCount * 1.5));
+      return {
+        id: entry.id,
+        label,
+        date: entry.startedAt,
+        health_score,
+        findings: entry.findingCount,
+        resolved: 0, // Server doesn't track resolved count per run
+        categories: [] as AnalysisRunCategory[],
+      };
+    });
   } catch {
     return [];
   }

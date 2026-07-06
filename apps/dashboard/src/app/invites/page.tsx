@@ -149,7 +149,7 @@ export default function InvitesPage() {
       await apiFetch(`/api/v1/invites/${id}`, { method: 'DELETE' });
       await fetchInvites();
     } catch {
-      // Silent fail
+      setError('Failed to cancel invite.');
     }
   }
 

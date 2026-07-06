@@ -165,7 +165,7 @@ export default function UsersPage() {
       setEditUser(null);
       await fetchUsers();
     } catch {
-      // Silent fail — user will see unchanged data
+      setError('Failed to save user. Please try again.');
     } finally {
       setEditLoading(false);
     }
@@ -181,7 +181,7 @@ export default function UsersPage() {
       });
       await fetchUsers();
     } catch {
-      // Silent fail
+      setError('Failed to toggle user status. Please try again.');
     }
   }
 
@@ -195,7 +195,7 @@ export default function UsersPage() {
       setDeleteTarget(null);
       await fetchUsers();
     } catch {
-      // Silent fail
+      setError('Failed to delete user. Please try again.');
     } finally {
       setDeleteLoading(false);
     }

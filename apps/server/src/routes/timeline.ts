@@ -26,7 +26,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
    * Return the full evolution timeline for the project, including all
    * snapshots and derived trend series.
    */
-  app.get('/api/v1/timeline', async (_request, reply) => {
+  app.get('/api/v1/timeline', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -48,7 +48,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
    * (newest first). Each snapshot captures the project's maturity
    * state at a point in time.
    */
-  app.get('/api/v1/timeline/snapshots', async (_request, reply) => {
+  app.get('/api/v1/timeline/snapshots', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -72,7 +72,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
    * time. Each series contains ordered data points with timestamps
    * and values.
    */
-  app.get('/api/v1/timeline/trends', async (_request, reply) => {
+  app.get('/api/v1/timeline/trends', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',

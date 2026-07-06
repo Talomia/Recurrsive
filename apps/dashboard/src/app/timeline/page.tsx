@@ -132,11 +132,18 @@ function TrendSparkline({
 // ---------------------------------------------------------------------------
 
 export default async function TimelinePage() {
-  const [history, snapshots, trends] = await Promise.all([
-    getTimelineHistory(),
-    getTimelineSnapshots(),
-    getTimelineTrends(),
-  ]);
+  let history: Awaited<ReturnType<typeof getTimelineHistory>> = [];
+  let snapshots: Awaited<ReturnType<typeof getTimelineSnapshots>> = [];
+  let trends: Awaited<ReturnType<typeof getTimelineTrends>> = { series: [], total: 0 };
+  try {
+    [history, snapshots, trends] = await Promise.all([
+      getTimelineHistory(),
+      getTimelineSnapshots(),
+      getTimelineTrends(),
+    ]);
+  } catch {
+    // Will use fallback values
+  }
 
   const hasData = history.length > 0 || snapshots.length > 0;
 

@@ -143,11 +143,12 @@ export default function ForecastingPage() {
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [evolution, setEvolution] = useState<EvolutionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([getForecast(), getEvolution()])
       .then(([f, e]) => { setForecast(f); setEvolution(e); })
-      .catch(() => {})
+      .catch(() => { setError('Failed to load forecasting data.'); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -169,6 +170,14 @@ export default function ForecastingPage() {
         </h1>
         <p className="text-sm text-text-secondary mt-1">Health trajectory, what-if analysis, and evolution tracking.</p>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400">✕</button>
+        </div>
+      )}
 
       {/* KPI Row */}
       {forecast && (

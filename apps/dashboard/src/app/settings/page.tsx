@@ -72,6 +72,7 @@ export default function SettingsPage() {
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Load settings sections from API (pure mock fallback) and hydrate from localStorage
   useEffect(() => {
@@ -92,6 +93,7 @@ export default function SettingsPage() {
           setValues(defaults);
         }
       })
+      .catch(() => setError('Failed to load settings.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -150,6 +152,12 @@ export default function SettingsPage() {
     <div className="flex flex-col min-h-screen">
       <Header title="Settings" subtitle="Configure your Recurrsive dashboard" />
       <div className="flex-1 p-6 space-y-6 max-w-3xl">
+        {error && (
+          <div className="rounded-xl px-4 py-3 bg-red-500/10 border border-red-500/30 flex items-center justify-between">
+            <span className="text-sm text-red-400">{error}</span>
+            <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-300">Dismiss</button>
+          </div>
+        )}
         {sections.map((section, i) => {
           const Icon = ICON_MAP[section.icon] ?? Globe;
           return (

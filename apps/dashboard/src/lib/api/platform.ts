@@ -336,9 +336,64 @@ export async function rotateSecret(id: string): Promise<DashboardSecret> {
 
 // ─── Intelligence Packs API ──────────────────────────────────────────────────
 
+/** Server-side intelligence pack shape (differs from DashboardIntelligencePack). */
+interface ServerIntelligencePack {
+  id: string;
+  name: string;
+  domain: string;
+  version: string;
+  description: string;
+  analyzers: string[];
+  frameworks: string[];
+  entityTypes: string[];
+  ruleCount: number;
+  status: 'available' | 'installed' | 'updating';
+  author: string;
+}
+
+/** Derive a Lucide icon name from the pack's domain. */
+const DOMAIN_ICON_MAP: Record<string, string> = {
+  fintech: 'banknote',
+  healthcare: 'heart-pulse',
+  security: 'shield',
+  'e-commerce': 'shopping-cart',
+  infrastructure: 'server',
+  compliance: 'file-check',
+  devops: 'git-branch',
+  analytics: 'bar-chart',
+};
+
 export async function getIntelligencePacks(): Promise<DashboardIntelligencePack[]> {
   try {
-    return await apiFetch<DashboardIntelligencePack[]>('/api/v1/intelligence-packs');
+    const res = await apiFetch<{ data: ServerIntelligencePack[]; total: number }>(
+      '/api/v1/intelligence-packs',
+      { unwrap: false },
+    );
+    const packs = res.data ?? [];
+    return packs.map((pack) => {
+      // Distribute ruleCount evenly across analyzers
+      const analyzerCount = pack.analyzers.length || 1;
+      const perAnalyzer = Math.round(pack.ruleCount / analyzerCount);
+      const analyzers: DashboardAnalyzer[] = pack.analyzers.map((name) => ({
+        name,
+        description: `${pack.domain} analyzer`,
+        ruleCount: perAnalyzer,
+      }));
+      return {
+        id: pack.id,
+        name: pack.name,
+        domain: pack.domain,
+        icon: DOMAIN_ICON_MAP[pack.domain.toLowerCase()] ?? 'brain',
+        version: pack.version,
+        status: pack.status,
+        description: pack.description,
+        analyzers,
+        frameworks: pack.frameworks,
+        entityTypes: pack.entityTypes,
+        totalRules: pack.ruleCount,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
   } catch {
     return [];
   }

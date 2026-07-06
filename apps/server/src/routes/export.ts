@@ -9,6 +9,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
+import type { EntityType } from '@recurrsive/core';
 import { state } from '../state.js';
 import { store } from '../store.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -360,7 +361,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         const allEntities: Array<{ id: string; name: string; type: string; qualified_name: string }> = [];
         for (const entityType of Object.keys(stats.entityCountsByType)) {
           try {
-            const entities = await graph.getEntities(entityType as any);
+            const entities = await graph.getEntities(entityType as EntityType);
             allEntities.push(...entities.map((e) => ({
               id: e.id,
               name: e.name,

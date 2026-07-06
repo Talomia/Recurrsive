@@ -47,6 +47,7 @@ export default function SimulationPage() {
         setSimulations(data);
         if (data.length > 0) setSelected(data[0]);
       })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load simulations.'))
       .finally(() => setLoading(false));
   }, []);
 

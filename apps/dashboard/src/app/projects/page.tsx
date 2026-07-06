@@ -42,6 +42,7 @@ function LanguageBadge({ language }: { language: string }) {
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newRepo, setNewRepo] = useState('');
@@ -50,7 +51,7 @@ export default function ProjectsPage() {
   useEffect(() => {
     getProjects()
       .then(setProjects)
-      .catch(() => { /* API unavailable */ })
+      .catch(() => { setError('Failed to load projects.'); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -66,7 +67,7 @@ export default function ProjectsPage() {
       setNewRepo('');
       setShowCreate(false);
     } catch {
-      // Project creation failed
+      setError('Failed to create project.');
     }
   };
 
@@ -75,7 +76,7 @@ export default function ProjectsPage() {
       await apiFetch(`/api/v1/projects/${id}`, { method: 'DELETE', unwrap: false });
       setProjects(prev => prev.filter(p => p.id !== id));
     } catch {
-      // Delete failed
+      setError('Failed to delete project.');
     }
   };
 
@@ -123,6 +124,14 @@ export default function ProjectsPage() {
           </button>
         </div>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400">✕</button>
+        </div>
+      )}
 
       {/* Create form */}
       {showCreate && (

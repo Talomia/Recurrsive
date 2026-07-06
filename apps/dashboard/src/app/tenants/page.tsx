@@ -92,6 +92,7 @@ export default function TenantsPage() {
   useEffect(() => {
     getTenants()
       .then(setTenants)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load tenants.'))
       .finally(() => setLoading(false));
   }, []);
 
