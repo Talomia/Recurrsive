@@ -37,25 +37,25 @@ describe('registerRateLimit', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  it('allows requests within the limit', async () => {
+  it ('allows requests within the limit', async () => {
     const res = await app.inject({ method: 'GET', url: '/test' });
     expect(res.statusCode).toBe(200);
     expect(res.headers['ratelimit-limit']).toBe('3');
     expect(res.headers['ratelimit-remaining']).toBe('2');
   });
 
-  it('sets rate limit headers on each request', async () => {
+  it ('sets rate limit headers on each request', async () => {
     const res = await app.inject({ method: 'GET', url: '/test' });
     expect(res.headers['ratelimit-limit']).toBeDefined();
     expect(res.headers['ratelimit-remaining']).toBeDefined();
     expect(res.headers['ratelimit-reset']).toBeDefined();
   });
 
-  it('returns 429 after exceeding the limit', async () => {
+  it ('returns 429 after exceeding the limit', async () => {
     // Use up remaining requests
     await app.inject({ method: 'GET', url: '/test' });
     await app.inject({ method: 'GET', url: '/test' });
@@ -69,7 +69,7 @@ describe('registerRateLimit', () => {
     expect(body.retryAfter).toBeGreaterThan(0);
   });
 
-  it('skips rate limiting for /health endpoint', async () => {
+  it ('skips rate limiting for /health endpoint', async () => {
     // Health checks should always succeed regardless of rate limit
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
@@ -99,11 +99,11 @@ describe('registerErrorHandler', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  it('returns 404 for unknown routes', async () => {
+  it ('returns 404 for unknown routes', async () => {
     const res = await app.inject({ method: 'GET', url: '/nonexistent' });
     expect(res.statusCode).toBe(404);
 
@@ -112,7 +112,7 @@ describe('registerErrorHandler', () => {
     expect(body.statusCode).toBe(404);
   });
 
-  it('returns structured error for 500 errors', async () => {
+  it ('returns structured error for 500 errors', async () => {
     const res = await app.inject({ method: 'GET', url: '/error/500' });
     expect(res.statusCode).toBe(500);
 
@@ -144,11 +144,11 @@ describe('validateBody', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  it('passes valid request body', async () => {
+  it ('passes valid request body', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
@@ -157,7 +157,7 @@ describe('validateBody', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('passes body with optional fields', async () => {
+  it ('passes body with optional fields', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
@@ -170,7 +170,7 @@ describe('validateBody', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('rejects body with wrong type for "path" field', async () => {
+  it ('rejects body with wrong type for "path" field', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
@@ -185,7 +185,7 @@ describe('validateBody', () => {
     expect(body.issues[0].field).toBe('path');
   });
 
-  it('rejects body with empty "path" string', async () => {
+  it ('rejects body with empty "path" string', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
@@ -194,7 +194,7 @@ describe('validateBody', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('rejects body with wrong type for "analyzers"', async () => {
+  it ('rejects body with wrong type for "analyzers"', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
@@ -206,7 +206,7 @@ describe('validateBody', () => {
     expect(body.issues.some((i: { field: string }) => i.field === 'analyzers')).toBe(true);
   });
 
-  it('rejects non-JSON body', async () => {
+  it ('rejects non-JSON body', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
@@ -217,7 +217,7 @@ describe('validateBody', () => {
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
   });
 
-  it('rejects body with wrong type for "include_reasoning"', async () => {
+  it ('rejects body with wrong type for "include_reasoning"', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',

@@ -102,7 +102,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     }
 
     // Check if user with this email already exists
-    const existingUser = findUserByEmail(email);
+    const existingUser = await findUserByEmail(email);
     if (existingUser) {
       return reply.status(409).send({
         error: 'Conflict',
@@ -111,7 +111,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     }
 
     // Check for existing pending invite for this email
-    const allInvites = store.all<Invite>(INVITES_TABLE);
+    const allInvites = await store.all<Invite>(INVITES_TABLE);
     const existingInvite = allInvites.find(
       (i) => i.email === email && i.status === 'pending',
     );
@@ -134,7 +134,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
       expiresAt: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
     };
 
-    store.set<Invite>(INVITES_TABLE, invite.id, invite);
+    await store.set<Invite>(INVITES_TABLE, invite.id, invite);
 
     logger.info(`Admin '${user.id}' created invite for '${email}' with role '${role}'`);
     return reply.status(201).send({ data: invite });
@@ -150,7 +150,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
   app.get('/api/v1/invites', {
     preHandler: [authMiddleware, requireRole('admin')],
   }, async (_request, reply) => {
-    const invites = store.all<Invite>(INVITES_TABLE);
+    const invites = await store.all<Invite>(INVITES_TABLE);
     return reply.status(200).send({
       data: invites,
       total: invites.length,
@@ -168,7 +168,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     preHandler: [authMiddleware, requireRole('admin')],
   }, async (request, reply) => {
     const { id } = request.params;
-    const invite = store.get<Invite>(INVITES_TABLE, id);
+    const invite = await store.get<Invite>(INVITES_TABLE, id);
 
     if (!invite) {
       return reply.status(404).send({
@@ -184,7 +184,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
       });
     }
 
-    store.delete(INVITES_TABLE, id);
+    await store.delete(INVITES_TABLE, id);
     logger.info(`Admin cancelled invite '${id}'`);
     return reply.status(200).send({
       data: { id },
@@ -205,7 +205,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
   app.get<{ Params: { token: string } }>('/api/v1/invites/:token/validate', async (request, reply) => {
     const { token } = request.params;
 
-    const allInvites = store.all<Invite>(INVITES_TABLE);
+    const allInvites = await store.all<Invite>(INVITES_TABLE);
     const invite = allInvites.find((i) => i.token === token);
 
     if (!invite) {
@@ -218,7 +218,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     // Check expiration
     if (new Date(invite.expiresAt) < new Date()) {
       invite.status = 'expired';
-      store.set<Invite>(INVITES_TABLE, invite.id, invite);
+      await store.set<Invite>(INVITES_TABLE, invite.id, invite);
       return reply.status(410).send({
         error: 'Gone',
         message: 'Invite has expired',
@@ -270,7 +270,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     }
 
     // Find the invite by token
-    const allInvites = store.all<Invite>(INVITES_TABLE);
+    const allInvites = await store.all<Invite>(INVITES_TABLE);
     const invite = allInvites.find((i) => i.token === token);
 
     if (!invite) {
@@ -283,7 +283,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     // Check expiration
     if (new Date(invite.expiresAt) < new Date()) {
       invite.status = 'expired';
-      store.set<Invite>(INVITES_TABLE, invite.id, invite);
+      await store.set<Invite>(INVITES_TABLE, invite.id, invite);
       return reply.status(410).send({
         error: 'Gone',
         message: 'Invite has expired',
@@ -298,7 +298,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     }
 
     // Check username availability
-    const existingUser = findUserByUsername(username);
+    const existingUser = await findUserByUsername(username);
     if (existingUser) {
       return reply.status(409).send({
         error: 'Conflict',
@@ -319,7 +319,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
       // Mark invite as accepted
       invite.status = 'accepted';
       invite.acceptedAt = nowISO();
-      store.set<Invite>(INVITES_TABLE, invite.id, invite);
+      await store.set<Invite>(INVITES_TABLE, invite.id, invite);
 
       // Generate a JWT token for the new user
       const jwtToken = createToken(newUser.id, invite.role, undefined, username);

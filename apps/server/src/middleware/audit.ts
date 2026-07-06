@@ -243,10 +243,10 @@ export function registerAuditMiddleware(app: FastifyInstance): void {
       event.role = user.role;
     }
 
-    store.set(AUDIT_TABLE, event.id, event);
+    await store.set(AUDIT_TABLE, event.id, event);
 
     // Enforce event limit — trim deterministically
-    store.trim(AUDIT_TABLE, MAX_EVENTS);
+    await store.trim(AUDIT_TABLE, MAX_EVENTS);
 
     logger.debug(
       `Audit: ${event.method} ${event.url} → ${event.statusCode} ` +
@@ -281,12 +281,12 @@ function statusGroup(statusCode: number): string {
  * @returns A filtered and paginated array of {@link AuditEvent} objects,
  *          plus the total count of matching events.
  */
-export function getAuditEvents(filters?: AuditEventFilter): {
+export async function getAuditEvents(filters?: AuditEventFilter): Promise<{
   events: AuditEvent[];
   total: number;
-} {
+}> {
   // Load events from store (newest first via recent)
-  let events = store.recent<AuditEvent>(AUDIT_TABLE, MAX_EVENTS);
+  let events = await store.recent<AuditEvent>(AUDIT_TABLE, MAX_EVENTS);
 
   if (filters?.action) {
     events = events.filter((e) => e.action === filters.action);
@@ -329,13 +329,13 @@ export function getAuditEvents(filters?: AuditEventFilter): {
  *
  * @returns An {@link AuditStats} object with totals, breakdowns, and recent errors.
  */
-export function getAuditStats(): AuditStats {
+export async function getAuditStats(): Promise<AuditStats> {
   const byAction: Record<string, number> = {};
   const byUser: Record<string, number> = {};
   const byStatusGroup: Record<string, number> = {};
   const errors: AuditEvent[] = [];
 
-  const allEvents = store.all<AuditEvent>(AUDIT_TABLE);
+  const allEvents = await store.all<AuditEvent>(AUDIT_TABLE);
 
   for (const event of allEvents) {
     // By action
@@ -369,8 +369,8 @@ export function getAuditStats(): AuditStats {
  *
  * Primarily intended for test cleanup.
  */
-export function clearAuditEvents(): void {
-  store.clear(AUDIT_TABLE);
+export async function clearAuditEvents(): Promise<void> {
+  await store.clear(AUDIT_TABLE);
 }
 
 /**
@@ -378,6 +378,6 @@ export function clearAuditEvents(): void {
  *
  * @returns The internal audit buffer array (read-only).
  */
-export function getAuditBuffer(): readonly AuditEvent[] {
-  return store.all<AuditEvent>(AUDIT_TABLE);
+export async function getAuditBuffer(): Promise<readonly AuditEvent[]> {
+  return await store.all<AuditEvent>(AUDIT_TABLE);
 }

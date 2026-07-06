@@ -53,59 +53,59 @@ import type { AuthUser } from '../middleware/auth.js';
 // ---------------------------------------------------------------------------
 
 describe('classifyAction — action classification', () => {
-  it('classifies GET requests as "read"', () => {
+  it('classifies GET requests as "read"', async () => {
     expect(classifyAction('GET', '/api/v1/opportunities')).toBe('read');
   });
 
-  it('classifies HEAD requests as "read"', () => {
+  it('classifies HEAD requests as "read"', async () => {
     expect(classifyAction('HEAD', '/api/v1/health')).toBe('read');
   });
 
-  it('classifies OPTIONS requests as "read"', () => {
+  it('classifies OPTIONS requests as "read"', async () => {
     expect(classifyAction('OPTIONS', '/api/v1/opportunities')).toBe('read');
   });
 
-  it('classifies POST requests as "write"', () => {
+  it('classifies POST requests as "write"', async () => {
     expect(classifyAction('POST', '/api/v1/analyze')).toBe('write');
   });
 
-  it('classifies PUT requests as "write"', () => {
+  it('classifies PUT requests as "write"', async () => {
     expect(classifyAction('PUT', '/api/v1/opportunities/123')).toBe('write');
   });
 
-  it('classifies PATCH requests as "write"', () => {
+  it('classifies PATCH requests as "write"', async () => {
     expect(classifyAction('PATCH', '/api/v1/opportunities/123')).toBe('write');
   });
 
-  it('classifies DELETE requests as "delete"', () => {
+  it('classifies DELETE requests as "delete"', async () => {
     expect(classifyAction('DELETE', '/api/v1/api-keys/key-1')).toBe('delete');
   });
 
-  it('classifies auth URLs as "auth"', () => {
+  it('classifies auth URLs as "auth"', async () => {
     expect(classifyAction('POST', '/api/v1/auth/login')).toBe('auth');
   });
 
-  it('classifies auth refresh as "auth"', () => {
+  it('classifies auth refresh as "auth"', async () => {
     expect(classifyAction('POST', '/api/v1/auth/refresh')).toBe('auth');
   });
 
-  it('classifies GET /api/v1/auth/me as "auth"', () => {
+  it('classifies GET /api/v1/auth/me as "auth"', async () => {
     expect(classifyAction('GET', '/api/v1/auth/me')).toBe('auth');
   });
 
-  it('classifies admin URLs as "admin"', () => {
+  it('classifies admin URLs as "admin"', async () => {
     expect(classifyAction('POST', '/api/v1/admin/settings')).toBe('admin');
   });
 
-  it('classifies admin URLs with GET as "admin"', () => {
+  it('classifies admin URLs with GET as "admin"', async () => {
     expect(classifyAction('GET', '/api/v1/admin/users')).toBe('admin');
   });
 
-  it('strips query params before classification', () => {
+  it('strips query params before classification', async () => {
     expect(classifyAction('GET', '/api/v1/opportunities?limit=10')).toBe('read');
   });
 
-  it('is case-insensitive on method', () => {
+  it('is case-insensitive on method', async () => {
     expect(classifyAction('get', '/api/v1/findings')).toBe('read');
     expect(classifyAction('post', '/api/v1/analyze')).toBe('write');
     expect(classifyAction('delete', '/api/v1/webhooks/123')).toBe('delete');
@@ -117,43 +117,43 @@ describe('classifyAction — action classification', () => {
 // ---------------------------------------------------------------------------
 
 describe('extractResource — URL resource extraction', () => {
-  it('extracts opportunity resource from /api/v1/opportunities/123', () => {
+  it('extracts opportunity resource from /api/v1/opportunities/123', async () => {
     const result = extractResource('/api/v1/opportunities/123');
     expect(result.resourceType).toBe('opportunity');
     expect(result.resourceId).toBe('123');
   });
 
-  it('extracts finding resource from /api/v1/findings/f-456', () => {
+  it('extracts finding resource from /api/v1/findings/f-456', async () => {
     const result = extractResource('/api/v1/findings/f-456');
     expect(result.resourceType).toBe('finding');
     expect(result.resourceId).toBe('f-456');
   });
 
-  it('extracts resource type without ID for collection endpoints', () => {
+  it('extracts resource type without ID for collection endpoints', async () => {
     const result = extractResource('/api/v1/webhooks');
     expect(result.resourceType).toBe('webhook');
     expect(result.resourceId).toBeUndefined();
   });
 
-  it('handles api-keys resource with hyphen', () => {
+  it('handles api-keys resource with hyphen', async () => {
     const result = extractResource('/api/v1/api-keys/key-abc');
     expect(result.resourceType).toBe('api-key');
     expect(result.resourceId).toBe('key-abc');
   });
 
-  it('returns empty for non-API URLs', () => {
+  it('returns empty for non-API URLs', async () => {
     const result = extractResource('/health');
     expect(result.resourceType).toBeUndefined();
     expect(result.resourceId).toBeUndefined();
   });
 
-  it('strips query params before extraction', () => {
+  it('strips query params before extraction', async () => {
     const result = extractResource('/api/v1/opportunities/99?include=details');
     expect(result.resourceType).toBe('opportunity');
     expect(result.resourceId).toBe('99');
   });
 
-  it('extracts audit resource', () => {
+  it('extracts audit resource', async () => {
     const result = extractResource('/api/v1/audit');
     expect(result.resourceType).toBe('audit');
     expect(result.resourceId).toBeUndefined();
@@ -220,128 +220,128 @@ describe('Audit middleware — Fastify integration', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  beforeEach(() => {
-    clearAuditEvents();
+  beforeEach (async () => {
+    await clearAuditEvents();
     idCounter = 0;
   });
 
-  it('captures request method and URL', async () => {
+  it ('captures request method and URL', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events).toHaveLength(1);
     expect(events[0]!.method).toBe('GET');
     expect(events[0]!.url).toBe('/api/v1/opportunities');
   });
 
-  it('captures status code', async () => {
+  it ('captures status code', async () => {
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events).toHaveLength(1);
     expect(events[0]!.statusCode).toBe(202);
   });
 
-  it('captures authenticated user info', async () => {
+  it ('captures authenticated user info', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/findings/f-1' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events).toHaveLength(1);
     expect(events[0]!.userId).toBe('user-42');
     expect(events[0]!.username).toBe('user-42');
     expect(events[0]!.role).toBe('analyst');
   });
 
-  it('omits user info for anonymous requests', async () => {
+  it ('omits user info for anonymous requests', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events).toHaveLength(1);
     expect(events[0]!.userId).toBeUndefined();
     expect(events[0]!.username).toBeUndefined();
     expect(events[0]!.role).toBeUndefined();
   });
 
-  it('classifies GET as "read" action', async () => {
+  it ('classifies GET as "read" action', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.action).toBe('read');
   });
 
-  it('classifies POST as "write" action', async () => {
+  it ('classifies POST as "write" action', async () => {
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.action).toBe('write');
   });
 
-  it('classifies DELETE as "delete" action', async () => {
+  it ('classifies DELETE as "delete" action', async () => {
     await app.inject({ method: 'DELETE', url: '/api/v1/webhooks/wh-1' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.action).toBe('delete');
   });
 
-  it('classifies auth URLs as "auth" action', async () => {
+  it ('classifies auth URLs as "auth" action', async () => {
     await app.inject({ method: 'POST', url: '/api/v1/auth/login' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.action).toBe('auth');
   });
 
-  it('extracts resource type from URL', async () => {
+  it ('extracts resource type from URL', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/findings/f-1' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.resourceType).toBe('finding');
     expect(events[0]!.resourceId).toBe('f-1');
   });
 
-  it('captures IP address', async () => {
+  it ('captures IP address', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.ip).toBeDefined();
     expect(typeof events[0]!.ip).toBe('string');
   });
 
-  it('captures user-agent header', async () => {
+  it ('captures user-agent header', async () => {
     await app.inject({
       method: 'GET',
       url: '/api/v1/opportunities',
       headers: { 'user-agent': 'TestRunner/1.0' },
     });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.userAgent).toBe('TestRunner/1.0');
   });
 
-  it('captures duration_ms as a non-negative number', async () => {
+  it ('captures duration_ms as a non-negative number', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.duration_ms).toBeGreaterThanOrEqual(0);
     expect(typeof events[0]!.duration_ms).toBe('number');
   });
 
-  it('assigns unique IDs to each event', async () => {
+  it ('assigns unique IDs to each event', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events).toHaveLength(2);
     expect(events[0]!.id).not.toBe(events[1]!.id);
   });
 
-  it('sets timestamp on each event', async () => {
+  it ('sets timestamp on each event', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     expect(events[0]!.timestamp).toBe('2026-07-01T12:00:00.000Z');
   });
 
@@ -349,22 +349,22 @@ describe('Audit middleware — Fastify integration', () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
-    const { events } = getAuditEvents();
+    const { events } = await getAuditEvents();
     // The POST was the second request, so it should appear first (newest)
     expect(events[0]!.method).toBe('POST');
     expect(events[1]!.method).toBe('GET');
   });
 
-  it('clearAuditEvents removes all events', async () => {
+  it ('clearAuditEvents removes all events', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
-    expect(getAuditBuffer().length).toBe(2);
+    expect((await getAuditBuffer()).length).toBe(2);
 
-    clearAuditEvents();
+    await clearAuditEvents();
 
-    expect(getAuditBuffer().length).toBe(0);
-    expect(getAuditEvents().events).toHaveLength(0);
+    expect((await getAuditBuffer()).length).toBe(0);
+    expect((await getAuditEvents()).events).toHaveLength(0);
   });
 });
 
@@ -386,12 +386,12 @@ describe('Audit buffer — circular buffer behaviour', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  beforeEach(() => {
-    clearAuditEvents();
+  beforeEach (async () => {
+    await clearAuditEvents();
   });
 
   it('does not exceed 1000 events', async () => {
@@ -402,7 +402,7 @@ describe('Audit buffer — circular buffer behaviour', () => {
     }
     await Promise.all(promises);
 
-    const buffer = getAuditBuffer();
+    const buffer = await getAuditBuffer();
     expect(buffer.length).toBeLessThanOrEqual(1000);
   });
 });
@@ -426,58 +426,58 @@ describe('getAuditEvents — filtering', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  beforeEach(() => {
-    clearAuditEvents();
+  beforeEach (async () => {
+    await clearAuditEvents();
   });
 
-  it('filters by action', async () => {
+  it ('filters by action', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
     await app.inject({ method: 'DELETE', url: '/api/v1/webhooks/1' });
 
-    const { events } = getAuditEvents({ action: 'read' });
+    const { events } = await getAuditEvents({ action: 'read' });
     expect(events).toHaveLength(1);
     expect(events[0]!.action).toBe('read');
   });
 
-  it('filters by method', async () => {
+  it ('filters by method', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
-    const { events } = getAuditEvents({ method: 'POST' });
+    const { events } = await getAuditEvents({ method: 'POST' });
     expect(events).toHaveLength(1);
     expect(events[0]!.method).toBe('POST');
   });
 
-  it('filters by status group', async () => {
+  it ('filters by status group', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'GET', url: '/api/v1/error' });
 
-    const { events } = getAuditEvents({ status: '5xx' });
+    const { events } = await getAuditEvents({ status: '5xx' });
     expect(events).toHaveLength(1);
     expect(events[0]!.statusCode).toBe(500);
   });
 
-  it('respects limit parameter', async () => {
+  it ('respects limit parameter', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
-    const { events, total } = getAuditEvents({ limit: 2 });
+    const { events, total } = await getAuditEvents({ limit: 2 });
     expect(events).toHaveLength(2);
     expect(total).toBe(3);
   });
 
-  it('respects offset parameter', async () => {
+  it ('respects offset parameter', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
     await app.inject({ method: 'DELETE', url: '/api/v1/webhooks/1' });
 
-    const { events } = getAuditEvents({ offset: 1, limit: 1 });
+    const { events } = await getAuditEvents({ offset: 1, limit: 1 });
     expect(events).toHaveLength(1);
     // Offset 1 from newest-first, so should be the second-newest (POST)
     expect(events[0]!.method).toBe('POST');
@@ -503,49 +503,49 @@ describe('getAuditStats — aggregation', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  beforeEach(() => {
-    clearAuditEvents();
+  beforeEach (async () => {
+    await clearAuditEvents();
   });
 
-  it('returns correct total', async () => {
+  it ('returns correct total', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
-    const stats = getAuditStats();
+    const stats = await getAuditStats();
     expect(stats.total).toBe(2);
   });
 
-  it('groups by action correctly', async () => {
+  it ('groups by action correctly', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
-    const stats = getAuditStats();
+    const stats = await getAuditStats();
     expect(stats.byAction['read']).toBe(2);
     expect(stats.byAction['write']).toBe(1);
   });
 
-  it('groups by status correctly', async () => {
+  it ('groups by status correctly', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'GET', url: '/api/v1/error' });
     await app.inject({ method: 'GET', url: '/api/v1/notfound' });
 
-    const stats = getAuditStats();
+    const stats = await getAuditStats();
     expect(stats.byStatusGroup['2xx']).toBe(1);
     expect(stats.byStatusGroup['5xx']).toBe(1);
     expect(stats.byStatusGroup['4xx']).toBe(1);
   });
 
-  it('includes recent errors', async () => {
+  it ('includes recent errors', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'GET', url: '/api/v1/error' });
     await app.inject({ method: 'GET', url: '/api/v1/notfound' });
 
-    const stats = getAuditStats();
+    const stats = await getAuditStats();
     expect(stats.recentErrors).toHaveLength(2);
     // Recent errors should include the 404 and 500
     const errorCodes = stats.recentErrors.map((e) => e.statusCode);
@@ -553,10 +553,10 @@ describe('getAuditStats — aggregation', () => {
     expect(errorCodes).toContain(500);
   });
 
-  it('counts anonymous users under "anonymous" key', async () => {
+  it ('counts anonymous users under "anonymous" key', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
-    const stats = getAuditStats();
+    const stats = await getAuditStats();
     expect(stats.byUser['anonymous']).toBe(1);
   });
 });
@@ -584,25 +584,25 @@ describe('Audit routes — /api/v1/audit', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  beforeEach(() => {
-    clearAuditEvents();
+  beforeEach (async () => {
+    await clearAuditEvents();
   });
 
-  it('GET /api/v1/audit requires authentication', async () => {
+  it ('GET /api/v1/audit requires authentication', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/audit' });
     expect(res.statusCode).toBe(401);
   });
 
-  it('GET /api/v1/audit/stats requires authentication', async () => {
+  it ('GET /api/v1/audit/stats requires authentication', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/audit/stats' });
     expect(res.statusCode).toBe(401);
   });
 
-  it('GET /api/v1/audit rejects viewer role', async () => {
+  it ('GET /api/v1/audit rejects viewer role', async () => {
     const token = createToken('user-viewer', 'viewer');
     const res = await app.inject({
       method: 'GET',
@@ -612,7 +612,7 @@ describe('Audit routes — /api/v1/audit', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('GET /api/v1/audit returns events for analyst', async () => {
+  it ('GET /api/v1/audit returns events for analyst', async () => {
     // Generate some events first
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
@@ -632,7 +632,7 @@ describe('Audit routes — /api/v1/audit', () => {
     expect(body.total).toBeGreaterThanOrEqual(2);
   });
 
-  it('GET /api/v1/audit returns events for admin', async () => {
+  it ('GET /api/v1/audit returns events for admin', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
     const token = createToken('user-admin', 'admin');
@@ -647,7 +647,7 @@ describe('Audit routes — /api/v1/audit', () => {
     expect(body.data).toBeDefined();
   });
 
-  it('GET /api/v1/audit supports action filter', async () => {
+  it ('GET /api/v1/audit supports action filter', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
@@ -666,7 +666,7 @@ describe('Audit routes — /api/v1/audit', () => {
     }
   });
 
-  it('GET /api/v1/audit rejects invalid action filter', async () => {
+  it ('GET /api/v1/audit rejects invalid action filter', async () => {
     const token = createToken('user-analyst', 'analyst');
     const res = await app.inject({
       method: 'GET',
@@ -679,7 +679,7 @@ describe('Audit routes — /api/v1/audit', () => {
     expect(body.error).toBe('Invalid filter');
   });
 
-  it('GET /api/v1/audit supports limit parameter', async () => {
+  it ('GET /api/v1/audit supports limit parameter', async () => {
     // Generate multiple events
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
@@ -698,7 +698,7 @@ describe('Audit routes — /api/v1/audit', () => {
     expect(body.limit).toBe(2);
   });
 
-  it('GET /api/v1/audit/stats returns aggregated stats', async () => {
+  it ('GET /api/v1/audit/stats returns aggregated stats', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
     await app.inject({ method: 'POST', url: '/api/v1/analyze' });
 
@@ -719,7 +719,7 @@ describe('Audit routes — /api/v1/audit', () => {
     expect(Array.isArray(body.data.recentErrors)).toBe(true);
   });
 
-  it('GET /api/v1/audit includes pagination metadata', async () => {
+  it ('GET /api/v1/audit includes pagination metadata', async () => {
     await app.inject({ method: 'GET', url: '/api/v1/opportunities' });
 
     const token = createToken('user-analyst', 'analyst');

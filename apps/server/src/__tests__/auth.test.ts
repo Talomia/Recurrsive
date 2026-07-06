@@ -47,7 +47,7 @@ import { registerAuthRoutes } from '../routes/auth.js';
 // ---------------------------------------------------------------------------
 
 describe('JWT Token — createToken / verifyToken', () => {
-  it('creates a token string with three dot-separated parts', () => {
+  it('creates a token string with three dot-separated parts', async () => {
     const token = createToken('user-1', 'admin');
     const parts = token.split('.');
     expect(parts).toHaveLength(3);
@@ -57,7 +57,7 @@ describe('JWT Token — createToken / verifyToken', () => {
     }
   });
 
-  it('verifyToken returns the correct payload for a valid token', () => {
+  it('verifyToken returns the correct payload for a valid token', async () => {
     const token = createToken('user-42', 'analyst');
     const payload = verifyToken(token);
     expect(payload).not.toBeNull();
@@ -68,7 +68,7 @@ describe('JWT Token — createToken / verifyToken', () => {
     expect(payload!.exp).toBeGreaterThan(payload!.iat);
   });
 
-  it('rejects a token with a tampered payload', () => {
+  it('rejects a token with a tampered payload', async () => {
     const token = createToken('user-1', 'admin');
     const parts = token.split('.');
     // Tamper with the payload (flip a character)
@@ -76,26 +76,26 @@ describe('JWT Token — createToken / verifyToken', () => {
     expect(verifyToken(tampered)).toBeNull();
   });
 
-  it('rejects a token with a tampered signature', () => {
+  it('rejects a token with a tampered signature', async () => {
     const token = createToken('user-1', 'admin');
     const parts = token.split('.');
     const tampered = `${parts[0]}.${parts[1]}.invalidsignature`;
     expect(verifyToken(tampered)).toBeNull();
   });
 
-  it('rejects a token with wrong number of parts', () => {
+  it('rejects a token with wrong number of parts', async () => {
     expect(verifyToken('only.two')).toBeNull();
     expect(verifyToken('one')).toBeNull();
     expect(verifyToken('a.b.c.d')).toBeNull();
   });
 
-  it('rejects an expired token', () => {
+  it('rejects an expired token', async () => {
     // Create a token with -1 second TTL (already expired)
     const token = createToken('user-1', 'viewer', -1);
     expect(verifyToken(token)).toBeNull();
   });
 
-  it('respects custom TTL', () => {
+  it('respects custom TTL', async () => {
     const token = createToken('user-1', 'viewer', 7200);
     const payload = verifyToken(token);
     expect(payload).not.toBeNull();
@@ -103,11 +103,11 @@ describe('JWT Token — createToken / verifyToken', () => {
     expect(payload!.exp - payload!.iat).toBe(7200);
   });
 
-  it('rejects an empty string', () => {
+  it('rejects an empty string', async () => {
     expect(verifyToken('')).toBeNull();
   });
 
-  it('rejects a totally invalid string', () => {
+  it('rejects a totally invalid string', async () => {
     expect(verifyToken('not-a-jwt-at-all')).toBeNull();
   });
 });
@@ -116,18 +116,18 @@ describe('JWT Token — createToken / verifyToken', () => {
 // API key unit tests
 // ---------------------------------------------------------------------------
 
-describe('API Key — generate / validate / revoke / list', () => {
-  beforeEach(() => {
-    clearApiKeys();
+describe ('API Key — generate / validate / revoke / list', () => {
+  beforeEach(async () => {
+    await clearApiKeys();
   });
 
-  it('generateApiKey returns a key starting with "rk_"', () => {
-    const result = generateApiKey('test-key', 'user-1', 'admin');
+  it ('generateApiKey returns a key starting with "rk_"', async () => {
+    const result = await generateApiKey('test-key', 'user-1', 'admin');
     expect(result.key).toMatch(/^rk_[a-f0-9]{64}$/);
   });
 
-  it('generateApiKey returns info with correct metadata', () => {
-    const result = generateApiKey('my-key', 'user-2', 'analyst');
+  it ('generateApiKey returns info with correct metadata', async () => {
+    const result = await generateApiKey('my-key', 'user-2', 'analyst');
     expect(result.info.name).toBe('my-key');
     expect(result.info.userId).toBe('user-2');
     expect(result.info.role).toBe('analyst');
@@ -137,62 +137,62 @@ describe('API Key — generate / validate / revoke / list', () => {
     expect(result.info.expiresAt).toBeNull();
   });
 
-  it('validateApiKey returns info for a valid key', () => {
-    const { key } = generateApiKey('test', 'user-1', 'viewer');
-    const info = validateApiKey(key);
+  it('validateApiKey returns info for a valid key', async () => {
+    const { key } = await generateApiKey('test', 'user-1', 'viewer');
+    const info = await validateApiKey(key);
     expect(info).not.toBeNull();
     expect(info!.name).toBe('test');
     expect(info!.role).toBe('viewer');
   });
 
-  it('validateApiKey updates lastUsedAt on validation', () => {
-    const { key } = generateApiKey('test', 'user-1', 'viewer');
-    const info = validateApiKey(key);
+  it('validateApiKey updates lastUsedAt on validation', async () => {
+    const { key } = await generateApiKey('test', 'user-1', 'viewer');
+    const info = await validateApiKey(key);
     expect(info).not.toBeNull();
     expect(info!.lastUsedAt).not.toBeNull();
   });
 
-  it('validateApiKey returns null for an unknown key', () => {
-    expect(validateApiKey('rk_nonexistent')).toBeNull();
+  it ('validateApiKey returns null for an unknown key', async () => {
+    expect(await validateApiKey('rk_nonexistent')).toBeNull();
   });
 
-  it('validateApiKey returns null for an expired key', () => {
+  it('validateApiKey returns null for an expired key', async () => {
     // Create a key that expired in the past
-    const { key } = generateApiKey('expired', 'user-1', 'admin', '2020-01-01T00:00:00Z');
-    expect(validateApiKey(key)).toBeNull();
+    const { key } = await generateApiKey('expired', 'user-1', 'admin', '2020-01-01T00:00:00Z');
+    expect(await validateApiKey(key)).toBeNull();
   });
 
-  it('revokeApiKey returns true and removes a valid key', () => {
-    const { key, info } = generateApiKey('to-revoke', 'user-1', 'admin');
-    expect(revokeApiKey(info.id)).toBe(true);
-    expect(validateApiKey(key)).toBeNull();
+  it('revokeApiKey returns true and removes a valid key', async () => {
+    const { key, info } = await generateApiKey('to-revoke', 'user-1', 'admin');
+    expect(await revokeApiKey(info.id)).toBe(true);
+    expect(await validateApiKey(key)).toBeNull();
   });
 
-  it('revokeApiKey returns false for an unknown ID', () => {
-    expect(revokeApiKey('nonexistent-id')).toBe(false);
+  it ('revokeApiKey returns false for an unknown ID', async () => {
+    expect(await revokeApiKey('nonexistent-id')).toBe(false);
   });
 
-  it('listApiKeys returns all keys when no userId is given', () => {
-    generateApiKey('key-a', 'user-1', 'admin');
-    generateApiKey('key-b', 'user-2', 'viewer');
-    const all = listApiKeys();
+  it ('listApiKeys returns all keys when no userId is given', async () => {
+    await generateApiKey('key-a', 'user-1', 'admin');
+    await generateApiKey('key-b', 'user-2', 'viewer');
+    const all = await listApiKeys();
     expect(all).toHaveLength(2);
   });
 
-  it('listApiKeys filters by userId', () => {
-    generateApiKey('key-a', 'user-1', 'admin');
-    generateApiKey('key-b', 'user-2', 'viewer');
-    generateApiKey('key-c', 'user-1', 'analyst');
-    const user1Keys = listApiKeys('user-1');
+  it ('listApiKeys filters by userId', async () => {
+    await generateApiKey('key-a', 'user-1', 'admin');
+    await generateApiKey('key-b', 'user-2', 'viewer');
+    await generateApiKey('key-c', 'user-1', 'analyst');
+    const user1Keys = await listApiKeys('user-1');
     expect(user1Keys).toHaveLength(2);
     expect(user1Keys.every((k) => k.userId === 'user-1')).toBe(true);
   });
 
-  it('clearApiKeys removes all keys', () => {
-    generateApiKey('key-a', 'user-1', 'admin');
-    generateApiKey('key-b', 'user-2', 'viewer');
-    clearApiKeys();
-    expect(listApiKeys()).toHaveLength(0);
+  it ('clearApiKeys removes all keys', async () => {
+    await generateApiKey('key-a', 'user-1', 'admin');
+    await generateApiKey('key-b', 'user-2', 'viewer');
+    await clearApiKeys();
+    expect(await listApiKeys()).toHaveLength(0);
   });
 });
 
@@ -201,37 +201,37 @@ describe('API Key — generate / validate / revoke / list', () => {
 // ---------------------------------------------------------------------------
 
 describe('RBAC — role checks', () => {
-  it('isValidRole accepts admin, analyst, viewer', () => {
+  it('isValidRole accepts admin, analyst, viewer', async () => {
     expect(isValidRole('admin')).toBe(true);
     expect(isValidRole('analyst')).toBe(true);
     expect(isValidRole('viewer')).toBe(true);
   });
 
-  it('isValidRole rejects invalid strings', () => {
+  it('isValidRole rejects invalid strings', async () => {
     expect(isValidRole('superadmin')).toBe(false);
     expect(isValidRole('')).toBe(false);
     expect(isValidRole('ADMIN')).toBe(false);
   });
 
-  it('hasMinRole: admin ≥ all roles', () => {
+  it('hasMinRole: admin ≥ all roles', async () => {
     expect(hasMinRole('admin', 'admin')).toBe(true);
     expect(hasMinRole('admin', 'analyst')).toBe(true);
     expect(hasMinRole('admin', 'viewer')).toBe(true);
   });
 
-  it('hasMinRole: analyst ≥ analyst and viewer but not admin', () => {
+  it('hasMinRole: analyst ≥ analyst and viewer but not admin', async () => {
     expect(hasMinRole('analyst', 'analyst')).toBe(true);
     expect(hasMinRole('analyst', 'viewer')).toBe(true);
     expect(hasMinRole('analyst', 'admin')).toBe(false);
   });
 
-  it('hasMinRole: viewer ≥ viewer only', () => {
+  it('hasMinRole: viewer ≥ viewer only', async () => {
     expect(hasMinRole('viewer', 'viewer')).toBe(true);
     expect(hasMinRole('viewer', 'analyst')).toBe(false);
     expect(hasMinRole('viewer', 'admin')).toBe(false);
   });
 
-  it('PERMISSIONS map is defined and contains expected keys', () => {
+  it('PERMISSIONS map is defined and contains expected keys', async () => {
     expect(PERMISSIONS).toBeDefined();
     expect(PERMISSIONS['api-keys:create']).toBe('admin');
     expect(PERMISSIONS['analysis:view']).toBe('viewer');
@@ -282,22 +282,22 @@ describe('Auth middleware — Fastify integration', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  beforeEach(() => {
-    clearApiKeys();
+  beforeEach (async () => {
+    await clearApiKeys();
   });
 
-  it('rejects request without auth header with 401', async () => {
+  it ('rejects request without auth header with 401', async () => {
     const res = await app.inject({ method: 'GET', url: '/protected' });
     expect(res.statusCode).toBe(401);
     const body = JSON.parse(res.payload);
     expect(body.error).toBe('Unauthorized');
   });
 
-  it('accepts request with a valid JWT Bearer token', async () => {
+  it ('accepts request with a valid JWT Bearer token', async () => {
     const token = createToken('user-admin', 'admin');
     const res = await app.inject({
       method: 'GET',
@@ -310,7 +310,7 @@ describe('Auth middleware — Fastify integration', () => {
     expect(body.role).toBe('admin');
   });
 
-  it('rejects request with an invalid JWT', async () => {
+  it ('rejects request with an invalid JWT', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/protected',
@@ -320,7 +320,7 @@ describe('Auth middleware — Fastify integration', () => {
   });
 
   it('accepts request with a valid API key', async () => {
-    const { key } = generateApiKey('test-key', 'user-analyst', 'analyst');
+    const { key } = await generateApiKey('test-key', 'user-analyst', 'analyst');
     const res = await app.inject({
       method: 'GET',
       url: '/protected',
@@ -332,7 +332,7 @@ describe('Auth middleware — Fastify integration', () => {
     expect(body.role).toBe('analyst');
   });
 
-  it('rejects request with an invalid API key', async () => {
+  it ('rejects request with an invalid API key', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/protected',
@@ -341,7 +341,7 @@ describe('Auth middleware — Fastify integration', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('optional auth passes without credentials and sets user to null', async () => {
+  it ('optional auth passes without credentials and sets user to null', async () => {
     const res = await app.inject({ method: 'GET', url: '/optional' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -349,7 +349,7 @@ describe('Auth middleware — Fastify integration', () => {
     expect(body.userId).toBeNull();
   });
 
-  it('optional auth decorates user when valid token is given', async () => {
+  it ('optional auth decorates user when valid token is given', async () => {
     const token = createToken('user-viewer', 'viewer');
     const res = await app.inject({
       method: 'GET',
@@ -363,7 +363,7 @@ describe('Auth middleware — Fastify integration', () => {
   });
 
   // RBAC integration
-  it('admin can access admin-only route', async () => {
+  it ('admin can access admin-only route', async () => {
     const token = createToken('user-admin', 'admin');
     const res = await app.inject({
       method: 'GET',
@@ -397,7 +397,7 @@ describe('Auth middleware — Fastify integration', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('analyst can access analyst-or-above route', async () => {
+  it ('analyst can access analyst-or-above route', async () => {
     const token = createToken('user-analyst', 'analyst');
     const res = await app.inject({
       method: 'GET',
@@ -407,7 +407,7 @@ describe('Auth middleware — Fastify integration', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('admin can access analyst-or-above route', async () => {
+  it ('admin can access analyst-or-above route', async () => {
     const token = createToken('user-admin', 'admin');
     const res = await app.inject({
       method: 'GET',
@@ -427,7 +427,7 @@ describe('Auth middleware — Fastify integration', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('requireRole rejects unauthenticated request with 401', async () => {
+  it ('requireRole rejects unauthenticated request with 401', async () => {
     const res = await app.inject({ method: 'GET', url: '/admin-only' });
     expect(res.statusCode).toBe(401);
   });
@@ -446,17 +446,17 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     await app.ready();
   });
 
-  afterAll(async () => {
+  afterAll (async () => {
     await app.close();
   });
 
-  beforeEach(() => {
-    clearApiKeys();
+  beforeEach (async () => {
+    await clearApiKeys();
   });
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
-  it('POST /api/v1/auth/login succeeds with valid admin credentials', async () => {
+  it ('POST /api/v1/auth/login succeeds with valid admin credentials', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -470,7 +470,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(body.data.user.username).toBe('admin');
   });
 
-  it('POST /api/v1/auth/login succeeds with analyst credentials', async () => {
+  it ('POST /api/v1/auth/login succeeds with analyst credentials', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -481,7 +481,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(body.data.user.role).toBe('analyst');
   });
 
-  it('POST /api/v1/auth/login rejects wrong password', async () => {
+  it ('POST /api/v1/auth/login rejects wrong password', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -492,7 +492,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(body.error).toBe('Unauthorized');
   });
 
-  it('POST /api/v1/auth/login rejects unknown user', async () => {
+  it ('POST /api/v1/auth/login rejects unknown user', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -501,7 +501,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('POST /api/v1/auth/login returns 400 with missing fields', async () => {
+  it ('POST /api/v1/auth/login returns 400 with missing fields', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -512,7 +512,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
 
   // ── Refresh ────────────────────────────────────────────────────────────────
 
-  it('POST /api/v1/auth/refresh returns a new token', async () => {
+  it ('POST /api/v1/auth/refresh returns a new token', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -536,7 +536,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(payload!.role).toBe('admin');
   });
 
-  it('POST /api/v1/auth/refresh rejects without auth', async () => {
+  it ('POST /api/v1/auth/refresh rejects without auth', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/refresh',
@@ -546,7 +546,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
 
   // ── Me ─────────────────────────────────────────────────────────────────────
 
-  it('GET /api/v1/auth/me returns current user info', async () => {
+  it ('GET /api/v1/auth/me returns current user info', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -567,7 +567,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(body.data.authMethod).toBe('jwt');
   });
 
-  it('GET /api/v1/auth/me rejects without auth', async () => {
+  it ('GET /api/v1/auth/me rejects without auth', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/auth/me',
@@ -616,7 +616,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('POST /api/v1/api-keys returns 400 without name', async () => {
+  it ('POST /api/v1/api-keys returns 400 without name', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -634,7 +634,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('GET /api/v1/api-keys lists keys for admin', async () => {
+  it ('GET /api/v1/api-keys lists keys for admin', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -662,7 +662,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(body.total).toBeGreaterThanOrEqual(1);
   });
 
-  it('DELETE /api/v1/api-keys/:id revokes a key', async () => {
+  it ('DELETE /api/v1/api-keys/:id revokes a key', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -690,7 +690,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(body.message).toBe('API key revoked');
   });
 
-  it('DELETE /api/v1/api-keys/:id returns 404 for unknown id', async () => {
+  it ('DELETE /api/v1/api-keys/:id returns 404 for unknown id', async () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',

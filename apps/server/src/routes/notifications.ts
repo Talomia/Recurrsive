@@ -52,8 +52,8 @@ export interface ChannelInfo {
 
 const MAX_HISTORY = 50;
 
-function generateNotificationId(): string {
-  const count = store.count('notifications') + 1;
+async function generateNotificationId(): Promise<string> {
+  const count = await store.count('notifications') + 1;
   return `notif_${String(count).padStart(6, '0')}`;
 }
 
@@ -233,7 +233,7 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
       });
     }
 
-    const id = generateNotificationId();
+    const id = await generateNotificationId();
     const testMessage = 'Test notification sent successfully';
     const now = new Date().toISOString();
 
@@ -266,8 +266,8 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
     };
 
     // Append to store and trim to MAX_HISTORY
-    store.append<NotificationRecord>('notifications', record);
-    store.trim('notifications', MAX_HISTORY);
+    await store.append<NotificationRecord>('notifications', record);
+    await store.trim('notifications', MAX_HISTORY);
 
     return reply.status(200).send({
       status: record.status,
@@ -283,10 +283,10 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
    * Return recent notification history (last 50 notifications).
    */
   app.get('/api/v1/notifications/history', async (_request, reply) => {
-    const recent = store.recent<NotificationRecord>('notifications', MAX_HISTORY);
+    const recent = await store.recent<NotificationRecord>('notifications', MAX_HISTORY);
     return reply.status(200).send({
       data: recent,
-      total: store.count('notifications'),
+      total: await store.count('notifications'),
       max_retained: MAX_HISTORY,
     });
   });
@@ -298,10 +298,10 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
    * with a simplified response shape.
    */
   app.get('/api/v1/notifications', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const recent = store.recent<NotificationRecord>('notifications', MAX_HISTORY);
+    const recent = await store.recent<NotificationRecord>('notifications', MAX_HISTORY);
     return reply.status(200).send({
       data: recent,
-      total: store.count('notifications'),
+      total: await store.count('notifications'),
     });
   });
 }

@@ -89,8 +89,8 @@ interface SSOSession {
  * Validates structure, timestamps, and issuer. No signature verification
  * (would require a crypto library like xml-crypto).
  */
-function parseSAMLResponse(provider: string, samlResponse: string): SAMLAssertion {
-  const config = store.get<SSOConfig>('sso_configs', provider);
+async function parseSAMLResponse(provider: string, samlResponse: string): Promise<SAMLAssertion> {
+  const config = await store.get<SSOConfig>('sso_configs', provider);
 
   // Decode base64 SAML response
   let xml: string;
@@ -192,7 +192,7 @@ function parseSAMLResponse(provider: string, samlResponse: string): SAMLAssertio
 export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   // List SSO configurations
   app.get('/api/v1/sso/providers', async (_request, reply) => {
-    const allConfigs = store.all<SSOConfig & { _storeId?: string }>('sso_configs');
+    const allConfigs = await store.all<SSOConfig & { _storeId?: string }>('sso_configs');
 
     // We need the store key (provider id) for the response. Since the store
     // doesn't return keys, we reconstruct from the list query. The configs
@@ -227,7 +227,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
 
   // Get SSO config details
   app.get<{ Params: { id: string } }>('/api/v1/sso/providers/:id', async (request, reply) => {
-    const config = store.get<SSOConfig>('sso_configs', request.params.id);
+    const config = await store.get<SSOConfig>('sso_configs', request.params.id);
     if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not found' });
     return reply.send({ data: config });
   });
@@ -251,7 +251,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
     },
   }, async (request, reply) => {
     const body = request.body as Partial<SSOConfig>;
-    const existing = store.get<SSOConfig>('sso_configs', request.params.id);
+    const existing = await store.get<SSOConfig>('sso_configs', request.params.id);
     const now = nowISO();
 
     const config: SSOConfig = {
@@ -272,22 +272,22 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
       updatedAt: now,
     };
 
-    store.set<SSOConfig>('sso_configs', request.params.id, config);
+    await store.set<SSOConfig>('sso_configs', request.params.id, config);
     return reply.status(existing ? 200 : 201).send({ data: config });
   });
 
   // Delete SSO config
   app.delete<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!store.has('sso_configs', request.params.id)) {
+    if (!await store.has('sso_configs', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not found' });
     }
-    store.delete('sso_configs', request.params.id);
+    await store.delete('sso_configs', request.params.id);
     return reply.status(204).send();
   });
 
   // Initiate SSO login (redirect to IdP)
   app.get<{ Params: { provider: string } }>('/api/v1/sso/login/:provider', async (request, reply) => {
-    const config = store.get<SSOConfig>('sso_configs', request.params.provider);
+    const config = await store.get<SSOConfig>('sso_configs', request.params.provider);
     if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not configured' });
 
     // Generate a SAML AuthnRequest
@@ -330,7 +330,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
       },
     },
   }, async (request, reply) => {
-    const config = store.get<SSOConfig>('sso_configs', request.params.provider);
+    const config = await store.get<SSOConfig>('sso_configs', request.params.provider);
     if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not configured' });
 
     const body = request.body as { SAMLResponse?: string };
@@ -341,7 +341,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
     // Parse and validate SAML assertion
     let assertion: SAMLAssertion;
     try {
-      assertion = parseSAMLResponse(request.params.provider, body.SAMLResponse);
+      assertion = await parseSAMLResponse(request.params.provider, body.SAMLResponse);
     } catch (err) {
       return reply.status(401).send({
         error: 'Unauthorized',
@@ -371,7 +371,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
 
     // Store session
     const sessionId = generateId();
-    store.set<SSOSession>('sso_sessions', sessionId, {
+    await store.set<SSOSession>('sso_sessions', sessionId, {
       assertion,
       token,
       createdAt: nowISO(),
@@ -397,7 +397,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
 
   // List active SSO sessions
   app.get('/api/v1/sso/sessions', async (_request, reply) => {
-    const allSessions = store.all<SSOSession>('sso_sessions');
+    const allSessions = await store.all<SSOSession>('sso_sessions');
     // The original returned sessionId as the map key. Since we store
     // sessions with their ID as the key and it's also embedded in the
     // data implicitly via the assertion.id, we need a way to recover
@@ -414,7 +414,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
     // with its own ID.
 
     // We'll list sessions and note that the session ID was used as the
-    // store key. Since we can't retrieve keys from store.all(), we
+    // store key. Since we can't retrieve keys from await store.all(), we
     // refactor to embed sessionId in the session record.
 
     // For now, use the assertion.id as a proxy, which is unique per session.
@@ -432,10 +432,10 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
 
   // Revoke SSO session
   app.delete<{ Params: { id: string } }>('/api/v1/sso/sessions/:id', async (request, reply) => {
-    if (!store.has('sso_sessions', request.params.id)) {
+    if (!await store.has('sso_sessions', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Session not found' });
     }
-    store.delete('sso_sessions', request.params.id);
+    await store.delete('sso_sessions', request.params.id);
     return reply.status(204).send();
   });
 }

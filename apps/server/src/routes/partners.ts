@@ -90,7 +90,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
   app.get(prefix, { preHandler: [authMiddleware] }, async (request, reply) => {
     const query = request.query as { tier?: PartnerTier; type?: PartnerType; region?: string };
 
-    let results = store.all<Partner>('partners');
+    let results = await store.all<Partner>('partners');
 
     if (query.tier) {
       results = results.filter((p) => p.tier === query.tier);
@@ -124,7 +124,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    */
   app.get(`${prefix}/:id`, { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const partner = store.get<Partner>('partners', id);
+    const partner = await store.get<Partner>('partners', id);
     if (!partner) {
       return reply.status(404).send({ error: 'Not Found', message: 'Partner not found' });
     }
@@ -180,7 +180,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
       submittedAt: now,
     };
 
-    store.set<PartnerApplication>('partner_applications', id, application);
+    await store.set<PartnerApplication>('partner_applications', id, application);
 
     return reply.status(201).send({
       data: application,
@@ -195,7 +195,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    */
   app.get(`${prefix}/certifications`, { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({
-      data: store.all<Certification>('certifications'),
+      data: await store.all<Certification>('certifications'),
     });
   });
 
@@ -205,7 +205,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    * Partner program statistics.
    */
   app.get(`${prefix}/stats`, { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = store.all<Partner>('partners');
+    const all = await store.all<Partner>('partners');
     const totalEngineers = all.reduce((sum, p) => sum + p.certifiedEngineers, 0);
     const totalCustomers = all.reduce((sum, p) => sum + p.customerCount, 0);
 
@@ -214,8 +214,8 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
         totalPartners: all.length,
         totalCertifiedEngineers: totalEngineers,
         totalCustomersServed: totalCustomers,
-        certificationTracks: store.count('certifications'),
-        pendingApplications: store.all<PartnerApplication>('partner_applications').filter((a) => a.status === 'pending').length,
+        certificationTracks: await store.count('certifications'),
+        pendingApplications: (await store.all<PartnerApplication>('partner_applications')).filter((a) => a.status === 'pending').length,
         tierDistribution: {
           platinum: all.filter((p) => p.tier === 'platinum').length,
           gold: all.filter((p) => p.tier === 'gold').length,

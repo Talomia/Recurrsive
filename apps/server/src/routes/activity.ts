@@ -82,7 +82,7 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
       // 2. Audit events (config changes, user actions)
       if (!typeFilter || typeFilter === 'config' || typeFilter === 'user') {
         try {
-          const { events: auditEvents } = getAuditEvents({ limit: 100 });
+          const { events: auditEvents } = await getAuditEvents({ limit: 100 });
           for (const event of auditEvents) {
             const activityType = event.action === 'auth' ? 'user' :
                                  event.action === 'admin' ? 'config' : 'system';
@@ -148,7 +148,7 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
     let auditTotal = 0;
     let recentAuditCount = 0;
     try {
-      const { events: auditEvents } = getAuditEvents({ limit: 1000 });
+      const { events: auditEvents } = await getAuditEvents({ limit: 1000 });
       auditTotal = auditEvents.length;
       recentAuditCount = auditEvents.filter(e => e.timestamp >= oneDayAgo).length;
     } catch {

@@ -63,17 +63,17 @@ interface SecretAuditEntry {
 export async function registerSecretRoutes(app: FastifyInstance): Promise<void> {
   // List secrets (never returns values)
   app.get('/api/v1/secrets', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const list = store.all<SecretEntry>('secrets').sort((a, b) => a.key.localeCompare(b.key));
+    const list = (await store.all<SecretEntry>('secrets')).sort((a, b) => a.key.localeCompare(b.key));
     return reply.send({ data: list, total: list.length });
   });
 
   // Get secret metadata
   app.get<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const secret = store.get<SecretEntry>('secrets', request.params.id);
+    const secret = await store.get<SecretEntry>('secrets', request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
     // Log access
-    store.append<SecretAuditEntry>('secret_audit', {
+    await store.append<SecretAuditEntry>('secret_audit', {
       id: generateId(),
       secretId: secret.id,
       secretKey: secret.key,
@@ -127,10 +127,10 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
       updatedAt: now,
     };
 
-    store.set('secrets', id, entry);
-    store.set('secret_values', id, `[ENCRYPTED:${body.value}]`);
+    await store.set('secrets', id, entry);
+    await store.set('secret_values', id, `[ENCRYPTED:${body.value}]`);
 
-    store.append<SecretAuditEntry>('secret_audit', {
+    await store.append<SecretAuditEntry>('secret_audit', {
       id: generateId(), secretId: id, secretKey: entry.key,
       action: 'created', actor: 'api-user', timestamp: now, metadata: {},
     });
@@ -151,7 +151,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
       },
     },
   }, async (request, reply) => {
-    const secret = store.get<SecretEntry>('secrets', request.params.id);
+    const secret = await store.get<SecretEntry>('secrets', request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
     const body = request.body as { newValue?: string };
@@ -160,13 +160,13 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
     secret.version += 1;
     secret.lastRotated = now;
     secret.updatedAt = now;
-    store.set('secrets', secret.id, secret);
+    await store.set('secrets', secret.id, secret);
 
     if (body.newValue) {
-      store.set('secret_values', secret.id, `[ENCRYPTED:${body.newValue}]`);
+      await store.set('secret_values', secret.id, `[ENCRYPTED:${body.newValue}]`);
     }
 
-    store.append<SecretAuditEntry>('secret_audit', {
+    await store.append<SecretAuditEntry>('secret_audit', {
       id: generateId(), secretId: secret.id, secretKey: secret.key,
       action: 'rotated', actor: 'api-user', timestamp: now,
       metadata: { newVersion: String(secret.version) },
@@ -177,30 +177,30 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
 
   // Delete secret
   app.delete<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const secret = store.get<SecretEntry>('secrets', request.params.id);
+    const secret = await store.get<SecretEntry>('secrets', request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
-    store.append<SecretAuditEntry>('secret_audit', {
+    await store.append<SecretAuditEntry>('secret_audit', {
       id: generateId(), secretId: secret.id, secretKey: secret.key,
       action: 'deleted', actor: 'api-user', timestamp: nowISO(), metadata: {},
     });
 
-    store.delete('secrets', request.params.id);
-    store.delete('secret_values', request.params.id);
+    await store.delete('secrets', request.params.id);
+    await store.delete('secret_values', request.params.id);
     return reply.status(204).send();
   });
 
   // Get audit log for secrets
   app.get('/api/v1/secrets/audit/log', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const recentEntries = store.recent<SecretAuditEntry>('secret_audit', 100);
-    const total = store.count('secret_audit');
+    const recentEntries = await store.recent<SecretAuditEntry>('secret_audit', 100);
+    const total = await store.count('secret_audit');
     return reply.send({ data: recentEntries, total });
   });
 
   // Check rotation status
   app.get('/api/v1/secrets/health/rotation', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const now = Date.now();
-    const allSecrets = store.all<SecretEntry>('secrets');
+    const allSecrets = await store.all<SecretEntry>('secrets');
     const needsRotation: Array<{ id: string; key: string; daysSinceRotation: number; intervalDays: number }> = [];
 
     for (const secret of allSecrets) {
@@ -219,7 +219,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
 
     return reply.send({
       data: {
-        total: store.count('secrets'),
+        total: await store.count('secrets'),
         withAutoRotation: allSecrets.filter(s => s.rotationIntervalDays > 0).length,
         needsRotation,
         status: needsRotation.length === 0 ? 'healthy' : 'action_required',

@@ -110,23 +110,23 @@ interface SettingsOverrides {
 }
 
 /** Load persisted config overrides (or empty object on first run). */
-function getOverrides(): ConfigOverrides {
-  return store.get<ConfigOverrides>('config_overrides', 'default') ?? {};
+async function getOverrides(): Promise<ConfigOverrides> {
+  return await store.get<ConfigOverrides>('config_overrides', 'default') ?? {};
 }
 
 /** Persist config overrides. */
-function setOverrides(overrides: ConfigOverrides): void {
-  store.set('config_overrides', 'default', overrides);
+async function setOverrides(overrides: ConfigOverrides): Promise<void> {
+  await store.set('config_overrides', 'default', overrides);
 }
 
 /** Load persisted settings overrides (or empty object on first run). */
-function getSettings(): SettingsOverrides {
-  return store.get<SettingsOverrides>('settings_overrides', 'default') ?? {};
+async function getSettings(): Promise<SettingsOverrides> {
+  return await store.get<SettingsOverrides>('settings_overrides', 'default') ?? {};
 }
 
 /** Persist settings overrides. */
-function setSettings(settings: SettingsOverrides): void {
-  store.set('settings_overrides', 'default', settings);
+async function setSettings(settings: SettingsOverrides): Promise<void> {
+  await store.set('settings_overrides', 'default', settings);
 }
 
 /**
@@ -151,11 +151,11 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
     }
 
     const projectPath = state.getProjectPath();
-    const ov = getOverrides();
+    const ov = await getOverrides();
     const graphProvider = ov.graphProvider
       ?? (process.env['GRAPH_PROVIDER'] ?? 'sqlite');
 
-    const settings = getSettings();
+    const settings = await getSettings();
 
     return reply.status(200).send({
       data: {
@@ -231,7 +231,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
       });
     }
 
-    const ov = getOverrides();
+    const ov = await getOverrides();
 
     // Apply recognized fields
     if (typeof body['graphProvider'] === 'string') {
@@ -304,7 +304,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
     }
 
     // ---- Settings fields (dashboard UI) ----
-    const settings = getSettings();
+    const settings = await getSettings();
     let settingsChanged = false;
 
     if (typeof body['platform_name'] === 'string') {
@@ -361,9 +361,9 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
     }
 
     // Persist the updated overrides
-    setOverrides(ov);
+    await setOverrides(ov);
     if (settingsChanged) {
-      setSettings(settings);
+      await setSettings(settings);
     }
 
     return reply.status(200).send({
@@ -382,7 +382,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * for analyzers, collectors, and policy sets.
    */
   app.get('/api/v1/config/features', async (_request, reply) => {
-    const ov = getOverrides();
+    const ov = await getOverrides();
     const enabledAnalyzers = new Set(ov.enabledAnalyzers ?? ALL_ANALYZER_IDS);
     const enabledCollectors = new Set(ov.enabledCollectors ?? ALL_COLLECTOR_IDS);
     const activePolicySets = new Set(ov.activePolicySets ?? ALL_POLICY_SET_IDS);
@@ -474,7 +474,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * any persisted overrides.
    */
   app.get('/api/v1/settings', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const settings = getSettings();
+    const settings = await getSettings();
 
     return reply.status(200).send({
       data: {
@@ -502,7 +502,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * workflow settings). A subset of the full settings object.
    */
   app.get('/api/v1/settings/preferences', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const settings = getSettings();
+    const settings = await getSettings();
 
     return reply.status(200).send({
       data: {

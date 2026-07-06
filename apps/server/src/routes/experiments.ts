@@ -53,8 +53,8 @@ export interface Experiment {
 
 let nextId = 1;
 
-function generateExperimentId(): string {
-  const id = `exp_${String(store.count('experiments') + nextId).padStart(3, '0')}`;
+async function generateExperimentId(): Promise<string> {
+  const id = `exp_${String(await store.count('experiments') + nextId).padStart(3, '0')}`;
   nextId++;
   return id;
 }
@@ -77,7 +77,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
   app.get('/api/v1/experiments', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { status } = request.query as { status?: string };
 
-    let filtered = store.all<Experiment>('experiments');
+    let filtered = await store.all<Experiment>('experiments');
     if (status) {
       filtered = filtered.filter((e) => e.status === status);
     }
@@ -123,7 +123,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
       return reply.status(400).send({ error: 'Bad Request', message: 'name is required' });
     }
 
-    const id = generateExperimentId();
+    const id = await generateExperimentId();
     const experiment: Experiment = {
       id,
       name: body.name,
@@ -138,7 +138,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
       conclusion: null,
     };
 
-    store.set('experiments', id, experiment);
+    await store.set('experiments', id, experiment);
 
     return reply.status(201).send({ data: experiment });
   });
@@ -150,7 +150,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    */
   app.get('/api/v1/experiments/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const experiment = store.get<Experiment>('experiments', id);
+    const experiment = await store.get<Experiment>('experiments', id);
 
     if (!experiment) {
       return reply.status(404).send({ error: 'Not Found', message: `Experiment ${id} not found` });
@@ -180,7 +180,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
     const { id } = request.params as { id: string };
     const body = request.body as { status?: string; conclusion?: string };
 
-    const experiment = store.get<Experiment>('experiments', id);
+    const experiment = await store.get<Experiment>('experiments', id);
 
     if (!experiment) {
       return reply.status(404).send({ error: 'Not Found', message: `Experiment ${id} not found` });
@@ -212,7 +212,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
       experiment.conclusion = body.conclusion;
     }
 
-    store.set('experiments', id, experiment);
+    await store.set('experiments', id, experiment);
 
     return reply.status(200).send({ data: experiment });
   });

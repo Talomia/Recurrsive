@@ -183,7 +183,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const user = (request as typeof request & { user: AuthUser }).user;
 
     // Look up real user from store first
-    const storeUser = findUserById(user.id);
+    const storeUser = await findUserById(user.id);
     if (storeUser) {
       return reply.status(200).send({
         data: {
@@ -233,7 +233,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    const result = generateApiKey(name.trim(), user.id, user.role, expiresAt);
+    const result = await generateApiKey(name.trim(), user.id, user.role, expiresAt);
 
     return reply.status(201).send({
       data: {
@@ -259,8 +259,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const user = (request as typeof request & { user: AuthUser }).user;
 
     const keys = user.role === 'admin'
-      ? listApiKeys()
-      : listApiKeys(user.id);
+      ? await listApiKeys()
+      : await listApiKeys(user.id);
 
     return reply.status(200).send({
       data: keys,
@@ -282,7 +282,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const { id } = request.params;
 
-    const revoked = revokeApiKey(id);
+    const revoked = await revokeApiKey(id);
 
     if (!revoked) {
       return reply.status(404).send({
@@ -328,7 +328,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     }
 
     // Look up the store-backed user
-    const storeUser = findUserById(user.id);
+    const storeUser = await findUserById(user.id);
     if (!storeUser) {
       return reply.status(404).send({
         error: 'Not Found',
@@ -350,7 +350,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     storeUser.passwordHash = hash;
     storeUser.passwordSalt = salt;
     storeUser.updatedAt = new Date().toISOString();
-    store.set<User>('users', storeUser.id, storeUser);
+    await store.set<User>('users', storeUser.id, storeUser);
 
     logger.info(`User '${user.id}' changed their password`);
     return reply.status(200).send({

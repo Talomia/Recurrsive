@@ -116,7 +116,7 @@ export function toPublicUser(user: User): PublicUser {
  */
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
   // Check for duplicate username
-  const existing = findUserByUsername(input.username);
+  const existing = await findUserByUsername(input.username);
   if (existing) {
     throw new Error(`Username '${input.username}' is already taken`);
   }
@@ -139,7 +139,7 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     status: 'active',
   };
 
-  store.set<User>(USERS_TABLE, id, user);
+  await store.set<User>(USERS_TABLE, id, user);
   return toPublicUser(user);
 }
 
@@ -149,8 +149,8 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
  * @param username - The username to search for.
  * @returns The full {@link User} record, or `undefined` if not found.
  */
-export function findUserByUsername(username: string): User | undefined {
-  const allUsers = store.all<User>(USERS_TABLE);
+export async function findUserByUsername(username: string): Promise<User | undefined> {
+  const allUsers = await store.all<User>(USERS_TABLE);
   return allUsers.find((u) => u.username === username);
 }
 
@@ -160,8 +160,8 @@ export function findUserByUsername(username: string): User | undefined {
  * @param id - The user ID to search for.
  * @returns The full {@link User} record, or `undefined` if not found.
  */
-export function findUserById(id: string): User | undefined {
-  return store.get<User>(USERS_TABLE, id) ?? undefined;
+export async function findUserById(id: string): Promise<User | undefined> {
+  return await store.get<User>(USERS_TABLE, id) ?? undefined;
 }
 
 /**
@@ -177,7 +177,7 @@ export function findUserById(id: string): User | undefined {
  */
 export async function authenticateUser(username: string, password: string): Promise<PublicUser | null> {
   // Try exact username match first, then fall back to email match
-  const user = findUserByUsername(username) ?? findUserByEmail(username);
+  const user = (await findUserByUsername(username)) ?? (await findUserByEmail(username));
   if (!user) return null;
 
   // Only active users can log in
@@ -194,8 +194,8 @@ export async function authenticateUser(username: string, password: string): Prom
  *
  * @returns Array of all {@link PublicUser} records.
  */
-export function listUsers(): PublicUser[] {
-  const allUsers = store.all<User>(USERS_TABLE);
+export async function listUsers(): Promise<PublicUser[]> {
+  const allUsers = await store.all<User>(USERS_TABLE);
   return allUsers.map(toPublicUser);
 }
 
@@ -209,7 +209,7 @@ export function listUsers(): PublicUser[] {
  * @returns The updated {@link PublicUser}, or `null` if user not found.
  */
 export async function updateUser(id: string, updates: Partial<UpdateUserInput>): Promise<PublicUser | null> {
-  const user = findUserById(id);
+  const user = await findUserById(id);
   if (!user) return null;
 
   const now = nowISO();
@@ -228,7 +228,7 @@ export async function updateUser(id: string, updates: Partial<UpdateUserInput>):
 
   user.updatedAt = now;
 
-  store.set<User>(USERS_TABLE, id, user);
+  await store.set<User>(USERS_TABLE, id, user);
   return toPublicUser(user);
 }
 
@@ -238,13 +238,13 @@ export async function updateUser(id: string, updates: Partial<UpdateUserInput>):
  * @param id - The user ID to delete.
  * @returns `true` if the user was found and disabled, `false` otherwise.
  */
-export function deleteUser(id: string): boolean {
-  const user = findUserById(id);
+export async function deleteUser(id: string): Promise<boolean> {
+  const user = await findUserById(id);
   if (!user) return false;
 
   user.status = 'disabled';
   user.updatedAt = nowISO();
-  store.set<User>(USERS_TABLE, id, user);
+  await store.set<User>(USERS_TABLE, id, user);
   return true;
 }
 
@@ -253,8 +253,8 @@ export function deleteUser(id: string): boolean {
  *
  * @returns The number of user records.
  */
-export function countUsers(): number {
-  return store.count(USERS_TABLE);
+export async function countUsers(): Promise<number> {
+  return await store.count(USERS_TABLE);
 }
 
 /**
@@ -281,7 +281,7 @@ export async function findOrCreateSSOUser(
   autoProvision: boolean = true,
 ): Promise<PublicUser | null> {
   // Look for existing user with this SSO identity
-  const allUsers = store.all<User>(USERS_TABLE);
+  const allUsers = await store.all<User>(USERS_TABLE);
   const existing = allUsers.find(
     (u) => u.authMethod === 'sso' && u.ssoProvider === provider && u.email === email,
   );
@@ -291,7 +291,7 @@ export async function findOrCreateSSOUser(
     if (existing.role !== role) {
       existing.role = role;
       existing.updatedAt = nowISO();
-      store.set<User>(USERS_TABLE, existing.id, existing);
+      await store.set<User>(USERS_TABLE, existing.id, existing);
     }
     return toPublicUser(existing);
   }
@@ -320,7 +320,7 @@ export async function findOrCreateSSOUser(
     status: 'active',
   };
 
-  store.set<User>(USERS_TABLE, id, user);
+  await store.set<User>(USERS_TABLE, id, user);
   return toPublicUser(user);
 }
 
@@ -338,13 +338,13 @@ export async function findOrCreateSSOUser(
  * @returns The updated {@link PublicUser}, or `null` if user not found.
  */
 export async function resetUserPassword(id: string, newPassword: string): Promise<PublicUser | null> {
-  const user = findUserById(id);
+  const user = await findUserById(id);
   if (!user) return null;
   const { hash, salt } = await hashPassword(newPassword);
   user.passwordHash = hash;
   user.passwordSalt = salt;
   user.updatedAt = nowISO();
-  store.set<User>(USERS_TABLE, id, user);
+  await store.set<User>(USERS_TABLE, id, user);
   return toPublicUser(user);
 }
 
@@ -358,7 +358,7 @@ export async function resetUserPassword(id: string, newPassword: string): Promis
  * @param email - The email to search for.
  * @returns The full {@link User} record, or `undefined` if not found.
  */
-export function findUserByEmail(email: string): User | undefined {
-  const allUsers = store.all<User>(USERS_TABLE);
+export async function findUserByEmail(email: string): Promise<User | undefined> {
+  const allUsers = await store.all<User>(USERS_TABLE);
   return allUsers.find((u) => u.email === email);
 }

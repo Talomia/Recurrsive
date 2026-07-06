@@ -226,7 +226,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         filters: filters as Record<string, string> | undefined,
       };
 
-      store.set<ExportRecord>('exports', exportId, record);
+      await store.set<ExportRecord>('exports', exportId, record);
       logger.info(`Export created: ${exportId} (${format}/${scope})`);
 
       return reply.status(201).send({ data: record });
@@ -242,7 +242,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
     '/api/v1/export/:id/download',
     async (request, reply) => {
       const { id } = request.params;
-      const record = store.get<ExportRecord>('exports', id);
+      const record = await store.get<ExportRecord>('exports', id);
 
       if (!record) {
         return reply.status(404).send({
@@ -276,7 +276,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    * List all past exports.
    */
   app.get('/api/v1/export/history', async (_request, reply) => {
-    const all = store.all<ExportRecord>('exports');
+    const all = await store.all<ExportRecord>('exports');
     return reply.send({
       data: all,
       total: all.length,
@@ -511,7 +511,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         generated_at: generatedAt,
       };
 
-      store.set<ExportRecord>('exports', exportId, record);
+      await store.set<ExportRecord>('exports', exportId, record);
       logger.info(`Report generated: ${exportId} (${format})`);
 
       return reply.status(200).send({

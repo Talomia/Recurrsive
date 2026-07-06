@@ -79,12 +79,12 @@ function hashKey(raw: string): string {
  * @param expiresAt - Optional ISO-8601 expiry timestamp.
  * @returns An object containing the raw key and its stored metadata.
  */
-export function generateApiKey(
+export async function generateApiKey(
   name: string,
   userId: string,
   role: Role,
   expiresAt?: string | null,
-): { key: string; info: ApiKeyInfo } {
+): Promise<{ key: string; info: ApiKeyInfo }> {
   const raw = `rk_${randomBytes(32).toString('hex')}`;
   const hashed = hashKey(raw);
 
@@ -98,7 +98,7 @@ export function generateApiKey(
     expiresAt: expiresAt ?? null,
   };
 
-  store.set(API_KEY_TABLE, hashed, info);
+  await store.set(API_KEY_TABLE, hashed, info);
   logger.info(`API key '${name}' created for user '${userId}' (role: ${role})`);
 
   return { key: raw, info };
@@ -113,9 +113,9 @@ export function generateApiKey(
  * @param key - The raw API key to validate.
  * @returns The associated {@link ApiKeyInfo} or `null` if invalid/expired.
  */
-export function validateApiKey(key: string): ApiKeyInfo | null {
+export async function validateApiKey(key: string): Promise<ApiKeyInfo | null> {
   const hashed = hashKey(key);
-  const info = store.get<ApiKeyInfo>(API_KEY_TABLE, hashed);
+  const info = await store.get<ApiKeyInfo>(API_KEY_TABLE, hashed);
 
   if (!info) {
     return null;
@@ -126,14 +126,14 @@ export function validateApiKey(key: string): ApiKeyInfo | null {
     const expiryTime = new Date(info.expiresAt).getTime();
     if (Date.now() >= expiryTime) {
       logger.info(`API key '${info.name}' has expired — removing`);
-      store.delete(API_KEY_TABLE, hashed);
+      await store.delete(API_KEY_TABLE, hashed);
       return null;
     }
   }
 
   // Update last-used timestamp
   info.lastUsedAt = nowISO();
-  store.set(API_KEY_TABLE, hashed, info);
+  await store.set(API_KEY_TABLE, hashed, info);
 
   return info;
 }
@@ -144,11 +144,11 @@ export function validateApiKey(key: string): ApiKeyInfo | null {
  * @param id - The `ApiKeyInfo.id` to revoke.
  * @returns `true` if a key was found and removed, `false` otherwise.
  */
-export function revokeApiKey(id: string): boolean {
+export async function revokeApiKey(id: string): Promise<boolean> {
   // API keys are stored by hash, so we scan entries to find by ID
-  for (const [hashed, info] of store.entries<ApiKeyInfo>(API_KEY_TABLE)) {
+  for (const [hashed, info] of await store.entries<ApiKeyInfo>(API_KEY_TABLE)) {
     if (info.id === id) {
-      store.delete(API_KEY_TABLE, hashed);
+      await store.delete(API_KEY_TABLE, hashed);
       logger.info(`API key '${info.name}' (id: ${id}) revoked`);
       return true;
     }
@@ -164,8 +164,8 @@ export function revokeApiKey(id: string): boolean {
  * @param userId - If provided, only return keys owned by this user.
  * @returns Array of {@link ApiKeyInfo} entries.
  */
-export function listApiKeys(userId?: string): ApiKeyInfo[] {
-  const entries = store.all<ApiKeyInfo>(API_KEY_TABLE);
+export async function listApiKeys(userId?: string): Promise<ApiKeyInfo[]> {
+  const entries = await store.all<ApiKeyInfo>(API_KEY_TABLE);
   if (userId) {
     return entries.filter((info) => info.userId === userId);
   }
@@ -177,6 +177,6 @@ export function listApiKeys(userId?: string): ApiKeyInfo[] {
  *
  * Primarily useful in tests to reset state between runs.
  */
-export function clearApiKeys(): void {
-  store.clear(API_KEY_TABLE);
+export async function clearApiKeys(): Promise<void> {
+  await store.clear(API_KEY_TABLE);
 }

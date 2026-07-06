@@ -127,7 +127,7 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
-    const { events, total } = getAuditEvents(filters);
+    const { events, total } = await getAuditEvents(filters);
 
     return reply.status(200).send({
       data: events,
@@ -146,7 +146,7 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/audit/stats', {
     preHandler: [authMiddleware, requireRole('analyst')],
   }, async (_request, reply) => {
-    const stats = getAuditStats();
+    const stats = await getAuditStats();
 
     return reply.status(200).send({
       data: stats,
@@ -162,10 +162,10 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/audit/summary', {
     preHandler: [authMiddleware, requireRole('analyst')],
   }, async (_request, reply) => {
-    const stats = getAuditStats();
+    const stats = await getAuditStats();
 
     // Count recent events (last 24 hours)
-    const { events: allEvents } = getAuditEvents({ limit: 1000 });
+    const { events: allEvents } = await getAuditEvents({ limit: 1000 });
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const recentCount = allEvents.filter(e => e.timestamp >= oneDayAgo).length;
 

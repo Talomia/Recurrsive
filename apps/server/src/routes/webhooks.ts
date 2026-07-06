@@ -102,9 +102,9 @@ const WEBHOOK_TIMEOUT_MS = Number(
 
 let nextId = 1;
 
-function generateWebhookId(): string {
+async function generateWebhookId(): Promise<string> {
   // Derive next ID from store count to stay monotonic across restarts
-  const current = store.count('webhooks') + nextId;
+  const current = await store.count('webhooks') + nextId;
   nextId++;
   return `wh_${String(current).padStart(6, '0')}`;
 }
@@ -195,7 +195,7 @@ export async function dispatchWebhookEvent(
   event: WebhookEvent,
   data: Record<string, unknown>,
 ): Promise<void> {
-  const hooks = store.all<WebhookRegistration>('webhooks');
+  const hooks = await store.all<WebhookRegistration>('webhooks');
   const active = hooks.filter((h) => h.active && h.events.includes(event));
 
   if (active.length === 0) return;
@@ -217,7 +217,7 @@ export async function dispatchWebhookEvent(
       } else {
         hook.failure_count++;
       }
-      store.set('webhooks', hook.id, hook);
+      await store.set('webhooks', hook.id, hook);
 
       // Record delivery log
       const logEntry: DeliveryLogEntry = {
@@ -229,7 +229,7 @@ export async function dispatchWebhookEvent(
         duration_ms: result.duration_ms,
         error: result.error,
       };
-      store.append('webhook_deliveries', logEntry);
+      await store.append('webhook_deliveries', logEntry);
     }),
   );
 }
@@ -250,7 +250,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    * List all registered webhooks.
    */
   app.get('/api/v1/webhooks', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const hooks = store.all<WebhookRegistration>('webhooks');
+    const hooks = await store.all<WebhookRegistration>('webhooks');
 
     return reply.status(200).send({
       data: hooks.map((h) => ({
@@ -313,7 +313,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       });
     }
 
-    const id = generateWebhookId();
+    const id = await generateWebhookId();
     const hook: WebhookRegistration = {
       id,
       url,
@@ -325,7 +325,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       failure_count: 0,
     };
 
-    store.set('webhooks', id, hook);
+    await store.set('webhooks', id, hook);
 
     return reply.status(201).send({
       data: {
@@ -346,14 +346,14 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       const { id } = request.params;
 
-      if (!store.has('webhooks', id)) {
+      if (!await store.has('webhooks', id)) {
         return reply.status(404).send({
           error: 'Not found',
           message: `Webhook ${id} not found.`,
         });
       }
 
-      store.delete('webhooks', id);
+      await store.delete('webhooks', id);
 
       return reply.status(200).send({
         data: { id, deleted: true },
@@ -375,7 +375,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     };
   }>('/api/v1/webhooks/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params;
-    const hook = store.get<WebhookRegistration>('webhooks', id);
+    const hook = await store.get<WebhookRegistration>('webhooks', id);
 
     if (!hook) {
       return reply.status(404).send({
@@ -390,7 +390,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     if (events !== undefined) hook.events = events;
     if (url !== undefined) hook.url = url;
 
-    store.set('webhooks', id, hook);
+    await store.set('webhooks', id, hook);
 
     return reply.status(200).send({
       data: {
@@ -410,7 +410,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
-      const hook = store.get<WebhookRegistration>('webhooks', id);
+      const hook = await store.get<WebhookRegistration>('webhooks', id);
 
       if (!hook) {
         return reply.status(404).send({
@@ -439,7 +439,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       } else {
         hook.failure_count++;
       }
-      store.set('webhooks', id, hook);
+      await store.set('webhooks', id, hook);
 
       // Record delivery log
       const logEntry: DeliveryLogEntry = {
@@ -451,7 +451,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
         duration_ms: result.duration_ms,
         error: result.error,
       };
-      store.append('webhook_deliveries', logEntry);
+      await store.append('webhook_deliveries', logEntry);
 
       return reply.status(200).send({
         data: {
@@ -475,14 +475,14 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     async (request, reply) => {
       const { id } = request.params;
 
-      if (!store.has('webhooks', id)) {
+      if (!await store.has('webhooks', id)) {
         return reply.status(404).send({
           error: 'Not found',
           message: `Webhook ${id} not found.`,
         });
       }
 
-      const allDeliveries = store.all<DeliveryLogEntry>('webhook_deliveries');
+      const allDeliveries = await store.all<DeliveryLogEntry>('webhook_deliveries');
       const history = allDeliveries.filter((d) => d.webhook_id === id);
 
       return reply.status(200).send({

@@ -167,14 +167,14 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
       meta: body.meta ?? { codebaseSize: 'medium', primaryLanguage: 'TypeScript', analyzersUsed: 8, collectorsUsed: 5 },
       submittedAt: nowISO(),
     };
-    store.set<BenchmarkEntry>('cloud_benchmarks', entry.id, entry);
+    await store.set<BenchmarkEntry>('cloud_benchmarks', entry.id, entry);
     return reply.status(201).send({ data: { id: entry.id, message: 'Benchmark submitted (anonymized)' } });
   });
 
   // Get benchmark report
   app.get<{ Querystring: { industry?: string } }>('/api/v1/cloud/benchmarks/report', { preHandler: [authMiddleware] }, async (request, reply) => {
     const industry = request.query.industry;
-    const allBenchmarks = store.all<BenchmarkEntry>('cloud_benchmarks');
+    const allBenchmarks = await store.all<BenchmarkEntry>('cloud_benchmarks');
     const entries = industry ? allBenchmarks.filter(b => b.industry === industry) : allBenchmarks;
 
     if (entries.length === 0) {
@@ -207,7 +207,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // ── Cross-org Pattern Learning ────────────────────────────────────────────
 
   app.get('/api/v1/cloud/patterns', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const patterns = store.all<LearnedPattern>('cloud_patterns');
+    const patterns = await store.all<LearnedPattern>('cloud_patterns');
     return reply.send({
       data: patterns.sort((a, b) => b.occurrences - a.occurrences),
       total: patterns.length,
@@ -216,7 +216,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/cloud/patterns/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pattern = store.get<LearnedPattern>('cloud_patterns', request.params.id);
+    const pattern = await store.get<LearnedPattern>('cloud_patterns', request.params.id);
     if (!pattern) return reply.status(404).send({ error: 'Not Found', message: 'Pattern not found' });
     return reply.send({ data: pattern });
   });
@@ -230,7 +230,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // ── Cloud Platform Info ───────────────────────────────────────────────────
 
   app.get('/api/v1/cloud/info', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const benchmarkCount = store.count('cloud_benchmarks');
+    const benchmarkCount = await store.count('cloud_benchmarks');
     return reply.send({
       data: {
         platform: 'Recurrsive Cloud',
@@ -239,7 +239,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
         regions: ['us-east-1', 'eu-west-1', 'ap-southeast-1'],
         features: {
           benchmarking: { status: 'active', participants: benchmarkCount },
-          patternLearning: { status: 'active', patterns: store.count('cloud_patterns') },
+          patternLearning: { status: 'active', patterns: await store.count('cloud_patterns') },
           managedServices: { status: 'active', tiers: managedServices.length },
           partnerProgram: { status: 'active', note: 'See /api/v1/partners for partner data' },
         },

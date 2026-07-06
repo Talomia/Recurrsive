@@ -71,7 +71,7 @@ import type { WSEvent } from '../state.js';
 describe('ServerState', () => {
   let state: ServerState;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     state = new ServerState();
   });
@@ -79,57 +79,57 @@ describe('ServerState', () => {
   // ── Initial State ─────────────────────────────────────────────────────
 
   describe('initial state', () => {
-    it('starts in idle phase', () => {
+    it('starts in idle phase', async () => {
       const status = state.getAnalysisStatus();
       expect(status.phase).toBe('idle');
     });
 
-    it('starts with 0 progress', () => {
+    it('starts with 0 progress', async () => {
       const status = state.getAnalysisStatus();
       expect(status.progress).toBe(0);
     });
 
-    it('has no analysis in progress', () => {
+    it('has no analysis in progress', async () => {
       const status = state.getAnalysisStatus();
       expect(status.startedAt).toBeNull();
       expect(status.completedAt).toBeNull();
       expect(status.error).toBeNull();
     });
 
-    it('has empty analysis history', () => {
+    it('has empty analysis history', async () => {
       expect(state.getAnalysisHistory()).toEqual([]);
     });
 
-    it('has no cached results', () => {
+    it('has no cached results', async () => {
       expect(state.getAnalysisCache()).toBeNull();
     });
 
-    it('is not initialized before calling initialize()', () => {
+    it('is not initialized before calling initialize()', async () => {
       expect(state.isInitialized()).toBe(false);
     });
   });
 
   // ── Initialization ────────────────────────────────────────────────────
 
-  describe('initialization', () => {
+  describe ('initialization', () => {
     it('initializes with a project path', async () => {
       await state.initialize('/tmp/test-project');
       expect(state.getProjectPath()).toBe('/tmp/test-project');
     });
 
-    it('marks state as initialized', async () => {
+    it ('marks state as initialized', async () => {
       await state.initialize('/tmp/test-project');
       expect(state.isInitialized()).toBe(true);
     });
 
-    it('sets project info with name from path', async () => {
+    it ('sets project info with name from path', async () => {
       await state.initialize('/tmp/test-project');
       const info = state.getProjectInfo();
       expect(info).not.toBeNull();
       expect(info.name).toBe('test-project');
     });
 
-    it('sets project info root_path', async () => {
+    it ('sets project info root_path', async () => {
       await state.initialize('/tmp/test-project');
       const info = state.getProjectInfo();
       expect(info.root_path).toBe('/tmp/test-project');
@@ -139,7 +139,7 @@ describe('ServerState', () => {
   // ── WebSocket Broadcast ───────────────────────────────────────────────
 
   describe('WebSocket broadcast', () => {
-    it('sets a broadcast function and invokes it', () => {
+    it('sets a broadcast function and invokes it', async () => {
       const broadcastFn = vi.fn();
       state.setWSBroadcast(broadcastFn);
 
@@ -153,7 +153,7 @@ describe('ServerState', () => {
       expect(broadcastFn).toHaveBeenCalledWith(event);
     });
 
-    it('does nothing if no broadcast function is set', () => {
+    it('does nothing if no broadcast function is set', async () => {
       const event: WSEvent = {
         type: 'analysis:started',
         timestamp: '2024-06-15T00:00:00Z',
@@ -162,7 +162,7 @@ describe('ServerState', () => {
       expect(() => state.broadcast(event)).not.toThrow();
     });
 
-    it('passes the correct event type', () => {
+    it('passes the correct event type', async () => {
       const broadcastFn = vi.fn();
       state.setWSBroadcast(broadcastFn);
 
@@ -179,7 +179,7 @@ describe('ServerState', () => {
   // ── Status Tracking ───────────────────────────────────────────────────
 
   describe('status tracking', () => {
-    it('getAnalysisStatus returns full status object', () => {
+    it('getAnalysisStatus returns full status object', async () => {
       const status = state.getAnalysisStatus();
       expect(status).toHaveProperty('phase');
       expect(status).toHaveProperty('progress');
@@ -189,24 +189,24 @@ describe('ServerState', () => {
       expect(status).toHaveProperty('error');
     });
 
-    it('status message defaults to no analysis running', () => {
+    it('status message defaults to no analysis running', async () => {
       expect(state.getAnalysisStatus().message).toBe('No analysis running');
     });
   });
 
   // ── Dispose ───────────────────────────────────────────────────────────
 
-  describe('dispose', () => {
+  describe ('dispose', () => {
     it('does not throw when not initialized', async () => {
       await expect(state.dispose()).resolves.not.toThrow();
     });
 
-    it('disposes graph client after initialization', async () => {
+    it ('disposes graph client after initialization', async () => {
       await state.initialize('/tmp/test-project');
       await expect(state.dispose()).resolves.not.toThrow();
     });
 
-    it('resets initialized state after dispose', async () => {
+    it ('resets initialized state after dispose', async () => {
       await state.initialize('/tmp/test-project');
       expect(state.isInitialized()).toBe(true);
       await state.dispose();
@@ -217,11 +217,11 @@ describe('ServerState', () => {
   // ── Analysis History ─────────────────────────────────────────────────
 
   describe('analysis history tracking', () => {
-    it('starts with empty history', () => {
+    it('starts with empty history', async () => {
       expect(state.getAnalysisHistory()).toEqual([]);
     });
 
-    it('getAnalysisHistory returns a copy, not a reference', () => {
+    it('getAnalysisHistory returns a copy, not a reference', async () => {
       const h1 = state.getAnalysisHistory();
       const h2 = state.getAnalysisHistory();
       expect(h1).toEqual(h2);
@@ -232,7 +232,7 @@ describe('ServerState', () => {
   // ── Evolution Timeline ───────────────────────────────────────────────
 
   describe('evolution timeline', () => {
-    it('returns a default timeline when not initialized and no cache', () => {
+    it('returns a default timeline when not initialized and no cache', async () => {
       const timeline = state.getEvolutionTimeline();
       expect(timeline).toHaveProperty('snapshots');
       expect(timeline).toHaveProperty('trends');
@@ -240,13 +240,13 @@ describe('ServerState', () => {
       expect(timeline.snapshots.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('default timeline has overall_health of 50 without cache', () => {
+    it('default timeline has overall_health of 50 without cache', async () => {
       const timeline = state.getEvolutionTimeline();
       const snapshot = timeline.snapshots[0]!;
       expect(snapshot.overall_health).toBe(50);
     });
 
-    it('default timeline snapshot has expected properties', () => {
+    it('default timeline snapshot has expected properties', async () => {
       const timeline = state.getEvolutionTimeline();
       const snapshot = timeline.snapshots[0]!;
       expect(snapshot).toHaveProperty('id');
@@ -257,7 +257,7 @@ describe('ServerState', () => {
       expect(snapshot).toHaveProperty('risk_count');
     });
 
-    it('default timeline has empty trends array', () => {
+    it('default timeline has empty trends array', async () => {
       const timeline = state.getEvolutionTimeline();
       expect(timeline.trends).toEqual([]);
     });
@@ -266,7 +266,7 @@ describe('ServerState', () => {
   // ── Health Score ─────────────────────────────────────────────────────
 
   describe('health score', () => {
-    it('returns default health score without analysis cache', () => {
+    it('returns default health score without analysis cache', async () => {
       const score = state.getHealthScore();
       expect(score.overall).toBe(50);
       expect(score.dimensions).toEqual([]);
@@ -276,15 +276,15 @@ describe('ServerState', () => {
   // ── Uninitialized Accessor Errors ────────────────────────────────────
 
   describe('uninitialized accessor errors', () => {
-    it('getGraph throws when not initialized', () => {
+    it('getGraph throws when not initialized', async () => {
       expect(() => state.getGraph()).toThrow(/not initialized/i);
     });
 
-    it('getProjectInfo throws when not initialized', () => {
+    it('getProjectInfo throws when not initialized', async () => {
       expect(() => state.getProjectInfo()).toThrow(/not initialized/i);
     });
 
-    it('getProjectPath throws when not initialized', () => {
+    it('getProjectPath throws when not initialized', async () => {
       expect(() => state.getProjectPath()).toThrow(/not initialized/i);
     });
   });
@@ -292,7 +292,7 @@ describe('ServerState', () => {
   // ── Analysis Cache ──────────────────────────────────────────────────
 
   describe('analysis cache', () => {
-    it('getAnalysisCache returns null initially', () => {
+    it('getAnalysisCache returns null initially', async () => {
       expect(state.getAnalysisCache()).toBeNull();
     });
   });
@@ -300,7 +300,7 @@ describe('ServerState', () => {
   // ── Broadcast Integration ────────────────────────────────────────────
 
   describe('broadcast integration', () => {
-    it('setWSBroadcast can be called multiple times', () => {
+    it('setWSBroadcast can be called multiple times', async () => {
       const fn1 = vi.fn();
       const fn2 = vi.fn();
       state.setWSBroadcast(fn1);
@@ -314,7 +314,7 @@ describe('ServerState', () => {
       expect(fn1).toHaveBeenCalledTimes(1);
     });
 
-    it('broadcast includes all event fields', () => {
+    it('broadcast includes all event fields', async () => {
       const broadcastFn = vi.fn();
       state.setWSBroadcast(broadcastFn);
 
@@ -336,23 +336,23 @@ describe('ServerState', () => {
   // ── markAnalysisStarting ─────────────────────────────────────────────
 
   describe('markAnalysisStarting', () => {
-    it('transitions phase from idle to collecting', () => {
+    it('transitions phase from idle to collecting', async () => {
       expect(state.getAnalysisStatus().phase).toBe('idle');
       state.markAnalysisStarting();
       expect(state.getAnalysisStatus().phase).toBe('collecting');
     });
 
-    it('sets progress to 0', () => {
+    it('sets progress to 0', async () => {
       state.markAnalysisStarting();
       expect(state.getAnalysisStatus().progress).toBe(0);
     });
 
-    it('sets startedAt to a non-null value', () => {
+    it('sets startedAt to a non-null value', async () => {
       state.markAnalysisStarting();
       expect(state.getAnalysisStatus().startedAt).not.toBeNull();
     });
 
-    it('leaves completedAt as null', () => {
+    it('leaves completedAt as null', async () => {
       state.markAnalysisStarting();
       expect(state.getAnalysisStatus().completedAt).toBeNull();
     });
@@ -361,7 +361,7 @@ describe('ServerState', () => {
   // ── getOpportunities ────────────────────────────────────────────────
 
   describe('opportunity manager', () => {
-    it('getOpportunities returns a manager even before initialization', () => {
+    it('getOpportunities returns a manager even before initialization', async () => {
       const manager = state.getOpportunities();
       expect(manager).toBeDefined();
       expect(typeof manager.list).toBe('function');

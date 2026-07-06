@@ -48,7 +48,7 @@ interface Project {
 export async function registerProjectRoutes(app: FastifyInstance): Promise<void> {
   // List all projects
   app.get('/api/v1/projects', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const list = store.all<Project>('projects')
+    const list = (await store.all<Project>('projects'))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     return reply.send({
@@ -59,7 +59,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
   // Get single project
   app.get<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const project = store.get<Project>('projects', request.params.id);
+    const project = await store.get<Project>('projects', request.params.id);
     if (!project) {
       return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
     }
@@ -115,7 +115,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       },
     };
 
-    store.set('projects', id, project);
+    await store.set('projects', id, project);
     return reply.status(201).send({ data: project });
   });
 
@@ -138,7 +138,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       },
     },
   }, async (request, reply) => {
-    const project = store.get<Project>('projects', request.params.id);
+    const project = await store.get<Project>('projects', request.params.id);
     if (!project) {
       return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
     }
@@ -156,22 +156,22 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       updatedAt: nowISO(),
     };
 
-    store.set('projects', updated.id, updated);
+    await store.set('projects', updated.id, updated);
     return reply.send({ data: updated });
   });
 
   // Delete project
   app.delete<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!store.has('projects', request.params.id)) {
+    if (!await store.has('projects', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
     }
-    store.delete('projects', request.params.id);
+    await store.delete('projects', request.params.id);
     return reply.status(204).send();
   });
 
   // Get project health comparison (across all projects)
   app.get('/api/v1/projects/compare/health', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const comparison = store.all<Project>('projects').map(p => ({
+    const comparison = (await store.all<Project>('projects')).map(p => ({
       id: p.id,
       name: p.name,
       slug: p.slug,

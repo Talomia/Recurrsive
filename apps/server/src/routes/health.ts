@@ -175,7 +175,10 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   app.get('/api/v1/metrics/performance', async (_request, reply) => {
     const cache = state.getAnalysisCache();
     if (!cache) {
-      return reply.status(200).send({ data: [] });
+      return reply.status(404).send({
+        error: 'No analysis data',
+        message: 'Run POST /api/v1/analyze first to generate performance metrics.',
+      });
     }
 
     try {

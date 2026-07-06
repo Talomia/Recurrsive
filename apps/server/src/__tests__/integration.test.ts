@@ -179,12 +179,12 @@ let app: FastifyInstance;
 const adminToken = createToken('test-admin', 'admin');
 const authHeaders = { authorization: `Bearer ${adminToken}` };
 
-beforeAll(async () => {
+beforeAll (async () => {
   app = await createServer({ logger: false });
   await app.ready();
 });
 
-afterAll(async () => {
+afterAll (async () => {
   await app.close();
 });
 
@@ -192,7 +192,7 @@ afterAll(async () => {
 // Flow 1: Analysis → Findings → Opportunities → Health → Reports
 // ===========================================================================
 
-describe('Flow: Analysis → Findings → Opportunities → Health → Reports', () => {
+describe ('Flow: Analysis → Findings → Opportunities → Health → Reports', () => {
   it('1. POST /api/v1/analyze returns accepted or rejects bad input', async () => {
     // Without path or gitUrl → 400
     const badRes = await app.inject({
@@ -221,7 +221,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
     }
   });
 
-  it('2. GET /api/v1/analysis/status returns status shape', async () => {
+  it ('2. GET /api/v1/analysis/status returns status shape', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analysis/status' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -233,7 +233,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
     expect(typeof body.data.progress).toBe('number');
   });
 
-  it('3. GET /api/v1/findings returns findings list shape', async () => {
+  it ('3. GET /api/v1/findings returns findings list shape', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/findings' });
     // May be 200 (findings available) or 404 (no analysis cache yet)
     expect([200, 404]).toContain(res.statusCode);
@@ -244,7 +244,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
     }
   });
 
-  it('4. GET /api/v1/opportunities returns paginated opportunities', async () => {
+  it ('4. GET /api/v1/opportunities returns paginated opportunities', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/opportunities' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -257,19 +257,19 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
     expect(body.total).toBeGreaterThanOrEqual(0);
   });
 
-  it('5. GET /api/v1/health-score returns health score shape', async () => {
+  it ('5. GET /api/v1/health-score returns health score shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/health-score' });
     // 200 if initialized and cache exists, 404 if no analysis cache yet, 503 if not initialized
     expect([200, 404, 503]).toContain(res.statusCode);
     if (res.statusCode === 200) {
       const body = res.json();
-      expect(body).toHaveProperty('overall_health');
-      expect(typeof body.overall_health).toBe('number');
-      expect(body).toHaveProperty('dimensions');
+      expect(body.data).toHaveProperty('overall_health');
+      expect(typeof body.data.overall_health).toBe('number');
+      expect(body.data).toHaveProperty('dimensions');
     }
   });
 
-  it('6. GET /api/v1/reports/json returns report or 404', async () => {
+  it ('6. GET /api/v1/reports/json returns report or 404', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/reports/json' });
     // 200 with report data, or 404 if no analysis cache
     expect([200, 404]).toContain(res.statusCode);
@@ -284,7 +284,7 @@ describe('Flow: Analysis → Findings → Opportunities → Health → Reports',
 // Flow 2: Webhook Lifecycle
 // ===========================================================================
 
-describe('Flow: Webhook Lifecycle (register → list → test → deliveries → delete → verify)', () => {
+describe('Flow: Webhook Lifecycle (register → list → test → deliveries → delete → verify)', async () => {
   let webhookId: string;
 
   it('7. POST /api/v1/webhooks registers a webhook', async () => {
@@ -309,7 +309,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
     webhookId = body.data.id;
   });
 
-  it('8. GET /api/v1/webhooks lists the registered webhook', async () => {
+  it ('8. GET /api/v1/webhooks lists the registered webhook', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/webhooks' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -354,7 +354,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
     }
   });
 
-  it('10. GET /api/v1/webhooks/:id/deliveries returns delivery history', async () => {
+  it ('10. GET /api/v1/webhooks/:id/deliveries returns delivery history', async () => {
     const res = await app.inject({
       headers: authHeaders,
       headers: authHeaders,
@@ -369,7 +369,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
     expect(body.data.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('11. DELETE /api/v1/webhooks/:id removes the webhook', async () => {
+  it ('11. DELETE /api/v1/webhooks/:id removes the webhook', async () => {
     const res = await app.inject({
       headers: authHeaders,
       headers: authHeaders,
@@ -383,7 +383,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
     expect(body.data.id).toBe(webhookId);
   });
 
-  it('12. GET /api/v1/webhooks confirms removal', async () => {
+  it ('12. GET /api/v1/webhooks confirms removal', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/webhooks' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -396,7 +396,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 // Flow 3: Batch Lifecycle
 // ===========================================================================
 
-describe('Flow: Batch Lifecycle (start → status → history)', () => {
+describe('Flow: Batch Lifecycle (start → status → history)', async () => {
   let batchId: string;
 
   it('13. POST /api/v1/batch/analyze starts a batch', async () => {
@@ -416,7 +416,7 @@ describe('Flow: Batch Lifecycle (start → status → history)', () => {
     batchId = body.batch_id;
   });
 
-  it('14. GET /api/v1/batch/status/:id returns batch status', async () => {
+  it ('14. GET /api/v1/batch/status/:id returns batch status', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'GET',
@@ -431,7 +431,7 @@ describe('Flow: Batch Lifecycle (start → status → history)', () => {
     expect(body.data).toHaveProperty('projects');
   });
 
-  it('15. GET /api/v1/batch/history includes the batch in history', async () => {
+  it ('15. GET /api/v1/batch/history includes the batch in history', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'GET',
@@ -451,7 +451,7 @@ describe('Flow: Batch Lifecycle (start → status → history)', () => {
 // Flow 4: Config + Notifications
 // ===========================================================================
 
-describe('Flow: Config + Notifications (config → features → channels → test → history)', () => {
+describe('Flow: Config + Notifications (config → features → channels → test → history)', async () => {
   it('16. GET /api/v1/config returns current configuration', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/config' });
     // 200 if initialized, 503 or 404 if not (depends on route guard)
@@ -467,7 +467,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
     }
   });
 
-  it('17. GET /api/v1/config/features returns feature inventory', async () => {
+  it ('17. GET /api/v1/config/features returns feature inventory', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/config/features' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -482,7 +482,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
     expect(body.data.summary).toHaveProperty('total_policy_sets');
   });
 
-  it('18. GET /api/v1/notifications/channels returns available channels', async () => {
+  it ('18. GET /api/v1/notifications/channels returns available channels', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/notifications/channels' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -497,7 +497,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
     expect(channel).toHaveProperty('description');
   });
 
-  it('19. POST /api/v1/notifications/test sends a test notification', async () => {
+  it ('19. POST /api/v1/notifications/test sends a test notification', async () => {
     const res = await app.inject({
       headers: authHeaders,
       headers: authHeaders,
@@ -512,7 +512,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
     expect(body.message).toBe('Test notification sent successfully');
   });
 
-  it('20. GET /api/v1/notifications/history shows the test notification', async () => {
+  it ('20. GET /api/v1/notifications/history shows the test notification', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/notifications/history' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -537,7 +537,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
 // Flow 5: Experiment Lifecycle
 // ===========================================================================
 
-describe('Flow: Experiment lifecycle (create → get → update → verify)', () => {
+describe('Flow: Experiment lifecycle (create → get → update → verify)', async () => {
   let experimentId: string;
 
   it('21. POST /api/v1/experiments creates a new experiment', async () => {
@@ -565,7 +565,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
     experimentId = body.data.id;
   });
 
-  it('22. GET /api/v1/experiments lists experiments including the new one', async () => {
+  it ('22. GET /api/v1/experiments lists experiments including the new one', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/experiments' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -576,7 +576,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
     expect(found.name).toBe('Integration Test Experiment');
   });
 
-  it('23. GET /api/v1/experiments/:id returns experiment details', async () => {
+  it ('23. GET /api/v1/experiments/:id returns experiment details', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: `/api/v1/experiments/${experimentId}` });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -587,7 +587,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
     expect(body.data.variants).toHaveLength(2);
   });
 
-  it('24. PUT /api/v1/experiments/:id/status starts the experiment', async () => {
+  it ('24. PUT /api/v1/experiments/:id/status starts the experiment', async () => {
     const res = await app.inject({
       headers: authHeaders,
       headers: authHeaders,
@@ -602,7 +602,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
     expect(body.data.completed_at).toBeNull();
   });
 
-  it('25. PUT /api/v1/experiments/:id/status completes the experiment', async () => {
+  it ('25. PUT /api/v1/experiments/:id/status completes the experiment', async () => {
     const res = await app.inject({
       headers: authHeaders,
       headers: authHeaders,
@@ -625,7 +625,7 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', ()
 // Flow 6: Audit + Analytics
 // ===========================================================================
 
-describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
+describe('Flow: Audit + Analytics (audit events → analytics summary)', async () => {
   it('26. GET /api/v1/audit requires auth, returns 401 without token', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/audit' });
     expect(res.statusCode).toBe(401);
@@ -666,7 +666,7 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
     expect(body.data).toHaveProperty('byStatusGroup');
   });
 
-  it('29. GET /api/v1/analytics/summary returns trend data', async () => {
+  it ('29. GET /api/v1/analytics/summary returns trend data', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analytics/summary' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -677,7 +677,7 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
     expect(Array.isArray(body.data.trends)).toBe(true);
   });
 
-  it('30. GET /api/v1/analytics/top-categories returns category breakdown', async () => {
+  it ('30. GET /api/v1/analytics/top-categories returns category breakdown', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/analytics/top-categories' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -690,7 +690,7 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', () => {
 // Flow 7: Search (query → filter → verify)
 // ===========================================================================
 
-describe('Flow: Search (query → filter → verify)', () => {
+describe('Flow: Search (query → filter → verify)', async () => {
   it('31. GET /api/v1/search?q=auth returns valid response', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=auth' });
     expect(res.statusCode).toBe(200);
@@ -704,7 +704,7 @@ describe('Flow: Search (query → filter → verify)', () => {
     expect(body.total).toBe(body.data.length);
   });
 
-  it('32. Search results have correct shape when data is available', async () => {
+  it ('32. Search results have correct shape when data is available', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/search?q=auth' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -722,7 +722,7 @@ describe('Flow: Search (query → filter → verify)', () => {
     }
   });
 
-  it('33. GET /api/v1/search?q=injection&scope=findings limits to findings', async () => {
+  it ('33. GET /api/v1/search?q=injection&scope=findings limits to findings', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'GET',

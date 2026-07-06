@@ -99,12 +99,12 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
   // ── Simulation Engine ─────────────────────────────────────────────────────
 
   app.get('/api/v1/simulations', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = store.all<SimulationScenario>('simulations');
+    const all = await store.all<SimulationScenario>('simulations');
     return reply.send({ data: all, total: all.length });
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/simulations/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const sim = store.get<SimulationScenario>('simulations', request.params.id);
+    const sim = await store.get<SimulationScenario>('simulations', request.params.id);
     if (!sim) return reply.status(404).send({ error: 'Not Found', message: 'Simulation not found' });
     return reply.send({ data: sim });
   });
@@ -186,19 +186,19 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       completedAt: nowISO(),
     };
 
-    store.set<SimulationScenario>('simulations', id, sim);
+    await store.set<SimulationScenario>('simulations', id, sim);
     return reply.status(201).send({ data: sim });
   });
 
   // ── PR Generation ─────────────────────────────────────────────────────────
 
   app.get('/api/v1/pull-requests', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = store.all<GeneratedPR>('pull_requests');
+    const all = await store.all<GeneratedPR>('pull_requests');
     return reply.send({ data: all, total: all.length });
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/pull-requests/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pr = store.get<GeneratedPR>('pull_requests', request.params.id);
+    const pr = await store.get<GeneratedPR>('pull_requests', request.params.id);
     if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
     return reply.send({ data: pr });
   });
@@ -255,16 +255,16 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       createdAt: nowISO(),
     };
 
-    store.set<GeneratedPR>('pull_requests', id, pr);
+    await store.set<GeneratedPR>('pull_requests', id, pr);
     return reply.status(201).send({ data: pr });
   });
 
   app.post<{ Params: { id: string } }>('/api/v1/pull-requests/:id/submit', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pr = store.get<GeneratedPR>('pull_requests', request.params.id);
+    const pr = await store.get<GeneratedPR>('pull_requests', request.params.id);
     if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
 
     pr.status = 'submitted';
-    store.set<GeneratedPR>('pull_requests', pr.id, pr);
+    await store.set<GeneratedPR>('pull_requests', pr.id, pr);
     return reply.send({ data: pr, message: 'PR submitted for review' });
   });
 

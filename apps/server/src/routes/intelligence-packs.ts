@@ -44,18 +44,18 @@ interface IntelligencePack {
 
 export async function registerIntelligencePackRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/intelligence-packs', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = store.all<IntelligencePack>('intelligence_packs');
+    const all = await store.all<IntelligencePack>('intelligence_packs');
     return reply.send({ data: all, total: all.length });
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pack = store.get<IntelligencePack>('intelligence_packs', request.params.id);
+    const pack = await store.get<IntelligencePack>('intelligence_packs', request.params.id);
     if (!pack) return reply.status(404).send({ error: 'Not Found', message: 'Intelligence pack not found' });
     return reply.send({ data: pack });
   });
 
   app.post<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id/install', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pack = store.get<IntelligencePack>('intelligence_packs', request.params.id);
+    const pack = await store.get<IntelligencePack>('intelligence_packs', request.params.id);
     if (!pack) return reply.status(404).send({ error: 'Not Found', message: 'Intelligence pack not found' });
 
     if (pack.status === 'installed') {
@@ -63,16 +63,16 @@ export async function registerIntelligencePackRoutes(app: FastifyInstance): Prom
     }
 
     pack.status = 'installed';
-    store.set<IntelligencePack>('intelligence_packs', pack.id, pack);
+    await store.set<IntelligencePack>('intelligence_packs', pack.id, pack);
     return reply.send({ data: pack, message: `${pack.name} installed successfully. ${pack.ruleCount} rules activated.` });
   });
 
   app.delete<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id/uninstall', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pack = store.get<IntelligencePack>('intelligence_packs', request.params.id);
+    const pack = await store.get<IntelligencePack>('intelligence_packs', request.params.id);
     if (!pack) return reply.status(404).send({ error: 'Not Found', message: 'Intelligence pack not found' });
 
     pack.status = 'available';
-    store.set<IntelligencePack>('intelligence_packs', pack.id, pack);
+    await store.set<IntelligencePack>('intelligence_packs', pack.id, pack);
     return reply.send({ data: pack, message: 'Pack uninstalled' });
   });
 }

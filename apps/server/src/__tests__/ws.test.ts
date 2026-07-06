@@ -61,13 +61,13 @@ function createMockSocket(): MockSocket {
 // ---------------------------------------------------------------------------
 
 describe('WebSocket Events', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clean up all clients between tests
     disconnectAll();
   });
 
   describe('registerClient', () => {
-    it('adds the client and sends a welcome event', () => {
+    it('adds the client and sends a welcome event', async () => {
       const socket = createMockSocket();
       registerClient(socket as any);
 
@@ -79,7 +79,7 @@ describe('WebSocket Events', () => {
       expect(welcome.data.phase).toBe('connected');
     });
 
-    it('registers message, close, and error handlers', () => {
+    it('registers message, close, and error handlers', async () => {
       const socket = createMockSocket();
       registerClient(socket as any);
 
@@ -88,7 +88,7 @@ describe('WebSocket Events', () => {
       expect(socket.on).toHaveBeenCalledWith('error', expect.any(Function));
     });
 
-    it('handles ping messages with pong response', () => {
+    it('handles ping messages with pong response', async () => {
       const socket = createMockSocket();
       registerClient(socket as any);
 
@@ -102,7 +102,7 @@ describe('WebSocket Events', () => {
       expect(pong.data.pong).toBe(true);
     });
 
-    it('handles subscribe messages', () => {
+    it('handles subscribe messages', async () => {
       const socket = createMockSocket();
       registerClient(socket as any);
 
@@ -115,7 +115,7 @@ describe('WebSocket Events', () => {
       expect(sub.data.events).toContain('analysis:started');
     });
 
-    it('handles unknown message types with error', () => {
+    it('handles unknown message types with error', async () => {
       const socket = createMockSocket();
       registerClient(socket as any);
 
@@ -128,7 +128,7 @@ describe('WebSocket Events', () => {
       expect(err.data.error).toBe('Unknown message type');
     });
 
-    it('handles invalid JSON messages with error', () => {
+    it('handles invalid JSON messages with error', async () => {
       const socket = createMockSocket();
       registerClient(socket as any);
 
@@ -141,7 +141,7 @@ describe('WebSocket Events', () => {
       expect(err.data.error).toBe('Invalid JSON message');
     });
 
-    it('removes client on close', () => {
+    it('removes client on close', async () => {
       const socket = createMockSocket();
       registerClient(socket as any);
       expect(getClientCount()).toBe(1);
@@ -152,7 +152,7 @@ describe('WebSocket Events', () => {
       expect(getClientCount()).toBe(0);
     });
 
-    it('removes client on error', () => {
+    it('removes client on error', async () => {
       const socket = createMockSocket();
       registerClient(socket as any);
       expect(getClientCount()).toBe(1);
@@ -165,7 +165,7 @@ describe('WebSocket Events', () => {
   });
 
   describe('broadcastEvent', () => {
-    it('sends event to all connected clients', () => {
+    it('sends event to all connected clients', async () => {
       const s1 = createMockSocket();
       const s2 = createMockSocket();
       registerClient(s1 as any);
@@ -187,7 +187,7 @@ describe('WebSocket Events', () => {
       expect(event2.type).toBe('analysis:started');
     });
 
-    it('removes closed clients during broadcast', () => {
+    it('removes closed clients during broadcast', async () => {
       const s1 = createMockSocket();
       const s2 = createMockSocket();
       registerClient(s1 as any);
@@ -206,7 +206,7 @@ describe('WebSocket Events', () => {
       expect(getClientCount()).toBe(1);
     });
 
-    it('handles empty client list gracefully', () => {
+    it('handles empty client list gracefully', async () => {
       expect(() => {
         broadcastEvent({
           type: 'analysis:complete',
@@ -218,11 +218,11 @@ describe('WebSocket Events', () => {
   });
 
   describe('getClientCount', () => {
-    it('returns 0 when no clients connected', () => {
+    it('returns 0 when no clients connected', async () => {
       expect(getClientCount()).toBe(0);
     });
 
-    it('returns correct count with multiple clients', () => {
+    it('returns correct count with multiple clients', async () => {
       registerClient(createMockSocket() as any);
       registerClient(createMockSocket() as any);
       registerClient(createMockSocket() as any);
@@ -231,7 +231,7 @@ describe('WebSocket Events', () => {
   });
 
   describe('disconnectAll', () => {
-    it('closes all connections and clears client list', () => {
+    it('closes all connections and clears client list', async () => {
       const s1 = createMockSocket();
       const s2 = createMockSocket();
       registerClient(s1 as any);
@@ -246,7 +246,7 @@ describe('WebSocket Events', () => {
   });
 
   describe('createBroadcast', () => {
-    it('returns a function that broadcasts events', () => {
+    it('returns a function that broadcasts events', async () => {
       const broadcast = createBroadcast();
       expect(typeof broadcast).toBe('function');
 

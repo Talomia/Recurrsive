@@ -65,6 +65,9 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
     trustProxy: true, // Behind EasyPanel reverse proxy — trust X-Forwarded-* headers
   });
 
+  // Initialize the store backend (creates PostgreSQL tables if needed)
+  await store.initialize();
+
   // Register global error handler
   registerErrorHandler(app);
 
@@ -102,7 +105,7 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
 
   // Register close hook to cleanly shut down the store
   app.addHook('onClose', async () => {
-    store.close();
+    await store.close();
   });
 
   return app;

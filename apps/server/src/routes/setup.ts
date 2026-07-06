@@ -52,7 +52,7 @@ export async function registerSetupRoutes(app: FastifyInstance): Promise<void> {
    * No authentication required.
    */
   app.get('/api/v1/setup/status', async (_request, reply) => {
-    const userCount = countUsers();
+    const userCount = await countUsers();
     return reply.status(200).send({
       data: {
         setupRequired: userCount === 0,
@@ -73,7 +73,7 @@ export async function registerSetupRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post<{ Body: SetupBody }>('/api/v1/setup', async (request, reply) => {
     // Check if setup is already complete
-    if (countUsers() > 0) {
+    if ((await countUsers()) > 0) {
       return reply.status(409).send({
         error: 'Conflict',
         message: 'Setup has already been completed. Use the admin panel to manage users.',

@@ -28,7 +28,7 @@ import type {
   ConsensusResult,
 } from '@recurrsive/core';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
@@ -40,31 +40,23 @@ const execFileAsync = promisify(execFile);
 const logger = createLogger({ context: { component: 'server:state' } });
 
 // ---------------------------------------------------------------------------
-// Persistent history helpers
+// Persistent history helpers (backed by the KV store → PostgreSQL)
 // ---------------------------------------------------------------------------
 
-/** Path to the history file within the project. */
-function historyPath(projectRoot: string): string {
-  return path.join(projectRoot, '.recurrsive', 'history.json');
-}
-
-/** Load analysis history from disk. Returns [] on any error. */
+/** Load analysis history from the store. Returns [] on any error. */
 async function loadHistory(projectRoot: string): Promise<AnalysisHistoryEntry[]> {
   try {
-    const raw = await readFile(historyPath(projectRoot), 'utf-8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const entries = await store.get<AnalysisHistoryEntry[]>('analysis_history', projectRoot);
+    return entries ?? [];
   } catch {
     return [];
   }
 }
 
-/** Persist analysis history to disk. */
+/** Persist analysis history to the store. */
 async function saveHistory(projectRoot: string, history: AnalysisHistoryEntry[]): Promise<void> {
   try {
-    const dir = path.join(projectRoot, '.recurrsive');
-    await mkdir(dir, { recursive: true });
-    await writeFile(historyPath(projectRoot), JSON.stringify(history, null, 2), 'utf-8');
+    await store.set('analysis_history', projectRoot, history);
   } catch (err) {
     logger.warn(`Failed to persist analysis history: ${err instanceof Error ? err.message : err}`);
   }
@@ -295,6 +287,14 @@ export class ServerState {
     this._analysisHistory = await loadHistory(projectPath);
     if (this._analysisHistory.length > 0) {
       logger.info(`Loaded ${this._analysisHistory.length} historical analysis entries`);
+    }
+
+    // Restore analysis cache from store (survives restarts)
+    const cachedAnalysis = await store.get<AnalysisCache>('analysis_cache', projectPath);
+    if (cachedAnalysis) {
+      this.analysisCache = cachedAnalysis;
+      this.opportunityManager = new OpportunityManager(cachedAnalysis.opportunities);
+      logger.info(`Restored analysis cache from database (${cachedAnalysis.findings.length} findings, ${cachedAnalysis.opportunities.length} opportunities)`);
     }
 
     logger.info('Server state initialized successfully');
@@ -764,6 +764,9 @@ export class ServerState {
       };
       this.analysisCache = cache;
 
+      // Persist analysis cache to database so it survives restarts
+      await store.set('analysis_cache', this.projectPath!, cache);
+
       this.updateStatus('complete', 100, 'Analysis complete');
 
       const completedAt = nowISO();
@@ -803,9 +806,9 @@ export class ServerState {
       // so the projects list reflects "Analyzed" status with the real score.
       try {
         const { overall } = this.getHealthScore();
-        const projects = store.all<{ id: string; healthScore: number; lastAnalysis: string | null; updatedAt: string }>('projects');
+        const projects = await store.all<{ id: string; healthScore: number; lastAnalysis: string | null; updatedAt: string }>('projects');
         for (const project of projects) {
-          store.set('projects', project.id, {
+          await store.set('projects', project.id, {
             ...project,
             healthScore: overall,
             lastAnalysis: completedAt,

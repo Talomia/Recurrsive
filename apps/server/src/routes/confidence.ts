@@ -110,7 +110,7 @@ function calibrationCurve(preds: Prediction[]): CalibrationBucket[] {
 export async function registerConfidenceRoutes(app: FastifyInstance): Promise<void> {
   // Overall calibration metrics
   app.get('/api/v1/confidence/overview', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = store.all<Prediction>('predictions');
+    const all = await store.all<Prediction>('predictions');
     const resolved = all.filter(p => p.actualOutcome !== null);
 
     // Per-analyzer Brier scores — derive analyzer IDs from actual predictions
@@ -167,7 +167,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
       },
     },
   }, async (request, reply) => {
-    const prediction = store.get<Prediction>('predictions', request.params.id);
+    const prediction = await store.get<Prediction>('predictions', request.params.id);
     if (!prediction) return reply.status(404).send({ error: 'Not Found', message: 'Prediction not found' });
 
     const body = request.body as { occurred: boolean };
@@ -177,7 +177,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
 
     prediction.actualOutcome = body.occurred;
     prediction.resolvedAt = nowISO();
-    store.set<Prediction>('predictions', prediction.id, prediction);
+    await store.set<Prediction>('predictions', prediction.id, prediction);
 
     return reply.send({ data: prediction });
   });
@@ -187,7 +187,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
     '/api/v1/confidence/predictions',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      let preds = store.all<Prediction>('predictions');
+      let preds = await store.all<Prediction>('predictions');
 
       if (request.query.analyzer) {
         preds = preds.filter(p => p.analyzerId === request.query.analyzer);
@@ -213,7 +213,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
     '/api/v1/confidence/calibration/:analyzerId',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const preds = store.all<Prediction>('predictions').filter(p => p.analyzerId === request.params.analyzerId);
+      const preds = (await store.all<Prediction>('predictions')).filter(p => p.analyzerId === request.params.analyzerId);
       if (preds.length === 0) {
         return reply.status(404).send({ error: 'Not Found', message: `No predictions for analyzer: ${request.params.analyzerId}` });
       }
@@ -275,7 +275,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
       resolvedAt: null,
     };
 
-    store.set<Prediction>('predictions', id, prediction);
+    await store.set<Prediction>('predictions', id, prediction);
     return reply.status(201).send({ data: prediction });
   });
 
@@ -298,7 +298,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
         predictedAt: nowISO(),
         resolvedAt: null,
       };
-      store.set<Prediction>('predictions', id, prediction);
+      await store.set<Prediction>('predictions', id, prediction);
       count++;
     }
 
@@ -316,7 +316,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
    * and data volume considerations.
    */
   app.get('/api/v1/confidence/factors', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = store.all<Prediction>('predictions');
+    const all = await store.all<Prediction>('predictions');
     const resolved = all.filter(p => p.actualOutcome !== null);
 
     // Per-severity accuracy factor

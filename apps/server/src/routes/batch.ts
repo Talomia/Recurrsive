@@ -60,8 +60,8 @@ export interface BatchRun {
 
 const MAX_HISTORY = 50;
 
-function generateBatchId(): string {
-  const count = store.count('batches') + 1;
+async function generateBatchId(): Promise<string> {
+  const count = await store.count('batches') + 1;
   return `batch_${String(count).padStart(6, '0')}`;
 }
 
@@ -88,14 +88,14 @@ function isSafePath(projectPath: string): boolean {
  * After all projects complete, set the final batch status.
  */
 async function runBatchAnalysis(batchId: string): Promise<void> {
-  const batch = store.get<BatchRun>('batches', batchId);
+  const batch = await store.get<BatchRun>('batches', batchId);
   if (!batch) return;
 
   batch.status = 'running';
-  store.set<BatchRun>('batches', batchId, batch);
+  await store.set<BatchRun>('batches', batchId, batch);
 
   for (let i = 0; i < batch.projects.length; i++) {
-    const currentBatch = store.get<BatchRun>('batches', batchId);
+    const currentBatch = await store.get<BatchRun>('batches', batchId);
     if (!currentBatch) return;
 
     const project = currentBatch.projects[i];
@@ -103,7 +103,7 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
 
     project.status = 'running';
     project.started_at = new Date().toISOString();
-    store.set<BatchRun>('batches', batchId, currentBatch);
+    await store.set<BatchRun>('batches', batchId, currentBatch);
 
     try {
       // Validate path safety
@@ -119,13 +119,13 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
       await state.runAnalysis();
 
       // Mark success
-      const afterBatch = store.get<BatchRun>('batches', batchId);
+      const afterBatch = await store.get<BatchRun>('batches', batchId);
       if (!afterBatch) return;
       const afterProject = afterBatch.projects[i];
       if (afterProject) {
         afterProject.status = 'completed';
         afterProject.completed_at = new Date().toISOString();
-        store.set<BatchRun>('batches', batchId, afterBatch);
+        await store.set<BatchRun>('batches', batchId, afterBatch);
       }
 
       batchLogger.info(`Batch ${batchId}: project "${project.path}" completed`);
@@ -133,26 +133,26 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
       const message = err instanceof Error ? err.message : String(err);
       batchLogger.error(`Batch ${batchId}: project "${project.path}" failed: ${message}`);
 
-      const afterBatch = store.get<BatchRun>('batches', batchId);
+      const afterBatch = await store.get<BatchRun>('batches', batchId);
       if (!afterBatch) return;
       const afterProject = afterBatch.projects[i];
       if (afterProject) {
         afterProject.status = 'failed';
         afterProject.completed_at = new Date().toISOString();
         afterProject.error = message;
-        store.set<BatchRun>('batches', batchId, afterBatch);
+        await store.set<BatchRun>('batches', batchId, afterBatch);
       }
     }
   }
 
   // Determine final batch status
-  const finalBatch = store.get<BatchRun>('batches', batchId);
+  const finalBatch = await store.get<BatchRun>('batches', batchId);
   if (finalBatch) {
     const allCompleted = finalBatch.projects.every((p) => p.status === 'completed');
     const allFailed = finalBatch.projects.every((p) => p.status === 'failed');
     finalBatch.status = allCompleted ? 'completed' : allFailed ? 'failed' : 'partial';
     finalBatch.completed_at = new Date().toISOString();
-    store.set<BatchRun>('batches', batchId, finalBatch);
+    await store.set<BatchRun>('batches', batchId, finalBatch);
     batchLogger.info(`Batch ${batchId}: ${finalBatch.status} (${finalBatch.projects.length} projects)`);
   }
 }
@@ -243,7 +243,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
-    const batchId = generateBatchId();
+    const batchId = await generateBatchId();
     const now = new Date().toISOString();
 
     const batchRun: BatchRun = {
@@ -260,10 +260,10 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       completed_at: null,
     };
 
-    store.set<BatchRun>('batches', batchId, batchRun);
+    await store.set<BatchRun>('batches', batchId, batchRun);
 
     // Enforce max history
-    store.trim('batches', MAX_HISTORY);
+    await store.trim('batches', MAX_HISTORY);
 
     // Start real batch analysis asynchronously (runs in background)
     // Use setImmediate to ensure the response is sent before analysis starts
@@ -292,7 +292,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
    * polls this endpoint to display batch activity state.
    */
   app.get('/api/v1/batch/status', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const runs = store.recent<BatchRun>('batches');
+    const runs = await store.recent<BatchRun>('batches');
     const activeRuns = runs.filter((r) => r.status === 'pending' || r.status === 'running');
     const active = activeRuns.length > 0;
 
@@ -323,7 +323,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
     Params: { id: string };
   }>('/api/v1/batch/status/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params;
-    const batch = store.get<BatchRun>('batches', id);
+    const batch = await store.get<BatchRun>('batches', id);
 
     if (!batch) {
       return reply.status(404).send({
@@ -343,7 +343,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
    * Return past batch runs, ordered newest first.
    */
   app.get('/api/v1/batch/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const runs = store.recent<BatchRun>('batches');
+    const runs = await store.recent<BatchRun>('batches');
 
     return reply.status(200).send({
       data: runs,

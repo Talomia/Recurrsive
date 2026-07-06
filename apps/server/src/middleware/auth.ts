@@ -202,7 +202,7 @@ export function verifyToken(token: string): TokenPayload | null {
  * @param request - The incoming Fastify request.
  * @returns An {@link AuthUser} or `null` if no valid credentials found.
  */
-function authenticateRequest(request: FastifyRequest): AuthUser | null {
+async function authenticateRequest(request: FastifyRequest): Promise<AuthUser | null> {
   // 1. Try Bearer token
   const authHeader = request.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -226,7 +226,7 @@ function authenticateRequest(request: FastifyRequest): AuthUser | null {
   // 2. Try API key
   const apiKey = request.headers['x-api-key'];
   if (typeof apiKey === 'string' && apiKey.length > 0) {
-    const keyInfo = validateApiKey(apiKey);
+    const keyInfo = await validateApiKey(apiKey);
     if (keyInfo) {
       return {
         id: keyInfo.userId,
@@ -259,7 +259,7 @@ export const authMiddleware: preHandlerHookHandler = async (
   request: FastifyRequest,
   reply: FastifyReply,
 ) => {
-  const user = authenticateRequest(request);
+  const user = await authenticateRequest(request);
 
   if (!user) {
     logger.debug(`Authentication failed for ${request.method} ${request.url}`);
@@ -290,7 +290,7 @@ export const optionalAuth: preHandlerHookHandler = async (
   request: FastifyRequest,
   _reply: FastifyReply,
 ) => {
-  const user = authenticateRequest(request);
+  const user = await authenticateRequest(request);
 
   if (user) {
     (request as FastifyRequest & { user: AuthUser }).user = user;

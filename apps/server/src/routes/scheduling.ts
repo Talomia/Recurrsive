@@ -181,7 +181,7 @@ async function executeScheduledRun(schedule: ScheduledReport): Promise<ReportRun
     downloadUrl: null,
     error: null,
   };
-  store.set('schedule_runs', runId, run);
+  await store.set('schedule_runs', runId, run);
 
   try {
     // Generate the report using real analysis data
@@ -207,14 +207,14 @@ async function executeScheduledRun(schedule: ScheduledReport): Promise<ReportRun
     run.durationMs = durationMs;
     run.sizeBytes = Buffer.byteLength(reportContent, 'utf-8');
     run.downloadUrl = `/api/v1/reports/export/${runId}`;
-    store.set('schedule_runs', runId, run);
+    await store.set('schedule_runs', runId, run);
 
     // Update schedule metadata
     schedule.lastRunAt = completedAt;
     schedule.totalRuns += 1;
     schedule.nextRunAt = nextCronRun(schedule.schedule);
     schedule.updatedAt = completedAt;
-    store.set('schedules', schedule.id, schedule);
+    await store.set('schedules', schedule.id, schedule);
 
     logger.info(`Schedule "${schedule.name}" run ${runId} completed in ${durationMs}ms`);
   } catch (err) {
@@ -223,11 +223,11 @@ async function executeScheduledRun(schedule: ScheduledReport): Promise<ReportRun
     run.completedAt = nowISO();
     run.durationMs = Date.now() - new Date(startedAt).getTime();
     run.error = message;
-    store.set('schedule_runs', runId, run);
+    await store.set('schedule_runs', runId, run);
 
     schedule.status = 'error';
     schedule.updatedAt = nowISO();
-    store.set('schedules', schedule.id, schedule);
+    await store.set('schedules', schedule.id, schedule);
 
     logger.error(`Schedule "${schedule.name}" run ${runId} failed: ${message}`);
   }
@@ -244,8 +244,8 @@ let schedulerInterval: ReturnType<typeof setInterval> | null = null;
 function startScheduler(): void {
   if (schedulerInterval) return; // Already running
 
-  schedulerInterval = setInterval(() => {
-    const schedules = store.all<ScheduledReport>('schedules');
+  schedulerInterval = setInterval(async () => {
+    const schedules = await store.all<ScheduledReport>('schedules');
     const now = new Date();
 
     for (const schedule of schedules) {
@@ -279,14 +279,14 @@ function stopScheduler(): void {
 export async function registerSchedulingRoutes(app: FastifyInstance): Promise<void> {
   // List all scheduled reports
   app.get('/api/v1/schedules', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const list = store.all<ScheduledReport>('schedules')
+    const list = (await store.all<ScheduledReport>('schedules'))
       .sort((a, b) => a.name.localeCompare(b.name));
     return reply.send({ data: list, total: list.length });
   });
 
   // Get schedule details
   app.get<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const schedule = store.get<ScheduledReport>('schedules', request.params.id);
+    const schedule = await store.get<ScheduledReport>('schedules', request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     return reply.send({ data: schedule });
   });
@@ -339,7 +339,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
       updatedAt: now,
     };
 
-    store.set('schedules', id, schedule);
+    await store.set('schedules', id, schedule);
     return reply.status(201).send({ data: schedule });
   });
 
@@ -365,7 +365,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
       },
     },
   }, async (request, reply) => {
-    const existing = store.get<ScheduledReport>('schedules', request.params.id);
+    const existing = await store.get<ScheduledReport>('schedules', request.params.id);
     if (!existing) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
     const body = request.body as Partial<ScheduledReport>;
@@ -385,22 +385,22 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
       updatedAt: nowISO(),
     };
 
-    store.set('schedules', updated.id, updated);
+    await store.set('schedules', updated.id, updated);
     return reply.send({ data: updated });
   });
 
   // Delete schedule
   app.delete<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!store.has('schedules', request.params.id)) {
+    if (!await store.has('schedules', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     }
-    store.delete('schedules', request.params.id);
+    await store.delete('schedules', request.params.id);
     return reply.status(204).send();
   });
 
   // Trigger immediate run
   app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/run', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const schedule = store.get<ScheduledReport>('schedules', request.params.id);
+    const schedule = await store.get<ScheduledReport>('schedules', request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
     // Execute the scheduled report with real data
@@ -417,26 +417,26 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
 
   // Get run history for a schedule
   app.get<{ Params: { id: string } }>('/api/v1/schedules/:id/runs', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const allRuns = store.all<ReportRun>('schedule_runs');
+    const allRuns = await store.all<ReportRun>('schedule_runs');
     const scheduleRuns = allRuns.filter(r => r.scheduleId === request.params.id);
     return reply.send({ data: scheduleRuns, total: scheduleRuns.length });
   });
 
   // Pause/resume schedule
   app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/toggle', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const schedule = store.get<ScheduledReport>('schedules', request.params.id);
+    const schedule = await store.get<ScheduledReport>('schedules', request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
     schedule.status = schedule.status === 'active' ? 'paused' : 'active';
     schedule.updatedAt = nowISO();
-    store.set('schedules', schedule.id, schedule);
+    await store.set('schedules', schedule.id, schedule);
 
     return reply.send({ data: schedule });
   });
 
   // Global run history (all schedules)
   app.get('/api/v1/schedules/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const allRuns = store.all<ReportRun>('schedule_runs');
+    const allRuns = await store.all<ReportRun>('schedule_runs');
     const sorted = allRuns.sort((a, b) =>
       new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
     );

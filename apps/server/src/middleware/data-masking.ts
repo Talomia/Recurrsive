@@ -143,21 +143,21 @@ export function detectPII(text: string): PIIDetection[] {
 }
 
 /** Get all masking policies. */
-export function getMaskingPolicies(): MaskingPolicy[] {
-  return store.all<MaskingPolicy>('masking_policies');
+export async function getMaskingPolicies(): Promise<MaskingPolicy[]> {
+  return await store.all<MaskingPolicy>('masking_policies');
 }
 
 /** Add a masking policy. */
-export function addMaskingPolicy(policy: Omit<MaskingPolicy, 'id' | 'createdAt'>): MaskingPolicy {
+export async function addMaskingPolicy(policy: Omit<MaskingPolicy, 'id' | 'createdAt'>): Promise<MaskingPolicy> {
   const id = generateId();
   const full: MaskingPolicy = { ...policy, id, createdAt: nowISO() };
-  store.set('masking_policies', id, full);
+  await store.set('masking_policies', id, full);
   return full;
 }
 
 /** Remove a masking policy. */
-export function removeMaskingPolicy(id: string): boolean {
-  return store.delete('masking_policies', id);
+export async function removeMaskingPolicy(id: string): Promise<boolean> {
+  return await store.delete('masking_policies', id);
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ import { authMiddleware } from './auth.js';
 export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<void> {
   // Data masking status overview
   app.get('/api/v1/data-masking/status', async (_request, reply) => {
-    const policies = getMaskingPolicies();
+    const policies = await getMaskingPolicies();
     const enabled = policies.filter(p => p.enabled);
     return reply.send({
       data: {
@@ -186,12 +186,12 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
 
   // List masking policies
   app.get('/api/v1/data-masking/policies', async (_request, reply) => {
-    return reply.send({ data: getMaskingPolicies(), total: store.count('masking_policies') });
+    return reply.send({ data: await getMaskingPolicies(), total: await store.count('masking_policies') });
   });
 
   // Get single policy
   app.get<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', async (request, reply) => {
-    const policy = store.get<MaskingPolicy>('masking_policies', request.params.id);
+    const policy = await store.get<MaskingPolicy>('masking_policies', request.params.id);
     if (!policy) return reply.status(404).send({ error: 'Policy not found' });
     return reply.send({ data: policy });
   });
@@ -203,7 +203,7 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
       return reply.status(400).send({ error: 'fieldPattern, piiType, and strategy are required' });
     }
 
-    const policy = addMaskingPolicy({
+    const policy = await addMaskingPolicy({
       fieldPattern: body.fieldPattern,
       piiType: body.piiType,
       strategy: body.strategy,
@@ -216,7 +216,7 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
 
   // Update policy
   app.put<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const existing = store.get<MaskingPolicy>('masking_policies', request.params.id);
+    const existing = await store.get<MaskingPolicy>('masking_policies', request.params.id);
     if (!existing) return reply.status(404).send({ error: 'Policy not found' });
 
     const body = request.body as Partial<MaskingPolicy>;
@@ -229,13 +229,13 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
       reason: body.reason ?? existing.reason,
     };
 
-    store.set('masking_policies', updated.id, updated);
+    await store.set('masking_policies', updated.id, updated);
     return reply.send({ data: updated });
   });
 
   // Delete policy
   app.delete<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!removeMaskingPolicy(request.params.id)) {
+    if (!(await removeMaskingPolicy(request.params.id))) {
       return reply.status(404).send({ error: 'Policy not found' });
     }
     return reply.status(204).send();
@@ -287,7 +287,7 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
 
   // PII distribution — aggregate policy patterns by PII type
   app.get('/api/v1/data-masking/pii-distribution', async (_request, reply) => {
-    const policies = store.all<MaskingPolicy>('masking_policies');
+    const policies = await store.all<MaskingPolicy>('masking_policies');
     const distribution: Record<string, number> = {};
 
     for (const policy of policies) {

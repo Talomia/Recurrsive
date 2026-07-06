@@ -71,7 +71,7 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/users', {
     preHandler: [authMiddleware, requireRole('admin')],
   }, async (_request, reply) => {
-    const users = listUsers();
+    const users = await listUsers();
     return reply.status(200).send({
       data: users,
       total: users.length,
@@ -90,7 +90,7 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/api/v1/users/:id', {
     preHandler: [authMiddleware, requireRole('admin')],
   }, async (request, reply) => {
-    const user = findUserById(request.params.id);
+    const user = await findUserById(request.params.id);
     if (!user) {
       return reply.status(404).send({
         error: 'Not Found',
@@ -199,7 +199,7 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authMiddleware, requireRole('admin')],
   }, async (request, reply) => {
     const { id } = request.params;
-    const deleted = deleteUser(id);
+    const deleted = await deleteUser(id);
 
     if (!deleted) {
       return reply.status(404).send({

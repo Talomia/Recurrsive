@@ -91,13 +91,13 @@ const tierFeatures: Record<TenantTier, Tenant['features']> = {
 export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<void> {
   // List all tenants
   app.get('/api/v1/tenants', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = store.all<Tenant>('tenants');
+    const all = await store.all<Tenant>('tenants');
     return reply.send({ data: all, total: all.length });
   });
 
   // Get tenant details
   app.get<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const tenant = store.get<Tenant>('tenants', request.params.id);
+    const tenant = await store.get<Tenant>('tenants', request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     return reply.send({ data: tenant });
   });
@@ -125,7 +125,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
     }
 
     // Check slug uniqueness
-    for (const t of store.all<Tenant>('tenants')) {
+    for (const t of await store.all<Tenant>('tenants')) {
       if (t.slug === body.slug) return reply.status(409).send({ error: 'Conflict', message: 'Slug already taken' });
     }
 
@@ -147,7 +147,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
       updatedAt: now,
     };
 
-    store.set<Tenant>('tenants', id, tenant);
+    await store.set<Tenant>('tenants', id, tenant);
     return reply.status(201).send({ data: tenant });
   });
 
@@ -170,7 +170,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
       },
     },
   }, async (request, reply) => {
-    const tenant = store.get<Tenant>('tenants', request.params.id);
+    const tenant = await store.get<Tenant>('tenants', request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 
     const body = request.body as Partial<Tenant>;
@@ -184,22 +184,22 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
     if (body.customDomain !== undefined) tenant.customDomain = body.customDomain;
     tenant.updatedAt = nowISO();
 
-    store.set<Tenant>('tenants', request.params.id, tenant);
+    await store.set<Tenant>('tenants', request.params.id, tenant);
     return reply.send({ data: tenant });
   });
 
   // Delete tenant
   app.delete<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!store.has('tenants', request.params.id)) {
+    if (!await store.has('tenants', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     }
-    store.delete('tenants', request.params.id);
+    await store.delete('tenants', request.params.id);
     return reply.status(204).send();
   });
 
   // Check quota usage
   app.get<{ Params: { id: string } }>('/api/v1/tenants/:id/quotas', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const tenant = store.get<Tenant>('tenants', request.params.id);
+    const tenant = await store.get<Tenant>('tenants', request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 
     const checks = Object.entries(tenant.quotas).map(([key, limit]) => {

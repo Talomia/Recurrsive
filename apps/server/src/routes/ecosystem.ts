@@ -127,7 +127,7 @@ export async function registerEcosystemRoutes(app: FastifyInstance): Promise<voi
     const totalCount = integrations.length;
 
     // Count plugins from store
-    const pluginCount = store.count('plugins');
+    const pluginCount = await store.count('plugins');
 
     // Group by category
     const byCategory: Record<string, number> = {};
