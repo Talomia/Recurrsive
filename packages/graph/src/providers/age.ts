@@ -678,41 +678,43 @@ export class AgeGraphClient implements ExtendedGraphClient {
    * @throws {GraphError} If the stats query fails.
    */
   async getStats(): Promise<GraphStats> {
+    const client = await this.pool.connect();
     try {
-      // Use per-label Cypher COUNT queries instead of a full-graph scan.
-      // MATCH (n:label) RETURN count(n) is fast because AGE indexes by label.
+      await this.prepareConnection(client);
+      await client.query(`SET statement_timeout = '15s';`);
+
+      // Use per-label Cypher COUNT queries on a SINGLE connection.
+      // MATCH (n:label) RETURN count(n) is index-backed and fast per-label.
       const entityCountsByType: Record<string, number> = {};
       let totalEntities = 0;
 
-      // Count entities per known type using label-specific Cypher
+      // Count entities per known type
       for (const entityType of EntityTypeSchema.options) {
         try {
-          const rows = await this.executeCypher(
-            `MATCH (n:${entityType}) RETURN count(n) AS cnt`,
-            'cnt agtype',
-          );
-          const count = Number((rows[0] as Record<string, unknown>)?.['cnt'] ?? 0);
+          const sql = `SELECT * FROM cypher('recurrsive', $$ MATCH (n:${entityType}) RETURN count(n) $$) AS (cnt agtype);`;
+          const result = await client.query(sql);
+          const raw = result.rows[0]?.['cnt'];
+          const count = Number(typeof raw === 'string' ? raw.replace(/::.*$/, '') : raw ?? 0);
           if (count > 0) {
             entityCountsByType[entityType] = count;
             totalEntities += count;
           }
         } catch {
-          // Label may not exist; skip
+          // Label may not exist in graph; skip
         }
       }
 
-      // Count relationships per known type using label-specific Cypher
+      // Count relationships per known type
       const relationshipCountsByType: Record<string, number> = {};
       let totalRelationships = 0;
 
       for (const relType of RelationTypeSchema.options) {
         try {
-          const rows = await this.executeCypher(
-            `MATCH ()-[r:${relType}]-() RETURN count(r) AS cnt`,
-            'cnt agtype',
-          );
-          const count = Number((rows[0] as Record<string, unknown>)?.['cnt'] ?? 0);
-          // AGE counts each edge twice (once per direction), divide by 2
+          const sql = `SELECT * FROM cypher('recurrsive', $$ MATCH ()-[r:${relType}]-() RETURN count(r) $$) AS (cnt agtype);`;
+          const result = await client.query(sql);
+          const raw = result.rows[0]?.['cnt'];
+          const count = Number(typeof raw === 'string' ? raw.replace(/::.*$/, '') : raw ?? 0);
+          // AGE counts each undirected edge match twice, divide by 2
           const adjusted = Math.ceil(count / 2);
           if (adjusted > 0) {
             relationshipCountsByType[relType] = adjusted;
@@ -735,6 +737,8 @@ export class AgeGraphClient implements ExtendedGraphClient {
         'QUERY_FAILED',
         error,
       );
+    } finally {
+      client.release();
     }
   }
 
