@@ -268,6 +268,36 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
+   * GET /api/v1/batch/status
+   *
+   * Return the current batch processing status — whether any batch is
+   * actively running and a summary of recent/active jobs. The dashboard
+   * polls this endpoint to display batch activity state.
+   */
+  app.get('/api/v1/batch/status', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const runs = store.recent<BatchRun>('batches');
+    const activeRuns = runs.filter((r) => r.status === 'pending' || r.status === 'running');
+    const active = activeRuns.length > 0;
+
+    const jobs = runs.slice(0, 10).map((r) => ({
+      batch_id: r.batch_id,
+      status: r.status,
+      project_count: r.projects.length,
+      completed: r.projects.filter((p) => p.status === 'completed').length,
+      failed: r.projects.filter((p) => p.status === 'failed').length,
+      created_at: r.created_at,
+      completed_at: r.completed_at,
+    }));
+
+    return reply.status(200).send({
+      data: {
+        active,
+        jobs,
+      },
+    });
+  });
+
+  /**
    * GET /api/v1/batch/status/:id
    *
    * Get the current status of a batch run by ID.

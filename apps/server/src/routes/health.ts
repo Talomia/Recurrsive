@@ -37,6 +37,62 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   });
 
   /**
+   * GET /api/v1/health
+   *
+   * Alias for the root `/health` endpoint, mounted under the versioned
+   * API prefix. Returns identical liveness-probe data.
+   */
+  app.get('/api/v1/health', async (_request, reply) => {
+    const initialized = state.isInitialized();
+
+    return reply.status(200).send({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      initialized,
+      version: VERSION,
+    });
+  });
+
+  /**
+   * GET /api/v1/health/detailed
+   *
+   * Extended health check with system-level details: memory usage,
+   * CPU load, OS info, and initialization state.
+   */
+  app.get('/api/v1/health/detailed', async (_request, reply) => {
+    const initialized = state.isInitialized();
+    const memUsage = process.memoryUsage();
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+
+    return reply.status(200).send({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      initialized,
+      version: VERSION,
+      system: {
+        platform: os.platform(),
+        arch: os.arch(),
+        node_version: process.version,
+        cpus: os.cpus().length,
+        load_average: os.loadavg(),
+        total_memory: totalMem,
+        free_memory: freeMem,
+        memory_usage_percent: Math.round((memUsage.rss / totalMem) * 100),
+      },
+      process: {
+        pid: process.pid,
+        rss: memUsage.rss,
+        heap_total: memUsage.heapTotal,
+        heap_used: memUsage.heapUsed,
+        external: memUsage.external,
+      },
+    });
+  });
+
+  /**
    * GET /api/v1/health-score
    *
    * Returns the computed project health score and per-dimension maturity

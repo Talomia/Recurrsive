@@ -8,7 +8,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import type { Entity, EntityType } from '@recurrsive/core';
+import type { Entity, EntityType, Relationship } from '@recurrsive/core';
 import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -274,6 +274,85 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.error('Failed to fetch entity neighbors', { error: message });
+        return reply.status(500).send({
+          error: 'Graph query failed',
+          message,
+        });
+      }
+    },
+  );
+
+  /**
+   * GET /api/v1/graph/relationships
+   *
+   * List relationships in the knowledge graph, optionally filtered by
+   * relationship type. Supports `limit` and `offset` for pagination.
+   *
+   * Query parameters:
+   * - `type` (optional) — Filter by relationship type (e.g. `imports`, `calls`).
+   * - `limit` (optional) — Maximum results (default 50, max 500).
+   * - `offset` (optional) — Number of results to skip (default 0).
+   */
+  app.get<{ Querystring: { type?: string; limit?: string; offset?: string } }>(
+    '/api/v1/graph/relationships',
+    { preHandler: [authMiddleware] },
+    async (request, reply) => {
+      if (!state.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Server not initialized',
+          message: 'Run POST /api/v1/analyze first.',
+        });
+      }
+
+      const { type, limit: limitStr, offset: offsetStr } = request.query;
+      const parsedLimit = limitStr ? parseInt(limitStr, 10) : 50;
+      const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 500));
+      const parsedOffset = offsetStr ? parseInt(offsetStr, 10) : 0;
+      const offset = Number.isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
+
+      try {
+        const graph = state.getGraph();
+        const stats = await graph.getStats();
+
+        // Gather all relationships by iterating entities and deduplicating
+        const allRelationships: Relationship[] = [];
+        const seenIds = new Set<string>();
+
+        for (const entityType of Object.keys(stats.entityCountsByType)) {
+          try {
+            const entities = await graph.getEntities(entityType as EntityType);
+            for (const entity of entities) {
+              const rels = await graph.getRelationships(entity.id);
+              for (const rel of rels) {
+                if (!seenIds.has(rel.id)) {
+                  seenIds.add(rel.id);
+                  allRelationships.push(rel);
+                }
+              }
+            }
+          } catch (err: unknown) {
+            request.log.warn({ entityType, err: err instanceof Error ? err.message : String(err) }, 'Skipping entity type while gathering relationships');
+          }
+        }
+
+        // Apply type filter if provided
+        let filtered = allRelationships;
+        if (type) {
+          filtered = allRelationships.filter((r) => r.type === type);
+        }
+
+        const total = filtered.length;
+        const paged = filtered.slice(offset, offset + limit);
+
+        return reply.status(200).send({
+          data: paged,
+          total,
+          limit,
+          offset,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to list graph relationships', { error: message });
         return reply.status(500).send({
           error: 'Graph query failed',
           message,

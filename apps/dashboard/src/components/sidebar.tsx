@@ -133,12 +133,12 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   // Mobile sidebar is closed by default
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [opportunityCount, setOpportunityCount] = useState(23);
+  const [opportunityCount, setOpportunityCount] = useState(0);
 
   useEffect(() => {
     fetch('/api/v1/opportunities')
       .then((r) => r.json())
-      .then((data) => setOpportunityCount(data.data?.length ?? 23))
+      .then((data) => setOpportunityCount(data.data?.length ?? 0))
       .catch((err) => {
         if (process.env.NODE_ENV === 'development') {
           console.warn('[Sidebar] Failed to fetch opportunity count:', err);

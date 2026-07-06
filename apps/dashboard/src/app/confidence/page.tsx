@@ -106,7 +106,7 @@ export default function ConfidencePage() {
     id: p.id,
     description: p.description,
     confidence: p.predicted,
-    outcome: p.actual ? 'correct' as const : 'incorrect' as const,
+    outcome: p.actual === null ? 'pending' as const : p.actual ? 'correct' as const : 'incorrect' as const,
     date: p.date,
     analyzer: p.source,
   }));

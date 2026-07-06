@@ -85,7 +85,48 @@ export interface ConfidenceData {
   accuracy: number;
   calibration: { predicted: string; count: number; actualRate: number; deviation: number }[];
   analyzerAccuracy: { name: string; accuracy: number; predictions: number }[];
-  recentPredictions: { id: string; description: string; predicted: number; actual: boolean; date: string; source: string }[];
+  recentPredictions: { id: string; description: string; predicted: number; actual: boolean | null; date: string; source: string }[];
+}
+
+// ─── Server response shapes (for internal mapping) ──────────────────────────
+
+/** Shape returned by `GET /api/v1/confidence/overview` after envelope unwrap. */
+interface ServerOverviewResponse {
+  totalPredictions: number;
+  resolved: number;
+  pending: number;
+  overallBrierScore: number;
+  overallAccuracy: number;
+  calibrationCurve: {
+    range: string;
+    count: number;
+    avgPredicted: number;
+    actualRate: number;
+    calibrationError: number;
+  }[];
+  analyzerScores: {
+    analyzerId: string;
+    totalPredictions: number;
+    resolved: number;
+    pending: number;
+    brierScore: number;
+    accuracy: number;
+  }[];
+  bestCalibrated: string | null;
+  worstCalibrated: string | null;
+}
+
+/** Shape returned by `GET /api/v1/confidence/predictions` after envelope unwrap. */
+interface ServerPrediction {
+  id: string;
+  analyzerId: string;
+  findingId: string;
+  description: string;
+  predictedProbability: number;
+  actualOutcome: boolean | null;
+  severity: string;
+  predictedAt: string;
+  resolvedAt: string | null;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -166,9 +207,52 @@ export async function createSimulation(params: {
   });
 }
 
+/**
+ * Fetch confidence overview + recent predictions and map to dashboard shape.
+ *
+ * Server endpoints:
+ *   - `GET /api/v1/confidence/overview`     → overview metrics
+ *   - `GET /api/v1/confidence/predictions`  → recent prediction list
+ */
 export async function getConfidenceData(): Promise<ConfidenceData> {
   try {
-    return await apiFetch<ConfidenceData>('/api/v1/confidence/overview');
+    // Fetch overview and recent predictions in parallel
+    const [overview, predictionsRaw] = await Promise.all([
+      apiFetch<ServerOverviewResponse>('/api/v1/confidence/overview'),
+      apiFetch<ServerPrediction[]>('/api/v1/confidence/predictions').catch(() => []),
+    ]);
+
+    return {
+      brierScore: overview.overallBrierScore,
+      brierTrend: 0, // Server doesn't track trend; default to neutral
+      totalPredictions: overview.totalPredictions,
+      accuracy: overview.overallAccuracy,
+
+      // Map calibrationCurve → calibration (range→predicted, calibrationError→deviation)
+      calibration: (overview.calibrationCurve ?? []).map(b => ({
+        predicted: b.range,
+        count: b.count,
+        actualRate: b.actualRate,
+        deviation: b.calibrationError,
+      })),
+
+      // Map analyzerScores → analyzerAccuracy (analyzerId→name, totalPredictions→predictions)
+      analyzerAccuracy: (overview.analyzerScores ?? []).map(a => ({
+        name: a.analyzerId,
+        accuracy: a.accuracy,
+        predictions: a.totalPredictions,
+      })),
+
+      // Map server predictions → dashboard recentPredictions shape
+      recentPredictions: (predictionsRaw ?? []).slice(0, 20).map(p => ({
+        id: p.id,
+        description: p.description,
+        predicted: p.predictedProbability,
+        actual: p.actualOutcome,
+        date: p.predictedAt,
+        source: p.analyzerId,
+      })),
+    };
   } catch {
     return {
       brierScore: 0, brierTrend: 0, totalPredictions: 0, accuracy: 0,

@@ -117,6 +117,10 @@ export async function getOpportunities(): Promise<Opportunity[]> {
 }
 
 export async function getOpportunity(id: string): Promise<Opportunity | undefined> {
-  const opps = await getOpportunities();
-  return opps.find((o) => o.id === id);
+  try {
+    const raw = await apiFetch<ServerOpportunity>(`/api/v1/opportunities/${encodeURIComponent(id)}`);
+    return transformOpportunity(raw, 0);
+  } catch {
+    return undefined;
+  }
 }

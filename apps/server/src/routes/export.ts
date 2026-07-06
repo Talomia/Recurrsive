@@ -235,4 +235,192 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
       total: all.length,
     });
   });
+
+  /**
+   * GET /api/v1/export/findings/:format
+   *
+   * Direct download of findings in the specified format. Supported
+   * formats: `json`, `csv`, `markdown`. The dashboard's report page
+   * uses these for one-click download buttons.
+   */
+  app.get<{ Params: { format: string } }>(
+    '/api/v1/export/findings/:format',
+    async (request, reply) => {
+      const { format } = request.params;
+
+      if (!VALID_FORMATS.includes(format as ExportFormat)) {
+        return reply.status(400).send({
+          error: 'Invalid format',
+          message: `Format must be one of: ${VALID_FORMATS.join(', ')}`,
+          valid_formats: VALID_FORMATS,
+        });
+      }
+
+      const content = generateContent(format as ExportFormat, 'findings');
+      const ext = format === 'markdown' ? 'md' : format;
+
+      const contentTypes: Record<string, string> = {
+        json: 'application/json; charset=utf-8',
+        csv: 'text/csv; charset=utf-8',
+        markdown: 'text/markdown; charset=utf-8',
+      };
+
+      return reply
+        .header('Content-Type', contentTypes[format] ?? 'application/octet-stream')
+        .header(
+          'Content-Disposition',
+          `attachment; filename="recurrsive-findings.${ext}"`,
+        )
+        .send(content);
+    },
+  );
+
+  /**
+   * GET /api/v1/export/graph/:format
+   *
+   * Direct download of graph data in the specified format. Supported
+   * formats: `json`, `csv`, `graphml`. The dashboard's report page
+   * uses these for one-click download buttons.
+   */
+  app.get<{ Params: { format: string } }>(
+    '/api/v1/export/graph/:format',
+    async (request, reply) => {
+      const { format } = request.params;
+      const validGraphFormats = ['json', 'csv', 'graphml'];
+
+      if (!validGraphFormats.includes(format)) {
+        return reply.status(400).send({
+          error: 'Invalid format',
+          message: `Format must be one of: ${validGraphFormats.join(', ')}`,
+          valid_formats: validGraphFormats,
+        });
+      }
+
+      if (!state.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Server not initialized',
+          message: 'Run POST /api/v1/analyze first.',
+        });
+      }
+
+      try {
+        const graph = state.getGraph();
+        const stats = await graph.getStats();
+
+        // Gather all entities
+        const allEntities: Array<{ id: string; name: string; type: string; qualified_name: string }> = [];
+        for (const entityType of Object.keys(stats.entityCountsByType)) {
+          try {
+            const entities = await graph.getEntities(entityType as any);
+            allEntities.push(...entities.map((e) => ({
+              id: e.id,
+              name: e.name,
+              type: e.type,
+              qualified_name: e.qualified_name,
+            })));
+          } catch {
+            // Skip inaccessible entity types
+          }
+        }
+
+        // Gather all relationships (deduplicated)
+        const allRels: Array<{ id: string; source_id: string; target_id: string; type: string }> = [];
+        const seenIds = new Set<string>();
+        for (const entity of allEntities) {
+          try {
+            const rels = await graph.getRelationships(entity.id);
+            for (const rel of rels) {
+              if (!seenIds.has(rel.id)) {
+                seenIds.add(rel.id);
+                allRels.push({
+                  id: rel.id,
+                  source_id: rel.source_id,
+                  target_id: rel.target_id,
+                  type: rel.type,
+                });
+              }
+            }
+          } catch {
+            // Skip errors
+          }
+        }
+
+        let content: string;
+        let contentType: string;
+        let ext: string;
+
+        switch (format) {
+          case 'json':
+            content = JSON.stringify({ entities: allEntities, relationships: allRels }, null, 2);
+            contentType = 'application/json; charset=utf-8';
+            ext = 'json';
+            break;
+
+          case 'csv': {
+            const entityRows = allEntities.map((e) => `entity,${e.id},${e.name},${e.type},${e.qualified_name}`);
+            const relRows = allRels.map((r) => `relationship,${r.id},${r.source_id},${r.target_id},${r.type}`);
+            content = ['kind,id,col1,col2,col3', ...entityRows, ...relRows].join('\n');
+            contentType = 'text/csv; charset=utf-8';
+            ext = 'csv';
+            break;
+          }
+
+          case 'graphml': {
+            const xmlEntities = allEntities.map(
+              (e) =>
+                `    <node id="${e.id}">\n      <data key="name">${escapeXml(e.name)}</data>\n      <data key="type">${escapeXml(e.type)}</data>\n    </node>`,
+            );
+            const xmlEdges = allRels.map(
+              (r) =>
+                `    <edge id="${r.id}" source="${r.source_id}" target="${r.target_id}">\n      <data key="type">${escapeXml(r.type)}</data>\n    </edge>`,
+            );
+            content = [
+              '<?xml version="1.0" encoding="UTF-8"?>',
+              '<graphml xmlns="http://graphml.graphdrawing.org/xmlns">',
+              '  <key id="name" for="node" attr.name="name" attr.type="string"/>',
+              '  <key id="type" for="all" attr.name="type" attr.type="string"/>',
+              '  <graph id="G" edgedefault="directed">',
+              ...xmlEntities,
+              ...xmlEdges,
+              '  </graph>',
+              '</graphml>',
+            ].join('\n');
+            contentType = 'application/xml; charset=utf-8';
+            ext = 'graphml';
+            break;
+          }
+
+          default:
+            content = '{}';
+            contentType = 'application/octet-stream';
+            ext = 'bin';
+        }
+
+        return reply
+          .header('Content-Type', contentType)
+          .header(
+            'Content-Disposition',
+            `attachment; filename="recurrsive-graph.${ext}"`,
+          )
+          .send(content);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to export graph data', { error: message });
+        return reply.status(500).send({
+          error: 'Graph export failed',
+          message,
+        });
+      }
+    },
+  );
+}
+
+/** Escape special XML characters in a string. */
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
