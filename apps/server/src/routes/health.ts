@@ -108,9 +108,17 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
 
     const cache = state.getAnalysisCache();
     if (!cache) {
-      return reply.status(404).send({
-        error: 'No analysis data',
-        message: 'No analysis has been run yet. Trigger one via POST /api/v1/analyze.',
+      return reply.status(200).send({
+        data: {
+          overall_health: 0,
+          dimensions: {},
+          health_trend: 0,
+          tech_debt: 0,
+          snapshot: null,
+          finding_count: 0,
+          opportunity_count: 0,
+          analyzed_at: null,
+        },
       });
     }
 
@@ -167,10 +175,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   app.get('/api/v1/metrics/performance', async (_request, reply) => {
     const cache = state.getAnalysisCache();
     if (!cache) {
-      return reply.status(404).send({
-        error: 'No analysis data',
-        message: 'No analysis has been run yet.',
-      });
+      return reply.status(200).send({ data: [] });
     }
 
     try {

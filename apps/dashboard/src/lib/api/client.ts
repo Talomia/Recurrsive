@@ -57,18 +57,31 @@ export async function apiFetch<T>(
     ...(fetchOpts.headers as Record<string, string> ?? {}),
   };
 
-  // Attach JWT token if available (client-side only)
+  // Attach JWT token from localStorage (client) or cookie (SSR)
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('recurrsive_token');
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+  } else {
+    // Server-side: read token from the incoming request cookies
+    try {
+      // Dynamic import to avoid bundling issues in client code
+      const { cookies } = await import('next/headers');
+      const cookieStore = await cookies();
+      const token = cookieStore.get('recurrsive_token')?.value;
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    } catch {
+      // cookies() may fail outside of request context — skip auth
     }
   }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     ...fetchOpts,
     headers,
-    next: { revalidate: 60 },
+    cache: 'no-store',
   } as RequestInit);
 
   if (!res.ok) {

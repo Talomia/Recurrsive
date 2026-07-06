@@ -971,21 +971,27 @@ export class ServerState {
       return { overall: 50, dimensions: [] };
     }
 
-    // Derive a health score from findings: base 100, subtract per severity
-    const severityPenalty: Record<string, number> = {
-      critical: 15,
-      high: 8,
-      medium: 4,
-      low: 2,
+    // Derive a health score from findings using weighted severity.
+    // Uses diminishing-returns formula so many low-severity findings
+    // don't immediately zero out the score.
+    const severityWeight: Record<string, number> = {
+      critical: 10,
+      high: 5,
+      medium: 2,
+      low: 0.5,
       info: 0,
     };
 
-    let penalty = 0;
+    let weightedCount = 0;
     for (const finding of cache.findings) {
-      penalty += severityPenalty[finding.severity] ?? 0;
+      weightedCount += severityWeight[finding.severity] ?? 0;
     }
 
-    const overall = Math.max(0, Math.min(100, 100 - penalty));
+    // Exponential decay: score = 100 * e^(-weightedCount / 200)
+    // This gives graceful degradation:
+    //   0 findings → 100, 50 low → ~88, 140 low → ~70,
+    //   10 critical → ~61, 20 critical → ~37
+    const overall = Math.round(100 * Math.exp(-weightedCount / 200));
 
     // Group findings by category to derive dimension scores
     const categoryFindings = new Map<string, number>();
@@ -1003,7 +1009,7 @@ export class ServerState {
       'testing',
     ].map((dim) => {
       const count = categoryFindings.get(dim) ?? 0;
-      const score = Math.max(0, 100 - count * 10);
+      const score = Math.round(100 * Math.exp(-count / 10));
       return {
         dimension: dim as MaturityScore['dimension'],
         level: score >= 80 ? 'optimizing' : score >= 60 ? 'managed' : score >= 40 ? 'defined' : score >= 20 ? 'developing' : 'initial',

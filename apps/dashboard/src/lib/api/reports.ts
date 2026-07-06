@@ -127,10 +127,41 @@ export interface ScheduleRunHistory {
 
 /**
  * Get timeline data from `GET /api/v1/timeline/trends`.
+ *
+ * Server returns trend series grouped by dimension. We transform this
+ * into flat TimelinePoint objects for the dashboard charts.
  */
 export async function getTimeline(): Promise<TimelinePoint[]> {
   try {
-    return await apiFetch<TimelinePoint[]>("/api/v1/timeline/trends");
+    // Server shape: { dimension, data_points: [{ timestamp, value }] }[]
+    const trends = await apiFetch<
+      { dimension: string; data_points: { timestamp: string; value: number }[] }[]
+    >("/api/v1/timeline/trends");
+
+    if (!Array.isArray(trends) || trends.length === 0) return [];
+
+    // Build a lookup: dimension → { timestamp → value }
+    const dimMap = new Map<string, Map<string, number>>();
+    const allTimestamps = new Set<string>();
+
+    for (const trend of trends) {
+      const map = new Map<string, number>();
+      for (const pt of trend.data_points ?? []) {
+        map.set(pt.timestamp, pt.value);
+        allTimestamps.add(pt.timestamp);
+      }
+      dimMap.set(trend.dimension, map);
+    }
+
+    // Convert to flat TimelinePoint array sorted by date
+    const sorted = [...allTimestamps].sort();
+    return sorted.map((ts) => ({
+      date: ts,
+      healthScore: dimMap.get('overall_health')?.get(ts) ?? 0,
+      quality: dimMap.get('documentation')?.get(ts) ?? dimMap.get('code_quality')?.get(ts) ?? 0,
+      reliability: dimMap.get('reliability')?.get(ts) ?? 0,
+      performance: dimMap.get('architecture')?.get(ts) ?? 0,
+    }));
   } catch {
     return [];
   }
