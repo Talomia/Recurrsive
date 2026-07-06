@@ -213,9 +213,10 @@ export class ServerState {
    * and seeds an empty opportunity manager.
    *
    * @param projectPath - Absolute path to the project root.
+   * @param projectName - Optional human-readable project name (defaults to path basename).
    * @throws {Error} If graph client creation fails.
    */
-  async initialize(projectPath: string): Promise<void> {
+  async initialize(projectPath: string, projectName?: string): Promise<void> {
     logger.info(`Initializing server state for project: ${projectPath}`);
 
     this.projectPath = projectPath;
@@ -283,7 +284,7 @@ export class ServerState {
     this.opportunityManager = new OpportunityManager();
 
     this.projectInfo = {
-      name: path.basename(projectPath) || 'unknown',
+      name: projectName || path.basename(projectPath) || 'unknown',
       root_path: projectPath,
       languages: [],
       frameworks: [],

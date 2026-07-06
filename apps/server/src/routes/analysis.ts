@@ -122,7 +122,15 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
         if (state.isInitialized()) {
           await state.dispose();
         }
-        await state.initialize(effectivePath);
+        // Derive a human-readable project name from the git URL or path
+        let projectName: string | undefined;
+        if (gitUrl) {
+          // Extract repo name from URL: "https://github.com/Org/Repo.git" → "Repo"
+          const urlPath = gitUrl.replace(/\.git$/, '');
+          const lastSegment = urlPath.split('/').pop();
+          if (lastSegment) projectName = lastSegment;
+        }
+        await state.initialize(effectivePath, projectName);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.error(`Failed to initialize server state: ${message}`);
