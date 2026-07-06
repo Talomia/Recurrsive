@@ -689,9 +689,9 @@ export class AgeGraphClient implements ExtendedGraphClient {
       try {
         await this.prepareConnection(client);
 
-        // Get the graph's internal schema name from ag_catalog
+        // Get the graph's graphid from ag_catalog (this is what ag_label.graph references)
         const graphRes = await client.query(
-          `SELECT nspid FROM ag_catalog.ag_graph WHERE name = 'recurrsive';`,
+          `SELECT graphid, nspid FROM ag_catalog.ag_graph WHERE name = 'recurrsive';`,
         );
         if (graphRes.rows.length === 0) {
           return {
@@ -701,6 +701,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
             totalRelationships: 0,
           };
         }
+        const graphid = graphRes.rows[0]['graphid'];
         const nspid = graphRes.rows[0]['nspid'];
 
         // Resolve the actual schema name from the namespace OID
@@ -710,24 +711,24 @@ export class AgeGraphClient implements ExtendedGraphClient {
         );
         const schemaName = nspRes.rows[0]?.['nspname'] ?? 'recurrsive';
 
-        // Query each vertex label's row count via information_schema or
-        // direct table access. We use ag_label to find actual labels.
+        // Query labels using graphid (not nspid) — this is how ag_label is keyed
         const labelRes = await client.query(
           `SELECT name, kind FROM ag_catalog.ag_label
            WHERE graph = $1 AND name NOT IN ('_ag_label_vertex', '_ag_label_edge')
            ORDER BY name;`,
-          [nspid],
+          [graphid],
         );
 
         for (const label of labelRes.rows) {
           const labelName = label['name'] as string;
           const kind = label['kind'] as string;
+          if (kind !== 'v') continue;
           try {
             const countRes = await client.query(
               `SELECT COUNT(*) AS cnt FROM "${schemaName}"."${labelName}";`,
             );
             const count = Number(countRes.rows[0]?.['cnt'] ?? 0);
-            if (kind === 'v' && count > 0) {
+            if (count > 0) {
               entityCountsByType[labelName] = count;
               totalEntities += count;
             }
