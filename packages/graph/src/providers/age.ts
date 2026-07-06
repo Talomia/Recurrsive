@@ -12,7 +12,7 @@
 
 import pg from 'pg';
 import type { Entity, EntityType, Relationship } from '@recurrsive/core';
-import { GraphError } from '@recurrsive/core';
+import { GraphError, EntityTypeSchema, RelationTypeSchema } from '@recurrsive/core';
 import type { GraphClient } from '@recurrsive/core';
 import { migrate } from '../migrations/001_initial_schema.js';
 
@@ -679,95 +679,56 @@ export class AgeGraphClient implements ExtendedGraphClient {
    */
   async getStats(): Promise<GraphStats> {
     try {
-      // Instead of a slow full-graph Cypher scan (MATCH (n) RETURN ...),
-      // query each known label's table directly via SQL COUNT(*).
-      // AGE stores each vertex/edge label as a table under the graph schema.
+      // Use per-label Cypher COUNT queries instead of a full-graph scan.
+      // MATCH (n:label) RETURN count(n) is fast because AGE indexes by label.
       const entityCountsByType: Record<string, number> = {};
       let totalEntities = 0;
 
-      const client = await this.pool.connect();
-      try {
-        await this.prepareConnection(client);
-
-        // Get the graph's graphid from ag_catalog (this is what ag_label.graph references)
-        const graphRes = await client.query(
-          `SELECT graphid, nspid FROM ag_catalog.ag_graph WHERE name = 'recurrsive';`,
-        );
-        if (graphRes.rows.length === 0) {
-          return {
-            entityCountsByType: {},
-            totalEntities: 0,
-            relationshipCountsByType: {},
-            totalRelationships: 0,
-          };
-        }
-        const graphid = graphRes.rows[0]['graphid'];
-        const nspid = graphRes.rows[0]['nspid'];
-
-        // Resolve the actual schema name from the namespace OID
-        const nspRes = await client.query(
-          `SELECT nspname FROM pg_namespace WHERE oid = $1;`,
-          [nspid],
-        );
-        const schemaName = nspRes.rows[0]?.['nspname'] ?? 'recurrsive';
-
-        // Query labels using graphid (not nspid) — this is how ag_label is keyed
-        const labelRes = await client.query(
-          `SELECT name, kind FROM ag_catalog.ag_label
-           WHERE graph = $1 AND name NOT IN ('_ag_label_vertex', '_ag_label_edge')
-           ORDER BY name;`,
-          [graphid],
-        );
-
-        for (const label of labelRes.rows) {
-          const labelName = label['name'] as string;
-          const kind = label['kind'] as string;
-          if (kind !== 'v') continue;
-          try {
-            const countRes = await client.query(
-              `SELECT COUNT(*) AS cnt FROM "${schemaName}"."${labelName}";`,
-            );
-            const count = Number(countRes.rows[0]?.['cnt'] ?? 0);
-            if (count > 0) {
-              entityCountsByType[labelName] = count;
-              totalEntities += count;
-            }
-          } catch {
-            // Label table may not exist; skip silently
+      // Count entities per known type using label-specific Cypher
+      for (const entityType of EntityTypeSchema.options) {
+        try {
+          const rows = await this.executeCypher(
+            `MATCH (n:${entityType}) RETURN count(n) AS cnt`,
+            'cnt agtype',
+          );
+          const count = Number((rows[0] as Record<string, unknown>)?.['cnt'] ?? 0);
+          if (count > 0) {
+            entityCountsByType[entityType] = count;
+            totalEntities += count;
           }
+        } catch {
+          // Label may not exist; skip
         }
-
-        // Relationship counts by label
-        const relationshipCountsByType: Record<string, number> = {};
-        let totalRelationships = 0;
-
-        for (const label of labelRes.rows) {
-          const labelName = label['name'] as string;
-          const kind = label['kind'] as string;
-          if (kind !== 'e') continue;
-          try {
-            const countRes = await client.query(
-              `SELECT COUNT(*) AS cnt FROM "${schemaName}"."${labelName}";`,
-            );
-            const count = Number(countRes.rows[0]?.['cnt'] ?? 0);
-            if (count > 0) {
-              relationshipCountsByType[labelName] = count;
-              totalRelationships += count;
-            }
-          } catch {
-            // Label table may not exist; skip silently
-          }
-        }
-
-        return {
-          entityCountsByType,
-          totalEntities,
-          relationshipCountsByType,
-          totalRelationships,
-        };
-      } finally {
-        client.release();
       }
+
+      // Count relationships per known type using label-specific Cypher
+      const relationshipCountsByType: Record<string, number> = {};
+      let totalRelationships = 0;
+
+      for (const relType of RelationTypeSchema.options) {
+        try {
+          const rows = await this.executeCypher(
+            `MATCH ()-[r:${relType}]-() RETURN count(r) AS cnt`,
+            'cnt agtype',
+          );
+          const count = Number((rows[0] as Record<string, unknown>)?.['cnt'] ?? 0);
+          // AGE counts each edge twice (once per direction), divide by 2
+          const adjusted = Math.ceil(count / 2);
+          if (adjusted > 0) {
+            relationshipCountsByType[relType] = adjusted;
+            totalRelationships += adjusted;
+          }
+        } catch {
+          // Label may not exist; skip
+        }
+      }
+
+      return {
+        entityCountsByType,
+        totalEntities,
+        relationshipCountsByType,
+        totalRelationships,
+      };
     } catch (error) {
       throw new GraphError(
         'Failed to gather graph statistics',
