@@ -168,6 +168,22 @@ import type { FastifyInstance } from 'fastify';
 import { authMiddleware } from './auth.js';
 
 export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<void> {
+  // Data masking status overview
+  app.get('/api/v1/data-masking/status', async (_request, reply) => {
+    const policies = getMaskingPolicies();
+    const enabled = policies.filter(p => p.enabled);
+    return reply.send({
+      data: {
+        enabled: true,
+        totalPolicies: policies.length,
+        activePolicies: enabled.length,
+        supportedStrategies: ['redact', 'hash', 'partial', 'tokenize', 'generalize', 'suppress'],
+        lastScanAt: null,
+        piiTypesDetected: [...new Set(policies.map(p => p.piiType))],
+      },
+    });
+  });
+
   // List masking policies
   app.get('/api/v1/data-masking/policies', async (_request, reply) => {
     return reply.send({ data: getMaskingPolicies(), total: store.count('masking_policies') });

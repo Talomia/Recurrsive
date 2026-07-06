@@ -18,7 +18,7 @@ const logger = createLogger({ context: { component: 'server:routes:export' } });
 // Types
 // ---------------------------------------------------------------------------
 
-type ExportFormat = 'json' | 'csv' | 'markdown';
+type ExportFormat = 'json' | 'csv' | 'markdown' | 'sarif';
 type ExportScope = 'findings' | 'opportunities' | 'health' | 'all';
 
 interface ExportRequest {
@@ -46,7 +46,7 @@ interface ExportRecord {
 // Constants
 // ---------------------------------------------------------------------------
 
-const VALID_FORMATS: ExportFormat[] = ['json', 'csv', 'markdown'];
+const VALID_FORMATS: ExportFormat[] = ['json', 'csv', 'markdown', 'sarif'];
 const VALID_SCOPES: ExportScope[] = ['findings', 'opportunities', 'health', 'all'];
 
 // ---------------------------------------------------------------------------
@@ -113,6 +113,50 @@ function generateContent(format: ExportFormat, scope: ExportScope): string {
         ...findings.map(f => `| ${f.id} | ${f.title} | ${f.severity} |`),
       ];
       return lines.join('\n');
+    }
+
+    case 'sarif': {
+      const sarifReport = {
+        $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json',
+        version: '2.1.0',
+        runs: [
+          {
+            tool: {
+              driver: {
+                name: 'Recurrsive',
+                informationUri: 'https://recurrsive.dev',
+                version: '1.0.0',
+                rules: findings.map(f => ({
+                  id: f.id,
+                  shortDescription: { text: f.title },
+                  defaultConfiguration: {
+                    level: f.severity === 'critical' || f.severity === 'high'
+                      ? 'error'
+                      : f.severity === 'medium'
+                        ? 'warning'
+                        : 'note',
+                  },
+                  properties: { category: f.category },
+                })),
+              },
+            },
+            results: findings.map(f => ({
+              ruleId: f.id,
+              level: f.severity === 'critical' || f.severity === 'high'
+                ? 'error'
+                : f.severity === 'medium'
+                  ? 'warning'
+                  : 'note',
+              message: { text: f.title },
+              properties: {
+                severity: f.severity,
+                category: f.category,
+              },
+            })),
+          },
+        ],
+      };
+      return JSON.stringify(sarifReport, null, 2);
     }
 
     default:
@@ -211,6 +255,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         json: 'application/json; charset=utf-8',
         csv: 'text/csv; charset=utf-8',
         markdown: 'text/markdown; charset=utf-8',
+        sarif: 'application/sarif+json; charset=utf-8',
       };
 
       return reply
@@ -263,6 +308,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         json: 'application/json; charset=utf-8',
         csv: 'text/csv; charset=utf-8',
         markdown: 'text/markdown; charset=utf-8',
+        sarif: 'application/sarif+json; charset=utf-8',
       };
 
       return reply

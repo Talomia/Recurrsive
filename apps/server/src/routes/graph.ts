@@ -283,6 +283,59 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
   );
 
   /**
+   * GET /api/v1/graph/entities/:id/relationships
+   *
+   * Return all relationships connected to a specific entity,
+   * optionally filtered by direction (in, out, both).
+   */
+  app.get<{ Params: EntityParams; Querystring: { direction?: string } }>(
+    '/api/v1/graph/entities/:id/relationships',
+    { preHandler: [authMiddleware] },
+    async (request, reply) => {
+      if (!state.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Server not initialized',
+          message: 'Run POST /api/v1/analyze first.',
+        });
+      }
+
+      const { id } = request.params;
+      const direction = (request.query.direction ?? 'both') as 'in' | 'out' | 'both';
+
+      try {
+        const graph = state.getGraph();
+
+        // Verify the entity exists
+        const entity = await graph.getEntity(id);
+        if (!entity) {
+          return reply.status(404).send({
+            error: 'Not found',
+            message: `Entity ${id} not found`,
+          });
+        }
+
+        const relationships = await graph.getRelationships(id, direction);
+
+        return reply.status(200).send({
+          data: {
+            entity_id: id,
+            direction,
+            relationships,
+            total: relationships.length,
+          },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to fetch entity relationships', { error: message });
+        return reply.status(500).send({
+          error: 'Graph query failed',
+          message,
+        });
+      }
+    },
+  );
+
+  /**
    * GET /api/v1/graph/relationships
    *
    * List relationships in the knowledge graph, optionally filtered by
