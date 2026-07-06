@@ -787,56 +787,30 @@ export class AgeGraphClient implements ExtendedGraphClient {
     limit?: number;
     offset?: number;
   }): Promise<{ data: Relationship[]; total: number }> {
-    const client = await this.pool.connect();
     try {
       const limit = Math.max(1, Math.min(options?.limit ?? 50, 50000));
       const offset = Math.max(0, options?.offset ?? 0);
 
-      // Determine which edge types to query
-      const stats = await this.getStats();
-      const relTypes = options?.type
-        ? (stats.relationshipCountsByType[options.type] ? [options.type] : [])
-        : Object.keys(stats.relationshipCountsByType);
+      // Use Cypher to list relationships — consistent with getRelationships()
+      // For type filtering, we filter the label; otherwise match all edges.
+      const typeFilter = options?.type ? `:${options.type}` : '';
 
-      if (relTypes.length === 0) {
+      // Get total count first
+      const countCypher = `MATCH ()-[r${typeFilter}]->() RETURN count(r) AS cnt`;
+      const countRows = await this.executeCypher(countCypher, 'cnt agtype');
+      const total = Number((countRows[0] as Record<string, unknown>)?.['cnt'] ?? 0);
+
+      if (total === 0) {
         return { data: [], total: 0 };
       }
 
-      // Build a UNION ALL query to fetch edges from all relevant edge tables
-      // AGE edge tables have columns: id (graphid), start_id (graphid), end_id (graphid), properties (agtype)
-      const parts = relTypes.map(
-        (t) => `SELECT properties::text AS props FROM recurrsive."${t}"`,
-      );
-      const unionSql = parts.join(' UNION ALL ');
-
-      // Get total count
-      const countSql = `SELECT COUNT(*) AS cnt FROM (${unionSql}) AS all_edges`;
-      const countResult = await client.query(countSql);
-      const total = Number(countResult.rows[0]?.['cnt'] ?? 0);
-
       // Get paginated results
-      const dataSql = `SELECT props FROM (${unionSql}) AS all_edges LIMIT ${limit} OFFSET ${offset}`;
-      const dataResult = await client.query(dataSql);
+      const dataCypher = `MATCH ()-[r${typeFilter}]->() RETURN r SKIP ${offset} LIMIT ${limit}`;
+      const rows = await this.executeCypher(dataCypher, 'r agtype');
 
-      const relationships: Relationship[] = dataResult.rows.map((row: Record<string, unknown>) => {
-        try {
-          const propsStr = String(row['props'] ?? '{}');
-          // AGE properties are stored as agtype JSON
-          const parsed = JSON.parse(propsStr) as Record<string, unknown>;
-          return edgeToRelationship(parsed);
-        } catch {
-          return {
-            id: '',
-            type: 'references' as Relationship['type'],
-            source_id: '',
-            target_id: '',
-            properties: {},
-            confidence: 1,
-            source: '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-        }
+      const relationships: Relationship[] = rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return edgeToRelationship(r['r'] as Record<string, unknown>);
       });
 
       return { data: relationships, total };
@@ -846,8 +820,6 @@ export class AgeGraphClient implements ExtendedGraphClient {
         'QUERY_FAILED',
         error,
       );
-    } finally {
-      client.release();
     }
   }
 
