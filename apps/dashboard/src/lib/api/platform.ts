@@ -411,6 +411,7 @@ export async function getMarketplaceExtensions(params?: { category?: string; sea
   try {
     return await apiFetch<{ data: any[]; total: number; categories: Record<string, number> }>(
       `/api/v1/marketplace/extensions${query ? `?${query}` : ''}`,
+      { unwrap: false },
     );
   } catch {
     return { data: [], total: 0, categories: {} };
@@ -419,7 +420,7 @@ export async function getMarketplaceExtensions(params?: { category?: string; sea
 
 export async function getMarketplaceStats() {
   try {
-    return await apiFetch<{ data: any }>('/api/v1/marketplace/stats');
+    return await apiFetch<{ data: any }>('/api/v1/marketplace/stats', { unwrap: false });
   } catch {
     return { data: {} };
   }
@@ -427,7 +428,7 @@ export async function getMarketplaceStats() {
 
 export async function getMarketplaceCategories() {
   try {
-    return await apiFetch<{ data: any[] }>('/api/v1/marketplace/categories');
+    return await apiFetch<{ data: any[] }>('/api/v1/marketplace/categories', { unwrap: false });
   } catch {
     return { data: [] };
   }
@@ -443,6 +444,7 @@ export async function getPartners(params?: { tier?: string; type?: string }) {
   try {
     return await apiFetch<{ data: any[]; total: number; tierCounts: Record<string, number> }>(
       `/api/v1/partners${query ? `?${query}` : ''}`,
+      { unwrap: false },
     );
   } catch {
     return { data: [], total: 0, tierCounts: {} };
@@ -451,7 +453,7 @@ export async function getPartners(params?: { tier?: string; type?: string }) {
 
 export async function getPartnerCertifications() {
   try {
-    return await apiFetch<{ data: any[] }>('/api/v1/partners/certifications');
+    return await apiFetch<{ data: any[] }>('/api/v1/partners/certifications', { unwrap: false });
   } catch {
     return { data: [] };
   }
@@ -459,7 +461,7 @@ export async function getPartnerCertifications() {
 
 export async function getPartnerStats() {
   try {
-    return await apiFetch<{ data: any }>('/api/v1/partners/stats');
+    return await apiFetch<{ data: any }>('/api/v1/partners/stats', { unwrap: false });
   } catch {
     return { data: {} };
   }

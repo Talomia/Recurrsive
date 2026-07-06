@@ -189,8 +189,8 @@ export default async function OverviewPage() {
     perfMetrics = p;
     projectCount = projects.length;
 
-    // Consider data "present" if health score > 0 or we have timeline/findings
-    hasData = health.healthScore > 0 || timeline.length > 0 || opportunities.length > 0;
+    // Consider data "present" if health score > 0, we have timeline/findings, or user has projects
+    hasData = health.healthScore > 0 || timeline.length > 0 || opportunities.length > 0 || projectCount > 0;
   } catch {
     // Will check hasData below
   }
