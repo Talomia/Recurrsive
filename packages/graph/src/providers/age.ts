@@ -680,48 +680,80 @@ export class AgeGraphClient implements ExtendedGraphClient {
   async getStats(): Promise<GraphStats> {
     const client = await this.pool.connect();
     try {
-      await this.prepareConnection(client);
-      await client.query(`SET statement_timeout = '15s';`);
+      // Use direct SQL on AGE's label tables — no Cypher overhead.
+      // AGE stores each label as a regular PostgreSQL table in the graph's
+      // namespace schema (e.g. recurrsive.file, recurrsive.function, etc.).
+      // A single UNION ALL query counts all labels at once.
 
-      // Use per-label Cypher COUNT queries on a SINGLE connection.
-      // MATCH (n:label) RETURN count(n) is index-backed and fast per-label.
+      // Build entity counts query
+      const entityParts = EntityTypeSchema.options.map(
+        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM recurrsive."${t}"`,
+      );
+      const entitySql = entityParts.join(' UNION ALL ');
+
       const entityCountsByType: Record<string, number> = {};
       let totalEntities = 0;
 
-      // Count entities per known type
-      for (const entityType of EntityTypeSchema.options) {
-        try {
-          const sql = `SELECT * FROM cypher('recurrsive', $$ MATCH (n:${entityType}) RETURN count(n) $$) AS (cnt agtype);`;
-          const result = await client.query(sql);
-          const raw = result.rows[0]?.['cnt'];
-          const count = Number(typeof raw === 'string' ? raw.replace(/::.*$/, '') : raw ?? 0);
+      try {
+        const result = await client.query(entitySql);
+        for (const row of result.rows) {
+          const count = Number(row['cnt'] ?? 0);
           if (count > 0) {
-            entityCountsByType[entityType] = count;
+            entityCountsByType[row['label']] = count;
             totalEntities += count;
           }
-        } catch {
-          // Label may not exist in graph; skip
+        }
+      } catch {
+        // If any table doesn't exist, fall back to individual queries
+        for (const entityType of EntityTypeSchema.options) {
+          try {
+            const result = await client.query(
+              `SELECT COUNT(*) AS cnt FROM recurrsive."${entityType}";`,
+            );
+            const count = Number(result.rows[0]?.['cnt'] ?? 0);
+            if (count > 0) {
+              entityCountsByType[entityType] = count;
+              totalEntities += count;
+            }
+          } catch {
+            // Table doesn't exist; skip
+          }
         }
       }
 
-      // Count relationships per known type
+      // Build relationship counts query
+      const relParts = RelationTypeSchema.options.map(
+        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM recurrsive."${t}"`,
+      );
+      const relSql = relParts.join(' UNION ALL ');
+
       const relationshipCountsByType: Record<string, number> = {};
       let totalRelationships = 0;
 
-      for (const relType of RelationTypeSchema.options) {
-        try {
-          const sql = `SELECT * FROM cypher('recurrsive', $$ MATCH ()-[r:${relType}]-() RETURN count(r) $$) AS (cnt agtype);`;
-          const result = await client.query(sql);
-          const raw = result.rows[0]?.['cnt'];
-          const count = Number(typeof raw === 'string' ? raw.replace(/::.*$/, '') : raw ?? 0);
-          // AGE counts each undirected edge match twice, divide by 2
-          const adjusted = Math.ceil(count / 2);
-          if (adjusted > 0) {
-            relationshipCountsByType[relType] = adjusted;
-            totalRelationships += adjusted;
+      try {
+        const result = await client.query(relSql);
+        for (const row of result.rows) {
+          const count = Number(row['cnt'] ?? 0);
+          if (count > 0) {
+            relationshipCountsByType[row['label']] = count;
+            totalRelationships += count;
           }
-        } catch {
-          // Label may not exist; skip
+        }
+      } catch {
+        // If any edge table doesn't exist, fall back to individual queries
+        for (const relType of RelationTypeSchema.options) {
+          try {
+            const result = await client.query(
+              `SELECT COUNT(*) AS cnt FROM recurrsive."${relType}";`,
+            );
+            const count = Number(result.rows[0]?.['cnt'] ?? 0);
+            if (count > 0) {
+              relationshipCountsByType[relType] = count;
+              totalRelationships += count;
+            }
+          } catch {
+            // Table doesn't exist; skip
+          }
         }
       }
 
