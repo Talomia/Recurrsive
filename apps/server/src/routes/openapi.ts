@@ -57,6 +57,7 @@ const OPENAPI_SPEC = {
     { name: 'PullRequests', description: 'Pull request generation and management' },
     { name: 'IntelligencePacks', description: 'Pre-built reasoning configurations' },
     { name: 'Findings', description: 'Analysis findings' },
+    { name: 'Data Masking', description: 'PII detection and data masking' },
   ],
   paths: {
     // -----------------------------------------------------------------------
@@ -280,6 +281,18 @@ const OPENAPI_SPEC = {
           { name: 'depth', in: 'query', schema: { type: 'integer', default: 1, minimum: 1, maximum: 5 } },
         ],
         responses: { '200': { description: 'Entity neighborhood graph' } },
+      },
+    },
+    '/api/v1/graph/entities/{id}/relationships': {
+      get: {
+        tags: ['Graph'],
+        summary: 'Get relationships for a specific entity',
+        operationId: 'getEntityRelationships',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'direction', in: 'query', schema: { type: 'string', enum: ['in', 'out', 'both'], default: 'both' } },
+        ],
+        responses: { '200': { description: 'Entity relationships' } },
       },
     },
     '/api/v1/graph/relationships': {
@@ -1972,6 +1985,60 @@ const OPENAPI_SPEC = {
         summary: 'Get feature flags',
         operationId: 'getFeatureFlags',
         responses: { '200': { description: 'Feature flag list' } },
+      },
+    },
+    '/api/v1/data-masking/status': {
+      get: {
+        tags: ['Data Masking'],
+        summary: 'Get data masking status overview',
+        operationId: 'getDataMaskingStatus',
+        responses: { '200': { description: 'Masking status overview' } },
+      },
+    },
+    '/api/v1/data-masking/policies': {
+      get: {
+        tags: ['Data Masking'],
+        summary: 'List data masking policies',
+        operationId: 'getMaskingPolicies',
+        responses: { '200': { description: 'List of masking policies' } },
+      },
+      post: {
+        tags: ['Data Masking'],
+        summary: 'Create a masking policy',
+        operationId: 'createMaskingPolicy',
+        responses: { '201': { description: 'Created policy' } },
+      },
+    },
+    '/api/v1/data-masking/strategies': {
+      get: {
+        tags: ['Data Masking'],
+        summary: 'List available masking strategies',
+        operationId: 'getMaskingStrategies',
+        responses: { '200': { description: 'Available strategies' } },
+      },
+    },
+    '/api/v1/data-masking/pii-distribution': {
+      get: {
+        tags: ['Data Masking'],
+        summary: 'Get PII type distribution',
+        operationId: 'getPiiDistribution',
+        responses: { '200': { description: 'PII distribution data' } },
+      },
+    },
+    '/api/v1/data-masking/mask': {
+      post: {
+        tags: ['Data Masking'],
+        summary: 'Apply masking to input data',
+        operationId: 'maskData',
+        responses: { '200': { description: 'Masked data result' } },
+      },
+    },
+    '/api/v1/data-masking/scan': {
+      post: {
+        tags: ['Data Masking'],
+        summary: 'Scan data for PII',
+        operationId: 'scanForPii',
+        responses: { '200': { description: 'Scan results' } },
       },
     },
   },
