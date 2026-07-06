@@ -233,7 +233,23 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Create/Update SSO config
-  app.put<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/sso/providers/:id', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          issuer: { type: 'string' },
+          entityId: { type: 'string' },
+          ssoUrl: { type: 'string' },
+          certificate: { type: 'string' },
+          enabled: { type: 'boolean' },
+          allowedDomains: { type: 'array', items: { type: 'string' } },
+          defaultRole: { type: 'string', enum: ['admin', 'analyst', 'viewer'] },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Partial<SSOConfig>;
     const existing = store.get<SSOConfig>('sso_configs', request.params.id);
     const now = nowISO();
@@ -303,7 +319,17 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // SSO callback (process SAML response)
-  app.post<{ Params: { provider: string } }>('/api/v1/sso/callback/:provider', async (request, reply) => {
+  app.post<{ Params: { provider: string } }>('/api/v1/sso/callback/:provider', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['SAMLResponse'],
+        properties: {
+          SAMLResponse: { type: 'string', minLength: 1 },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const config = store.get<SSOConfig>('sso_configs', request.params.provider);
     if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not configured' });
 

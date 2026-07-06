@@ -87,7 +87,24 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Create secret
-  app.post('/api/v1/secrets', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/secrets', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['key', 'value'],
+        properties: {
+          key: { type: 'string', minLength: 1 },
+          value: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+          backend: { type: 'string', enum: ['local', 'vault', 'aws', 'azure', 'gcp'] },
+          tags: { type: 'array', items: { type: 'string' } },
+          rotationIntervalDays: { type: 'integer', minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { key?: string; value?: string; description?: string; backend?: SecretBackend; tags?: string[]; rotationIntervalDays?: number };
     if (!body.key || !body.value) {
       return reply.status(400).send({ error: 'Bad Request', message: 'key and value are required' });
@@ -122,7 +139,18 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Rotate secret
-  app.post<{ Params: { id: string } }>('/api/v1/secrets/:id/rotate', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/secrets/:id/rotate', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          newValue: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const secret = store.get<SecretEntry>('secrets', request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 

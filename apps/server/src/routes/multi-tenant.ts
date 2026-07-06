@@ -103,7 +103,22 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   });
 
   // Create tenant
-  app.post('/api/v1/tenants', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/tenants', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name', 'slug'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          slug: { type: 'string', minLength: 1 },
+          tier: { type: 'string', enum: ['free', 'team', 'enterprise'] },
+          ownerId: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { name?: string; slug?: string; tier?: TenantTier; ownerId?: string };
     if (!body.name || !body.slug) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and slug are required' });
@@ -137,7 +152,24 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   });
 
   // Update tenant
-  app.put<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/tenants/:id', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          slug: { type: 'string', minLength: 1 },
+          tier: { type: 'string', enum: ['free', 'team', 'enterprise'] },
+          ownerId: { type: 'string' },
+          settings: { type: 'object' },
+          status: { type: 'string' },
+          customDomain: { type: ['string', 'null'] },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const tenant = store.get<Tenant>('tenants', request.params.id);
     if (!tenant) return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
 

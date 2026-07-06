@@ -187,7 +187,25 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
       channel: NotificationChannel;
       config?: { webhookUrl?: string; url?: string };
     };
-  }>('/api/v1/notifications/test', { preHandler: [authMiddleware] }, async (request, reply) => {
+  }>('/api/v1/notifications/test', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['channel'],
+        properties: {
+          channel: { type: 'string', enum: ['console', 'slack', 'http'] },
+          config: {
+            type: 'object',
+            properties: {
+              webhookUrl: { type: 'string' },
+              url: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Record<string, unknown> | null;
 
     if (!body || typeof body !== 'object') {

@@ -181,7 +181,24 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       projects: string[];
       options?: Record<string, unknown>;
     };
-  }>('/api/v1/batch/analyze', { preHandler: [authMiddleware] }, async (request, reply) => {
+  }>('/api/v1/batch/analyze', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['projects'],
+        properties: {
+          projects: {
+            type: 'array',
+            items: { type: 'string', minLength: 1 },
+            minItems: 1,
+            maxItems: 10,
+          },
+          options: { type: 'object' },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Record<string, unknown> | null;
 
     if (!body || typeof body !== 'object') {

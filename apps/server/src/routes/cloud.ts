@@ -121,7 +121,40 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // ── Benchmarking ──────────────────────────────────────────────────────────
 
   // Submit benchmark data (opt-in)
-  app.post('/api/v1/cloud/benchmarks', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/cloud/benchmarks', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['industry'],
+        properties: {
+          industry: { type: 'string', minLength: 1 },
+          teamSize: { type: 'string', enum: ['small', 'medium', 'large', 'enterprise'] },
+          scores: {
+            type: 'object',
+            properties: {
+              overall: { type: 'number' },
+              architecture: { type: 'number' },
+              security: { type: 'number' },
+              performance: { type: 'number' },
+              reliability: { type: 'number' },
+              documentation: { type: 'number' },
+            },
+          },
+          meta: {
+            type: 'object',
+            properties: {
+              codebaseSize: { type: 'string', enum: ['small', 'medium', 'large'] },
+              primaryLanguage: { type: 'string' },
+              analyzersUsed: { type: 'integer' },
+              collectorsUsed: { type: 'integer' },
+            },
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Partial<BenchmarkEntry>;
     if (!body.industry) return reply.status(400).send({ error: 'Bad Request', message: 'industry is required' });
 

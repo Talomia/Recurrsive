@@ -136,7 +136,25 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    *
    * Submit a partner application.
    */
-  app.post(`${prefix}/apply`, { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post(`${prefix}/apply`, {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['companyName', 'contactEmail', 'partnerType'],
+        properties: {
+          companyName: { type: 'string', minLength: 1 },
+          contactEmail: { type: 'string', format: 'email' },
+          partnerType: { type: 'string', enum: ['technology', 'consulting', 'integration', 'reseller'] },
+          description: { type: 'string' },
+          website: { type: 'string' },
+          contactName: { type: 'string' },
+          companySize: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Omit<PartnerApplication, 'id' | 'status' | 'submittedAt'>;
 
     if (!body.companyName || !body.contactEmail || !body.partnerType) {

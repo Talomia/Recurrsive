@@ -154,7 +154,19 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Record outcome for a prediction
-  app.post<{ Params: { id: string } }>('/api/v1/confidence/predictions/:id/outcome', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/confidence/predictions/:id/outcome', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['occurred'],
+        properties: {
+          occurred: { type: 'boolean' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const prediction = store.get<Prediction>('predictions', request.params.id);
     if (!prediction) return reply.status(404).send({ error: 'Not Found', message: 'Prediction not found' });
 
@@ -218,7 +230,23 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   );
 
   // Create a single prediction
-  app.post('/api/v1/confidence/predictions', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/confidence/predictions', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['findingId', 'analyzer', 'predictedSeverity', 'predictedCategory', 'confidence'],
+        properties: {
+          findingId: { type: 'string', minLength: 1 },
+          analyzer: { type: 'string', minLength: 1 },
+          predictedSeverity: { type: 'string', minLength: 1 },
+          predictedCategory: { type: 'string', minLength: 1 },
+          confidence: { type: 'number', minimum: 0, maximum: 1 },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as {
       findingId?: string;
       analyzer?: string;

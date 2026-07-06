@@ -156,6 +156,20 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
    */
   app.put<{ Params: { id: string }; Body: UpdateUserBody }>('/api/v1/users/:id', {
     preHandler: [authMiddleware, requireRole('admin')],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          username: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+          password: { type: 'string', minLength: 8 },
+          role: { type: 'string', enum: ['admin', 'analyst', 'viewer'] },
+          displayName: { type: 'string' },
+          status: { type: 'string', enum: ['active', 'disabled', 'pending'] },
+        },
+        additionalProperties: false,
+      },
+    },
   }, async (request, reply) => {
     const { id } = request.params;
     const updates = request.body as Partial<UpdateUserInput>;

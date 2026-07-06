@@ -214,7 +214,14 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Update plugin config
-  app.put<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/config', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/config', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+      },
+    },
+  }, async (request, reply) => {
     const plugin = store.get<InstalledPlugin>('plugins', request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 

@@ -109,7 +109,22 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     return reply.send({ data: sim });
   });
 
-  app.post('/api/v1/simulations', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/simulations', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name', 'type'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          type: { type: 'string' },
+          description: { type: 'string' },
+          parameters: { type: 'object' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { name?: string; description?: string; type?: SimulationScenario['type']; parameters?: Record<string, unknown> };
     if (!body.name || !body.type) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and type are required' });
@@ -188,7 +203,21 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     return reply.send({ data: pr });
   });
 
-  app.post('/api/v1/pull-requests/generate', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/pull-requests/generate', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['title'],
+        properties: {
+          title: { type: 'string', minLength: 1 },
+          sourceId: { type: 'string' },
+          description: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { sourceId?: string; title?: string; description?: string };
     if (!body.title) {
       return reply.status(400).send({ error: 'Bad Request', message: 'title is required' });

@@ -174,7 +174,29 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
    *
    * Body: { actions: [{ type, description, estimatedImpact }] }
    */
-  app.post('/api/v1/forecasting/what-if', async (request, reply) => {
+  app.post('/api/v1/forecasting/what-if', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['actions'],
+        properties: {
+          actions: {
+            type: 'array',
+            minItems: 1,
+            items: {
+              type: 'object',
+              required: ['type', 'description'],
+              properties: {
+                type: { type: 'string', minLength: 1 },
+                description: { type: 'string', minLength: 1 },
+                estimatedImpact: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
     try {
       const body = request.body as {
         actions?: Array<{

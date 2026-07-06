@@ -67,7 +67,25 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   });
 
   // Create project
-  app.post('/api/v1/projects', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/projects', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name', 'repository'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          repository: { type: 'string', minLength: 1 },
+          slug: { type: 'string' },
+          description: { type: 'string' },
+          language: { type: 'string' },
+          framework: { type: 'string' },
+          settings: { type: 'object' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Partial<Project>;
     if (!body.name || !body.repository) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and repository are required' });
@@ -102,7 +120,24 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   });
 
   // Update project
-  app.put<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/projects/:id', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          slug: { type: 'string' },
+          description: { type: 'string' },
+          repository: { type: 'string' },
+          language: { type: 'string' },
+          framework: { type: 'string' },
+          settings: { type: 'object' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const project = store.get<Project>('projects', request.params.id);
     if (!project) {
       return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });

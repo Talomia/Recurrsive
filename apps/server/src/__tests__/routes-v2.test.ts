@@ -251,7 +251,7 @@ describe('Projects endpoints', () => {
     expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body.error).toBe('Bad Request');
-    expect(body.message).toContain('name and repository are required');
+    expect(body.message).toMatch(/name and repository are required|must have required property/);
   });
 
   it('GET /api/v1/projects/:id returns a project by valid ID', async () => {
@@ -444,7 +444,7 @@ describe('Forecasting endpoints', () => {
     expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body.error).toBe('Bad Request');
-    expect(body.message).toContain('At least one action is required');
+    expect(body.message).toMatch(/At least one action is required|must have required property/);
   });
 
   it('GET /api/v1/forecasting/evolution returns evolution graph', async () => {

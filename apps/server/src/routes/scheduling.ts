@@ -292,7 +292,27 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Create scheduled report
-  app.post('/api/v1/schedules', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/schedules', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name', 'schedule'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          schedule: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+          timezone: { type: 'string' },
+          formats: { type: 'array', items: { type: 'string' } },
+          analyzers: { type: 'array', items: { type: 'string' } },
+          recipients: { type: 'array', items: { type: 'string' } },
+          sections: { type: 'array', items: { type: 'string' } },
+          includeExecutiveSummary: { type: 'boolean' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Partial<ScheduledReport>;
     if (!body.name || !body.schedule) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and schedule (cron expression) are required' });
@@ -324,7 +344,27 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Update schedule
-  app.put<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/schedules/:id', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          schedule: { type: 'string' },
+          description: { type: 'string' },
+          timezone: { type: 'string' },
+          formats: { type: 'array', items: { type: 'string' } },
+          analyzers: { type: 'array', items: { type: 'string' } },
+          recipients: { type: 'array', items: { type: 'string' } },
+          sections: { type: 'array', items: { type: 'string' } },
+          includeExecutiveSummary: { type: 'boolean' },
+          status: { type: 'string', enum: ['active', 'paused', 'error'] },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const existing = store.get<ScheduledReport>('schedules', request.params.id);
     if (!existing) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 

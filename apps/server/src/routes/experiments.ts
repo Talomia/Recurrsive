@@ -93,7 +93,25 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    *
    * Create a new experiment.
    */
-  app.post('/api/v1/experiments', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/experiments', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+          hypothesis: { type: 'string' },
+          variants: {
+            type: 'array',
+            items: { type: 'object' },
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as {
       name?: string;
       description?: string;
@@ -146,7 +164,19 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    *
    * Update experiment status (start/complete/abort).
    */
-  app.put('/api/v1/experiments/:id/status', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.put('/api/v1/experiments/:id/status', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed'] },
+          conclusion: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as { status?: string; conclusion?: string };
 

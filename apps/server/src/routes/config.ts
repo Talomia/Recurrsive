@@ -206,7 +206,23 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * Update configuration values at runtime (persisted via ServerStore).
    * Accepts a JSON body with optional fields to override.
    */
-  app.patch('/api/v1/config', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.patch('/api/v1/config', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          graphProvider: { type: 'string' },
+          severityThreshold: { type: 'string', enum: ['info', 'low', 'medium', 'high', 'critical'] },
+          enableAI: { type: 'boolean' },
+          enableEnterprise: { type: 'boolean' },
+          enableEcosystem: { type: 'boolean' },
+          llmProvider: { type: 'string' },
+          llmModel: { type: 'string' },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Record<string, unknown> | null;
     if (!body || typeof body !== 'object') {
       return reply.status(400).send({

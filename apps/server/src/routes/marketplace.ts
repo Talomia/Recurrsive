@@ -162,7 +162,26 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
    *
    * Submit a new extension for review.
    */
-  app.post(`${prefix}/extensions`, { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post(`${prefix}/extensions`, {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name', 'category', 'description', 'repositoryUrl'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          category: { type: 'string', minLength: 1 },
+          description: { type: 'string', minLength: 1 },
+          repositoryUrl: { type: 'string', minLength: 1 },
+          author: { type: 'string' },
+          version: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } },
+          license: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as ExtensionSubmission;
 
     if (!body.name || !body.category || !body.description || !body.repositoryUrl) {
