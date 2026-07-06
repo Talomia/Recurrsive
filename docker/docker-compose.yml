@@ -75,6 +75,7 @@ services:
       - server
     environment:
       NEXT_PUBLIC_API_URL: http://server:3000
+      INTERNAL_API_URL: http://server:3000
       PORT: "3100"
       NODE_ENV: production
     ports:
