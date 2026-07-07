@@ -33,7 +33,7 @@
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^3.2.3",
+    "vitest": "^3.2.6",
     "@testing-library/react": "^16",
     "@testing-library/jest-dom": "^6",
     "@vitejs/plugin-react": "^4",
