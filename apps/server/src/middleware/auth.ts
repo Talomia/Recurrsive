@@ -35,6 +35,7 @@ if (JWT_SECRET === 'recurrsive-dev-secret') {
       'CRITICAL: JWT_SECRET is using the default insecure value in production. ' +
       'Set a strong JWT_SECRET environment variable before deploying.',
     );
+    process.exit(1);
   } else {
     logger.warn('JWT_SECRET is using the default dev-only value. Set JWT_SECRET in production.');
   }

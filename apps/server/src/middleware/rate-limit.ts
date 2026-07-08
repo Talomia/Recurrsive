@@ -108,7 +108,7 @@ export async function registerRateLimit(
 
     if (record.count > max) {
       reply.header('Retry-After', resetSeconds);
-      reply.code(429).send({
+      return reply.code(429).send({
         error: 'Too Many Requests',
         message: `Rate limit exceeded. Try again in ${resetSeconds} seconds.`,
         retryAfter: resetSeconds,

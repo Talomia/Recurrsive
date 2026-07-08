@@ -175,6 +175,7 @@ export class ServerState {
     error: null,
   };
   private _analysisHistory: AnalysisHistoryEntry[] = [];
+  private _analysisLock = false;
   private _evolutionTimeline: EvolutionTimeline | null = null;
   private _wsBroadcast: WSBroadcast | null = null;
 
@@ -409,6 +410,12 @@ export class ServerState {
     includeReasoning?: boolean,
   ): Promise<AnalysisCache> {
     this.assertInitialized();
+
+    // Prevent concurrent analysis runs
+    if (this._analysisLock) {
+      throw new Error('Analysis already in progress. Wait for the current run to complete.');
+    }
+    this._analysisLock = true;
 
     const runId = generateId();
     const start = Date.now();
@@ -846,6 +853,11 @@ export class ServerState {
         error: errorMessage,
       });
 
+      // Cap history at 100 entries to prevent unbounded growth
+      if (this._analysisHistory.length > 100) {
+        this._analysisHistory = this._analysisHistory.slice(-100);
+      }
+
       // Persist history to disk
       await saveHistory(this.projectPath!, this._analysisHistory);
       this.broadcast({
@@ -856,6 +868,9 @@ export class ServerState {
 
       throw err;
     } finally {
+      // Always release the analysis lock
+      this._analysisLock = false;
+
       // Always dispose collectors to prevent resource leaks
       const disposals = [collector, docsCollector, envCollector, cicdCollector, dbCollector];
       for (const c of disposals) {
@@ -1083,6 +1098,8 @@ export class ServerState {
       completedAt: null,
       error: null,
     };
+    this._analysisHistory = [];
+    this._analysisLock = false;
     this._evolutionTimeline = null;
     logger.info('Server state disposed');
   }

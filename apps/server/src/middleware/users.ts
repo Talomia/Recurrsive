@@ -76,6 +76,12 @@ export interface UpdateUserInput {
 /** Store table name for user records. */
 const USERS_TABLE = 'users';
 
+/** Secondary index table mapping username → user ID for O(1) lookups. */
+const USERNAME_INDEX_TABLE = 'user_index_username';
+
+/** Secondary index table mapping email → user ID for O(1) lookups. */
+const EMAIL_INDEX_TABLE = 'user_index_email';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -115,10 +121,18 @@ export function toPublicUser(user: User): PublicUser {
  * @returns The created user as a {@link PublicUser}.
  */
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
-  // Check for duplicate username
-  const existing = await findUserByUsername(input.username);
-  if (existing) {
+  // Check for duplicate username via index (O(1) lookup)
+  const existingId = await store.get<string>(USERNAME_INDEX_TABLE, input.username);
+  if (existingId) {
     throw new Error(`Username '${input.username}' is already taken`);
+  }
+
+  // Check for duplicate email if provided
+  if (input.email) {
+    const existingEmailId = await store.get<string>(EMAIL_INDEX_TABLE, input.email);
+    if (existingEmailId) {
+      throw new Error(`Email '${input.email}' is already registered`);
+    }
   }
 
   const { hash, salt } = await hashPassword(input.password);
@@ -140,6 +154,13 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
   };
 
   await store.set<User>(USERS_TABLE, id, user);
+
+  // Write secondary indexes for O(1) lookup
+  await store.set<string>(USERNAME_INDEX_TABLE, input.username, id);
+  if (input.email) {
+    await store.set<string>(EMAIL_INDEX_TABLE, input.email, id);
+  }
+
   return toPublicUser(user);
 }
 
@@ -150,8 +171,10 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
  * @returns The full {@link User} record, or `undefined` if not found.
  */
 export async function findUserByUsername(username: string): Promise<User | undefined> {
-  const allUsers = await store.all<User>(USERS_TABLE);
-  return allUsers.find((u) => u.username === username);
+  // Use secondary index for O(1) lookup
+  const userId = await store.get<string>(USERNAME_INDEX_TABLE, username);
+  if (!userId) return undefined;
+  return await findUserById(userId) ?? undefined;
 }
 
 /**
@@ -213,9 +236,27 @@ export async function updateUser(id: string, updates: Partial<UpdateUserInput>):
   if (!user) return null;
 
   const now = nowISO();
+  const oldUsername = user.username;
+  const oldEmail = user.email;
 
-  if (updates.username !== undefined) user.username = updates.username;
-  if (updates.email !== undefined) user.email = updates.email;
+  // Check username uniqueness if changing
+  if (updates.username !== undefined && updates.username !== oldUsername) {
+    const existingId = await store.get<string>(USERNAME_INDEX_TABLE, updates.username);
+    if (existingId && existingId !== id) {
+      throw new Error(`Username '${updates.username}' is already taken`);
+    }
+    user.username = updates.username;
+  }
+
+  // Check email uniqueness if changing
+  if (updates.email !== undefined && updates.email !== oldEmail) {
+    const existingId = await store.get<string>(EMAIL_INDEX_TABLE, updates.email);
+    if (existingId && existingId !== id) {
+      throw new Error(`Email '${updates.email}' is already registered`);
+    }
+    user.email = updates.email;
+  }
+
   if (updates.role !== undefined) user.role = updates.role;
   if (updates.displayName !== undefined) user.displayName = updates.displayName;
   if (updates.status !== undefined) user.status = updates.status;
@@ -229,6 +270,17 @@ export async function updateUser(id: string, updates: Partial<UpdateUserInput>):
   user.updatedAt = now;
 
   await store.set<User>(USERS_TABLE, id, user);
+
+  // Update secondary indexes if username/email changed
+  if (updates.username !== undefined && updates.username !== oldUsername) {
+    await store.delete(USERNAME_INDEX_TABLE, oldUsername);
+    await store.set<string>(USERNAME_INDEX_TABLE, updates.username, id);
+  }
+  if (updates.email !== undefined && updates.email !== oldEmail) {
+    await store.delete(EMAIL_INDEX_TABLE, oldEmail);
+    await store.set<string>(EMAIL_INDEX_TABLE, updates.email, id);
+  }
+
   return toPublicUser(user);
 }
 
@@ -359,6 +411,8 @@ export async function resetUserPassword(id: string, newPassword: string): Promis
  * @returns The full {@link User} record, or `undefined` if not found.
  */
 export async function findUserByEmail(email: string): Promise<User | undefined> {
-  const allUsers = await store.all<User>(USERS_TABLE);
-  return allUsers.find((u) => u.email === email);
+  // Use secondary index for O(1) lookup
+  const userId = await store.get<string>(EMAIL_INDEX_TABLE, email);
+  if (!userId) return undefined;
+  return await findUserById(userId) ?? undefined;
 }

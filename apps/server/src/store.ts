@@ -99,8 +99,8 @@ export interface IServerStore {
   /** Trim a table to keep only the most recent N records. */
   trim(table: string, keepCount: number): Promise<number>;
 
-  /** Execute operations atomically. */
-  transaction(fn: () => void | Promise<void>): Promise<void>;
+  /** Execute operations atomically. For PostgreSQL, the callback receives the transaction client. */
+  transaction(fn: (client?: unknown) => void | Promise<void>): Promise<void>;
 
   /** Close the connection. */
   close(): Promise<void>;
@@ -125,7 +125,6 @@ export class SqliteServerStore implements IServerStore {
   // Prepared statements (lazy-initialized)
   private _stmtGet: Statement | null = null;
   private _stmtSet: Statement | null = null;
-  private _stmtUpdate: Statement | null = null;
   private _stmtDelete: Statement | null = null;
   private _stmtHas: Statement | null = null;
   private _stmtCount: Statement | null = null;
@@ -178,16 +177,10 @@ export class SqliteServerStore implements IServerStore {
 
   private get stmtSet() {
     this._stmtSet ??= this.db.prepare(
-      'INSERT INTO kv_store (table_name, id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      `INSERT INTO kv_store (table_name, id, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (table_name, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
     );
     return this._stmtSet;
-  }
-
-  private get stmtUpdate() {
-    this._stmtUpdate ??= this.db.prepare(
-      'UPDATE kv_store SET data = ?, updated_at = ? WHERE table_name = ? AND id = ?',
-    );
-    return this._stmtUpdate;
   }
 
   private get stmtDelete() {
@@ -235,12 +228,7 @@ export class SqliteServerStore implements IServerStore {
   async set<T>(table: string, id: string, value: T): Promise<void> {
     const json = JSON.stringify(value);
     const now = nowISO();
-
-    if (await this.has(table, id)) {
-      this.stmtUpdate.run(json, now, table, id);
-    } else {
-      this.stmtSet.run(table, id, json, now, now);
-    }
+    this.stmtSet.run(table, id, json, now, now);
   }
 
   async delete(table: string, id: string): Promise<boolean> {
@@ -324,8 +312,15 @@ export class SqliteServerStore implements IServerStore {
     return result.changes;
   }
 
-  async transaction(fn: () => void | Promise<void>): Promise<void> {
-    this.db.transaction(fn as () => void)();
+  async transaction(fn: (client?: unknown) => void | Promise<void>): Promise<void> {
+    const result = fn();
+    if (result && typeof (result as Promise<void>).then === 'function') {
+      throw new Error(
+        'SQLite transactions do not support async callbacks. ' +
+        'Use synchronous operations within SQLite transactions.',
+      );
+    }
+    this.db.transaction(() => fn())();
   }
 
   async close(): Promise<void> {
@@ -360,6 +355,11 @@ export class PostgresServerStore implements IServerStore {
       max: 5,
       connectionTimeoutMillis: 10_000,
       idleTimeoutMillis: 30_000,
+    });
+
+    // Handle background pool errors to prevent unhandled rejections
+    this.pool.on('error', (err) => {
+      logger.error(`PostgreSQL pool error: ${err instanceof Error ? err.message : String(err)}`);
     });
   }
 
@@ -515,11 +515,11 @@ export class PostgresServerStore implements IServerStore {
     return result.rowCount ?? 0;
   }
 
-  async transaction(fn: () => void | Promise<void>): Promise<void> {
+  async transaction(fn: (client: pg.PoolClient) => void | Promise<void>): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await fn();
+      await fn(client);
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -535,7 +535,17 @@ export class PostgresServerStore implements IServerStore {
   }
 
   getPath(): string {
-    return this.connectionString;
+    // Mask credentials in the connection string to prevent leaks in logs/API
+    try {
+      const url = new URL(this.connectionString);
+      if (url.password) {
+        url.password = '***';
+      }
+      return url.toString();
+    } catch {
+      // If parsing fails, return a generic description
+      return 'postgresql://<masked>';
+    }
   }
 }
 

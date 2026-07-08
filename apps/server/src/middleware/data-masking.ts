@@ -11,6 +11,7 @@
  */
 
 import { generateId, nowISO } from '@recurrsive/core';
+import { createHash, createHmac } from 'node:crypto';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -92,14 +93,9 @@ export function applyMask(value: string, strategy: MaskingStrategy): string {
     case 'redact':
       return '[REDACTED]';
     case 'hash': {
-      // Simple deterministic hash for demo (not crypto-safe)
-      let hash = 0;
-      for (let i = 0; i < value.length; i++) {
-        const char = value.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash |= 0;
-      }
-      return `[HASH:${Math.abs(hash).toString(16).padStart(8, '0')}]`;
+      // Deterministic SHA-256 hash (truncated for readability)
+      const digest = createHash('sha256').update(value).digest('hex');
+      return `[HASH:${digest.slice(0, 16)}]`;
     }
     case 'partial': {
       if (value.includes('@')) {
@@ -110,8 +106,12 @@ export function applyMask(value: string, strategy: MaskingStrategy): string {
       if (value.length <= 4) return '****';
       return `${value.slice(0, 2)}${'*'.repeat(Math.max(1, value.length - 4))}${value.slice(-2)}`;
     }
-    case 'tokenize':
-      return `[TOKEN:${generateId().slice(0, 8)}]`;
+    case 'tokenize': {
+      // Deterministic token using HMAC-SHA256 with server-side key
+      const tokenKey = process.env['MASKING_TOKEN_KEY'] ?? 'recurrsive-masking-default-key';
+      const token = createHmac('sha256', tokenKey).update(value).digest('hex').slice(0, 16);
+      return `[TOKEN:${token}]`;
+    }
     case 'generalize':
       return '[GENERALIZED]';
     case 'suppress':

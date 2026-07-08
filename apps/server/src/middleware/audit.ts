@@ -95,6 +95,10 @@ export interface AuditStats {
 // ---------------------------------------------------------------------------
 
 const MAX_EVENTS = 1000;
+
+/** Debounce trim — only run trim every N events instead of on every request. */
+const TRIM_INTERVAL = 50;
+let _auditEventsSinceLastTrim = 0;
 const AUDIT_TABLE = 'audit_events';
 
 // ---------------------------------------------------------------------------
@@ -239,14 +243,18 @@ export function registerAuditMiddleware(app: FastifyInstance): void {
 
     if (user) {
       event.userId = user.id;
-      event.username = user.id;
+      event.username = user.username ?? user.id;
       event.role = user.role;
     }
 
     await store.set(AUDIT_TABLE, event.id, event);
 
-    // Enforce event limit — trim deterministically
-    await store.trim(AUDIT_TABLE, MAX_EVENTS);
+    // Debounce trim — only enforce event limit every TRIM_INTERVAL events
+    _auditEventsSinceLastTrim++;
+    if (_auditEventsSinceLastTrim >= TRIM_INTERVAL) {
+      _auditEventsSinceLastTrim = 0;
+      await store.trim(AUDIT_TABLE, MAX_EVENTS);
+    }
 
     logger.debug(
       `Audit: ${event.method} ${event.url} → ${event.statusCode} ` +
