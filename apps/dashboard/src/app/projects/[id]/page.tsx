@@ -109,6 +109,7 @@ export default function ProjectDetailPage() {
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [analyzing, setAnalyzing] = useState(false);
   const [status, setStatus] = useState<AnalysisStatus | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
 
   const fetchProject = useCallback(async () => {
     setError(null);
@@ -138,7 +139,10 @@ export default function ProjectDetailPage() {
     }
   }, [id]);
 
-  const startPolling = useCallback(() => {
+  // Poll analysis status when isPolling is true
+  useEffect(() => {
+    if (!isPolling) return;
+
     setAnalyzing(true);
     const interval = setInterval(async () => {
       try {
@@ -147,6 +151,7 @@ export default function ProjectDetailPage() {
 
         if (data.phase === 'complete') {
           clearInterval(interval);
+          setIsPolling(false);
           setAnalyzing(false);
           // Refresh statistics, findings, and opportunities automatically
           fetchProject();
@@ -154,6 +159,7 @@ export default function ProjectDetailPage() {
           fetchOpportunities();
         } else if (data.phase === 'error') {
           clearInterval(interval);
+          setIsPolling(false);
           setAnalyzing(false);
           setError(data.error || 'Analysis failed');
         }
@@ -163,7 +169,7 @@ export default function ProjectDetailPage() {
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [fetchProject, fetchFindings, fetchOpportunities]);
+  }, [isPolling, fetchProject, fetchFindings, fetchOpportunities]);
 
   // Initial project load
   useEffect(() => {
@@ -179,12 +185,12 @@ export default function ProjectDetailPage() {
         if (!active) return;
         setStatus(data);
         if (data && data.phase !== 'idle' && data.phase !== 'complete' && data.phase !== 'error') {
-          startPolling();
+          setIsPolling(true);
         }
       })
       .catch(() => {});
     return () => { active = false; };
-  }, [startPolling]);
+  }, []);
 
   // Fetch findings/opportunities when their tabs are activated or reset
   useEffect(() => {
@@ -215,11 +221,11 @@ export default function ProjectDetailPage() {
       setFindings([]);
       setOpportunities([]);
 
-      startPolling();
+      setIsPolling(true);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         // Already running! Gracefully start polling instead of failing.
-        startPolling();
+        setIsPolling(true);
       } else {
         setError(err instanceof Error ? err.message : 'Failed to start analysis.');
         setAnalyzing(false);
