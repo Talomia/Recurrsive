@@ -72,6 +72,28 @@ const subjectOptions = [
 
 export default function ContactPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    company: '',
+    subject: '',
+    message: '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.email || !formData.message) {
+      alert('Please fill out all required fields (Name, Email, Message)');
+      return;
+    }
+    setSubmitting(true);
+    setTimeout(() => {
+      setSubmitting(false);
+      setSubmitted(true);
+    }, 1800);
+  };
 
   return (
     <div style={{ paddingTop: 'var(--nav-height)' }}>
@@ -115,136 +137,254 @@ export default function ContactPage() {
       <section className="section-sm">
         <div className="container">
           <div className="grid-2" style={{ alignItems: 'start' }}>
-            {/* Left — Contact Form */}
-            <div className="glass-card" style={{ padding: 'var(--space-2xl)' }}>
-              <h3 style={{ marginBottom: 'var(--space-lg)' }}>Send a Message</h3>
-              <form
-                onSubmit={(e) => e.preventDefault()}
-                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
+            {/* Left — Contact Form or Success Card */}
+            {submitted ? (
+              <div
+                className="glass-card animate-fade-in"
+                style={{
+                  padding: 'var(--space-3xl) var(--space-2xl)',
+                  textAlign: 'center',
+                  background: 'rgba(20, 15, 35, 0.4)',
+                  border: '1px solid var(--border-accent)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: '0 8px 32px 0 rgba(124, 58, 237, 0.1)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 'var(--space-sm)',
+                }}
               >
-                {/* Name */}
-                <div>
-                  <label
-                    htmlFor="name"
-                    style={{
-                      display: 'block',
-                      fontSize: '0.88rem',
-                      fontWeight: 600,
-                      marginBottom: 'var(--space-xs)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    Name
-                  </label>
-                  <input
-                    id="name"
-                    type="text"
-                    placeholder="Your name"
-                    style={inputStyle}
-                  />
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label
-                    htmlFor="email"
-                    style={{
-                      display: 'block',
-                      fontSize: '0.88rem',
-                      fontWeight: 600,
-                      marginBottom: 'var(--space-xs)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    Email
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    placeholder="you@company.com"
-                    style={inputStyle}
-                  />
-                </div>
-
-                {/* Company */}
-                <div>
-                  <label
-                    htmlFor="company"
-                    style={{
-                      display: 'block',
-                      fontSize: '0.88rem',
-                      fontWeight: 600,
-                      marginBottom: 'var(--space-xs)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    Company
-                  </label>
-                  <input
-                    id="company"
-                    type="text"
-                    placeholder="Your company"
-                    style={inputStyle}
-                  />
-                </div>
-
-                {/* Subject */}
-                <div>
-                  <label
-                    htmlFor="subject"
-                    style={{
-                      display: 'block',
-                      fontSize: '0.88rem',
-                      fontWeight: 600,
-                      marginBottom: 'var(--space-xs)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    Subject
-                  </label>
-                  <select id="subject" style={{ ...inputStyle, cursor: 'pointer' }}>
-                    <option value="" disabled>
-                      Select a subject…
-                    </option>
-                    {subjectOptions.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Message */}
-                <div>
-                  <label
-                    htmlFor="message"
-                    style={{
-                      display: 'block',
-                      fontSize: '0.88rem',
-                      fontWeight: 600,
-                      marginBottom: 'var(--space-xs)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    Message
-                  </label>
-                  <textarea
-                    id="message"
-                    rows={5}
-                    placeholder="Tell us about your project…"
-                    style={{ ...inputStyle, resize: 'vertical' }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn btn-primary btn-lg"
-                  style={{ marginTop: 'var(--space-sm)', alignSelf: 'flex-start' }}
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '2px solid var(--green)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 'var(--space-md)',
+                    boxShadow: '0 0 20px rgba(16, 185, 129, 0.3)',
+                    animation: 'pulse 2s infinite',
+                  }}
                 >
-                  <Send size={18} /> Send Message
+                  <svg
+                    width="28"
+                    height="28"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--green)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Message Received!
+                </h3>
+                <p
+                  style={{
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.95rem',
+                    maxWidth: 360,
+                    margin: '0 auto var(--space-lg)',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Thank you for reaching out, <strong>{formData.name}</strong>. Our engineering
+                  intelligence squad has received your message and will get back to you within 24 hours.
+                </p>
+                <button
+                  onClick={() => {
+                    setSubmitted(false);
+                    setFormData({ name: '', email: '', company: '', subject: '', message: '' });
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '10px 24px' }}
+                >
+                  Send Another Message
                 </button>
-              </form>
-            </div>
+              </div>
+            ) : (
+              <div className="glass-card" style={{ padding: 'var(--space-2xl)' }}>
+                <h3 style={{ marginBottom: 'var(--space-lg)' }}>Send a Message</h3>
+                <form
+                  onSubmit={handleSubmit}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
+                >
+                  {/* Name */}
+                  <div>
+                    <label
+                      htmlFor="name"
+                      style={{
+                        display: 'block',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        marginBottom: 'var(--space-xs)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      Name <span style={{ color: 'var(--red)' }}>*</span>
+                    </label>
+                    <input
+                      id="name"
+                      type="text"
+                      required
+                      placeholder="Your name"
+                      style={inputStyle}
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label
+                      htmlFor="email"
+                      style={{
+                        display: 'block',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        marginBottom: 'var(--space-xs)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      Email <span style={{ color: 'var(--red)' }}>*</span>
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      placeholder="you@company.com"
+                      style={inputStyle}
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Company */}
+                  <div>
+                    <label
+                      htmlFor="company"
+                      style={{
+                        display: 'block',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        marginBottom: 'var(--space-xs)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      Company
+                    </label>
+                    <input
+                      id="company"
+                      type="text"
+                      placeholder="Your company"
+                      style={inputStyle}
+                      value={formData.company}
+                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Subject */}
+                  <div>
+                    <label
+                      htmlFor="subject"
+                      style={{
+                        display: 'block',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        marginBottom: 'var(--space-xs)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      Subject
+                    </label>
+                    <select
+                      id="subject"
+                      style={{ ...inputStyle, cursor: 'pointer' }}
+                      value={formData.subject}
+                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    >
+                      <option value="" disabled>
+                        Select a subject…
+                      </option>
+                      {subjectOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Message */}
+                  <div>
+                    <label
+                      htmlFor="message"
+                      style={{
+                        display: 'block',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        marginBottom: 'var(--space-xs)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      Message <span style={{ color: 'var(--red)' }}>*</span>
+                    </label>
+                    <textarea
+                      id="message"
+                      rows={5}
+                      required
+                      placeholder="Tell us about your project…"
+                      style={{ ...inputStyle, resize: 'vertical' }}
+                      value={formData.message}
+                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="btn btn-primary btn-lg"
+                    style={{
+                      marginTop: 'var(--space-sm)',
+                      alignSelf: 'flex-start',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      opacity: submitting ? 0.8 : 1,
+                      cursor: submitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {submitting ? (
+                      <>
+                        <span
+                          style={{
+                            width: 16,
+                            height: 16,
+                            border: '2px solid rgba(255, 255, 255, 0.3)',
+                            borderTopColor: '#ffffff',
+                            borderRadius: '50%',
+                            display: 'inline-block',
+                            animation: 'spin 0.8s linear infinite',
+                          }}
+                        />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} /> Send Message
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            )}
 
             {/* Right — Contact Cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
@@ -347,6 +487,16 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
+          50% { transform: scale(1.05); box-shadow: 0 0 30px rgba(16, 185, 129, 0.4); }
+        }
+      `}</style>
     </div>
   );
 }

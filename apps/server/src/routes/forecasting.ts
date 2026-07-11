@@ -181,22 +181,34 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
     schema: {
       body: {
         type: 'object',
-        required: ['actions'],
         properties: {
           actions: {
             type: 'array',
-            minItems: 1,
             items: {
               type: 'object',
-              required: ['type', 'description'],
+              required: ['type'],
               properties: {
                 type: { type: 'string', minLength: 1 },
-                description: { type: 'string', minLength: 1 },
+                description: { type: 'string' },
+                estimatedImpact: { type: 'number' },
+              },
+            },
+          },
+          changes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              required: ['type'],
+              properties: {
+                type: { type: 'string', minLength: 1 },
+                name: { type: 'string' },
+                description: { type: 'string' },
                 estimatedImpact: { type: 'number' },
               },
             },
           },
         },
+        additionalProperties: false,
       },
     },
   }, async (request, reply) => {
@@ -204,14 +216,29 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
       const body = request.body as {
         actions?: Array<{
           type: string;
-          description: string;
+          description?: string;
+          estimatedImpact?: number;
+        }>;
+        changes?: Array<{
+          type: string;
+          name?: string;
+          description?: string;
           estimatedImpact?: number;
         }>;
       };
 
-      if (!body.actions || body.actions.length === 0) {
+      const rawActions = body.actions ?? body.changes;
+
+      if (!rawActions || rawActions.length === 0) {
         return reply.status(400).send({ error: 'Bad Request', message: 'At least one action is required' });
       }
+
+      // Map raw actions / changes to standard action format
+      const actions = rawActions.map(act => ({
+        type: act.type,
+        description: act.description ?? ('name' in act ? act.name : undefined) ?? act.type,
+        estimatedImpact: act.estimatedImpact,
+      }));
 
       // Use real health score if available, otherwise use algorithmic baseline
       const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
@@ -233,7 +260,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
         'optimize-performance': { baseImpact: 4.5, confidence: 0.70, timeToRealize: 14 },
       };
 
-      for (const action of body.actions) {
+      for (const action of actions) {
         const model = impactModels[action.type] ?? {
           baseImpact: action.estimatedImpact ?? 3.0,
           confidence: 0.50,

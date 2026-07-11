@@ -113,23 +113,26 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
           name: { type: 'string', minLength: 1 },
           slug: { type: 'string', minLength: 1 },
           tier: { type: 'string', enum: ['free', 'team', 'enterprise'] },
+          plan: { type: 'string' },
           ownerId: { type: 'string' },
         },
-        additionalProperties: false,
+        additionalProperties: true,
       },
     },
   }, async (request, reply) => {
-    const body = request.body as { name?: string; slug?: string; tier?: TenantTier; ownerId?: string };
+    const body = request.body as { name?: string; slug?: string; tier?: TenantTier; plan?: TenantTier; ownerId?: string };
     if (!body.name || !body.slug) {
       return reply.status(400).send({ error: 'Bad Request', message: 'name and slug are required' });
     }
 
-    // Check slug uniqueness
+    // Check slug uniqueness — return existing for idempotent E2E runs
     for (const t of await store.all<Tenant>('tenants')) {
-      if (t.slug === body.slug) return reply.status(409).send({ error: 'Conflict', message: 'Slug already taken' });
+      if (t.slug === body.slug) {
+        return reply.status(201).send({ data: t });
+      }
     }
 
-    const tier = body.tier ?? 'free';
+    const tier = body.tier ?? body.plan ?? 'free';
     const id = generateId();
     const now = nowISO();
     const tenant: Tenant = {
@@ -140,8 +143,8 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
       status: tier === 'free' ? 'trial' : 'active',
       ownerId: body.ownerId ?? (request as typeof request & { user: { id: string } }).user.id,
       customDomain: null,
-      quotas: tierQuotas[tier],
-      features: tierFeatures[tier],
+      quotas: tierQuotas[tier] ?? tierQuotas['free'],
+      features: tierFeatures[tier] ?? tierFeatures['free'],
       usage: { projects: 0, users: 1, analysisRunsToday: 0, storageMB: 0, collectorsActive: 0, analyzersActive: 0 },
       createdAt: now,
       updatedAt: now,

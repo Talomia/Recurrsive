@@ -14,6 +14,7 @@ import {
   Headphones,
   Rocket,
   Building2,
+  Loader2,
 } from 'lucide-react';
 
 const BENEFITS = [
@@ -77,11 +78,16 @@ const labelStyle: React.CSSProperties = {
 };
 
 export default function PartnerApplyPage() {
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    setTimeout(() => {
+      setSubmitting(false);
+      setSubmitted(true);
+    }, 1200);
   };
 
   return (
@@ -206,33 +212,33 @@ export default function PartnerApplyPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
-              <div className="glass-card">
+              <div className="glass-card" style={{ opacity: submitting ? 0.8 : 1, transition: 'opacity 0.25s' }}>
                 <div className="grid-2" style={{ marginBottom: 'var(--space-lg)' }}>
                   <div>
                     <label style={labelStyle}>Company Name *</label>
-                    <input type="text" required placeholder="Acme Corp" style={inputStyle} />
+                    <input type="text" required placeholder="Acme Corp" style={inputStyle} disabled={submitting} />
                   </div>
                   <div>
                     <label style={labelStyle}>Website *</label>
-                    <input type="url" required placeholder="https://acme.com" style={inputStyle} />
+                    <input type="url" required placeholder="https://acme.com" style={inputStyle} disabled={submitting} />
                   </div>
                 </div>
 
                 <div className="grid-2" style={{ marginBottom: 'var(--space-lg)' }}>
                   <div>
                     <label style={labelStyle}>Contact Name *</label>
-                    <input type="text" required placeholder="Jane Smith" style={inputStyle} />
+                    <input type="text" required placeholder="Jane Smith" style={inputStyle} disabled={submitting} />
                   </div>
                   <div>
                     <label style={labelStyle}>Email *</label>
-                    <input type="email" required placeholder="jane@acme.com" style={inputStyle} />
+                    <input type="email" required placeholder="jane@acme.com" style={inputStyle} disabled={submitting} />
                   </div>
                 </div>
 
                 <div className="grid-2" style={{ marginBottom: 'var(--space-lg)' }}>
                   <div>
                     <label style={labelStyle}>Company Size *</label>
-                    <select required style={{ ...inputStyle, cursor: 'pointer' }}>
+                    <select required style={{ ...inputStyle, cursor: submitting ? 'not-allowed' : 'pointer' }} disabled={submitting}>
                       <option value="">Select size…</option>
                       <option value="1-10">1–10 employees</option>
                       <option value="11-50">11–50 employees</option>
@@ -243,7 +249,7 @@ export default function PartnerApplyPage() {
                   </div>
                   <div>
                     <label style={labelStyle}>Partnership Type *</label>
-                    <select required style={{ ...inputStyle, cursor: 'pointer' }}>
+                    <select required style={{ ...inputStyle, cursor: submitting ? 'not-allowed' : 'pointer' }} disabled={submitting}>
                       <option value="">Select type…</option>
                       <option value="si">System Integrator</option>
                       <option value="consulting">Consulting Firm</option>
@@ -263,11 +269,33 @@ export default function PartnerApplyPage() {
                       ...inputStyle,
                       resize: 'vertical',
                     }}
+                    disabled={submitting}
                   />
                 </div>
 
-                <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
-                  <Send size={18} /> Submit Application
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="btn btn-primary btn-lg"
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    opacity: submitting ? 0.75 : 1,
+                  }}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} /> Submitting application...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={18} /> Submit Application
+                    </>
+                  )}
                 </button>
               </div>
             </form>

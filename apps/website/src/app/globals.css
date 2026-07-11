@@ -24,7 +24,7 @@
   /* Text */
   --text-primary: #f0f0f5;
   --text-secondary: #a0a0b0;
-  --text-tertiary: #6b6b80;
+  --text-tertiary: #80809b;
   --text-accent: #a78bfa;
 
   /* Brand Gradient */
@@ -422,3 +422,27 @@ h4 { font-size: clamp(1.1rem, 2vw, 1.3rem); }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
+
+/* ── Accessibility & Focus Rings ────────────────────────────────────────── */
+
+/* Remove default browser focus outlines while preserving native focus-visible rings for keyboard users */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.25);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--purple) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.25) !important;
+}
+

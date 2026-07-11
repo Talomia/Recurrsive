@@ -446,10 +446,29 @@ export async function getPartners(params?: { tier?: string; type?: string }) {
   if (params?.type) searchParams.set('type', params.type);
   const query = searchParams.toString();
   try {
-    return await apiFetch<{ data: any[]; total: number; tierCounts: Record<string, number> }>(
+    const res = await apiFetch<{ data: any[]; total: number; tierCounts: Record<string, number> }>(
       `/api/v1/partners${query ? `?${query}` : ''}`,
       { unwrap: false },
     );
+    const mappedData = (res.data ?? []).map((partner: any) => {
+      // Map server type to emoji logo
+      const typeToLogo: Record<string, string> = {
+        'system-integrator': '🏢',
+        'consulting': '🤝',
+        'technology': '🔌',
+        'cloud-provider': '☁️',
+      };
+      return {
+        id: partner.id,
+        name: partner.name,
+        tier: partner.tier,
+        specialty: partner.specializations?.join(', ') || partner.type || 'General Integration',
+        logo: typeToLogo[partner.type] || '💼',
+        projects: partner.customerCount ?? partner.certifiedEngineers ?? 0,
+        description: partner.description || '',
+      };
+    });
+    return { data: mappedData, total: res.total ?? mappedData.length, tierCounts: res.tierCounts ?? {} };
   } catch {
     return { data: [], total: 0, tierCounts: {} };
   }
@@ -457,7 +476,18 @@ export async function getPartners(params?: { tier?: string; type?: string }) {
 
 export async function getPartnerCertifications() {
   try {
-    return await apiFetch<{ data: any[] }>('/api/v1/partners/certifications', { unwrap: false });
+    const res = await apiFetch<{ data: any[] }>('/api/v1/partners/certifications', { unwrap: false });
+    const mappedData = (res.data ?? []).map((cert: any) => {
+      return {
+        id: cert.id,
+        name: cert.name,
+        level: cert.level,
+        duration: cert.examDuration || cert.validityPeriod || '2 hours',
+        modules: cert.requirements?.length || 4,
+        enrolled: cert.enrolledCount ?? 0,
+      };
+    });
+    return { data: mappedData };
   } catch {
     return { data: [] };
   }

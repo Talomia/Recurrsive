@@ -237,6 +237,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.status(201).send({
       data: {
+        id: result.info.id,
         key: result.key,
         info: result.info,
       },

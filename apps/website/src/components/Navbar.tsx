@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Menu,
   X,
@@ -66,6 +67,20 @@ const NAV_ITEMS = [
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const pathname = usePathname();
+
+  const isItemActive = (item: typeof NAV_ITEMS[number]) => {
+    if (!pathname) return false;
+    if (pathname === item.href) return true;
+    if (item.items) {
+      return item.items.some(
+        (sub) =>
+          pathname === sub.href ||
+          (sub.href !== '/' && pathname.startsWith(sub.href))
+      );
+    }
+    return false;
+  };
 
   return (
     <header
@@ -130,120 +145,128 @@ export function Navbar() {
           }}
           className="desktop-nav"
         >
-          {NAV_ITEMS.map((item) => (
-            <div
-              key={item.label}
-              style={{ position: 'relative' }}
-              onMouseEnter={() => item.items && setOpenDropdown(item.label)}
-              onMouseLeave={() => setOpenDropdown(null)}
-            >
-              <Link
-                href={item.href}
-                aria-expanded={item.items ? openDropdown === item.label : undefined}
-                aria-haspopup={item.items ? 'true' : undefined}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '8px 14px',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.9rem',
-                  fontWeight: 500,
-                  transition: 'color var(--transition-fast)',
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = 'var(--text-primary)')
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.color = 'var(--text-secondary)')
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setOpenDropdown(null);
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    if (item.items) {
-                      e.preventDefault();
-                      setOpenDropdown(openDropdown === item.label ? null : item.label);
-                    }
-                  }
-                }}
-                onFocus={() => item.items && setOpenDropdown(item.label)}
+          {NAV_ITEMS.map((item) => {
+            const active = isItemActive(item);
+            return (
+              <div
+                key={item.label}
+                style={{ position: 'relative' }}
+                onMouseEnter={() => item.items && setOpenDropdown(item.label)}
+                onMouseLeave={() => setOpenDropdown(null)}
               >
-                {item.label}
-                {item.items && <ChevronDown size={14} aria-hidden="true" />}
-              </Link>
-
-              {/* Dropdown */}
-              {item.items && openDropdown === item.label && (
-                <div
+                <Link
+                  href={item.href}
+                  aria-expanded={item.items ? openDropdown === item.label : undefined}
+                  aria-haspopup={item.items ? 'true' : undefined}
                   style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    paddingTop: '8px',
-                    zIndex: 50,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '8px 14px',
+                    borderRadius: 'var(--radius-sm)',
+                    color: active ? 'var(--text-accent)' : 'var(--text-secondary)',
+                    fontSize: '0.9rem',
+                    fontWeight: active ? 600 : 500,
+                    transition: 'color var(--transition-fast)',
                   }}
+                  onMouseEnter={(e) => {
+                    if (!active) e.currentTarget.style.color = 'var(--text-primary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) e.currentTarget.style.color = 'var(--text-secondary)';
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setOpenDropdown(null);
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      if (item.items) {
+                        e.preventDefault();
+                        setOpenDropdown(openDropdown === item.label ? null : item.label);
+                      }
+                    }
+                  }}
+                  onFocus={() => item.items && setOpenDropdown(item.label)}
                 >
+                  {item.label}
+                  {item.items && <ChevronDown size={14} aria-hidden="true" />}
+                </Link>
+
+                {/* Dropdown */}
+                {item.items && openDropdown === item.label && (
                   <div
                     style={{
-                      background: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-medium)',
-                      borderRadius: 'var(--radius-lg)',
-                      padding: '8px',
-                      minWidth: '280px',
-                      boxShadow: 'var(--shadow-lg)',
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      paddingTop: '8px',
+                      zIndex: 50,
                     }}
                   >
-                    {item.items.map((sub) => (
-                      <Link
-                        key={sub.label}
-                        href={sub.href}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '12px',
-                          padding: '12px',
-                          borderRadius: 'var(--radius-md)',
-                          transition: 'background var(--transition-fast)',
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background =
-                            'var(--bg-glass-strong)')
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = 'transparent')
-                        }
-                      >
-                        <sub.icon
-                          size={20}
-                          style={{ color: 'var(--text-accent)', marginTop: 2 }}
-                        />
-                        <div>
-                          <div
+                    <div
+                      style={{
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-medium)',
+                        borderRadius: 'var(--radius-lg)',
+                        padding: '8px',
+                        minWidth: '280px',
+                        boxShadow: 'var(--shadow-lg)',
+                      }}
+                    >
+                      {item.items.map((sub) => {
+                        const subActive = pathname === sub.href;
+                        return (
+                          <Link
+                            key={sub.label}
+                            href={sub.href}
                             style={{
-                              fontWeight: 600,
-                              fontSize: '0.9rem',
-                              marginBottom: 2,
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '12px',
+                              padding: '12px',
+                              borderRadius: 'var(--radius-md)',
+                              background: subActive ? 'rgba(124, 58, 237, 0.08)' : 'transparent',
+                              border: subActive ? '1px solid rgba(124, 58, 237, 0.15)' : '1px solid transparent',
+                              transition: 'background var(--transition-fast)',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!subActive) e.currentTarget.style.background = 'var(--bg-glass-strong)';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!subActive) e.currentTarget.style.background = 'transparent';
                             }}
                           >
-                            {sub.label}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '0.8rem',
-                              color: 'var(--text-tertiary)',
-                            }}
-                          >
-                            {sub.desc}
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
+                            <sub.icon
+                              size={20}
+                              style={{ color: subActive ? 'var(--text-accent)' : 'var(--text-tertiary)', marginTop: 2 }}
+                            />
+                            <div>
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  fontSize: '0.9rem',
+                                  color: subActive ? 'var(--text-accent)' : 'var(--text-primary)',
+                                  marginBottom: 2,
+                                }}
+                              >
+                                {sub.label}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: '0.8rem',
+                                  color: 'var(--text-tertiary)',
+                                }}
+                              >
+                                {sub.desc}
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* CTA Buttons */}
@@ -301,38 +324,45 @@ export function Navbar() {
             zIndex: 99,
           }}
         >
-          {NAV_ITEMS.map((item) => (
-            <div key={item.label} style={{ marginBottom: 'var(--space-md)' }}>
-              <Link
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                style={{
-                  display: 'block',
-                  padding: '12px 0',
-                  fontSize: '1.1rem',
-                  fontWeight: 600,
-                  borderBottom: '1px solid var(--border-subtle)',
-                }}
-              >
-                {item.label}
-              </Link>
-              {item.items?.map((sub) => (
+          {NAV_ITEMS.map((item) => {
+            const topActive = isItemActive(item);
+            return (
+              <div key={item.label} style={{ marginBottom: 'var(--space-md)' }}>
                 <Link
-                  key={sub.label}
-                  href={sub.href}
+                  href={item.href}
                   onClick={() => setMobileOpen(false)}
                   style={{
                     display: 'block',
-                    padding: '10px 0 10px 20px',
-                    fontSize: '0.95rem',
-                    color: 'var(--text-secondary)',
+                    padding: '12px 0',
+                    fontSize: '1.1rem',
+                    fontWeight: 600,
+                    color: topActive ? 'var(--text-accent)' : 'var(--text-primary)',
+                    borderBottom: '1px solid var(--border-subtle)',
                   }}
                 >
-                  {sub.label}
+                  {item.label}
                 </Link>
-              ))}
-            </div>
-          ))}
+                {item.items?.map((sub) => {
+                  const subActive = pathname === sub.href;
+                  return (
+                    <Link
+                      key={sub.label}
+                      href={sub.href}
+                      onClick={() => setMobileOpen(false)}
+                      style={{
+                        display: 'block',
+                        padding: '10px 0 10px 20px',
+                        fontSize: '0.95rem',
+                        color: subActive ? 'var(--text-accent)' : 'var(--text-secondary)',
+                      }}
+                    >
+                      {sub.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })}
           <div style={{ marginTop: 'var(--space-xl)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <Link href="https://github.com/Talomia/Recurrsive" className="btn btn-secondary" target="_blank">
               GitHub

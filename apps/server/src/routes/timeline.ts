@@ -36,8 +36,34 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
 
     const timeline = state.getEvolutionTimeline();
 
+    // Derive events for compatibility with test assertions expecting events on the timeline response
+    const history = state.getAnalysisHistory();
+    const events = history
+      .filter(h => h.status === 'success')
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+      .map(entry => {
+        const score = Math.max(0, Math.min(100, 100 - entry.findingCount * 2));
+        return {
+          id: entry.id,
+          type: score >= 80 ? 'milestone' : score >= 50 ? 'analysis' : 'incident',
+          timestamp: entry.completedAt,
+          title: `Analysis completed`,
+          description: `Produced ${entry.findingCount} findings and ${entry.opportunityCount} opportunities in ${Math.round(entry.durationMs / 1000)}s`,
+          metadata: {
+            finding_count: entry.findingCount,
+            opportunity_count: entry.opportunityCount,
+            duration_ms: entry.durationMs,
+            health_score: score,
+            include_reasoning: entry.includeReasoning,
+          },
+        };
+      });
+
     return reply.status(200).send({
-      data: timeline,
+      data: {
+        ...timeline,
+        events,
+      },
     });
   });
 

@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   GitBranch,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 
 const GUIDELINES = [
@@ -75,11 +76,16 @@ const labelStyle: React.CSSProperties = {
 };
 
 export default function MarketplaceSubmitPage() {
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    setTimeout(() => {
+      setSubmitting(false);
+      setSubmitted(true);
+    }, 1200);
   };
 
   return (
@@ -255,15 +261,15 @@ export default function MarketplaceSubmitPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit}>
-                  <div className="glass-card">
+                  <div className="glass-card" style={{ opacity: submitting ? 0.8 : 1, transition: 'opacity 0.25s' }}>
                     <div style={{ marginBottom: 'var(--space-lg)' }}>
                       <label style={labelStyle}>Extension Name *</label>
-                      <input type="text" required placeholder="My Awesome Analyzer" style={inputStyle} />
+                      <input type="text" required placeholder="My Awesome Analyzer" style={inputStyle} disabled={submitting} />
                     </div>
 
                     <div style={{ marginBottom: 'var(--space-lg)' }}>
                       <label style={labelStyle}>Category *</label>
-                      <select required style={{ ...inputStyle, cursor: 'pointer' }}>
+                      <select required style={{ ...inputStyle, cursor: submitting ? 'not-allowed' : 'pointer' }} disabled={submitting}>
                         <option value="">Select category…</option>
                         <option value="analyzer">Analyzer</option>
                         <option value="collector">Collector</option>
@@ -279,6 +285,7 @@ export default function MarketplaceSubmitPage() {
                         rows={4}
                         placeholder="Describe what your extension does, what problems it solves, and key features…"
                         style={{ ...inputStyle, resize: 'vertical' }}
+                        disabled={submitting}
                       />
                     </div>
 
@@ -289,22 +296,44 @@ export default function MarketplaceSubmitPage() {
                         required
                         placeholder="https://github.com/your-org/your-extension"
                         style={inputStyle}
+                        disabled={submitting}
                       />
                     </div>
 
                     <div className="grid-2" style={{ marginBottom: 'var(--space-xl)' }}>
                       <div>
                         <label style={labelStyle}>Author *</label>
-                        <input type="text" required placeholder="Your Name or Org" style={inputStyle} />
+                        <input type="text" required placeholder="Your Name or Org" style={inputStyle} disabled={submitting} />
                       </div>
                       <div>
                         <label style={labelStyle}>Version *</label>
-                        <input type="text" required placeholder="1.0.0" style={inputStyle} />
+                        <input type="text" required placeholder="1.0.0" style={inputStyle} disabled={submitting} />
                       </div>
                     </div>
 
-                    <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
-                      <Send size={18} /> Submit Extension
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="btn btn-primary btn-lg"
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        opacity: submitting ? 0.75 : 1,
+                      }}
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="animate-spin" size={18} /> Submitting extension...
+                        </>
+                      ) : (
+                        <>
+                          <Send size={18} /> Submit Extension
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>

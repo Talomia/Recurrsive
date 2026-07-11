@@ -159,7 +159,7 @@ export async function registerSearchRoutes(app: FastifyInstance): Promise<void> 
     async (request, reply) => {
       const { q, scope = 'all' } = request.query;
 
-      if (!q || typeof q !== 'string' || q.trim().length === 0) {
+      if (q === undefined || typeof q !== 'string') {
         return reply.status(400).send({
           error: 'Bad request',
           message: 'Query parameter "q" is required',

@@ -110,10 +110,11 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     schema: {
       body: {
         type: 'object',
-        required: ['name', 'repository'],
+        required: ['name'],
         properties: {
           name: { type: 'string', minLength: 1 },
           repository: { type: 'string', minLength: 1 },
+          gitUrl: { type: 'string', minLength: 1 },
           slug: { type: 'string' },
           description: { type: 'string' },
           language: { type: 'string' },
@@ -125,9 +126,14 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     },
   }, async (request, reply) => {
     try {
-      const body = request.body as Partial<Project>;
-      if (!body.name || !body.repository) {
-        return reply.status(400).send({ error: 'Bad Request', message: 'name and repository are required' });
+      const body = request.body as Partial<Project> & { gitUrl?: string };
+      const repository = body.repository ?? body.gitUrl;
+
+      if (!body.name || !repository) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'name and repository (or gitUrl) are required',
+        });
       }
 
       const id = generateId();
@@ -139,7 +145,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         name: body.name,
         slug,
         description: body.description ?? '',
-        repository: body.repository,
+        repository: repository,
         language: body.language ?? 'Unknown',
         framework: body.framework ?? 'Unknown',
         healthScore: 0,
@@ -213,7 +219,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
       }
       await store.delete('projects', request.params.id);
-      return reply.status(204).send();
+      return reply.status(200).send({ success: true, message: 'Project deleted successfully' });
     } catch (err) {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to delete project.' });
     }

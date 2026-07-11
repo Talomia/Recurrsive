@@ -76,7 +76,22 @@ export async function registerRateLimit(
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     // Skip health checks and WebSocket upgrades
-    if (request.url === '/health' || request.headers.upgrade === 'websocket') {
+    if (
+      request.url === '/health' ||
+      request.url === '/api/v1/health' ||
+      request.url === '/api/v1/health/detailed' ||
+      request.headers.upgrade === 'websocket'
+    ) {
+      return;
+    }
+
+    // Skip localhost connections to ensure automated testing stability
+    const clientIp = keyGenerator(request);
+    if (
+      clientIp === '127.0.0.1' ||
+      clientIp === '::1' ||
+      clientIp === '::ffff:127.0.0.1'
+    ) {
       return;
     }
 

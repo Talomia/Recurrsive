@@ -111,6 +111,8 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
     if (!cache) {
       return reply.status(200).send({
         data: {
+          overall: 0,
+          score: 0,
           overall_health: 0,
           dimensions: {},
           health_trend: 0,
@@ -152,6 +154,8 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
 
     return reply.status(200).send({
       data: {
+        overall: overall,
+        score: overall,
         overall_health: overall,
         dimensions: dimScores,
         health_trend: healthTrend,

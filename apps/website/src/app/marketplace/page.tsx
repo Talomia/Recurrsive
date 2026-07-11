@@ -252,11 +252,16 @@ function StarRating({ rating }: { rating: number }) {
 
 export default function MarketplacePage() {
   const [active, setActive] = useState<Category>('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const filtered =
-    active === 'All'
-      ? EXTENSIONS
-      : EXTENSIONS.filter((e) => e.category === active);
+  const filtered = EXTENSIONS.filter((e) => {
+    const matchesCategory = active === 'All' || e.category === active;
+    const matchesSearch =
+      e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.author.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const analyzerCount = EXTENSIONS.filter((e) => e.category === 'Analyzers').length;
   const categoryCount = new Set(EXTENSIONS.map((e) => e.category)).size;
@@ -354,6 +359,8 @@ export default function MarketplacePage() {
             <input
               type="text"
               placeholder="Search extensions…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
                 padding: '14px 20px 14px 44px',
@@ -365,6 +372,7 @@ export default function MarketplacePage() {
                 fontFamily: 'var(--font-sans)',
                 outline: 'none',
                 backdropFilter: 'blur(10px)',
+                transition: 'all var(--transition-fast)',
               }}
             />
           </div>
@@ -413,9 +421,39 @@ export default function MarketplacePage() {
       <section className="section-sm">
         <div className="container-wide">
           <div className="grid-4">
-            {filtered.map((ext) => (
-              <div key={ext.name} className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
-                {/* Header */}
+            {filtered.length === 0 ? (
+              <div
+                className="glass-card animate-fade-in"
+                style={{
+                  gridColumn: '1 / -1',
+                  textAlign: 'center',
+                  padding: 'var(--space-3xl)',
+                  border: '1px dashed var(--border-medium)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 'var(--space-sm)',
+                }}
+              >
+                <Store size={44} style={{ color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }} />
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>No extensions found</h3>
+                <p style={{ color: 'var(--text-secondary)', maxWidth: 380, margin: '0 auto var(--space-md)', fontSize: '0.9rem' }}>
+                  We couldn&apos;t find any extensions matching &ldquo;{searchQuery}&rdquo;. Try checking your spelling or selecting another category.
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setActive('All');
+                  }}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Reset Search
+                </button>
+              </div>
+            ) : (
+              filtered.map((ext) => (
+                <div key={ext.name} className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+                  {/* Header */}
                 <div
                   style={{
                     display: 'flex',
@@ -543,7 +581,8 @@ export default function MarketplacePage() {
                   </button>
                 )}
               </div>
-            ))}
+            ))
+          )}
           </div>
         </div>
       </section>
