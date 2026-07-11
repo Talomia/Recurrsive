@@ -23,7 +23,7 @@ import {
 import Header from '@/components/header';
 import ErrorBanner from '@/components/error-banner';
 import ScoreGauge from '@/components/score-gauge';
-import { apiFetch } from '@/lib/api/client';
+import { apiFetch, ApiError } from '@/lib/api/client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -142,8 +142,7 @@ export default function ProjectDetailPage() {
     setAnalyzing(true);
     const interval = setInterval(async () => {
       try {
-        const res = await apiFetch<{ data: AnalysisStatus }>('/api/v1/analysis/status');
-        const data = res.data;
+        const data = await apiFetch<AnalysisStatus>('/api/v1/analysis/status');
         setStatus(data);
 
         if (data.phase === 'complete') {
@@ -175,10 +174,9 @@ export default function ProjectDetailPage() {
   // Check initial analysis status on mount and resume polling if active
   useEffect(() => {
     let active = true;
-    apiFetch<{ data: AnalysisStatus }>('/api/v1/analysis/status')
-      .then((res) => {
+    apiFetch<AnalysisStatus>('/api/v1/analysis/status')
+      .then((data) => {
         if (!active) return;
-        const data = res.data;
         setStatus(data);
         if (data && data.phase !== 'idle' && data.phase !== 'complete' && data.phase !== 'error') {
           startPolling();
@@ -219,8 +217,13 @@ export default function ProjectDetailPage() {
 
       startPolling();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start analysis.');
-      setAnalyzing(false);
+      if (err instanceof ApiError && err.status === 409) {
+        // Already running! Gracefully start polling instead of failing.
+        startPolling();
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to start analysis.');
+        setAnalyzing(false);
+      }
     }
   };
 
