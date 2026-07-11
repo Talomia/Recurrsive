@@ -104,6 +104,51 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
     }
   });
 
+  // Get findings for a specific project
+  app.get<{ Params: { id: string } }>('/api/v1/projects/:id/findings', { preHandler: [authMiddleware] }, async (request, reply) => {
+    try {
+      const project = await store.get<Project>('projects', request.params.id);
+      if (!project) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
+      }
+
+      let cache = await store.get<any>('analysis_cache', project.id);
+      if (!cache) {
+        cache = await store.get<any>('analysis_cache', project.repository);
+      }
+
+      return reply.status(200).send({
+        data: cache?.findings ?? [],
+        total: cache?.findings?.length ?? 0,
+      });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to get project findings.' });
+    }
+  });
+
+  // Get opportunities for a specific project
+  app.get<{ Params: { id: string } }>('/api/v1/projects/:id/opportunities', { preHandler: [authMiddleware] }, async (request, reply) => {
+    try {
+      const project = await store.get<Project>('projects', request.params.id);
+      if (!project) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
+      }
+
+      let cache = await store.get<any>('analysis_cache', project.id);
+      if (!cache) {
+        cache = await store.get<any>('analysis_cache', project.repository);
+      }
+
+      return reply.status(200).send({
+        data: cache?.opportunities ?? [],
+        total: cache?.opportunities?.length ?? 0,
+      });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to get project opportunities.' });
+    }
+  });
+
+
   // Create project
   app.post('/api/v1/projects', {
     preHandler: [authMiddleware],
@@ -219,7 +264,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
       }
       await store.delete('projects', request.params.id);
-      return reply.status(200).send({ success: true, message: 'Project deleted successfully' });
+      return reply.status(204).send();
     } catch (err) {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to delete project.' });
     }

@@ -85,12 +85,13 @@ export async function registerRateLimit(
       return;
     }
 
-    // Skip localhost connections to ensure automated testing stability
+    // Skip localhost connections to ensure automated testing stability (but not in unit tests)
     const clientIp = keyGenerator(request);
     if (
-      clientIp === '127.0.0.1' ||
-      clientIp === '::1' ||
-      clientIp === '::ffff:127.0.0.1'
+      process.env['NODE_ENV'] !== 'test' &&
+      (clientIp === '127.0.0.1' ||
+       clientIp === '::1' ||
+       clientIp === '::ffff:127.0.0.1')
     ) {
       return;
     }

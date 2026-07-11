@@ -98,6 +98,10 @@ export async function apiFetch<T>(
     throw new ApiError(res.status, res.statusText, path);
   }
 
+  if (res.status === 204) {
+    return null as unknown as T;
+  }
+
   const body = await res.json();
 
   if (unwrap && body && typeof body === 'object' && 'data' in body) {

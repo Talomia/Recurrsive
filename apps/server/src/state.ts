@@ -771,8 +771,37 @@ export class ServerState {
       };
       this.analysisCache = cache;
 
+      // Find the matching project in the store using our path-matching logic
+      let matchingProject: any = null;
+      try {
+        const crypto = await import('node:crypto');
+        const projects = await store.all<any>('projects');
+        for (const p of projects) {
+          const isGitUrl = /^https?:\/\//i.test(p.repository) || p.repository.includes('github.com') || p.repository.startsWith('git@');
+          if (isGitUrl) {
+            const hash = crypto.createHash('sha256').update(p.repository).digest('hex').slice(0, 12);
+            const expectedCloneDir = path.join('/tmp/recurrsive-repos', hash);
+            if (this.projectPath === expectedCloneDir || this.projectPath === p.repository) {
+              matchingProject = p;
+              break;
+            }
+          } else {
+            if (this.projectPath === p.repository) {
+              matchingProject = p;
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        logger.warn(`Failed to identify matching project: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
       // Persist analysis cache to database so it survives restarts
       await store.set('analysis_cache', this.projectPath!, cache);
+      if (matchingProject) {
+        await store.set('analysis_cache', matchingProject.id, cache);
+        logger.info(`Persisted analysis cache under project ID: ${matchingProject.id}`);
+      }
 
       this.updateStatus('complete', 100, 'Analysis complete');
 
@@ -798,6 +827,14 @@ export class ServerState {
 
       // Persist history to disk
       await saveHistory(this.projectPath!, this._analysisHistory);
+      if (matchingProject) {
+        try {
+          await saveHistory(matchingProject.id, this._analysisHistory);
+        } catch (err) {
+          // ignore if directory doesn't exist
+        }
+      }
+
       this.broadcast({
         type: 'analysis:complete',
         timestamp: completedAt,
@@ -809,21 +846,32 @@ export class ServerState {
         },
       });
 
-      // Update any project records in the store with the new health score
+      // Update project record(s) in the store with the new health score
       // so the projects list reflects "Analyzed" status with the real score.
       try {
         const { overall } = this.getHealthScore();
-        const projects = await store.all<{ id: string; healthScore: number; lastAnalysis: string | null; updatedAt: string }>('projects');
-        for (const project of projects) {
-          await store.set('projects', project.id, {
-            ...project,
+        if (matchingProject) {
+          await store.set('projects', matchingProject.id, {
+            ...matchingProject,
             healthScore: overall,
             lastAnalysis: completedAt,
             updatedAt: completedAt,
           });
-        }
-        if (projects.length > 0) {
-          logger.info(`Updated ${projects.length} project(s) with health score ${overall}`);
+          logger.info(`Updated project ${matchingProject.id} with health score ${overall}`);
+        } else {
+          // Fallback: update all projects to preserve old behavior
+          const projects = await store.all<{ id: string; healthScore: number; lastAnalysis: string | null; updatedAt: string }>('projects');
+          for (const project of projects) {
+            await store.set('projects', project.id, {
+              ...project,
+              healthScore: overall,
+              lastAnalysis: completedAt,
+              updatedAt: completedAt,
+            });
+          }
+          if (projects.length > 0) {
+            logger.info(`Fallback: Updated ${projects.length} project(s) with health score ${overall}`);
+          }
         }
       } catch (err) {
         logger.warn(`Failed to update project records after analysis: ${err instanceof Error ? err.message : String(err)}`);

@@ -90,6 +90,13 @@ const STATUS_ICONS: Record<string, typeof CheckCircle2> = {
 // Component
 // ---------------------------------------------------------------------------
 
+interface AnalysisStatus {
+  phase: 'idle' | 'collecting' | 'parsing' | 'analyzing' | 'reasoning' | 'complete' | 'error';
+  progress: number;
+  message: string;
+  error: string | null;
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -101,52 +108,122 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [analyzing, setAnalyzing] = useState(false);
+  const [status, setStatus] = useState<AnalysisStatus | null>(null);
 
   const fetchProject = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const data = await apiFetch<Project>('/api/v1/projects/' + id);
       setProject(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project');
-    } finally {
-      setLoading(false);
     }
   }, [id]);
 
+  const fetchFindings = useCallback(async () => {
+    try {
+      const data = await apiFetch<Finding[]>(`/api/v1/projects/${id}/findings`);
+      setFindings(data);
+    } catch {
+      // empty state fallback
+    }
+  }, [id]);
+
+  const fetchOpportunities = useCallback(async () => {
+    try {
+      const data = await apiFetch<Opportunity[]>(`/api/v1/projects/${id}/opportunities`);
+      setOpportunities(data);
+    } catch {
+      // empty state fallback
+    }
+  }, [id]);
+
+  const startPolling = useCallback(() => {
+    setAnalyzing(true);
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiFetch<{ data: AnalysisStatus }>('/api/v1/analysis/status');
+        const data = res.data;
+        setStatus(data);
+
+        if (data.phase === 'complete') {
+          clearInterval(interval);
+          setAnalyzing(false);
+          // Refresh statistics, findings, and opportunities automatically
+          fetchProject();
+          fetchFindings();
+          fetchOpportunities();
+        } else if (data.phase === 'error') {
+          clearInterval(interval);
+          setAnalyzing(false);
+          setError(data.error || 'Analysis failed');
+        }
+      } catch {
+        // network error/timeout during poll, allow retry on next tick
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [fetchProject, fetchFindings, fetchOpportunities]);
+
+  // Initial project load
   useEffect(() => {
-    fetchProject();
+    setLoading(true);
+    fetchProject().finally(() => setLoading(false));
   }, [fetchProject]);
 
-  // Fetch findings/opportunities when their tabs are activated
+  // Check initial analysis status on mount and resume polling if active
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ data: AnalysisStatus }>('/api/v1/analysis/status')
+      .then((res) => {
+        if (!active) return;
+        const data = res.data;
+        setStatus(data);
+        if (data && data.phase !== 'idle' && data.phase !== 'complete' && data.phase !== 'error') {
+          startPolling();
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [startPolling]);
+
+  // Fetch findings/opportunities when their tabs are activated or reset
   useEffect(() => {
     if (activeTab === 'Findings' && findings.length === 0) {
-      apiFetch<Finding[]>(`/api/v1/projects/${id}/findings`)
-        .then(setFindings)
-        .catch(() => { /* empty state */ });
+      fetchFindings();
     }
     if (activeTab === 'Opportunities' && opportunities.length === 0) {
-      apiFetch<Opportunity[]>(`/api/v1/projects/${id}/opportunities`)
-        .then(setOpportunities)
-        .catch(() => { /* empty state */ });
+      fetchOpportunities();
     }
-  }, [activeTab, id, findings.length, opportunities.length]);
+  }, [activeTab, fetchFindings, fetchOpportunities, findings.length, opportunities.length]);
 
   const handleAnalyze = async () => {
     if (!project) return;
     setAnalyzing(true);
+    setError(null);
     try {
-      await apiFetch('/api/v1/analysis/trigger', {
+      const isGitUrl = project.repository.includes('github.com') || project.repository.startsWith('git@') || project.repository.startsWith('http');
+      const body = isGitUrl
+        ? { gitUrl: project.repository, include_reasoning: true }
+        : { path: project.repository, include_reasoning: true };
+
+      await apiFetch('/api/v1/analyze', {
         method: 'POST',
-        body: JSON.stringify({ repository: project.repository }),
+        body: JSON.stringify(body),
       });
-    } catch {
-      setError('Failed to start analysis.');
-    } finally {
+
+      // Clear existing client lists to show fresh tracking
+      setFindings([]);
+      setOpportunities([]);
+
+      startPolling();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start analysis.');
       setAnalyzing(false);
     }
   };
+
 
   // -- Loading --
   if (loading) {
@@ -246,6 +323,89 @@ export default function ProjectDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Real-time Analysis Progress Section */}
+      {analyzing && status && (
+        <div className="glass-card p-6 border border-blue-500/30 bg-gradient-to-br from-blue-500/5 to-purple-500/5 rounded-2xl relative overflow-hidden shadow-lg shadow-blue-500/5">
+          {/* Background glow effects */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="flex flex-col gap-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+                <h3 className="text-xs font-bold text-text-primary tracking-wide uppercase">AI Agents Analysis in Progress</h3>
+              </div>
+              <span className="text-xs font-mono font-semibold text-blue-400 tabular-nums">{status.progress}%</span>
+            </div>
+
+            {/* Progress Bar Container */}
+            <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden border border-white/5 relative">
+              <div
+                className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${status.progress}%` }}
+              />
+            </div>
+
+            {/* Phase Description and Status Message */}
+            <div className="flex flex-col gap-1.5 bg-white/5 p-4 rounded-xl border border-white/5">
+              <p className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-blue-400 animate-ping animate-pulse-subtle" />
+                {status.message}
+              </p>
+              <p className="text-xs text-text-muted">
+                {status.phase === 'collecting' && 'Fetching files, commit history, and environment configurations...'}
+                {status.phase === 'parsing' && 'Scanning source code, constructing ASTs, and resolving internal references...'}
+                {status.phase === 'analyzing' && 'Running specialist collectors for architecture, AI integrations, security, cost, and resilience...'}
+                {status.phase === 'reasoning' && 'Multi-agent consensus protocol active. Specialist AI agents are currently debating hypotheses to synthesize findings...'}
+              </p>
+            </div>
+
+            {/* Stepper Visualization */}
+            <div className="grid grid-cols-4 gap-2 text-center text-[10px] mt-1">
+              {[
+                { phase: 'collecting', label: '1. Collect' },
+                { phase: 'parsing', label: '2. Parse' },
+                { phase: 'analyzing', label: '3. Analyze' },
+                { phase: 'reasoning', label: '4. Reason' },
+              ].map((step, idx) => {
+                const phases = ['collecting', 'parsing', 'analyzing', 'reasoning', 'complete'];
+                const activeIdx = phases.indexOf(status.phase);
+                const isCompleted = activeIdx > idx;
+                const isActive = status.phase === step.phase;
+
+                return (
+                  <div
+                    key={step.phase}
+                    className={`flex flex-col items-center gap-1.5 p-2 rounded-lg transition-all border ${
+                      isActive
+                        ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 font-bold'
+                        : isCompleted
+                        ? 'bg-green-500/5 border-green-500/10 text-green-400'
+                        : 'bg-white/5 border-white/5 text-text-muted'
+                    }`}
+                  >
+                    <div
+                      className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                        isActive
+                          ? 'bg-blue-400 text-slate-950'
+                          : isCompleted
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-white/5 text-text-muted'
+                      }`}
+                    >
+                      {isCompleted ? '✓' : idx + 1}
+                    </div>
+                    <span>{step.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div
