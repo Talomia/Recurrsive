@@ -160,8 +160,11 @@ export default function Sidebar() {
     setExpanded(loadExpanded());
   }, []);
 
-  // Fetch opportunity count
+  // Fetch opportunity count (skip on public pages to avoid 401 trigger redirect loops)
   useEffect(() => {
+    const isPublic = ["/login", "/setup", "/invite"].some((p) => pathname === p || pathname.startsWith(p + "/"));
+    if (isPublic) return;
+
     import("@/lib/api/client").then(({ apiFetch }) => {
       apiFetch<{ data: unknown[]; total: number }>("/api/v1/opportunities?limit=1")
         .then((res) => setOpportunityCount(res.total ?? 0))
@@ -171,7 +174,7 @@ export default function Sidebar() {
           }
         });
     });
-  }, []);
+  }, [pathname]);
 
   const toggleSection = useCallback((key: string) => {
     setExpanded((prev) => {
