@@ -870,12 +870,17 @@ export class AgeGraphClient implements ExtendedGraphClient {
    * Delete all entities and relationships from the graph.
    */
   async clearAll(): Promise<void> {
-    const client = await this.pool.connect();
     try {
-      await client.query('DELETE FROM relationships');
-      await client.query('DELETE FROM entities');
-    } finally {
-      client.release();
+      await this.executeCypher(
+        'MATCH (n) DETACH DELETE n RETURN count(n) AS deleted',
+        'deleted agtype',
+      );
+    } catch (error) {
+      throw new GraphError(
+        'Failed to clear all graph data',
+        'QUERY_FAILED',
+        error,
+      );
     }
   }
 

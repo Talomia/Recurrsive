@@ -355,6 +355,35 @@ describe('AgeGraphClient', () => {
     });
   });
 
+  // ── clearAll ───────────────────────────────────────────────────────────
+
+  describe('clearAll', () => {
+    it('executes detach delete cypher query', async () => {
+      mockClientQuery
+        .mockResolvedValueOnce({ rows: [] }) // SET search_path
+        .mockResolvedValueOnce({ rows: [] }) // LOAD age
+        .mockResolvedValueOnce({ rows: [] }) // SET statement_timeout
+        .mockResolvedValueOnce({
+          rows: [{ deleted: '10' }],
+        });
+
+      await client.clearAll();
+
+      const calls = mockClientQuery.mock.calls;
+      const deleteCall = calls.find(
+        (c: unknown[]) =>
+          typeof c[0] === 'string' &&
+          c[0].includes('DETACH DELETE'),
+      );
+      expect(deleteCall).toBeDefined();
+    });
+
+    it('wraps errors in GraphError', async () => {
+      mockPoolConnect.mockRejectedValue(new Error('fail'));
+      await expect(client.clearAll()).rejects.toThrow(GraphError);
+    });
+  });
+
   // ── getStats ───────────────────────────────────────────────────────────
 
   describe('getStats', () => {
