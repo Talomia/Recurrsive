@@ -18,7 +18,13 @@ export default function TrendChart({
   // Strip '#' from hex colors — '#' in SVG IDs breaks url() references
   const safeId = `trend-${color.replace("#", "")}`;
 
+  // Compute trend direction for screen reader label
+  const first = data[0]?.value ?? 0;
+  const last = data[data.length - 1]?.value ?? 0;
+  const direction = last > first ? 'upward' : last < first ? 'downward' : 'stable';
+
   return (
+    <div role="img" aria-label={`Trend chart: ${direction} from ${first} to ${last}`}>
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
         <defs>
@@ -39,5 +45,6 @@ export default function TrendChart({
         />
       </AreaChart>
     </ResponsiveContainer>
+    </div>
   );
 }

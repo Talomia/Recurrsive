@@ -73,7 +73,7 @@ describe('Header', () => {
 
   it('renders AI assist button', () => {
     render(<Header title="Test" />);
-    expect(screen.getByLabelText('AI Assist')).toBeInTheDocument();
+    expect(screen.getByLabelText('Open AI assistant')).toBeInTheDocument();
   });
 
   it('toggles user menu on click', () => {

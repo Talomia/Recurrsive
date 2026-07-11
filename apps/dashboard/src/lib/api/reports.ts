@@ -303,7 +303,7 @@ export async function createSchedule(data: CreateSchedulePayload): Promise<Repor
  * Toggle a schedule between active/paused via `POST /api/v1/schedules/:id/toggle`.
  */
 export async function toggleSchedule(id: string): Promise<ReportSchedule> {
-  return await apiFetch<ReportSchedule>(`/api/v1/schedules/${id}/toggle`, {
+  return await apiFetch<ReportSchedule>(`/api/v1/schedules/${encodeURIComponent(id)}/toggle`, {
     method: 'POST',
   });
 }
@@ -312,7 +312,7 @@ export async function toggleSchedule(id: string): Promise<ReportSchedule> {
  * Delete a schedule via `DELETE /api/v1/schedules/:id`.
  */
 export async function deleteSchedule(id: string): Promise<void> {
-  await apiFetch<void>(`/api/v1/schedules/${id}`, {
+  await apiFetch<void>(`/api/v1/schedules/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     unwrap: false,
   });
@@ -322,7 +322,7 @@ export async function deleteSchedule(id: string): Promise<void> {
  * Trigger an immediate run for a schedule via `POST /api/v1/schedules/:id/run`.
  */
 export async function runScheduleNow(id: string): Promise<ScheduleRunHistory> {
-  return await apiFetch<ScheduleRunHistory>(`/api/v1/schedules/${id}/run`, {
+  return await apiFetch<ScheduleRunHistory>(`/api/v1/schedules/${encodeURIComponent(id)}/run`, {
     method: 'POST',
   });
 }

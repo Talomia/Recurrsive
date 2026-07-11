@@ -145,7 +145,7 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
    *
    * Return available notification channels with their configuration status.
    */
-  app.get('/api/v1/notifications/channels', async (_request, reply) => {
+  app.get('/api/v1/notifications/channels', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const channels: ChannelInfo[] = [
       {
         channel: 'console',
@@ -282,7 +282,7 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
    *
    * Return recent notification history (last 50 notifications).
    */
-  app.get('/api/v1/notifications/history', async (_request, reply) => {
+  app.get('/api/v1/notifications/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const recent = await store.recent<NotificationRecord>('notifications', MAX_HISTORY);
     return reply.status(200).send({
       data: recent,

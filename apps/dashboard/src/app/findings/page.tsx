@@ -34,12 +34,14 @@ export default function FindingsPage() {
   const [statusFilter, setStatusFilter] = useState("All Statuses");
 
   useEffect(() => {
+    let cancelled = false;
     getFindingsPage()
-      .then(setData)
+      .then((data) => { if (!cancelled) setData(data); })
       .catch(() => {
         /* API unavailable – render empty state */
-        setData({ stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 }, findings: [] as FindingsPageData['findings'] } satisfies FindingsPageData);
+        if (!cancelled) setData({ stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 }, findings: [] as FindingsPageData['findings'] } satisfies FindingsPageData);
       });
+    return () => { cancelled = true; };
   }, []);
 
   const filtered = useMemo(() => {
@@ -177,15 +179,15 @@ export default function FindingsPage() {
               return (
                 <tr
                   key={finding.id}
-                  className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.02] transition-colors"
+                  className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.02] transition-colors cursor-pointer group"
                 >
                   <td className="px-5 py-3">
-                    <span className="text-xs font-mono text-text-muted">{finding.id}</span>
+                    <Link href={`/findings/${finding.id}`} className="text-xs font-mono text-text-muted group-hover:text-accent-blue transition-colors">{finding.id}</Link>
                   </td>
                   <td className="px-5 py-3">
-                    <p className="text-xs font-medium text-text-primary truncate max-w-xs">
+                    <Link href={`/findings/${finding.id}`} className="text-xs font-medium text-text-primary truncate max-w-xs block group-hover:text-accent-blue transition-colors">
                       {finding.title}
-                    </p>
+                    </Link>
                   </td>
                   <td className="px-5 py-3 hidden sm:table-cell">
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${sev.bg} ${sev.text} border ${sev.border}`}>

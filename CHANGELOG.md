@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.8] - 2026-07-08
+
+### Changed
+
+#### Dashboard UX/UI Overhaul
+
+Complete 7-phase UX/UI overhaul of the Next.js dashboard with 84 files changed across all apps.
+
+**Design System Foundation:**
+- Added missing CSS design tokens (`--color-accent`, `--color-accent-secondary`, `--color-text-tertiary`)
+- Added `.sr-only` utility class and centralized `@keyframes live-pulse` in `globals.css`
+- Created shared `ErrorBanner` and `LoadingSkeleton` components
+- Fixed `error.tsx` and `not-found.tsx` to use design tokens and `router.push()`
+
+**Sidebar Consolidation:**
+- Restructured sidebar from 7 flat sections (37 items) to 4 collapsible sections (28 items): Intelligence, Analysis, Operations, Administration
+- Added `localStorage` persistence for section open/close state
+- Added enterprise badges on SSO and Tenants nav items
+- Added active-route indicator dot on collapsed sections
+
+**Page Merges (5 tabbed merges):**
+- `/insights` merged into `/analytics` as "AI Insights" tab
+- `/executive` merged into `/` (Overview) as "Executive View" tab
+- `/intelligence-packs` merged into `/marketplace` as "Intelligence Packs" tab
+- `/invites` merged into `/users` as "Invitations" tab
+- `/confidence` merged into `/forecasting` as "Confidence" tab
+- Removed `/partners` and `/cloud` from sidebar navigation
+
+**Header Unification:**
+- 9 pages migrated from inline `<h1>` headers to shared `Header` component
+- Header enhanced with Command Palette (⌘K), Notifications dropdown, AI Chat slide-out panel
+- Added keyboard navigation (Arrow keys, Escape) and ARIA roles (`role="menu"`, `role="menuitem"`)
+
+**Accessibility:**
+- `scope="col"` on ~45 table header cells across 8 pages
+- `aria-label` on ~15 form inputs that relied on placeholder-only labels
+- `role="img"` + descriptive `aria-label` on `TrendChart` and `HealthChart` SVGs
+- `sr-only` trend text on `MetricCard` for screen readers
+- Heading hierarchy corrections (`h3` → `h2`) across 8 pages
+
+**Responsive Fixes:**
+- Fixed grid breakpoints on Secrets, Scheduling, SSO, and Tenants pages (e.g., `grid-cols-4` → `grid-cols-2 sm:grid-cols-4`)
+
+### Added
+
+**New Components:**
+- `command-palette.tsx` — ⌘K command palette with 32 page entries + 4 actions, fuzzy search, localStorage recent items
+- `notifications-panel.tsx` — Bell dropdown with notification history, mark-all-read, empty/error/loading states
+- `ai-chat-panel.tsx` — Slide-out AI chat with conversation bubbles, typing indicator, auto-resize textarea
+- `error-banner.tsx` — Dismissible error banner with optional retry callback
+- `loading-skeleton.tsx` — Loading skeleton variants: page, card, table, chart, list
+
+**New Pages:**
+- `/findings/[id]` — Finding detail page with breadcrumb, severity/status badges, code snippet viewer, related opportunities, Resolve/Suppress/Assign action buttons
+- `/projects/[id]` — Project detail page with breadcrumb, health score gauge, 4 tabs (Overview, Findings, Opportunities, Settings), Analyze trigger button
+
+**Dashboard page count**: 46 → 48
+
 ## [0.5.7] - 2026-07-05
 
 ### Changed

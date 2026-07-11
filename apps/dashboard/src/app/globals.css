@@ -19,7 +19,12 @@
 
   --color-text-primary: #f1f5f9;
   --color-text-secondary: #94a3b8;
+  --color-text-tertiary: #475569;
   --color-text-muted: #64748b;
+
+  /* Semantic accent aliases — referenced by auth pages, error boundary, etc. */
+  --color-accent: #3b82f6;
+  --color-accent-secondary: #8b5cf6;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
@@ -133,6 +138,19 @@ body {
     0 0 60px rgba(34, 197, 94, 0.05);
 }
 
+/* Screen-reader only (a11y) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
 /* Sidebar active indicator */
 .nav-active-indicator {
   position: absolute;
@@ -159,6 +177,22 @@ body {
 }
 .animate-pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Live pulse animation (WebSocket indicator) */
+@keyframes live-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
 }
 
 /* Shimmer skeleton loading */
@@ -214,6 +248,7 @@ body {
 .stagger-children > *:nth-child(10) { animation-delay: 0.5s; }
 .stagger-children > *:nth-child(11) { animation-delay: 0.55s; }
 .stagger-children > *:nth-child(12) { animation-delay: 0.6s; }
+.stagger-children > *:nth-child(n+13) { animation-delay: 0.65s; opacity: 0; animation: fade-in-up 0.4s ease-out 0.65s forwards; }
 
 /* Recharts overrides for dark theme */
 .recharts-cartesian-grid line {

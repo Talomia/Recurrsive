@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.setItem(TOKEN_KEY, newToken);
       // Also set as cookie for Next.js middleware (server-side auth)
-      document.cookie = `${TOKEN_KEY}=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+      document.cookie = `${TOKEN_KEY}=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''}`;
       setToken(newToken);
       setUser(parsed);
       setLoading(false);

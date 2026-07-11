@@ -64,54 +64,63 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
 
       logger.info(`Generating ${format} report`);
 
-      switch (format) {
-        case 'markdown':
-        case 'md': {
-          const report = generateReport(opportunities, 'markdown', {
-            title: `Recurrsive Report — ${projectName}`,
-          });
-          return reply
-            .header('Content-Type', 'text/markdown; charset=utf-8')
-            .header('Content-Disposition', 'attachment; filename="recurrsive-report.md"')
-            .send(report);
-        }
+      try {
+        switch (format) {
+          case 'markdown':
+          case 'md': {
+            const report = generateReport(opportunities, 'markdown', {
+              title: `Recurrsive Report — ${projectName}`,
+            });
+            return reply
+              .header('Content-Type', 'text/markdown; charset=utf-8')
+              .header('Content-Disposition', 'attachment; filename="recurrsive-report.md"')
+              .send(report);
+          }
 
-        case 'html': {
-          const report = generateReport(opportunities, 'html', {
-            title: `Recurrsive Report — ${projectName}`,
-          });
-          return reply
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .header('Content-Disposition', 'attachment; filename="recurrsive-report.html"')
-            .send(report);
-        }
+          case 'html': {
+            const report = generateReport(opportunities, 'html', {
+              title: `Recurrsive Report — ${projectName}`,
+            });
+            return reply
+              .header('Content-Type', 'text/html; charset=utf-8')
+              .header('Content-Disposition', 'attachment; filename="recurrsive-report.html"')
+              .send(report);
+          }
 
-        case 'sarif': {
-          const sarifReport = generateReport(opportunities, 'sarif', {
-            title: `Recurrsive Report — ${projectName}`,
-          });
-          return reply
-            .header('Content-Type', 'application/json; charset=utf-8')
-            .header('Content-Disposition', 'attachment; filename="recurrsive-report.sarif.json"')
-            .send(sarifReport);
-        }
+          case 'sarif': {
+            const sarifReport = generateReport(opportunities, 'sarif', {
+              title: `Recurrsive Report — ${projectName}`,
+            });
+            return reply
+              .header('Content-Type', 'application/json; charset=utf-8')
+              .header('Content-Disposition', 'attachment; filename="recurrsive-report.sarif.json"')
+              .send(sarifReport);
+          }
 
-        case 'json': {
-          const jsonReport = generateReport(opportunities, 'json', {
-            title: `Recurrsive Report — ${projectName}`,
-          });
-          return reply
-            .header('Content-Type', 'application/json; charset=utf-8')
-            .header('Content-Disposition', 'attachment; filename="recurrsive-report.json"')
-            .send(jsonReport);
-        }
+          case 'json': {
+            const jsonReport = generateReport(opportunities, 'json', {
+              title: `Recurrsive Report — ${projectName}`,
+            });
+            return reply
+              .header('Content-Type', 'application/json; charset=utf-8')
+              .header('Content-Disposition', 'attachment; filename="recurrsive-report.json"')
+              .send(jsonReport);
+          }
 
-        default:
-          return reply.status(400).send({
-            error: 'Unsupported report format',
-            message: `Format "${format}" is not supported. Use: markdown, html, sarif, json`,
-            supported_formats: ['markdown', 'html', 'sarif', 'json'],
-          });
+          default:
+            return reply.status(400).send({
+              error: 'Unsupported report format',
+              message: `Format "${format}" is not supported. Use: markdown, html, sarif, json`,
+              supported_formats: ['markdown', 'html', 'sarif', 'json'],
+            });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to generate report', { error: message, format });
+        return reply.status(500).send({
+          error: 'Internal server error',
+          message: 'Operation failed.',
+        });
       }
     },
   );

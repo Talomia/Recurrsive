@@ -240,7 +240,7 @@ export function box(title: string, subtitle?: string): string {
   const width = Math.max(titleLen, subtitleLen) + 4;
 
   const top = `╭${'─'.repeat(width)}╮`;
-  const bottom = `╰${'─'.repeat(width)}╮`;
+  const bottom = `╰${'─'.repeat(width)}╯`;
   const padTitle = ' '.repeat(width - titleLen - 2);
   const line1 = `│  ${title}${padTitle}│`;
 

@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { KeyRound, Users, Shield, Globe, LogIn, Loader2 } from 'lucide-react';
+import Header from '@/components/header';
 import { getSSOProviders, getSSOSessions, createSsoProvider, deleteSsoProvider, revokeSsoSession } from '@/lib/api';
 import type { SSOProvider, SSOSession } from '@/lib/api';
 
@@ -100,14 +101,8 @@ export default function SSOPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <KeyRound className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-            SSO Configuration
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">{providers.filter(p => p.status === 'configured').length} active providers · {sessions.filter(s => s.active).length} active sessions</p>
-        </div>
+      <Header title="Single Sign-On" subtitle="Configure identity providers for SSO authentication" />
+      <div className="flex items-center justify-end">
         <button onClick={() => setShowAdd(!showAdd)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: 'var(--color-accent)' }}>
           <LogIn className="w-4 h-4" /> Add Provider
         </button>
@@ -123,12 +118,12 @@ export default function SSOPage() {
 
       {/* Add Provider Form */}
       {showAdd && (
-        <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <h3 className="text-base font-semibold text-text-primary mb-3">Configure New SSO Provider</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <input placeholder="Provider Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <input placeholder="Domain" value={newDomain} onChange={e => setNewDomain(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <select value={newType} onChange={e => setNewType(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
+        <div className="glass-card rounded-2xl p-5">
+          <h2 className="text-base font-semibold text-text-primary mb-3">Configure New SSO Provider</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input placeholder="Provider Name" aria-label="Provider Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Domain" aria-label="Domain" value={newDomain} onChange={e => setNewDomain(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <select value={newType} onChange={e => setNewType(e.target.value)} aria-label="Identity provider type" className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
               <option value="okta">Okta</option>
               <option value="auth0">Auth0</option>
               <option value="azure_ad">Azure AD</option>
@@ -145,10 +140,10 @@ export default function SSOPage() {
       )}
 
       {/* SSO Providers */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <Shield className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Identity Providers
-        </h3>
+        </h2>
         <div className="space-y-3">
           {providers.length === 0 && (
             <div className="rounded-xl p-6 text-center" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
@@ -179,21 +174,21 @@ export default function SSOPage() {
       </div>
 
       {/* Active Sessions */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <Users className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Active Sessions
-        </h3>
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-text-tertiary text-xs border-b" style={{ borderColor: 'var(--color-border)' }}>
-                <th className="pb-2 font-medium">User</th>
-                <th className="pb-2 font-medium">Provider</th>
-                <th className="pb-2 font-medium">IP</th>
-                <th className="pb-2 font-medium">Login</th>
-                <th className="pb-2 font-medium">Expires</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2 font-medium">Actions</th>
+                <th scope="col" className="pb-2 font-medium">User</th>
+                <th scope="col" className="pb-2 font-medium">Provider</th>
+                <th scope="col" className="pb-2 font-medium">IP</th>
+                <th scope="col" className="pb-2 font-medium">Login</th>
+                <th scope="col" className="pb-2 font-medium">Expires</th>
+                <th scope="col" className="pb-2 font-medium">Status</th>
+                <th scope="col" className="pb-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>

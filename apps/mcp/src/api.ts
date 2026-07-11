@@ -42,24 +42,35 @@ export async function apiRequest<T = unknown>(
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}${path}`;
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
-
-  if (!response.ok) {
-    throw new ApiError(
-      `API request failed: ${response.status} ${response.statusText}`,
-      response.status,
-      url,
-    );
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+    ...(options?.headers as Record<string, string> ?? {}),
+  };
+  if (options?.body) {
+    headers['Content-Type'] = 'application/json';
   }
 
-  return (await response.json()) as T;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new ApiError(
+        `API request failed: ${response.status} ${response.statusText}`,
+        response.status,
+        url,
+      );
+    }
+
+    return (await response.json()) as T;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**

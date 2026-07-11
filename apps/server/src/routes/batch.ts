@@ -70,7 +70,8 @@ const batchLogger = createLogger({ context: { component: 'server:routes:batch' }
 /**
  * Path traversal safety check — rejects paths outside allowed prefixes.
  */
-const ALLOWED_PREFIXES = ['/app', '/tmp/recurrsive-repos/', '/home/'];
+const envPrefixes = process.env['RECURRSIVE_ALLOWED_PATHS']?.split(',').map(p => p.trim()).filter(Boolean);
+const ALLOWED_PREFIXES = envPrefixes ?? ['/app', '/tmp/recurrsive-repos/'];
 function isSafePath(projectPath: string): boolean {
   const resolved = path.resolve(projectPath);
   return ALLOWED_PREFIXES.some((prefix) => resolved.startsWith(prefix));

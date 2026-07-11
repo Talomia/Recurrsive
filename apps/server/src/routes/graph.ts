@@ -240,7 +240,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params;
       const depth = request.query.depth ? parseInt(request.query.depth, 10) : 1;
 
-      if (depth < 1 || depth > 5) {
+      if (Number.isNaN(depth) || depth < 1 || depth > 5) {
         return reply.status(400).send({
           error: 'Bad request',
           message: 'Depth must be between 1 and 5',
@@ -300,7 +300,14 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const { id } = request.params;
-      const direction = (request.query.direction ?? 'both') as 'in' | 'out' | 'both';
+      const validDirections = ['in', 'out', 'both'] as const;
+      const direction = request.query.direction ?? 'both';
+      if (!validDirections.includes(direction as typeof validDirections[number])) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'direction must be "in", "out", or "both"',
+        });
+      }
 
       try {
         const graph = state.getGraph();
@@ -314,7 +321,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           });
         }
 
-        const relationships = await graph.getRelationships(id, direction);
+        const relationships = await graph.getRelationships(id, direction as 'in' | 'out' | 'both');
 
         return reply.status(200).send({
           data: {

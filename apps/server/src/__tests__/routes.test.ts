@@ -191,7 +191,7 @@ describe ('Health endpoints', () => {
   });
 
   it ('GET /api/v1/health-score returns 503 before initialization', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/health-score' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/health-score' });
     expect(res.statusCode).toBe(503);
     const body = JSON.parse(res.payload);
     expect(body.error).toBe('Server not initialized');

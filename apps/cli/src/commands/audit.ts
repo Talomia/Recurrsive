@@ -89,7 +89,7 @@ export function registerAuditCommand(program: Command): void {
           e.timestamp.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
         ]);
 
-        table(['Type', 'Action', 'Target', 'Timestamp'], rows);
+        console.log(table(['Type', 'Action', 'Target', 'Timestamp'], rows));
 
         info(`\n${dim(`Showing ${events.length} event(s)`)}`);
       } catch (err) {
@@ -133,7 +133,7 @@ export function registerAuditCommand(program: Command): void {
           e.timestamp.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
         ]);
 
-        table(['Type', 'Action', 'Target', 'Timestamp'], rows);
+        console.log(table(['Type', 'Action', 'Target', 'Timestamp'], rows));
 
         info(`\n${dim(`Found ${events.length} matching event(s)`)}`);
       } catch (err) {

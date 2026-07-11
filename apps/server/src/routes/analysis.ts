@@ -104,7 +104,8 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
 
     // Path traversal protection: only allow safe directories
     const resolvedPath = path.resolve(effectivePath);
-    const ALLOWED_PREFIXES = ['/app', '/tmp/recurrsive-repos/', '/home/'];
+    const envPrefixes = process.env['RECURRSIVE_ALLOWED_PATHS']?.split(',').map(p => p.trim()).filter(Boolean);
+    const ALLOWED_PREFIXES = envPrefixes ?? ['/app', '/tmp/recurrsive-repos/'];
     const isSafePath = ALLOWED_PREFIXES.some((prefix) => resolvedPath.startsWith(prefix));
     if (!isSafePath) {
       state.markAnalysisError('Path not allowed');

@@ -12,7 +12,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { createHmac } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { authMiddleware } from '../middleware/auth.js';
 import { store } from '../store.js';
 
@@ -92,21 +92,15 @@ interface DeliveryLogEntry {
 // ---------------------------------------------------------------------------
 
 /** Delivery timeout in milliseconds (configurable via env). */
-const WEBHOOK_TIMEOUT_MS = Number(
-  process.env['RECURRSIVE_WEBHOOK_TIMEOUT_MS'] ?? 5000,
-);
+const rawTimeout = Number(process.env['RECURRSIVE_WEBHOOK_TIMEOUT_MS']);
+const WEBHOOK_TIMEOUT_MS = Number.isNaN(rawTimeout) || rawTimeout <= 0 ? 5000 : rawTimeout;
 
 // ---------------------------------------------------------------------------
 // ID generation
 // ---------------------------------------------------------------------------
 
-let nextId = 1;
-
 async function generateWebhookId(): Promise<string> {
-  // Derive next ID from store count to stay monotonic across restarts
-  const current = await store.count('webhooks') + nextId;
-  nextId++;
-  return `wh_${String(current).padStart(6, '0')}`;
+  return `wh_${randomBytes(8).toString('hex')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +281,46 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       });
     }
 
+    // Validate URL format and prevent SSRF
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return reply.status(400).send({
+        error: 'Invalid request',
+        message: 'url must be a valid URL.',
+      });
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return reply.status(400).send({
+        error: 'Invalid request',
+        message: 'url must use http or https protocol.',
+      });
+    }
+
+    // Block requests to private/internal networks (SSRF prevention)
+    const hostname = parsed.hostname.toLowerCase();
+    const blockedPatterns = [
+      /^127\./,              // Loopback
+      /^10\./,               // Private class A
+      /^172\.(1[6-9]|2\d|3[01])\./, // Private class B
+      /^192\.168\./,         // Private class C
+      /^169\.254\./,         // Link-local / cloud metadata
+      /^0\./,                // Current network
+      /^fc00:/i,             // IPv6 unique local
+      /^fe80:/i,             // IPv6 link-local
+      /^::1$/,               // IPv6 loopback
+    ];
+    const blockedHosts = ['localhost', 'metadata.google.internal', 'metadata.internal'];
+
+    if (blockedHosts.includes(hostname) || blockedPatterns.some((p) => p.test(hostname))) {
+      return reply.status(400).send({
+        error: 'Invalid request',
+        message: 'url must not point to a private or internal network address.',
+      });
+    }
+
     if (!events || !Array.isArray(events) || events.length === 0) {
       return reply.status(400).send({
         error: 'Invalid request',
@@ -385,6 +419,18 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     }
 
     const { active, events, url } = request.body ?? {};
+
+    if (events) {
+      const validEvents: WebhookEvent[] = ['analysis.complete', 'analysis.failed', 'opportunity.created', 'opportunity.updated', 'policy.violation', 'health.degraded', 'snapshot.created'];
+      const invalidEvents = events.filter((e: string) => !validEvents.includes(e as WebhookEvent));
+      if (invalidEvents.length > 0) {
+        return reply.status(400).send({
+          error: 'Invalid events',
+          message: `Unknown event types: ${invalidEvents.join(', ')}`,
+          valid_events: validEvents,
+        });
+      }
+    }
 
     if (active !== undefined) hook.active = active;
     if (events !== undefined) hook.events = events;

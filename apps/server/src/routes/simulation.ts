@@ -99,14 +99,22 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
   // ── Simulation Engine ─────────────────────────────────────────────────────
 
   app.get('/api/v1/simulations', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = await store.all<SimulationScenario>('simulations');
-    return reply.send({ data: all, total: all.length });
+    try {
+      const all = await store.all<SimulationScenario>('simulations');
+      return reply.send({ data: all, total: all.length });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
+    }
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/simulations/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const sim = await store.get<SimulationScenario>('simulations', request.params.id);
-    if (!sim) return reply.status(404).send({ error: 'Not Found', message: 'Simulation not found' });
-    return reply.send({ data: sim });
+    try {
+      const sim = await store.get<SimulationScenario>('simulations', request.params.id);
+      if (!sim) return reply.status(404).send({ error: 'Not Found', message: 'Simulation not found' });
+      return reply.send({ data: sim });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
+    }
   });
 
   app.post('/api/v1/simulations', {
@@ -130,77 +138,89 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       return reply.status(400).send({ error: 'Bad Request', message: 'name and type are required' });
     }
 
-    const id = generateId();
+    try {
+      const id = generateId();
 
-    // Compute results from real analysis data when available
-    const cache = state.isInitialized() ? state.getAnalysisCache() : null;
-    const findings = cache?.findings ?? [];
-    const healthScore = state.isInitialized() ? state.getHealthScore().overall : 50;
+      // Compute results from real analysis data when available
+      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+      const findings = cache?.findings ?? [];
+      const healthScore = state.isInitialized() ? state.getHealthScore().overall : 50;
 
-    // Derive impact score from finding severity distribution
-    const criticalCount = findings.filter(f => f.severity === 'critical').length;
-    const highCount = findings.filter(f => f.severity === 'high').length;
-    const impactScore = Math.round(Math.min(10, (criticalCount * 3 + highCount * 1.5 + findings.length * 0.3)) * 10) / 10;
+      // Derive impact score from finding severity distribution
+      const criticalCount = findings.filter(f => f.severity === 'critical').length;
+      const highCount = findings.filter(f => f.severity === 'high').length;
+      const impactScore = Math.round(Math.min(10, (criticalCount * 3 + highCount * 1.5 + findings.length * 0.3)) * 10) / 10;
 
-    // Derive risk level from actual severity distribution
-    const riskLevel: 'low' | 'medium' | 'high' = criticalCount > 0 ? 'high' : highCount > 2 ? 'medium' : 'low';
+      // Derive risk level from actual severity distribution
+      const riskLevel: 'low' | 'medium' | 'high' = criticalCount > 0 ? 'high' : highCount > 2 ? 'medium' : 'low';
 
-    // Generate findings from real analysis findings, not random data
-    const simFindings = findings.slice(0, 5).map(f => ({
-      area: f.category ?? 'architecture' as const,
-      impact: f.description.slice(0, 80),
-      probability: f.severity === 'critical' ? 0.9 : f.severity === 'high' ? 0.7 : f.severity === 'medium' ? 0.5 : 0.3,
-      recommendation: f.title ?? `Address ${f.severity} finding in ${f.category ?? 'system'}`,
-    }));
+      // Generate findings from real analysis findings, not random data
+      const simFindings = findings.slice(0, 5).map(f => ({
+        area: f.category ?? 'architecture' as const,
+        impact: f.description.slice(0, 80),
+        probability: f.severity === 'critical' ? 0.9 : f.severity === 'high' ? 0.7 : f.severity === 'medium' ? 0.5 : 0.3,
+        recommendation: f.title ?? `Address ${f.severity} finding in ${f.category ?? 'system'}`,
+      }));
 
-    // If no real findings, provide a meaningful empty result
-    if (simFindings.length === 0) {
-      simFindings.push({
-        area: 'architecture' as const,
-        impact: 'No active findings to simulate against',
-        probability: 0,
-        recommendation: 'Run an analysis first to generate meaningful simulation results',
-      });
-    }
+      // If no real findings, provide a meaningful empty result
+      if (simFindings.length === 0) {
+        simFindings.push({
+          area: 'architecture' as const,
+          impact: 'No active findings to simulate against',
+          probability: 0,
+          recommendation: 'Run an analysis first to generate meaningful simulation results',
+        });
+      }
 
-    const sim: SimulationScenario = {
-      id,
-      name: body.name,
-      description: body.description ?? '',
-      type: body.type,
-      parameters: body.parameters ?? {},
-      status: 'completed',
-      results: {
-        impactScore,
-        riskLevel,
-        findings: simFindings,
-        metrics: {
-          estimatedLatencyChangeMs: Math.round(criticalCount * 100 + highCount * 50),
-          estimatedErrorRateChange: Math.round(criticalCount * 0.01 * 1000) / 1000,
-          estimatedCostChangePct: Math.round((100 - healthScore) * 1.5),
-          estimatedAvailabilityChange: -Math.round(criticalCount * 0.002 * 1000) / 1000,
+      const sim: SimulationScenario = {
+        id,
+        name: body.name,
+        description: body.description ?? '',
+        type: body.type,
+        parameters: body.parameters ?? {},
+        status: 'completed',
+        results: {
+          impactScore,
+          riskLevel,
+          findings: simFindings,
+          metrics: {
+            estimatedLatencyChangeMs: Math.round(criticalCount * 100 + highCount * 50),
+            estimatedErrorRateChange: Math.round(criticalCount * 0.01 * 1000) / 1000,
+            estimatedCostChangePct: Math.round((100 - healthScore) * 1.5),
+            estimatedAvailabilityChange: -Math.round(criticalCount * 0.002 * 1000) / 1000,
+          },
+          timeline: [],
         },
-        timeline: [],
-      },
-      createdAt: nowISO(),
-      completedAt: nowISO(),
-    };
+        createdAt: nowISO(),
+        completedAt: nowISO(),
+      };
 
-    await store.set<SimulationScenario>('simulations', id, sim);
-    return reply.status(201).send({ data: sim });
+      await store.set<SimulationScenario>('simulations', id, sim);
+      return reply.status(201).send({ data: sim });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
+    }
   });
 
   // ── PR Generation ─────────────────────────────────────────────────────────
 
   app.get('/api/v1/pull-requests', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const all = await store.all<GeneratedPR>('pull_requests');
-    return reply.send({ data: all, total: all.length });
+    try {
+      const all = await store.all<GeneratedPR>('pull_requests');
+      return reply.send({ data: all, total: all.length });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
+    }
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/pull-requests/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pr = await store.get<GeneratedPR>('pull_requests', request.params.id);
-    if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
-    return reply.send({ data: pr });
+    try {
+      const pr = await store.get<GeneratedPR>('pull_requests', request.params.id);
+      if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
+      return reply.send({ data: pr });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
+    }
   });
 
   app.post('/api/v1/pull-requests/generate', {
@@ -223,49 +243,57 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       return reply.status(400).send({ error: 'Bad Request', message: 'title is required' });
     }
 
-    const cache = state.isInitialized() ? state.getAnalysisCache() : null;
-    const findings = cache?.findings ?? [];
+    try {
+      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+      const findings = cache?.findings ?? [];
 
-    const changes = findings.map(f => ({
-      path: f.locations?.[0]?.file ?? 'unknown',
-      action: 'modify' as const,
-      additions: 0,
-      deletions: 0,
-      summary: f.suggested_fix ?? f.description,
-    }));
+      const changes = findings.map(f => ({
+        path: f.locations?.[0]?.file ?? 'unknown',
+        action: 'modify' as const,
+        additions: 0,
+        deletions: 0,
+        summary: f.suggested_fix ?? f.description,
+      }));
 
-    const impact = {
-      healthScoreChange: Math.min(findings.length * 2, 20),
-      findingsResolved: findings.length,
-      coverageChange: 0,
-    };
+      const impact = {
+        healthScoreChange: Math.min(findings.length * 2, 20),
+        findingsResolved: findings.length,
+        coverageChange: 0,
+      };
 
-    const id = generateId();
-    const pr: GeneratedPR = {
-      id,
-      sourceId: body.sourceId ?? generateId(),
-      title: body.title,
-      description: body.description ?? '',
-      branch: `auto/${body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
-      changes,
-      impact,
-      status: 'draft',
-      reviewers: [],
-      labels: ['auto-generated'],
-      createdAt: nowISO(),
-    };
+      const id = generateId();
+      const pr: GeneratedPR = {
+        id,
+        sourceId: body.sourceId ?? generateId(),
+        title: body.title,
+        description: body.description ?? '',
+        branch: `auto/${body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
+        changes,
+        impact,
+        status: 'draft',
+        reviewers: [],
+        labels: ['auto-generated'],
+        createdAt: nowISO(),
+      };
 
-    await store.set<GeneratedPR>('pull_requests', id, pr);
-    return reply.status(201).send({ data: pr });
+      await store.set<GeneratedPR>('pull_requests', id, pr);
+      return reply.status(201).send({ data: pr });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
+    }
   });
 
   app.post<{ Params: { id: string } }>('/api/v1/pull-requests/:id/submit', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const pr = await store.get<GeneratedPR>('pull_requests', request.params.id);
-    if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
+    try {
+      const pr = await store.get<GeneratedPR>('pull_requests', request.params.id);
+      if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });
 
-    pr.status = 'submitted';
-    await store.set<GeneratedPR>('pull_requests', pr.id, pr);
-    return reply.send({ data: pr, message: 'PR submitted for review' });
+      pr.status = 'submitted';
+      await store.set<GeneratedPR>('pull_requests', pr.id, pr);
+      return reply.send({ data: pr, message: 'PR submitted for review' });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
+    }
   });
 
 }

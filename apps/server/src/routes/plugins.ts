@@ -112,6 +112,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
 
   app.get<{ Querystring: { type?: string; search?: string; sort?: string } }>(
     '/api/v1/plugins/marketplace',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       let results = await store.all<MarketplaceEntry>('plugin_marketplace');
 
@@ -136,7 +137,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
     },
   );
 
-  app.get<{ Params: { id: string } }>('/api/v1/plugins/marketplace/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/plugins/marketplace/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const entry = await store.get<MarketplaceEntry>('plugin_marketplace', request.params.id);
     if (!entry) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not found in marketplace' });
     return reply.send({ data: entry });
@@ -144,7 +145,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
 
   // ── Installed Plugins ─────────────────────────────────────────────────────
 
-  app.get('/api/v1/plugins/installed', async (_request, reply) => {
+  app.get('/api/v1/plugins/installed', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const all = await store.all<InstalledPlugin>('plugins');
     return reply.send({
       data: all,
@@ -152,7 +153,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
     });
   });
 
-  app.get<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const plugin = await store.get<InstalledPlugin>('plugins', request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
     return reply.send({ data: plugin });
@@ -234,7 +235,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Plugin health check
-  app.get<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/health', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/health', { preHandler: [authMiddleware] }, async (request, reply) => {
     const plugin = await store.get<InstalledPlugin>('plugins', request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
@@ -247,7 +248,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
 
   // ── Plugin SDK info ───────────────────────────────────────────────────────
 
-  app.get('/api/v1/plugins/sdk', async (_request, reply) => {
+  app.get('/api/v1/plugins/sdk', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({
       data: {
         version: '1.0.0',

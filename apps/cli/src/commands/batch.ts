@@ -114,7 +114,7 @@ export function registerBatchCommand(program: Command): void {
           p.status === 'complete' ? green(p.status) : dim(p.status),
         ]);
 
-        table(['#', 'Project Path', 'Status'], rows);
+        console.log(table(['#', 'Project Path', 'Status'], rows));
 
         info(`\n${dim('Use')} ${cyan(`recurrsive batch status ${result.batch_id}`)} ${dim('to check progress')}`);
       } catch (err) {
@@ -164,7 +164,7 @@ export function registerBatchCommand(program: Command): void {
           ];
         });
 
-        table(['#', 'Project', 'Status', 'Findings', 'Opps'], rows);
+        console.log(table(['#', 'Project', 'Status', 'Findings', 'Opps'], rows));
       } catch (err) {
         error(`Failed to get batch status: ${err instanceof Error ? err.message : String(err)}`);
         process.exitCode = 1;
@@ -207,7 +207,7 @@ export function registerBatchCommand(program: Command): void {
           r.created_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
         ]);
 
-        table(['Batch ID', 'Status', 'Projects', 'Created'], rows);
+        console.log(table(['Batch ID', 'Status', 'Projects', 'Created'], rows));
 
         info(`\n${dim(`Showing ${runs.length} batch run(s)`)}`);
       } catch (err) {

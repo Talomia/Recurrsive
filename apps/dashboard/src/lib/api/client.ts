@@ -53,8 +53,7 @@ export async function apiFetch<T>(
   const { unwrap = true, ...fetchOpts } = options ?? {};
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(fetchOpts.headers as Record<string, string> ?? {}),
+    ...(fetchOpts.headers as Record<string, string> || {}),
   };
 
   // Attach JWT token from localStorage (client) or cookie (SSR)
@@ -78,6 +77,8 @@ export async function apiFetch<T>(
     }
   }
 
+  if (fetchOpts.body) headers['Content-Type'] = 'application/json';
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...fetchOpts,
     headers,
@@ -85,6 +86,15 @@ export async function apiFetch<T>(
   } as RequestInit);
 
   if (!res.ok) {
+    if (res.status === 401) {
+      // Clear stored auth on token expiry
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('recurrsive_token');
+        localStorage.removeItem('recurrsive_user');
+        document.cookie = 'recurrsive_token=; path=/; max-age=0';
+        window.location.href = '/login';
+      }
+    }
     throw new ApiError(res.status, res.statusText, path);
   }
 

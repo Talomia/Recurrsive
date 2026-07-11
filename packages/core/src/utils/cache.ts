@@ -144,6 +144,7 @@ export class LRUCache<K, V> {
 
     for (const [key, entry] of this.map) {
       if (this.ttlMs !== undefined && now - entry.timestamp > this.ttlMs) {
+        this.map.delete(key);
         continue;
       }
       result.push([key, entry.value]);

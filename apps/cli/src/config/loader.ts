@@ -11,7 +11,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { RecurrsiveConfigSchema, type RecurrsiveConfig } from '@recurrsive/core';
 import { ConfigError } from '@recurrsive/core';
@@ -367,7 +367,7 @@ function inferProjectName(dir: string): string {
   const pkgPath = join(dir, 'package.json');
   if (existsSync(pkgPath)) {
     try {
-      const raw = require('node:fs').readFileSync(pkgPath, 'utf-8') as string;
+      const raw = readFileSync(pkgPath, 'utf-8') as string;
       const pkg = JSON.parse(raw) as Record<string, unknown>;
       if (typeof pkg['name'] === 'string') {
         return pkg['name'];

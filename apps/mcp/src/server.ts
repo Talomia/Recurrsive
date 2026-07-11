@@ -92,10 +92,10 @@ export async function startServer(): Promise<void> {
   };
 
   process.on('SIGINT', () => {
-    void cleanup().then(() => process.exit(0));
+    void cleanup().then(() => process.exit(0)).catch(() => process.exit(1));
   });
   process.on('SIGTERM', () => {
-    void cleanup().then(() => process.exit(0));
+    void cleanup().then(() => process.exit(0)).catch(() => process.exit(1));
   });
 
   await server.connect(transport);

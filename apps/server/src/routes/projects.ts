@@ -48,22 +48,60 @@ interface Project {
 export async function registerProjectRoutes(app: FastifyInstance): Promise<void> {
   // List all projects
   app.get('/api/v1/projects', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const list = (await store.all<Project>('projects'))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    try {
+      const list = (await store.all<Project>('projects'))
+        .sort((a, b) => a.name.localeCompare(b.name));
 
-    return reply.send({
-      data: list,
-      total: list.length,
-    });
+      return reply.status(200).send({
+        data: list,
+        total: list.length,
+      });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to list projects.' });
+    }
   });
 
-  // Get single project
-  app.get<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const project = await store.get<Project>('projects', request.params.id);
-    if (!project) {
-      return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
+  // ── Static sub-paths MUST be registered BEFORE the parametric `:id` route ──
+  // Fastify matches parametric routes first if registered first, so
+  // `/api/v1/projects/compare/health` would match `:id = "compare"` if
+  // `:id` is registered before the static path.
+
+  // Get project health comparison (across all projects)
+  app.get('/api/v1/projects/compare/health', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    try {
+      const comparison = (await store.all<Project>('projects')).map(p => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        healthScore: p.healthScore,
+        language: p.language,
+        framework: p.framework,
+        lastAnalysis: p.lastAnalysis,
+      }));
+
+      return reply.status(200).send({
+        data: comparison.sort((a, b) => b.healthScore - a.healthScore),
+        total: comparison.length,
+        avgHealth: comparison.length > 0
+          ? Math.round(comparison.reduce((s, p) => s + p.healthScore, 0) / comparison.length)
+          : 0,
+      });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to compare projects.' });
     }
-    return reply.send({ data: project });
+  });
+
+  // Get single project — registered AFTER static sub-paths
+  app.get<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+    try {
+      const project = await store.get<Project>('projects', request.params.id);
+      if (!project) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
+      }
+      return reply.status(200).send({ data: project });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to get project.' });
+    }
   });
 
   // Create project
@@ -86,37 +124,41 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       },
     },
   }, async (request, reply) => {
-    const body = request.body as Partial<Project>;
-    if (!body.name || !body.repository) {
-      return reply.status(400).send({ error: 'Bad Request', message: 'name and repository are required' });
+    try {
+      const body = request.body as Partial<Project>;
+      if (!body.name || !body.repository) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'name and repository are required' });
+      }
+
+      const id = generateId();
+      const now = nowISO();
+      const slug = body.slug ?? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+      const project: Project = {
+        id,
+        name: body.name,
+        slug,
+        description: body.description ?? '',
+        repository: body.repository,
+        language: body.language ?? 'Unknown',
+        framework: body.framework ?? 'Unknown',
+        healthScore: 0,
+        lastAnalysis: null,
+        createdAt: now,
+        updatedAt: now,
+        settings: body.settings ?? {
+          analyzers: ['architecture', 'ai', 'performance', 'security', 'reliability'],
+          collectors: ['git'],
+          autoAnalyze: false,
+          notifyOnCritical: true,
+        },
+      };
+
+      await store.set('projects', id, project);
+      return reply.status(201).send({ data: project });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to create project.' });
     }
-
-    const id = generateId();
-    const now = nowISO();
-    const slug = body.slug ?? body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
-    const project: Project = {
-      id,
-      name: body.name,
-      slug,
-      description: body.description ?? '',
-      repository: body.repository,
-      language: body.language ?? 'Unknown',
-      framework: body.framework ?? 'Unknown',
-      healthScore: 0,
-      lastAnalysis: null,
-      createdAt: now,
-      updatedAt: now,
-      settings: body.settings ?? {
-        analyzers: ['architecture', 'ai', 'performance', 'security', 'reliability'],
-        collectors: ['git'],
-        autoAnalyze: false,
-        notifyOnCritical: true,
-      },
-    };
-
-    await store.set('projects', id, project);
-    return reply.status(201).send({ data: project });
   });
 
   // Update project
@@ -138,55 +180,42 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       },
     },
   }, async (request, reply) => {
-    const project = await store.get<Project>('projects', request.params.id);
-    if (!project) {
-      return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
+    try {
+      const project = await store.get<Project>('projects', request.params.id);
+      if (!project) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
+      }
+
+      const body = request.body as Partial<Project>;
+      const updated: Project = {
+        ...project,
+        name: body.name ?? project.name,
+        slug: body.slug ?? project.slug,
+        description: body.description ?? project.description,
+        repository: body.repository ?? project.repository,
+        language: body.language ?? project.language,
+        framework: body.framework ?? project.framework,
+        settings: body.settings ?? project.settings,
+        updatedAt: nowISO(),
+      };
+
+      await store.set('projects', updated.id, updated);
+      return reply.status(200).send({ data: updated });
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to update project.' });
     }
-
-    const body = request.body as Partial<Project>;
-    const updated: Project = {
-      ...project,
-      name: body.name ?? project.name,
-      slug: body.slug ?? project.slug,
-      description: body.description ?? project.description,
-      repository: body.repository ?? project.repository,
-      language: body.language ?? project.language,
-      framework: body.framework ?? project.framework,
-      settings: body.settings ?? project.settings,
-      updatedAt: nowISO(),
-    };
-
-    await store.set('projects', updated.id, updated);
-    return reply.send({ data: updated });
   });
 
   // Delete project
   app.delete<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!await store.has('projects', request.params.id)) {
-      return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
+    try {
+      if (!await store.has('projects', request.params.id)) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
+      }
+      await store.delete('projects', request.params.id);
+      return reply.status(204).send();
+    } catch (err) {
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to delete project.' });
     }
-    await store.delete('projects', request.params.id);
-    return reply.status(204).send();
-  });
-
-  // Get project health comparison (across all projects)
-  app.get('/api/v1/projects/compare/health', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const comparison = (await store.all<Project>('projects')).map(p => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      healthScore: p.healthScore,
-      language: p.language,
-      framework: p.framework,
-      lastAnalysis: p.lastAnalysis,
-    }));
-
-    return reply.send({
-      data: comparison.sort((a, b) => b.healthScore - a.healthScore),
-      total: comparison.length,
-      avgHealth: comparison.length > 0
-        ? Math.round(comparison.reduce((s, p) => s + p.healthScore, 0) / comparison.length)
-        : 0,
-    });
   });
 }

@@ -13,6 +13,12 @@
 
 import { startServer } from './server.js';
 
+// Catch uncaught exceptions that escape MCP SDK's error handling
+process.on('uncaughtException', (error) => {
+  process.stderr.write(`Fatal error: ${error.message}\n`);
+  process.exit(1);
+});
+
 // Catch unhandled rejections that escape MCP SDK's error handling
 process.on('unhandledRejection', (reason) => {
   const message = reason instanceof Error ? reason.message : String(reason);

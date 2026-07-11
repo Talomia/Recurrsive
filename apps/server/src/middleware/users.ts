@@ -332,20 +332,16 @@ export async function findOrCreateSSOUser(
   role: 'admin' | 'analyst' | 'viewer',
   autoProvision: boolean = true,
 ): Promise<PublicUser | null> {
-  // Look for existing user with this SSO identity
-  const allUsers = await store.all<User>(USERS_TABLE);
-  const existing = allUsers.find(
-    (u) => u.authMethod === 'sso' && u.ssoProvider === provider && u.email === email,
-  );
-
-  if (existing) {
+  // Use email index for O(1) lookup
+  const existingUser = await findUserByEmail(email);
+  if (existingUser && existingUser.authMethod === 'sso' && existingUser.ssoProvider === provider) {
     // Update role if changed
-    if (existing.role !== role) {
-      existing.role = role;
-      existing.updatedAt = nowISO();
-      await store.set<User>(USERS_TABLE, existing.id, existing);
+    if (existingUser.role !== role) {
+      existingUser.role = role;
+      existingUser.updatedAt = nowISO();
+      await store.set<User>(USERS_TABLE, existingUser.id, existingUser);
     }
-    return toPublicUser(existing);
+    return toPublicUser(existingUser);
   }
 
   if (!autoProvision) return null;
@@ -361,8 +357,8 @@ export async function findOrCreateSSOUser(
     id,
     username,
     email,
-    passwordHash: '',
-    passwordSalt: '',
+    passwordHash: 'SSO_AUTH_ONLY',
+    passwordSalt: 'SSO_AUTH_ONLY',
     role,
     displayName,
     createdAt: now,
@@ -373,6 +369,11 @@ export async function findOrCreateSSOUser(
   };
 
   await store.set<User>(USERS_TABLE, id, user);
+
+  // Write secondary indexes for O(1) lookup
+  await store.set<string>(USERNAME_INDEX_TABLE, username, id);
+  await store.set<string>(EMAIL_INDEX_TABLE, email, id);
+
   return toPublicUser(user);
 }
 

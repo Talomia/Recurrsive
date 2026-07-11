@@ -168,10 +168,12 @@ describe('AgeGraphClient', () => {
       });
 
       // First two calls: prepareConnection (SET + LOAD)
-      // Third call: the actual cypher query
+      // Third call: SET statement_timeout
+      // Fourth call: the actual cypher query
       mockClientQuery
         .mockResolvedValueOnce({ rows: [] }) // SET search_path
         .mockResolvedValueOnce({ rows: [] }) // LOAD 'age'
+        .mockResolvedValueOnce({ rows: [] }) // SET statement_timeout
         .mockResolvedValueOnce({
           rows: [{ n: vertexJson + '::vertex' }],
         });
@@ -314,6 +316,7 @@ describe('AgeGraphClient', () => {
       mockClientQuery
         .mockResolvedValueOnce({ rows: [] }) // SET
         .mockResolvedValueOnce({ rows: [] }) // LOAD
+        .mockResolvedValueOnce({ rows: [] }) // SET statement_timeout
         .mockResolvedValueOnce({
           rows: [{ deleted: '1' }],
         });
@@ -336,6 +339,7 @@ describe('AgeGraphClient', () => {
       mockClientQuery
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] }) // SET statement_timeout
         .mockResolvedValueOnce({
           rows: [{ deleted: '1' }],
         });
@@ -355,23 +359,20 @@ describe('AgeGraphClient', () => {
 
   describe('getStats', () => {
     it('returns aggregated entity and relationship counts', async () => {
-      // Two separate cypher calls: entity counts, then relationship counts
-      // Each has prepareConnection (2 queries) + the cypher query itself
+      // getStats uses direct SQL (UNION ALL) on AGE's label tables,
+      // NOT executeCypher. It calls pool.connect() then client.query() twice:
+      // once for entity counts, once for relationship counts.
       mockClientQuery
-        // First executeCypher (entity counts)
-        .mockResolvedValueOnce({ rows: [] }) // SET
-        .mockResolvedValueOnce({ rows: [] }) // LOAD
+        // First query: entity counts UNION ALL
         .mockResolvedValueOnce({
           rows: [
-            { type: '"function"', cnt: '3' },
-            { type: '"class"', cnt: '1' },
+            { label: 'function', cnt: '3' },
+            { label: 'class', cnt: '1' },
           ],
         })
-        // Second executeCypher (relationship counts)
-        .mockResolvedValueOnce({ rows: [] }) // SET
-        .mockResolvedValueOnce({ rows: [] }) // LOAD
+        // Second query: relationship counts UNION ALL
         .mockResolvedValueOnce({
-          rows: [{ type: '"calls"', cnt: '5' }],
+          rows: [{ label: 'calls', cnt: '5' }],
         });
 
       const stats = await client.getStats();

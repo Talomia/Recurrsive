@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -13,6 +13,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Bot,
   Zap,
   Menu,
@@ -30,7 +31,6 @@ import {
   ShieldAlert,
   HeartPulse,
   Camera,
-  Crown,
   Brain,
   FolderGit2,
   Package,
@@ -38,116 +38,151 @@ import {
   KeyRound,
   Building2,
   Calendar,
-  Target,
-  Cloud,
   Eye,
-  Boxes,
   Users,
-  Mail,
 } from "lucide-react";
 
-interface NavSection {
-  label: string;
-  tier?: 'enterprise' | 'ecosystem';
-  items: ReadonlyArray<{ readonly href: string; readonly label: string; readonly icon: any }>;
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface NavItem {
+  readonly href: string;
+  readonly label: string;
+  readonly icon: any;
+  /** Show a small purple enterprise badge next to this item */
+  readonly enterprise?: boolean;
 }
+
+interface NavSection {
+  key: string;
+  label: string;
+  items: ReadonlyArray<NavItem>;
+}
+
+// ─── Section definitions ─────────────────────────────────────────────────────
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    label: 'Intelligence',
+    key: "intelligence",
+    label: "Intelligence",
     items: [
-      { href: '/', label: 'Overview', icon: LayoutDashboard },
-      { href: '/executive', label: 'Executive', icon: Crown },
-      { href: '/forecasting', label: 'Forecasting', icon: Brain },
-      { href: '/confidence', label: 'Confidence', icon: Target },
+      { href: "/", label: "Overview", icon: LayoutDashboard },
+      { href: "/forecasting", label: "Forecasting", icon: Brain },
+      { href: "/health", label: "Health", icon: HeartPulse },
+      { href: "/timeline", label: "Timeline", icon: Clock },
+      { href: "/comparisons", label: "Comparisons", icon: GitCompare },
     ],
   },
   {
-    label: 'Analysis',
+    key: "analysis",
+    label: "Analysis",
     items: [
-      { href: '/projects', label: 'Projects', icon: FolderGit2 },
-      { href: '/opportunities', label: 'Opportunities', icon: Lightbulb },
-      { href: '/findings', label: 'Findings', icon: ShieldAlert },
-      { href: '/insights', label: 'Insights', icon: Sparkles },
-      { href: '/system-map', label: 'System Map', icon: Network },
-      { href: '/health', label: 'Health', icon: HeartPulse },
-      { href: '/timeline', label: 'Timeline', icon: Clock },
+      { href: "/projects", label: "Projects", icon: FolderGit2 },
+      { href: "/findings", label: "Findings", icon: ShieldAlert },
+      { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
+      { href: "/system-map", label: "System Map", icon: Network },
+      { href: "/analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
   {
-    label: 'Operations',
+    key: "operations",
+    label: "Operations",
     items: [
-      { href: '/batch', label: 'Batch', icon: Layers },
-      { href: '/scheduling', label: 'Scheduling', icon: Calendar },
-      { href: '/reports', label: 'Reports', icon: FileText },
-      { href: '/search', label: 'Search', icon: Search },
-      { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-      { href: '/experiments', label: 'Experiments', icon: FlaskConical },
-      { href: '/comparisons', label: 'Comparisons', icon: GitCompare },
+      { href: "/batch", label: "Batch", icon: Layers },
+      { href: "/scheduling", label: "Scheduling", icon: Calendar },
+      { href: "/reports", label: "Reports", icon: FileText },
+      { href: "/search", label: "Search", icon: Search },
+      { href: "/experiments", label: "Experiments", icon: FlaskConical },
+      { href: "/simulation", label: "Simulation", icon: Bot },
+      { href: "/snapshots", label: "Snapshots", icon: Camera },
     ],
   },
   {
-    label: 'Integrations',
+    key: "administration",
+    label: "Administration",
     items: [
-      { href: '/webhooks', label: 'Webhooks', icon: Webhook },
-      { href: '/notifications', label: 'Notifications', icon: Bell },
-      { href: '/snapshots', label: 'Snapshots', icon: Camera },
-      { href: '/simulation', label: 'Simulation', icon: Bot },
-      { href: '/plugins', label: 'Plugins', icon: Package },
-      { href: '/intelligence-packs', label: 'Intelligence Packs', icon: Boxes },
-      { href: '/marketplace', label: 'Marketplace', icon: Zap },
-    ],
-  },
-  {
-    label: 'Administration',
-    items: [
-      { href: '/users', label: 'Users', icon: Users },
-      { href: '/invites', label: 'Invites', icon: Mail },
-      { href: '/policies', label: 'Policies', icon: Shield },
-      { href: '/audit', label: 'Audit Trail', icon: History },
-      { href: '/secrets', label: 'Secrets', icon: Key },
-      { href: '/data-masking', label: 'Data Masking', icon: Eye },
-      { href: '/settings', label: 'Settings', icon: Settings },
-    ],
-  },
-  {
-    label: 'Enterprise',
-    tier: 'enterprise',
-    items: [
-      { href: '/sso', label: 'SSO', icon: KeyRound },
-      { href: '/tenants', label: 'Tenants', icon: Building2 },
-    ],
-  },
-  {
-    label: 'Cloud',
-    tier: 'ecosystem',
-    items: [
-      { href: '/cloud', label: 'Cloud Dashboard', icon: Cloud },
-      { href: '/partners', label: 'Partners', icon: Building2 },
+      { href: "/users", label: "Users", icon: Users },
+      { href: "/policies", label: "Policies", icon: Shield },
+      { href: "/audit", label: "Audit Trail", icon: History },
+      { href: "/settings", label: "Settings", icon: Settings },
+      { href: "/secrets", label: "Secrets", icon: Key },
+      { href: "/data-masking", label: "Data Masking", icon: Eye },
+      { href: "/webhooks", label: "Webhooks", icon: Webhook },
+      { href: "/notifications", label: "Notifications", icon: Bell },
+      { href: "/marketplace", label: "Marketplace", icon: Sparkles },
+      { href: "/plugins", label: "Plugins", icon: Package },
+      { href: "/sso", label: "SSO", icon: KeyRound, enterprise: true },
+      { href: "/tenants", label: "Tenants", icon: Building2, enterprise: true },
     ],
   },
 ];
 
+// ─── localStorage helpers ────────────────────────────────────────────────────
+
+const STORAGE_KEY = "recurrsive-sidebar-sections";
+
+const DEFAULT_EXPANDED: Record<string, boolean> = {
+  intelligence: true,
+  analysis: true,
+  operations: false,
+  administration: false,
+};
+
+function loadExpanded(): Record<string, boolean> {
+  if (typeof window === "undefined") return DEFAULT_EXPANDED;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return { ...DEFAULT_EXPANDED, ...JSON.parse(raw) };
+  } catch {
+    // ignore corrupt data
+  }
+  return DEFAULT_EXPANDED;
+}
+
+function saveExpanded(state: Record<string, boolean>) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // storage full or unavailable
+  }
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  // Mobile sidebar is closed by default
   const [mobileOpen, setMobileOpen] = useState(false);
   const [opportunityCount, setOpportunityCount] = useState(0);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(DEFAULT_EXPANDED);
 
+  // Hydrate expansion state from localStorage
   useEffect(() => {
-    fetch('/api/v1/opportunities')
-      .then((r) => r.json())
-      .then((data) => setOpportunityCount(data.data?.length ?? 0))
-      .catch((err) => {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('[Sidebar] Failed to fetch opportunity count:', err);
-        }
-      });
+    setExpanded(loadExpanded());
+  }, []);
+
+  // Fetch opportunity count
+  useEffect(() => {
+    import("@/lib/api/client").then(({ apiFetch }) => {
+      apiFetch<{ data: unknown[]; total: number }>("/api/v1/opportunities?limit=1")
+        .then((res) => setOpportunityCount(res.total ?? 0))
+        .catch((err) => {
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[Sidebar] Failed to fetch opportunity count:", err);
+          }
+        });
+    });
+  }, []);
+
+  const toggleSection = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      saveExpanded(next);
+      return next;
+    });
   }, []);
 
   // Hide sidebar on the login page
-  if (pathname === '/login') return null;
+  if (pathname === "/login") return null;
 
   return (
     <>
@@ -176,10 +211,8 @@ export default function Sidebar() {
       <aside
         className={clsx(
           "fixed left-0 top-0 z-50 flex h-full flex-col border-r border-border bg-surface transition-all duration-300",
-          // Desktop: collapsed/expanded
           collapsed ? "lg:w-[68px]" : "lg:w-[260px]",
-          // Mobile: slide in/out
-          mobileOpen ? "max-lg:translate-x-0 max-lg:w-[260px]" : "max-lg:-translate-x-full",
+          mobileOpen ? "max-lg:translate-x-0 max-lg:w-[260px]" : "max-lg:-translate-x-full"
         )}
         aria-label="Main navigation"
       >
@@ -202,58 +235,97 @@ export default function Sidebar() {
 
         {/* ── Nav links ──────────────────────────────────── */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Main navigation">
-          {NAV_SECTIONS.map((section) => (
-            <div key={section.label} className="mb-1">
-              {/* Section header — only shown when sidebar is expanded */}
-              {!collapsed && (
-                <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5">
-                  <span className="text-text-tertiary text-[10px] font-semibold uppercase tracking-widest">
-                    {section.label}
-                  </span>
-                  {section.tier === 'enterprise' && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" title="Enterprise tier" />
-                  )}
-                  {section.tier === 'ecosystem' && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" title="Ecosystem tier" />
-                  )}
-                </div>
-              )}
+          {NAV_SECTIONS.map((section) => {
+            const isExpanded = expanded[section.key] ?? true;
+            const hasActiveItem = section.items.some(({ href }) =>
+              href === "/" ? pathname === "/" : pathname.startsWith(href)
+            );
 
-              {/* Section items */}
-              {section.items.map(({ href, label, icon: Icon }) => {
-                const active =
-                  href === "/" ? pathname === "/" : pathname.startsWith(href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setMobileOpen(false)}
+            return (
+              <div key={section.key} className="mb-1">
+                {/* Section header — clickable to toggle, hidden when sidebar collapsed */}
+                {!collapsed ? (
+                  <button
+                    onClick={() => toggleSection(section.key)}
                     className={clsx(
-                      "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 group",
-                      active
-                        ? "bg-white/8 text-text-primary"
-                        : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
+                      "flex w-full items-center gap-1.5 px-3 pt-3 pb-1.5 group cursor-pointer",
+                      "hover:bg-white/3 rounded-lg transition-colors"
                     )}
-                    aria-current={active ? "page" : undefined}
+                    aria-expanded={isExpanded}
+                    aria-controls={`nav-section-${section.key}`}
                   >
-                    {active && <span className="nav-active-indicator" aria-hidden="true" />}
-                    <Icon
+                    <ChevronDown
                       className={clsx(
-                        "h-[18px] w-[18px] shrink-0 transition-colors",
-                        active ? "text-accent-blue" : "text-text-muted group-hover:text-text-secondary"
+                        "h-3 w-3 text-text-tertiary transition-transform duration-200",
+                        !isExpanded && "-rotate-90"
                       )}
                     />
-                    {!collapsed && <span>{label}</span>}
-                    {!collapsed && href === "/opportunities" && (
-                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-blue/15 px-1.5 text-[10px] font-semibold text-blue-400">
-                        {opportunityCount}
-                      </span>
+                    <span className="text-text-tertiary text-[10px] font-semibold uppercase tracking-widest select-none">
+                      {section.label}
+                    </span>
+                    {/* Dot indicating active child when section is collapsed */}
+                    {!isExpanded && hasActiveItem && (
+                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-blue shrink-0" />
                     )}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+                  </button>
+                ) : (
+                  /* In collapsed sidebar: show a thin divider between sections */
+                  <div className="mx-2 my-2 border-t border-border/50" />
+                )}
+
+                {/* Section items with animated expand/collapse */}
+                <CollapsibleSection
+                  id={`nav-section-${section.key}`}
+                  isOpen={collapsed || isExpanded}
+                >
+                  {section.items.map(({ href, label, icon: Icon, enterprise }) => {
+                    const active =
+                      href === "/" ? pathname === "/" : pathname.startsWith(href);
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setMobileOpen(false)}
+                        className={clsx(
+                          "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 group",
+                          active
+                            ? "bg-white/8 text-text-primary"
+                            : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
+                        )}
+                        aria-current={active ? "page" : undefined}
+                      >
+                        {active && <span className="nav-active-indicator" aria-hidden="true" />}
+                        <Icon
+                          className={clsx(
+                            "h-[18px] w-[18px] shrink-0 transition-colors",
+                            active
+                              ? "text-accent-blue"
+                              : "text-text-muted group-hover:text-text-secondary"
+                          )}
+                        />
+                        {!collapsed && <span>{label}</span>}
+
+                        {/* Opportunity count badge */}
+                        {!collapsed && href === "/opportunities" && (
+                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-blue/15 px-1.5 text-[10px] font-semibold text-blue-400">
+                            {opportunityCount}
+                          </span>
+                        )}
+
+                        {/* Enterprise badge (purple dot) */}
+                        {!collapsed && enterprise && (
+                          <span
+                            className="ml-auto h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0"
+                            title="Enterprise"
+                          />
+                        )}
+                      </Link>
+                    );
+                  })}
+                </CollapsibleSection>
+              </div>
+            );
+          })}
         </nav>
 
         {/* ── Bottom ─────────────────────────────────────── */}
@@ -305,5 +377,54 @@ export default function Sidebar() {
         )}
       />
     </>
+  );
+}
+
+// ─── Collapsible section wrapper ─────────────────────────────────────────────
+
+function CollapsibleSection({
+  id,
+  isOpen,
+  children,
+}: {
+  id: string;
+  isOpen: boolean;
+  children: React.ReactNode;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [maxHeight, setMaxHeight] = useState<string>(isOpen ? "none" : "0px");
+
+  useEffect(() => {
+    if (isOpen) {
+      // Measure real height, set it, then switch to "none" after transition
+      const el = contentRef.current;
+      if (el) {
+        setMaxHeight(`${el.scrollHeight}px`);
+        const timer = setTimeout(() => setMaxHeight("none"), 250);
+        return () => clearTimeout(timer);
+      }
+    } else {
+      // Collapse: first set explicit height, then on next frame set 0
+      const el = contentRef.current;
+      if (el) {
+        setMaxHeight(`${el.scrollHeight}px`);
+        // Force reflow so the browser registers the explicit height
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        el.offsetHeight;
+        requestAnimationFrame(() => setMaxHeight("0px"));
+      }
+    }
+  }, [isOpen]);
+
+  return (
+    <div
+      id={id}
+      ref={contentRef}
+      className="overflow-hidden transition-[max-height] duration-200 ease-in-out"
+      style={{ maxHeight }}
+      aria-hidden={!isOpen}
+    >
+      {children}
+    </div>
   );
 }

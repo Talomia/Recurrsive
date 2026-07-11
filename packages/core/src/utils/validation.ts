@@ -104,6 +104,7 @@ export function validateUrl(url: string): boolean {
  */
 export function truncate(str: string, maxLength: number, suffix: string = DEFAULT_SUFFIX): string {
   if (str.length <= maxLength) return str;
+  if (maxLength <= suffix.length) return str.slice(0, maxLength);
   return str.slice(0, maxLength - suffix.length) + suffix;
 }
 

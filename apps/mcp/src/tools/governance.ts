@@ -13,6 +13,7 @@
  */
 
 import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Entity, Relationship } from '@recurrsive/core';
@@ -139,6 +140,16 @@ export function registerGovernanceTools(server: McpServer): void {
               type: 'text' as const,
               text: 'No analysis has been run yet. Use the "analyze_project" tool first to initialize the graph.',
             }],
+          };
+        }
+
+        // Validate that snapshot_path is within the project directory
+        const resolvedPath = path.resolve(snapshot_path);
+        const projectPath = state.getProjectPath();
+        if (projectPath && !resolvedPath.startsWith(path.resolve(projectPath))) {
+          return {
+            content: [{ type: 'text' as const, text: 'Error: snapshot_path must be within the project directory' }],
+            isError: true,
           };
         }
 

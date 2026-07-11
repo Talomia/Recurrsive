@@ -33,6 +33,8 @@ export default function MetricCard({
 
   return (
     <div
+      role="group"
+      aria-label={`${label}: ${value}${suffix ? ` ${suffix}` : ''}`}
       className={clsx(
         "glass-card p-5 flex flex-col justify-between min-h-[160px]",
         className
@@ -65,14 +67,17 @@ export default function MetricCard({
       {trend !== undefined && (
         <div className="mt-2 flex items-center gap-1.5">
           {isPositive ? (
-            <ArrowUpRight className={clsx("h-3.5 w-3.5", trendColor)} />
+            <ArrowUpRight className={clsx("h-3.5 w-3.5", trendColor)} aria-hidden="true" />
           ) : (
-            <ArrowDownRight className={clsx("h-3.5 w-3.5", trendColor)} />
+            <ArrowDownRight className={clsx("h-3.5 w-3.5", trendColor)} aria-hidden="true" />
           )}
           <span className={clsx("text-xs font-semibold tabular-nums", trendColor)}>
             {Math.abs(trend)}%
           </span>
           <span className="text-xs text-text-muted">{trendLabel}</span>
+          <span className="sr-only">
+            {isPositive ? 'increased' : isNeutral ? 'unchanged' : 'decreased'} by {Math.abs(trend)}% {trendLabel}
+          </span>
         </div>
       )}
     </div>

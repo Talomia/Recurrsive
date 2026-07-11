@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { FlaskConical, Play, AlertTriangle, TrendingUp, Clock, Zap, Loader2 } from 'lucide-react';
+import Header from '@/components/header';
 import { getSimulations, createSimulation } from '@/lib/api';
 import type { SimulationScenario } from '@/lib/api';
 // Types reuse SimulationScenario from api.ts
@@ -42,13 +43,14 @@ export default function SimulationPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     getSimulations()
       .then(data => {
-        setSimulations(data);
-        if (data.length > 0) setSelected(data[0]);
+        if (!cancelled) { setSimulations(data); if (data.length > 0) setSelected(data[0]); }
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load simulations.'))
-      .finally(() => setLoading(false));
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load simulations.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   const handleLaunch = async () => {
@@ -77,13 +79,7 @@ export default function SimulationPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <FlaskConical className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          Simulation Engine
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">Run chaos, stress, what-if, and Monte Carlo simulations against your systems.</p>
-      </div>
+      <Header title="Simulation" subtitle="Run what-if simulations on your codebase" />
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -93,7 +89,7 @@ export default function SimulationPage() {
           { label: 'Avg Impact', value: simulations.filter(s => s.impactScore > 0).length > 0 ? Math.round(simulations.filter(s => s.impactScore > 0).reduce((a, s) => a + s.impactScore, 0) / simulations.filter(s => s.impactScore > 0).length) : 0, icon: TrendingUp },
           { label: 'Critical Risk', value: simulations.filter(s => s.riskLevel === 'critical').length, icon: AlertTriangle },
         ].map(k => (
-          <div key={k.label} className="rounded-xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <div key={k.label} className="glass-card rounded-xl p-4">
             <p className="text-xs text-text-tertiary uppercase">{k.label}</p>
             <p className="text-2xl font-bold text-text-primary">{k.value}</p>
           </div>
@@ -101,15 +97,15 @@ export default function SimulationPage() {
       </div>
 
       {/* Simulations Table */}
-      <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-4">
           <Clock className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-          <h3 className="text-lg font-semibold text-text-primary">Simulations</h3>
+          <h2 className="text-lg font-semibold text-text-primary">Simulations</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-text-tertiary text-xs uppercase">
-              <th className="pb-3">Name</th><th className="pb-3">Type</th><th className="pb-3">Status</th><th className="pb-3">Risk</th><th className="pb-3">Impact</th><th className="pb-3">Duration</th><th className="pb-3" />
+              <th scope="col" className="pb-3">Name</th><th scope="col" className="pb-3">Type</th><th scope="col" className="pb-3">Status</th><th scope="col" className="pb-3">Risk</th><th scope="col" className="pb-3">Impact</th><th scope="col" className="pb-3">Duration</th><th scope="col" className="pb-3" />
             </tr></thead>
             <tbody className="divide-y divide-white/5">
               {simulations.map(s => (
@@ -130,10 +126,10 @@ export default function SimulationPage() {
 
       {/* Selected Detail + Timeline */}
       {selected && selected.timeline.length > 0 && (
-        <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+        <div className="glass-card rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Zap className="w-5 h-5 text-yellow-400" />
-            <h3 className="text-lg font-semibold text-text-primary">Timeline — {selected.name}</h3>
+            <h2 className="text-lg font-semibold text-text-primary">Timeline — {selected.name}</h2>
           </div>
 
           {selected.metrics.length > 0 && (
@@ -162,8 +158,8 @@ export default function SimulationPage() {
       )}
 
       {/* Create Simulation */}
-      <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-lg font-semibold text-text-primary mb-4">New Simulation</h3>
+      <div className="glass-card rounded-2xl p-6">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">New Simulation</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
           {SIM_TYPES.map(t => (
             <button key={t} onClick={() => setNewType(t)}

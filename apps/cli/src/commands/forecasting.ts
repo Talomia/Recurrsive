@@ -152,13 +152,16 @@ export function registerForecastCommand(program: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
       let actions: WhatIfAction[];
+      let body: Record<string, unknown>;
       try {
-        actions = await apiRequest('/api/v1/forecasting/actions') as WhatIfAction[];
+        body = await apiRequest('/api/v1/forecasting/actions') as Record<string, unknown>;
+        actions = body as unknown as WhatIfAction[];
       } catch {
         console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
         process.exit(1);
       }
-      const currentHealth = 74;
+      const bodyData = body['data'] as Record<string, unknown> | undefined;
+      const currentHealth = (bodyData?.['currentScore'] ?? bodyData?.['currentHealth'] ?? 74) as number;
 
       if (opts.json) {
         console.log(JSON.stringify({ currentHealth, actions }, null, 2));

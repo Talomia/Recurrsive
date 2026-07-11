@@ -165,7 +165,7 @@ Build organizational engineering memory and explore network effects.
 - [x] **Intelligence packs extraction** — moved from simulation.ts to own route file
 - [x] **Cloud/partner deduplication** — removed duplicate partner routes from cloud.ts
 - [x] **Plugin catalog migration** — hardcoded marketplace data moved to store
-- [x] **Dashboard sidebar grouping** — 7 labelled sections (Intelligence, Analysis, Operations, Integrations, Administration, Enterprise, Cloud)
+- [x] **Dashboard sidebar grouping** — 4 collapsible sections (Intelligence, Analysis, Operations, Administration) with localStorage persistence
 - [x] **Dashboard marketplace page** — new page wired to marketplace API
 - [x] **Dashboard partners page** — new page wired to partners API
 - [x] **Documentation** — STRATEGY.md, ARCHITECTURE.md, ROADMAP.md updated with tier boundary specs

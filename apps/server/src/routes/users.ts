@@ -171,19 +171,24 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
       },
     },
   }, async (request, reply) => {
-    const { id } = request.params;
-    const updates = request.body as Partial<UpdateUserInput>;
+    try {
+      const { id } = request.params;
+      const updates = request.body as Partial<UpdateUserInput>;
 
-    const user = await updateUser(id, updates);
-    if (!user) {
-      return reply.status(404).send({
-        error: 'Not Found',
-        message: 'User not found',
-      });
+      const user = await updateUser(id, updates);
+      if (!user) {
+        return reply.status(404).send({
+          error: 'Not Found',
+          message: 'User not found',
+        });
+      }
+
+      logger.info(`Admin updated user '${id}'`);
+      return reply.status(200).send({ data: user });
+    } catch (err) {
+      logger.error('Failed to update user', { error: err });
+      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to update user.' });
     }
-
-    logger.info(`Admin updated user '${id}'`);
-    return reply.status(200).send({ data: user });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -231,10 +236,10 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params;
     const { password } = request.body ?? {};
 
-    if (!password || typeof password !== 'string' || password.length < 6) {
+    if (!password || typeof password !== 'string' || password.length < 8) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: 'Password must be at least 6 characters',
+        message: 'Password must be at least 8 characters',
       });
     }
 

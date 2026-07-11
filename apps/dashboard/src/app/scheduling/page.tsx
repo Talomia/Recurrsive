@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, Play, Pause, Download, FileText, Trash2, Zap } from 'lucide-react';
+import Header from '@/components/header';
 import {
   getSchedules, getScheduleHistory,
   createSchedule, toggleSchedule as toggleScheduleApi,
@@ -134,14 +135,8 @@ export default function SchedulingPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Calendar className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-            Report Scheduling
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">{schedules.filter(s => s.status === 'active').length} active schedules · {history.filter(h => h.status === 'success').length} successful runs</p>
-        </div>
+      <Header title="Scheduling" subtitle="Manage recurring analysis schedules and view run history" />
+      <div className="flex items-center justify-end">
         <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: 'var(--color-accent)' }}>
           <Calendar className="w-4 h-4" /> New Schedule
         </button>
@@ -157,12 +152,12 @@ export default function SchedulingPage() {
 
       {/* Create Form */}
       {showCreate && (
-        <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <h3 className="text-base font-semibold text-text-primary mb-3">Create New Schedule</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <input placeholder="Schedule Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <input placeholder="Cron Expression (e.g. 0 9 * * 1)" value={newCron} onChange={e => setNewCron(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <select value={newFormat} onChange={e => setNewFormat(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
+        <div className="glass-card rounded-2xl p-5">
+          <h2 className="text-base font-semibold text-text-primary mb-3">Create New Schedule</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input placeholder="Schedule Name" aria-label="Schedule Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Cron Expression (e.g. 0 9 * * 1)" aria-label="Cron Expression" value={newCron} onChange={e => setNewCron(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <select value={newFormat} onChange={e => setNewFormat(e.target.value)} aria-label="Report format" className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
               <option value="pdf">PDF</option>
               <option value="html">HTML</option>
               <option value="csv">CSV</option>
@@ -180,18 +175,18 @@ export default function SchedulingPage() {
       {/* Schedules */}
       <div className="space-y-3">
         {schedules.length === 0 && (
-          <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <div className="glass-card rounded-2xl p-8 text-center">
             <Calendar className="w-10 h-10 mx-auto mb-3 text-text-tertiary" />
             <p className="text-sm text-text-secondary">No schedules yet. Create one to automate report generation.</p>
           </div>
         )}
         {schedules.map(schedule => (
-          <div key={schedule.id} className="rounded-2xl p-5 transition-all hover:scale-[1.005]" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <div key={schedule.id} className="glass-card rounded-2xl p-5 transition-all hover:scale-[1.005]">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-text-tertiary" />
-                  <h3 className="text-sm font-semibold text-text-primary">{schedule.name}</h3>
+                  <h2 className="text-sm font-semibold text-text-primary">{schedule.name}</h2>
                   <ReportTypeBadge type={schedule.reportType} />
                   <ScheduleStatusBadge status={schedule.status} />
                   <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-500/20 text-gray-400 uppercase">{schedule.format}</span>
@@ -224,20 +219,20 @@ export default function SchedulingPage() {
       </div>
 
       {/* Run History */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <Clock className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Run History
-        </h3>
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-text-tertiary text-xs border-b" style={{ borderColor: 'var(--color-border)' }}>
-                <th className="pb-2 font-medium">Report</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2 font-medium">Started</th>
-                <th className="pb-2 font-medium">Completed</th>
-                <th className="pb-2 font-medium">Size</th>
-                <th className="pb-2 font-medium">Actions</th>
+                <th scope="col" className="pb-2 font-medium">Report</th>
+                <th scope="col" className="pb-2 font-medium">Status</th>
+                <th scope="col" className="pb-2 font-medium">Started</th>
+                <th scope="col" className="pb-2 font-medium">Completed</th>
+                <th scope="col" className="pb-2 font-medium">Size</th>
+                <th scope="col" className="pb-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>

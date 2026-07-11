@@ -26,10 +26,11 @@ export default function LoginPage() {
 
   // Check if setup is required (fresh install) — redirect before showing login
   useEffect(() => {
+    let cancelled = false;
     async function checkSetup() {
       try {
         const status = await apiFetch<{ setupRequired: boolean }>('/api/v1/setup/status');
-        if (status?.setupRequired) {
+        if (!cancelled && status?.setupRequired) {
           router.replace('/setup');
         }
       } catch {
@@ -37,6 +38,7 @@ export default function LoginPage() {
       }
     }
     checkSetup();
+    return () => { cancelled = true; };
   }, [router]);
 
   async function handleSubmit(e: FormEvent) {

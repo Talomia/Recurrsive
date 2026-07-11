@@ -19,8 +19,8 @@ import type {
   Opportunity,
   MaturityDimension,
 } from '@recurrsive/core';
-import type { GraphStats } from '@recurrsive/graph';
 import { state } from '../state.js';
+import { computeHealthScore } from '../health.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,20 +33,7 @@ import { state } from '../state.js';
  * @param stats - Graph statistics.
  * @returns A health score between 0 and 100.
  */
-function computeHealthScore(opportunities: Opportunity[], _stats: GraphStats): number {
-  let score = 100;
-  for (const opp of opportunities) {
-    if (opp.status === 'archived' || opp.status === 'validated') continue;
-    switch (opp.severity) {
-      case 'critical': score -= 15; break;
-      case 'high': score -= 8; break;
-      case 'medium': score -= 3; break;
-      case 'low': score -= 1; break;
-      case 'info': break;
-    }
-  }
-  return Math.max(0, Math.min(100, score));
-}
+// computeHealthScore is imported from ../health.js
 
 // ---------------------------------------------------------------------------
 // Resource Registration

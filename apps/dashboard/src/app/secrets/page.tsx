@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Key, Lock, RefreshCcw, Shield, AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
+import Header from '@/components/header';
 import type { DashboardSecret, DashboardAuditEntry } from '@/lib/api';
 import { getSecrets, getSecretAuditLog, createSecret, deleteSecret, rotateSecret } from '@/lib/api';
 
@@ -112,14 +113,8 @@ export default function SecretsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Key className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-            Secrets
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">{secrets.length} secrets managed</p>
-        </div>
+      <Header title="Secrets & Credentials" subtitle="Manage API keys, tokens, and sensitive configuration" />
+      <div className="flex items-center justify-end gap-3">
         {needsRotation > 0 && (
           <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30">
             <AlertTriangle className="w-4 h-4 text-red-400" />
@@ -141,13 +136,13 @@ export default function SecretsPage() {
 
       {/* Create Secret Form */}
       {showCreate && (
-        <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <h3 className="text-base font-semibold text-text-primary mb-3">Create New Secret</h3>
+        <div className="glass-card rounded-2xl p-5">
+          <h2 className="text-base font-semibold text-text-primary mb-3">Create New Secret</h2>
           <div className="grid grid-cols-2 gap-3">
-            <input placeholder="Secret Key (e.g. API_KEY)" value={newKey} onChange={e => setNewKey(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <input placeholder="Secret Value" type="password" value={newValue} onChange={e => setNewValue(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <input placeholder="Description (optional)" value={newDescription} onChange={e => setNewDescription(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <input placeholder="Tags (comma-separated, optional)" value={newTags} onChange={e => setNewTags(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Secret Key (e.g. API_KEY)" aria-label="Secret Key" value={newKey} onChange={e => setNewKey(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Secret Value" aria-label="Secret Value" type="password" value={newValue} onChange={e => setNewValue(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Description (optional)" aria-label="Description" value={newDescription} onChange={e => setNewDescription(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <input placeholder="Tags (comma-separated, optional)" aria-label="Tags" value={newTags} onChange={e => setNewTags(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
           </div>
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary">Cancel</button>
@@ -159,11 +154,11 @@ export default function SecretsPage() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {['vault', 'aws', 'azure', 'local'].map(backend => {
           const count = secrets.filter(s => s.backend === backend).length;
           return (
-            <div key={backend} className="rounded-2xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <div key={backend} className="glass-card rounded-2xl p-4">
               <div className="flex items-center justify-between">
                 <BackendBadge backend={backend} />
                 <Lock className="w-4 h-4 text-text-tertiary" />
@@ -176,22 +171,22 @@ export default function SecretsPage() {
       </div>
 
       {/* Secrets Table */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <Shield className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Secret Inventory
-        </h3>
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-text-tertiary text-xs border-b" style={{ borderColor: 'var(--color-border)' }}>
-                <th className="pb-2 font-medium">Key</th>
-                <th className="pb-2 font-medium">Value</th>
-                <th className="pb-2 font-medium">Backend</th>
-                <th className="pb-2 font-medium">Version</th>
-                <th className="pb-2 font-medium">Age (days)</th>
-                <th className="pb-2 font-medium">Rotation Status</th>
-                <th className="pb-2 font-medium">Used By</th>
-                <th className="pb-2 font-medium">Actions</th>
+                <th scope="col" className="pb-2 font-medium">Key</th>
+                <th scope="col" className="pb-2 font-medium">Value</th>
+                <th scope="col" className="pb-2 font-medium">Backend</th>
+                <th scope="col" className="pb-2 font-medium">Version</th>
+                <th scope="col" className="pb-2 font-medium">Age (days)</th>
+                <th scope="col" className="pb-2 font-medium">Rotation Status</th>
+                <th scope="col" className="pb-2 font-medium">Used By</th>
+                <th scope="col" className="pb-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -229,10 +224,10 @@ export default function SecretsPage() {
       </div>
 
       {/* Rotation Audit Log */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <RefreshCcw className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Rotation Audit Log
-        </h3>
+        </h2>
         <div className="space-y-2">
           {audit.map(entry => (
             <div key={entry.id} className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>

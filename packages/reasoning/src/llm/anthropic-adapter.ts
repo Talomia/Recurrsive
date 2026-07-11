@@ -305,8 +305,10 @@ export class AnthropicAdapter implements LLMAdapter {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'anthropic-version': this.apiVersion,
-        'x-api-key': this.apiKey,
       };
+      if (this.apiKey) {
+        headers['x-api-key'] = this.apiKey;
+      }
 
       const response = await fetch(`${this.baseUrl}/v1/messages`, {
         method: 'POST',

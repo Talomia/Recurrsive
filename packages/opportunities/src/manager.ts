@@ -100,6 +100,25 @@ export class OpportunityManager {
       throw new Error(`Opportunity not found: ${id}`);
     }
 
+    // Validate status transition
+    const validTransitions: Record<OpportunityStatus, OpportunityStatus[]> = {
+      proposed:     ['accepted', 'rejected', 'archived'],
+      accepted:     ['in_progress', 'rejected', 'archived'],
+      in_progress:  ['implemented', 'rejected', 'archived'],
+      implemented:  ['validated', 'rejected'],
+      validated:    [],
+      rejected:     ['proposed'],
+      archived:     ['proposed'],
+    };
+
+    const allowed = validTransitions[opp.status];
+    if (allowed && !allowed.includes(status)) {
+      throw new Error(
+        `Invalid status transition: "${opp.status}" → "${status}". ` +
+        `Allowed transitions: ${allowed.length > 0 ? allowed.join(', ') : 'none (terminal state)'}`,
+      );
+    }
+
     const now = new Date().toISOString();
     const updated: Opportunity = {
       ...opp,

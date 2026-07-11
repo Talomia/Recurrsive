@@ -221,7 +221,6 @@ describe ('Projects endpoints', () => {
   it ('POST /api/v1/projects creates a new project', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/projects',
       payload: {
@@ -243,7 +242,6 @@ describe ('Projects endpoints', () => {
   it ('POST /api/v1/projects returns 400 without required fields', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/projects',
       payload: { description: 'missing name and repository' },
@@ -257,7 +255,6 @@ describe ('Projects endpoints', () => {
   it ('GET /api/v1/projects/:id returns a project by valid ID', async () => {
     // Create a project first
     const createRes = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/projects',
@@ -279,7 +276,6 @@ describe ('Projects endpoints', () => {
     // Create a project first
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/projects',
       payload: {
@@ -290,7 +286,6 @@ describe ('Projects endpoints', () => {
     const id = createRes.json().data.id;
 
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/projects/${id}`,
@@ -304,7 +299,6 @@ describe ('Projects endpoints', () => {
 
   it ('DELETE /api/v1/projects/:id deletes a project', async () => {
     const createRes = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/projects',
@@ -361,7 +355,7 @@ describe ('Projects endpoints', () => {
 
 describe ('Forecasting endpoints', () => {
   it('GET /api/v1/forecasting/health returns prediction data', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/forecasting/health' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/health' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
@@ -373,7 +367,7 @@ describe ('Forecasting endpoints', () => {
   });
 
   it ('Prediction has trend, confidence, and forecast fields', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/forecasting/health' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/health' });
     const body = res.json();
     expect(['improving', 'declining', 'stable']).toContain(body.data.trend);
     expect(typeof body.data.confidence).toBe('number');
@@ -384,7 +378,7 @@ describe ('Forecasting endpoints', () => {
   });
 
   it ('Horizon parameter limits forecast length', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/forecasting/health?horizon=7' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/health?horizon=7' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     // Forecast should have at most 7 entries (capped to 30 by slice, but horizon=7 generates only 7)
@@ -653,7 +647,6 @@ describe ('Multi-Tenant endpoints', () => {
     // Create a tenant first since there's no seed data
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/tenants',
       payload: { name: 'Detail Test Tenant', slug: `detail-test-${Date.now()}`, tier: 'free', ownerId: 'test-user' },
@@ -672,7 +665,6 @@ describe ('Multi-Tenant endpoints', () => {
 
   it ('POST /api/v1/tenants creates a tenant', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/tenants',
@@ -956,7 +948,6 @@ describe ('Cloud endpoints', () => {
   it ('POST /api/v1/cloud/benchmarks accepts benchmark submission', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/cloud/benchmarks',
       payload: {
@@ -973,7 +964,6 @@ describe ('Cloud endpoints', () => {
 
   it ('POST /api/v1/partners/apply submits partner application', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/partners/apply',
@@ -1001,7 +991,6 @@ describe ('Secrets endpoints', () => {
   it('GET /api/v1/secrets returns an array of secrets', async () => {
     // Create a secret first since there is no seed data
     await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/secrets',
@@ -1032,7 +1021,6 @@ describe ('Secrets endpoints', () => {
   it ('POST /api/v1/secrets creates a secret', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/secrets',
       payload: {
@@ -1059,7 +1047,6 @@ describe ('Secrets endpoints', () => {
 
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: `/api/v1/secrets/${firstSecret.id}/rotate`,
       payload: { newValue: 'rotated-value' },
@@ -1074,7 +1061,6 @@ describe ('Secrets endpoints', () => {
   it ('DELETE /api/v1/secrets/:id deletes a secret', async () => {
     // Create a secret first
     const createRes = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/secrets',
@@ -1271,7 +1257,6 @@ describe ('Plugins endpoints', () => {
     if (available) {
       const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
         method: 'POST',
         url: `/api/v1/plugins/install/${available.id}`,
       });
@@ -1457,7 +1442,6 @@ describe ('Scheduling endpoints', () => {
   it ('POST /api/v1/schedules creates a schedule', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/schedules',
       payload: {
@@ -1506,7 +1490,6 @@ describe ('Scheduling endpoints', () => {
     const firstSchedule = listRes.json().data[0];
 
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: `/api/v1/schedules/${firstSchedule.id}/run`,
@@ -1884,7 +1867,6 @@ describe ('User Management endpoints', () => {
   it('POST /api/v1/users creates a new user (admin only)', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
       payload: {
@@ -1911,7 +1893,6 @@ describe ('User Management endpoints', () => {
   it ('GET /api/v1/users lists all users', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/users',
     });
@@ -1927,7 +1908,6 @@ describe ('User Management endpoints', () => {
     // Create user first
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
       payload: {
@@ -1940,7 +1920,6 @@ describe ('User Management endpoints', () => {
     const userId = createRes.json().data.id;
 
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'GET',
       url: `/api/v1/users/${userId}`,
@@ -1955,7 +1934,6 @@ describe ('User Management endpoints', () => {
     // Create user first
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
       payload: {
@@ -1968,7 +1946,6 @@ describe ('User Management endpoints', () => {
     const userId = createRes.json().data.id;
 
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/users/${userId}`,
@@ -1984,7 +1961,6 @@ describe ('User Management endpoints', () => {
     // Create user first
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
       payload: {
@@ -1997,7 +1973,6 @@ describe ('User Management endpoints', () => {
 
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'DELETE',
       url: `/api/v1/users/${userId}`,
     });
@@ -2007,7 +1982,6 @@ describe ('User Management endpoints', () => {
 
   it ('POST /api/v1/users returns 400 without required fields', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
@@ -2027,7 +2001,6 @@ describe ('Store-backed login', () => {
   it('Login works with a store-backed user', async () => {
     // Create a user first
     await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
@@ -2098,7 +2071,6 @@ describe ('Invite endpoints', () => {
   it('POST /api/v1/invites creates an invite', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/invites',
       payload: {
@@ -2119,7 +2091,6 @@ describe ('Invite endpoints', () => {
 
   it ('GET /api/v1/invites lists all invites', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'GET',
       url: '/api/v1/invites',
@@ -2193,7 +2164,6 @@ describe ('Password change endpoint', () => {
   beforeAll(async () => {
     // Create a user to test password change on
     const createRes = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
@@ -2280,7 +2250,6 @@ describe ('Admin password reset endpoint', () => {
     // Create a user for the admin to reset
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
       payload: {
@@ -2295,7 +2264,6 @@ describe ('Admin password reset endpoint', () => {
 
   it ('PUT /api/v1/users/:id/reset-password resets the password', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/users/${targetUserId}/reset-password`,

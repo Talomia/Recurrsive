@@ -101,10 +101,10 @@ export function registerNotificationsCommand(program: Command): void {
             : green('none'),
         ]);
 
-        table(
+        console.log(table(
           ['', 'Name', 'Type', 'Description', 'Config Required'],
           rows,
-        );
+        ));
 
         info(`\n${dim('Use')} ${cyan('recurrsive notifications test <channel>')} ${dim('to send a test notification')}`);
       } catch (err) {
@@ -198,10 +198,10 @@ export function registerNotificationsCommand(program: Command): void {
           e.sent_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
         ]);
 
-        table(
+        console.log(table(
           ['', 'Title', 'Channel', 'Severity', 'Sent At'],
           rows,
-        );
+        ));
 
         info(`\n${dim(`Showing ${entries.length} notification(s)`)}`);
       } catch (err) {

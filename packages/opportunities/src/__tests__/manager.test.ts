@@ -281,6 +281,9 @@ describe('OpportunityManager', () => {
       const opp = makeOpp();
       const mgr = new OpportunityManager([opp]);
 
+      // Walk through the valid transition chain: proposed → accepted → in_progress → implemented
+      mgr.updateStatus(opp.id, 'accepted');
+      mgr.updateStatus(opp.id, 'in_progress');
       const updated = mgr.updateStatus(opp.id, 'implemented');
       expect(updated.implemented_at).toBeTruthy();
     });
@@ -289,6 +292,10 @@ describe('OpportunityManager', () => {
       const opp = makeOpp();
       const mgr = new OpportunityManager([opp]);
 
+      // Walk through the valid transition chain: proposed → accepted → in_progress → implemented → validated
+      mgr.updateStatus(opp.id, 'accepted');
+      mgr.updateStatus(opp.id, 'in_progress');
+      mgr.updateStatus(opp.id, 'implemented');
       const updated = mgr.updateStatus(opp.id, 'validated');
       expect(updated.validated_at).toBeTruthy();
     });

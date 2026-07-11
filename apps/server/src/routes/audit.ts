@@ -115,8 +115,8 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
 
     if (query.limit) {
       const parsed = parseInt(query.limit, 10);
-      if (!isNaN(parsed)) {
-        filters.limit = parsed;
+      if (!isNaN(parsed) && parsed > 0) {
+        filters.limit = Math.min(parsed, 1000);
       }
     }
 

@@ -165,7 +165,7 @@ export function registerLoginCommand(program: Command): void {
 
         if (!res.ok) {
           const body = await res.text();
-          console.log(error(`Authentication failed: ${body}`));
+          error(`Authentication failed: ${body}`);
           process.exit(1);
         }
 
@@ -175,7 +175,7 @@ export function registerLoginCommand(program: Command): void {
         success(`Logged in as ${bold(username)} (${data.user.role})`);
         console.log(dim(`  Token saved to ~/.recurrsive/config`));
       } catch (err) {
-        error(`Connection failed: ${(err as Error).message}`);
+        error(`Connection failed: ${err instanceof Error ? err.message : String(err)}`);
         console.log(dim(`  Is the server running at ${server}?`));
         process.exit(1);
       }
@@ -240,7 +240,7 @@ export function registerLoginCommand(program: Command): void {
         }
         console.log(dim(`  Server: ${opts.server}`));
       } catch (err) {
-        error(`Connection failed: ${(err as Error).message}`);
+        error(`Connection failed: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
     });

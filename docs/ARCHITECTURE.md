@@ -1633,25 +1633,23 @@ subscriptions, fragments, aliases, or nested selections beyond one level.
 
 | Route | Page | Description |
 |---|---|---|
-| `/` | Dashboard Home | Overview: health gauge, top findings, top opportunities, recent activity |
-| `/analytics` | Analytics | Analysis trends (12-week), health score trends, category breakdown |
+| `/` | Intelligence Overview | Overview with Executive View tab: health gauge, KPIs, risk assessment, opportunities, performance metrics |
+| `/analytics` | Analytics | Analytics with AI Insights tab: 12-week trends, health score trends, category breakdown, AI-generated insight cards |
 | `/audit` | Audit Trail | Audit event log with filtering by type and date |
 | `/batch` | Batch Analysis | Start and monitor batch analyses across projects |
 | `/batch/[id]` | Batch Detail | Status and results for a specific batch analysis |
-| `/cloud` | Cloud | Cloud deployment benchmarks, patterns, partners, and services |
 | `/comparisons` | Comparisons | Compare analysis runs side by side |
-| `/confidence` | Confidence | Confidence scoring and calibration metrics |
 | `/data-masking` | Data Masking | PII distribution, masking policies, and strategies |
-| `/executive` | Executive | Executive summary dashboards and KPIs |
 | `/experiments` | Experiments | List and manage A/B testing experiments |
 | `/experiments/[id]` | Experiment Detail | Detailed view of a specific experiment with metrics |
 | `/findings` | Findings List | Filterable/sortable table of all findings |
-| `/forecasting` | Forecasting | Predictive analytics, evolution forecasts, what-if analysis |
+| `/findings/[id]` | Finding Detail | Severity badges, code snippet, related opportunities, resolve/suppress/assign actions |
+| `/forecasting` | Forecasting | Forecasting with Confidence tab: predictive analytics, evolution forecasts, what-if analysis, calibration metrics |
 | `/health` | Health Overview | Health score gauge, maturity scores, dimension breakdown |
-| `/insights` | Insights | Browse reasoning insights and debate summaries |
 | `/insights/[id]` | Insight Detail | Full insight detail with evidence chain |
-| `/intelligence-packs` | Intelligence Packs | Browse and install domain intelligence packs |
+| `/invites` | Invitations | Team invitation management and pending invite tracking |
 | `/login` | Login | Authentication page (uses auth context) |
+| `/marketplace` | Marketplace | Marketplace with Intelligence Packs tab: browse extensions and domain intelligence packs |
 | `/notifications` | Notifications | Notification channel management and history |
 | `/notifications/[id]` | Notification Detail | Details of a specific notification |
 | `/opportunities` | Opportunity Board | Kanban board grouped by maturity stage |
@@ -1660,6 +1658,7 @@ subscriptions, fragments, aliases, or nested selections beyond one level.
 | `/policies` | Policies | Active policy sets and compliance overview |
 | `/policies/[id]` | Policy Detail | Individual policy rules and violation history |
 | `/projects` | Projects | Project management and repository connections |
+| `/projects/[id]` | Project Detail | Health gauge, 4 tabs (Overview, Findings, Opportunities, Settings), analyze button |
 | `/reports` | Reports | Generate and download reports in multiple formats |
 | `/scheduling` | Scheduling | Scheduled analysis runs and recurring tasks |
 | `/search` | Search | Full-text search across all entities and findings |
@@ -1672,7 +1671,44 @@ subscriptions, fragments, aliases, or nested selections beyond one level.
 | `/system-map/[id]` | Entity Detail | Entity properties, neighbors, findings, history |
 | `/tenants` | Tenants | Multi-tenant organization management |
 | `/timeline` | Timeline | Intelligence timeline with trend data |
+| `/users` | Users | Users with Invitations tab: user management, roles, team invite management |
 | `/webhooks` | Webhooks | Manage webhook integrations and delivery history |
+
+#### Dashboard Components
+
+The dashboard uses 16 shared React components in `apps/dashboard/src/components/`:
+
+| Component | File | Description |
+|---|---|---|
+| AI Chat Panel | `ai-chat-panel.tsx` | Slide-out AI chat with conversation history |
+| Auth Guard | `auth-guard.tsx` | Route protection wrapper |
+| Category Badge | `category-badge.tsx` | Color-coded category labels |
+| Command Palette | `command-palette.tsx` | ⌘K search with 32 pages + 4 actions |
+| Error Banner | `error-banner.tsx` | Dismissible error notifications with retry |
+| Header | `header.tsx` | Unified page header with command palette, notifications, AI chat, and user menu |
+| Health Chart | `health-chart.tsx` | SVG area chart for health score trends |
+| Live Indicator | `LiveIndicator.tsx` | Animated pulse dot for real-time status |
+| Loading Skeleton | `loading-skeleton.tsx` | Loading state variants (page, card, table, chart, list) |
+| Metric Card | `metric-card.tsx` | KPI display card with trend indicators |
+| Notifications Panel | `notifications-panel.tsx` | Bell dropdown with notification history |
+| Opportunities List | `opportunities-list.tsx` | Clickable opportunity items with severity badges |
+| Providers | `providers.tsx` | React context providers wrapper |
+| Score Gauge | `score-gauge.tsx` | Circular SVG gauge for health/quality scores |
+| Sidebar | `sidebar.tsx` | 4-section collapsible nav with localStorage persistence |
+| Trend Chart | `trend-chart.tsx` | Mini sparkline chart for inline trends |
+
+#### Sidebar Navigation Structure
+
+The sidebar organizes 28 navigation items into 4 collapsible sections with localStorage-persisted open/close state:
+
+| Section | Items | Default |
+|---|---|---|
+| Intelligence | Overview, Forecasting, Health, Timeline, Comparisons | Expanded |
+| Analysis | Projects, Findings, Opportunities, System Map, Analytics | Expanded |
+| Operations | Batch, Scheduling, Reports, Search, Experiments, Simulation, Snapshots | Collapsed |
+| Administration | Users, Policies, Audit Trail, Settings, Secrets, Data Masking, Webhooks, Notifications, Marketplace, Plugins, SSO⚙, Tenants⚙ | Collapsed |
+
+SSO and Tenants display enterprise badges. Collapsed sections show an active-route indicator dot when a child page is active.
 
 ### 10.6 Report Formats
 

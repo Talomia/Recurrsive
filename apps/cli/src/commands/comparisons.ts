@@ -21,6 +21,7 @@ import {
   bold,
   cyan,
   green,
+  red,
   yellow,
 } from '../output/terminal.js';
 
@@ -157,7 +158,7 @@ export function registerComparisonsCommand(program: Command): void {
         info(`  ${bold('Findings:')}     ${diff.baseline.findings} → ${diff.target.findings}  (${cyan(`${findingsSign}${diff.findings_delta}`)})`);
 
         // Resolution rates
-        info(`  ${bold('Res. Rate:')}    ${diff.resolution_rate_baseline}% → ${diff.resolution_rate_target}%  (${green(`+${diff.resolution_rate_delta}%`)})`);
+        info(`  ${bold('Res. Rate:')}    ${diff.resolution_rate_baseline}% → ${diff.resolution_rate_target}%  (${diff.resolution_rate_delta >= 0 ? green(`+${diff.resolution_rate_delta}%`) : red(`${diff.resolution_rate_delta}%`)})`);
 
         info('');
         info(`  ${bold('New Findings:')}      ${cyan(String(diff.new_findings))}`);

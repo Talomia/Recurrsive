@@ -191,7 +191,7 @@ async function parseSAMLResponse(provider: string, samlResponse: string): Promis
 
 export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   // List SSO configurations
-  app.get('/api/v1/sso/providers', async (_request, reply) => {
+  app.get('/api/v1/sso/providers', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const allConfigs = await store.all<SSOConfig & { _storeId?: string }>('sso_configs');
 
     // We need the store key (provider id) for the response. Since the store
@@ -226,7 +226,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Get SSO config details
-  app.get<{ Params: { id: string } }>('/api/v1/sso/providers/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     const config = await store.get<SSOConfig>('sso_configs', request.params.id);
     if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not found' });
     return reply.send({ data: config });
@@ -396,7 +396,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // List active SSO sessions
-  app.get('/api/v1/sso/sessions', async (_request, reply) => {
+  app.get('/api/v1/sso/sessions', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const allSessions = await store.all<SSOSession>('sso_sessions');
     // The original returned sessionId as the map key. Since we store
     // sessions with their ID as the key and it's also embedded in the
@@ -431,7 +431,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Revoke SSO session
-  app.delete<{ Params: { id: string } }>('/api/v1/sso/sessions/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/sso/sessions/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!await store.has('sso_sessions', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Session not found' });
     }

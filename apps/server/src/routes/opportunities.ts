@@ -144,6 +144,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
         });
       }
 
+
       const manager = state.getOpportunities();
       try {
         const updated = manager.updateStatus(id, status, reason);
@@ -177,6 +178,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
           message: `Invalid format "${format}". Valid values: ${validFormats.join(', ')}`,
         });
       }
+
 
       const manager = state.getOpportunities();
 
@@ -223,6 +225,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    * Return opportunity categories with counts.
    */
   app.get('/api/v1/opportunities/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+
     const manager = state.getOpportunities();
     const all = manager.list({});
 

@@ -29,6 +29,7 @@ import {
 import { getProjects, createBatchRun, triggerAnalysis } from '@/lib/api';
 import type { Project } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
+import Header from '@/components/header';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -303,7 +304,7 @@ export default function ProjectsPage() {
 
   const deleteProject = async (id: string) => {
     try {
-      await apiFetch(`/api/v1/projects/${id}`, { method: 'DELETE', unwrap: false });
+      await apiFetch(`/api/v1/projects/${encodeURIComponent(id)}`, { method: 'DELETE', unwrap: false });
       setProjects(prev => prev.filter(p => p.id !== id));
       setToast({ message: 'Project deleted.', type: 'info' });
     } catch {
@@ -357,15 +358,8 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <FolderGit2 className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-            Projects
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">{projects.length} project{projects.length !== 1 ? 's' : ''} managed</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <Header title="Projects" subtitle="Manage your registered repositories and trigger analyses" />
+      <div className="flex items-center justify-end gap-3">
           {projects.length > 0 && (
             <button
               onClick={() => setSortBy(sortBy === 'health' ? 'name' : sortBy === 'name' ? 'updated' : 'health')}
@@ -384,7 +378,6 @@ export default function ProjectsPage() {
             <Plus className="w-4 h-4" />
             New Project
           </button>
-        </div>
       </div>
 
       {/* Toast */}
@@ -400,11 +393,12 @@ export default function ProjectsPage() {
 
       {/* Create form */}
       {showCreate && (
-        <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <h3 className="text-base font-semibold text-text-primary mb-3">Create New Project</h3>
+        <div className="glass-card rounded-2xl p-5">
+          <h2 className="text-base font-semibold text-text-primary mb-3">Create New Project</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               placeholder="Project Name (e.g. My Backend API)"
+              aria-label="Project Name"
               value={newName}
               onChange={e => setNewName(e.target.value)}
               className="px-3 py-2.5 rounded-lg text-sm"
@@ -412,6 +406,7 @@ export default function ProjectsPage() {
             />
             <input
               placeholder="Repository URL (e.g. https://github.com/org/repo)"
+              aria-label="Repository URL"
               value={newRepo}
               onChange={e => setNewRepo(e.target.value)}
               className="px-3 py-2.5 rounded-lg text-sm"
@@ -439,8 +434,8 @@ export default function ProjectsPage() {
 
       {/* Health Overview — only show when we have analyzed projects */}
       {hasAnyAnalyzed && sorted.length > 0 && (
-        <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <h3 className="text-base font-semibold text-text-primary mb-3">Health Overview</h3>
+        <div className="glass-card rounded-2xl p-5">
+          <h2 className="text-base font-semibold text-text-primary mb-3">Health Overview</h2>
           <div className="flex items-end gap-1 h-28">
             {sorted.map(p => (
               <div key={p.id} className="flex-1 flex flex-col items-center group cursor-pointer">
@@ -478,7 +473,7 @@ export default function ProjectsPage() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold text-text-primary">{project.name}</h3>
+                    <h2 className="text-lg font-semibold text-text-primary">{project.name}</h2>
                     <HealthBadge score={project.healthScore} analyzed={!neverAnalyzed} />
                     <LanguageBadge language={project.language} />
                   </div>

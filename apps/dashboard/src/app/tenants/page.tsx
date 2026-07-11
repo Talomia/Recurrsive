@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Building2, Users, CreditCard, Shield, BarChart3, Loader2 } from 'lucide-react';
+import Header from '@/components/header';
 import { getTenants, createTenant, deleteTenant } from '@/lib/api';
 import type { DashboardTenant } from '@/lib/api';
 
@@ -107,14 +108,8 @@ export default function TenantsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Building2 className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-            Tenants
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">{tenants.length} tenant{tenants.length !== 1 ? 's' : ''} managed</p>
-        </div>
+      <Header title="Multi-Tenant Management" subtitle="Manage tenants, tiers, and resource quotas" />
+      <div className="flex items-center justify-end">
         <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: 'var(--color-accent)' }}>
           <Building2 className="w-4 h-4" /> New Tenant
         </button>
@@ -130,11 +125,11 @@ export default function TenantsPage() {
       )}
 
       {showCreate && (
-        <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <h3 className="text-base font-semibold text-text-primary mb-3">Create New Tenant</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <input placeholder="Tenant Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <select value={newTier} onChange={e => setNewTier(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
+        <div className="glass-card rounded-2xl p-5">
+          <h2 className="text-base font-semibold text-text-primary mb-3">Create New Tenant</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input placeholder="Tenant Name" aria-label="Tenant Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
+            <select value={newTier} onChange={e => setNewTier(e.target.value)} aria-label="Tenant tier" className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
               <option value="free">Free</option>
               <option value="team">Team</option>
               <option value="enterprise">Enterprise</option>
@@ -150,13 +145,13 @@ export default function TenantsPage() {
       )}
 
       {/* Tier Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {(['free', 'team', 'enterprise'] as const).map(tier => {
           const count = tenants.filter(t => t.tier === tier).length;
           const icons = { free: Users, team: CreditCard, enterprise: Shield };
           const Icon = icons[tier];
           return (
-            <div key={tier} className="rounded-2xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <div key={tier} className="glass-card rounded-2xl p-4">
               <div className="flex items-center justify-between">
                 <TierBadge tier={tier} />
                 <Icon className="w-4 h-4 text-text-tertiary" />
@@ -171,16 +166,16 @@ export default function TenantsPage() {
       {/* Tenant List */}
       <div className="space-y-3">
         {tenants.length === 0 && (
-          <div className="rounded-2xl p-8 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <div className="glass-card rounded-2xl p-8 text-center">
             <p className="text-sm text-text-secondary">No tenants yet. Create one to start multi-tenant management.</p>
           </div>
         )}
         {tenants.map(tenant => (
-          <div key={tenant.id} className="rounded-2xl p-5 transition-all hover:scale-[1.005]" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <div key={tenant.id} className="glass-card rounded-2xl p-5 transition-all hover:scale-[1.005]">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold text-text-primary">{tenant.name}</h3>
+                  <h2 className="text-lg font-semibold text-text-primary">{tenant.name}</h2>
                   <TierBadge tier={tenant.tier} />
                   <StatusBadge status={tenant.status} />
                 </div>
@@ -198,18 +193,18 @@ export default function TenantsPage() {
       </div>
 
       {/* Feature Comparison */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <BarChart3 className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Feature Comparison
-        </h3>
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-text-tertiary text-xs border-b" style={{ borderColor: 'var(--color-border)' }}>
-                <th className="pb-2 font-medium">Feature</th>
-                <th className="pb-2 font-medium text-center">Free</th>
-                <th className="pb-2 font-medium text-center">Team</th>
-                <th className="pb-2 font-medium text-center">Enterprise</th>
+                <th scope="col" className="pb-2 font-medium">Feature</th>
+                <th scope="col" className="pb-2 font-medium text-center">Free</th>
+                <th scope="col" className="pb-2 font-medium text-center">Team</th>
+                <th scope="col" className="pb-2 font-medium text-center">Enterprise</th>
               </tr>
             </thead>
             <tbody>

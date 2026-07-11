@@ -163,19 +163,7 @@ export function LiveIndicator({
         </span>
       )}
 
-      {/* Keyframe animation */}
-      <style>{`
-        @keyframes live-pulse {
-          0%, 100% {
-            transform: scale(1);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(2.5);
-            opacity: 0;
-          }
-        }
-      `}</style>
+      {/* Keyframe animation is in globals.css */}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import os from 'node:os';
 import { VERSION, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:health' } });
 
@@ -42,7 +43,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
    * Alias for the root `/health` endpoint, mounted under the versioned
    * API prefix. Returns identical liveness-probe data.
    */
-  app.get('/api/v1/health', async (_request, reply) => {
+  app.get('/api/v1/health', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const initialized = state.isInitialized();
 
     return reply.status(200).send({
@@ -60,7 +61,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
    * Extended health check with system-level details: memory usage,
    * CPU load, OS info, and initialization state.
    */
-  app.get('/api/v1/health/detailed', async (_request, reply) => {
+  app.get('/api/v1/health/detailed', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const initialized = state.isInitialized();
     const memUsage = process.memoryUsage();
     const totalMem = os.totalmem();
@@ -98,7 +99,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
    * Returns the computed project health score and per-dimension maturity
    * breakdown. Requires that at least one analysis has been run.
    */
-  app.get('/api/v1/health-score', async (_request, reply) => {
+  app.get('/api/v1/health-score', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -172,7 +173,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
    * - Issue density (findings per 1K entities)
    * - Graph coverage (relationship-to-entity ratio)
    */
-  app.get('/api/v1/metrics/performance', async (_request, reply) => {
+  app.get('/api/v1/metrics/performance', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const cache = state.getAnalysisCache();
     if (!cache) {
       return reply.status(404).send({
@@ -243,7 +244,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   // Dashboard health page — returns system health overview with
   // process metrics and service statuses.
 
-  app.get('/api/v1/health/dashboard', async (_request, reply) => {
+  app.get('/api/v1/health/dashboard', { preHandler: [authMiddleware] }, async (_request, reply) => {
     // Process metrics (always available)
     const memUsage = process.memoryUsage();
     const totalMem = os.totalmem();
@@ -304,7 +305,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
    * Return historical health scores derived from analysis history.
    * Each entry maps to a score based on finding count and a letter grade.
    */
-  app.get('/api/v1/health-score/history', async (_request, reply) => {
+  app.get('/api/v1/health-score/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',

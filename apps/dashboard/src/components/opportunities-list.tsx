@@ -37,14 +37,23 @@ export default function OpportunitiesList({
           className="flex items-center gap-1 text-xs font-medium text-accent-blue hover:text-blue-300 transition-colors"
         >
           Explore All Opportunities
-          <ArrowRight className="h-3 w-3" />
+          <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       </div>
 
-      <div className="space-y-3">
+      {top.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <p className="text-sm text-text-muted">No opportunities found yet.</p>
+          <p className="text-xs text-text-muted mt-1">Run an analysis to discover improvement opportunities.</p>
+        </div>
+      )}
+
+      {top.length > 0 && (
+      <ul className="space-y-3" aria-label="Top opportunities">
         {top.map((opp, i) => (
-          <div
-            key={opp.id}
+          <li key={opp.id}>
+          <Link
+            href={`/opportunities/${opp.id}`}
             className="flex items-start gap-4 rounded-xl bg-white/[0.02] border border-white/5 p-4 hover:bg-white/[0.04] hover:border-white/8 transition-all duration-200 animate-fade-in-up"
             style={{ animationDelay: `${i * 0.07}s` }}
           >
@@ -55,7 +64,7 @@ export default function OpportunitiesList({
               >
                 {opp.score}
               </span>
-              <div className="h-1 w-8 rounded-full bg-white/5 overflow-hidden">
+              <div className="h-1 w-8 rounded-full bg-white/5 overflow-hidden" aria-hidden="true">
                 <div
                   className={`h-full rounded-full ${getScoreBarColor(opp.score)}`}
                   style={{ width: `${opp.score}%` }}
@@ -80,9 +89,11 @@ export default function OpportunitiesList({
                 </span>
               </div>
             </div>
-          </div>
+          </Link>
+          </li>
         ))}
-      </div>
+      </ul>
+      )}
     </div>
   );
 }

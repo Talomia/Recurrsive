@@ -23,6 +23,7 @@
 import type { FastifyInstance } from 'fastify';
 import { createLogger, generateId } from '@recurrsive/core';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:routes:graphql' } });
 
@@ -666,7 +667,7 @@ export async function registerGraphQLRoutes(app: FastifyInstance): Promise<void>
    * Execute a GraphQL query. Accepts JSON body with `query` (required),
    * `variables` (optional), and `operationName` (optional).
    */
-  app.post<{ Body: GraphQLRequestBody }>('/api/v1/graphql', async (request, reply) => {
+  app.post<{ Body: GraphQLRequestBody }>('/api/v1/graphql', { preHandler: [authMiddleware] }, async (request, reply) => {
     const startTime = Date.now();
 
     const body = request.body;
@@ -709,7 +710,7 @@ export async function registerGraphQLRoutes(app: FastifyInstance): Promise<void>
    *
    * Returns the raw GraphQL schema definition language (SDL) string.
    */
-  app.get('/api/v1/graphql/schema', async (_request, reply) => {
+  app.get('/api/v1/graphql/schema', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.status(200).header('content-type', 'text/plain; charset=utf-8').send(SCHEMA_SDL);
   });
 
@@ -719,7 +720,7 @@ export async function registerGraphQLRoutes(app: FastifyInstance): Promise<void>
    * Returns schema metadata in JSON format, similar to a simplified
    * `__schema` introspection query response.
    */
-  app.get('/api/v1/graphql/introspection', async (_request, reply) => {
+  app.get('/api/v1/graphql/introspection', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.status(200).send({
       data: {
         __schema: INTROSPECTION,

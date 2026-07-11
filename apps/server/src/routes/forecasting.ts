@@ -12,6 +12,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { state } from '../state.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Forecasting utilities
@@ -103,6 +104,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
    */
   app.get<{ Querystring: { horizon?: string; history?: string } }>(
     '/api/v1/forecasting/health',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
         const horizon = Math.min(180, parseInt(request.query.horizon ?? '30', 10) || 30);
@@ -175,6 +177,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
    * Body: { actions: [{ type, description, estimatedImpact }] }
    */
   app.post('/api/v1/forecasting/what-if', {
+    preHandler: [authMiddleware],
     schema: {
       body: {
         type: 'object',
@@ -286,7 +289,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
    * Get the evolution graph — track decisions, outcomes, and learning over time.
    * Auto-generated from real analysis history.
    */
-  app.get('/api/v1/forecasting/evolution', async (_request, reply) => {
+  app.get('/api/v1/forecasting/evolution', { preHandler: [authMiddleware] }, async (_request, reply) => {
     try {
       // Build evolution events from real analysis history
       const history = state.isInitialized() ? state.getAnalysisHistory() : [];
@@ -376,6 +379,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
    */
   app.get<{ Querystring: { horizon?: string } }>(
     '/api/v1/forecasting/predictions',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
         const horizonDays = Math.min(90, parseInt(request.query.horizon ?? '30', 10) || 30);

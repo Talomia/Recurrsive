@@ -49,6 +49,13 @@ export interface ApiKeyInfo {
  */
 const API_KEY_TABLE = 'api_keys';
 
+/** Secondary index: key ID → hash for O(1) revocation lookups. */
+const API_KEY_ID_INDEX = 'api_key_id_index';
+
+/** In-memory cache to debounce lastUsedAt writes (max once per minute per key). */
+const _lastUsedCache = new Map<string, number>();
+const LAST_USED_DEBOUNCE_MS = 60_000;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -99,6 +106,10 @@ export async function generateApiKey(
   };
 
   await store.set(API_KEY_TABLE, hashed, info);
+
+  // Write secondary index for O(1) revocation by ID
+  await store.set(API_KEY_ID_INDEX, info.id, hashed);
+
   logger.info(`API key '${name}' created for user '${userId}' (role: ${role})`);
 
   return { key: raw, info };
@@ -131,9 +142,14 @@ export async function validateApiKey(key: string): Promise<ApiKeyInfo | null> {
     }
   }
 
-  // Update last-used timestamp
-  info.lastUsedAt = nowISO();
-  await store.set(API_KEY_TABLE, hashed, info);
+  // Debounce last-used timestamp updates (at most once per minute per key)
+  const now = Date.now();
+  const lastWritten = _lastUsedCache.get(hashed) ?? 0;
+  if (now - lastWritten >= LAST_USED_DEBOUNCE_MS) {
+    info.lastUsedAt = nowISO();
+    await store.set(API_KEY_TABLE, hashed, info);
+    _lastUsedCache.set(hashed, now);
+  }
 
   return info;
 }
@@ -145,13 +161,15 @@ export async function validateApiKey(key: string): Promise<ApiKeyInfo | null> {
  * @returns `true` if a key was found and removed, `false` otherwise.
  */
 export async function revokeApiKey(id: string): Promise<boolean> {
-  // API keys are stored by hash, so we scan entries to find by ID
-  for (const [hashed, info] of await store.entries<ApiKeyInfo>(API_KEY_TABLE)) {
-    if (info.id === id) {
-      await store.delete(API_KEY_TABLE, hashed);
-      logger.info(`API key '${info.name}' (id: ${id}) revoked`);
-      return true;
-    }
+  // Use secondary index for O(1) lookup by ID
+  const hashed = await store.get<string>(API_KEY_ID_INDEX, id);
+  if (hashed) {
+    const info = await store.get<ApiKeyInfo>(API_KEY_TABLE, hashed);
+    await store.delete(API_KEY_TABLE, hashed);
+    await store.delete(API_KEY_ID_INDEX, id);
+    _lastUsedCache.delete(hashed);
+    logger.info(`API key '${info?.name ?? id}' (id: ${id}) revoked`);
+    return true;
   }
   return false;
 }

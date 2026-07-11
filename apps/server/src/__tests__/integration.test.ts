@@ -258,7 +258,7 @@ describe ('Flow: Analysis → Findings → Opportunities → Health → Reports'
   });
 
   it ('5. GET /api/v1/health-score returns health score shape', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/health-score' });
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/health-score' });
     // 200 if initialized and cache exists, 404 if no analysis cache yet, 503 if not initialized
     expect([200, 404, 503]).toContain(res.statusCode);
     if (res.statusCode === 200) {

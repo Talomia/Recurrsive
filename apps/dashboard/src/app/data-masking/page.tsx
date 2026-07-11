@@ -6,10 +6,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Shield, Lock, Fingerprint, AlertTriangle, Loader2 } from 'lucide-react';
+import { Eye, Shield, Lock, Fingerprint, AlertTriangle, Loader2 } from 'lucide-react';
 import type { DashboardMaskingPolicy, DashboardPiiDistribution, DashboardMaskingStrategy } from '@/lib/api';
 import { getMaskingPolicies, getPiiDistribution, getMaskingStrategies } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
+import Header from '@/components/header';
 
 // Default sample text for the PII scanner
 const SAMPLE_TEXT = `{
@@ -82,13 +83,7 @@ export default function DataMaskingPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <EyeOff className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          Data Masking & PII Controls
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">Configure masking policies, audit PII exposure, and test data protection rules.</p>
-      </div>
+      <Header title="Data Masking & PII Controls" subtitle="Configure masking policies, audit PII exposure, and test data protection rules" />
 
       {/* Error */}
       {error && (
@@ -106,7 +101,7 @@ export default function DataMaskingPage() {
           { label: 'Strategies', value: strategies.length, icon: Lock },
           { label: 'Alerts', value: policies.filter(p => p.status === 'disabled').length, icon: AlertTriangle },
         ].map(k => (
-          <div key={k.label} className="rounded-xl p-4" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <div key={k.label} className="glass-card rounded-xl p-4">
             <p className="text-xs text-text-tertiary uppercase">{k.label}</p>
             <p className="text-2xl font-bold text-text-primary">{k.value}</p>
           </div>
@@ -114,15 +109,15 @@ export default function DataMaskingPage() {
       </div>
 
       {/* Masking Policy Table */}
-      <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-4">
           <Eye className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-          <h3 className="text-lg font-semibold text-text-primary">Masking Policies</h3>
+          <h2 className="text-lg font-semibold text-text-primary">Masking Policies</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-text-tertiary text-xs uppercase">
-              <th className="pb-3">Field Pattern</th><th className="pb-3">PII Type</th><th className="pb-3">Strategy</th><th className="pb-3">Status</th><th className="pb-3">Matches</th><th className="pb-3">Last Triggered</th>
+              <th scope="col" className="pb-3">Field Pattern</th><th scope="col" className="pb-3">PII Type</th><th scope="col" className="pb-3">Strategy</th><th scope="col" className="pb-3">Status</th><th scope="col" className="pb-3">Matches</th><th scope="col" className="pb-3">Last Triggered</th>
             </tr></thead>
             <tbody className="divide-y divide-white/5">
               {policies.map(p => (
@@ -141,10 +136,10 @@ export default function DataMaskingPage() {
       </div>
 
       {/* PII Distribution */}
-      <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-4">
           <Fingerprint className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-          <h3 className="text-lg font-semibold text-text-primary">PII Type Distribution</h3>
+          <h2 className="text-lg font-semibold text-text-primary">PII Type Distribution</h2>
         </div>
         {/* Bar */}
         <div className="flex h-4 rounded-full overflow-hidden mb-4">
@@ -164,15 +159,15 @@ export default function DataMaskingPage() {
       </div>
 
       {/* Strategy Cards */}
-      <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-4">
           <Lock className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-          <h3 className="text-lg font-semibold text-text-primary">Masking Strategies</h3>
+          <h2 className="text-lg font-semibold text-text-primary">Masking Strategies</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {strategies.map(s => (
             <div key={s.name} className="p-4 rounded-xl" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
-              <h4 className="text-sm font-semibold text-text-primary mb-1">{s.name}</h4>
+              <h3 className="text-sm font-semibold text-text-primary mb-1">{s.name}</h3>
               <p className="text-xs text-text-secondary mb-3">{s.description}</p>
               <div className="flex items-center gap-3 text-xs mb-2">
                 {'reversible' in s && <span className={s.reversible ? 'text-green-400' : 'text-red-400'}>{s.reversible ? 'Reversible' : 'Irreversible'}</span>}
@@ -191,11 +186,11 @@ export default function DataMaskingPage() {
       </div>
 
       {/* PII Scanner */}
-      <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-            <h3 className="text-lg font-semibold text-text-primary">PII Scanner</h3>
+            <h2 className="text-lg font-semibold text-text-primary">PII Scanner</h2>
           </div>
           <button onClick={() => setShowScanner(!showScanner)}
             className="px-4 py-1.5 rounded-lg text-xs font-medium text-white"
@@ -214,6 +209,7 @@ export default function DataMaskingPage() {
                 className="w-full p-3 rounded-lg text-xs font-mono text-text-secondary focus:outline-none focus:ring-2"
                 style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}
                 placeholder="Paste text containing PII to mask..."
+                aria-label="Input text containing PII to mask"
               />
             </div>
             <button

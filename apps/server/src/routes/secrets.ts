@@ -14,6 +14,44 @@ import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
 import { store } from '../store.js';
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
+
+// ---------------------------------------------------------------------------
+// AES-256-GCM encryption helpers
+// ---------------------------------------------------------------------------
+
+const ENCRYPTION_ALGORITHM = 'aes-256-gcm' as const;
+const IV_LENGTH = 12; // 96-bit IV recommended for GCM
+const AUTH_TAG_LENGTH = 16;
+
+/** Derive a 32-byte key from the configured secret. */
+function getEncryptionKey(): Buffer {
+  const raw = process.env['SECRETS_ENCRYPTION_KEY'] ?? 'recurrsive-default-encryption-key-32b';
+  return createHash('sha256').update(raw).digest();
+}
+
+/** Encrypt a plaintext value using AES-256-GCM. Returns base64(iv + ciphertext + authTag). */
+function encryptSecret(plaintext: string): string {
+  const key = getEncryptionKey();
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv(ENCRYPTION_ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  // Pack as: iv (12) + ciphertext (variable) + authTag (16)
+  return Buffer.concat([iv, encrypted, authTag]).toString('base64');
+}
+
+/** Decrypt a value produced by encryptSecret. */
+export function decryptSecret(encoded: string): string {
+  const key = getEncryptionKey();
+  const buf = Buffer.from(encoded, 'base64');
+  const iv = buf.subarray(0, IV_LENGTH);
+  const authTag = buf.subarray(buf.length - AUTH_TAG_LENGTH);
+  const ciphertext = buf.subarray(IV_LENGTH, buf.length - AUTH_TAG_LENGTH);
+  const decipher = createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  decipher.setAuthTag(authTag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -128,7 +166,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
     };
 
     await store.set('secrets', id, entry);
-    await store.set('secret_values', id, `[ENCRYPTED:${body.value}]`);
+    await store.set('secret_values', id, encryptSecret(body.value));
 
     await store.append<SecretAuditEntry>('secret_audit', {
       id: generateId(), secretId: id, secretKey: entry.key,
@@ -163,7 +201,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
     await store.set('secrets', secret.id, secret);
 
     if (body.newValue) {
-      await store.set('secret_values', secret.id, `[ENCRYPTED:${body.newValue}]`);
+      await store.set('secret_values', secret.id, encryptSecret(body.newValue));
     }
 
     await store.append<SecretAuditEntry>('secret_audit', {

@@ -51,6 +51,26 @@ function escapeCypher(value: string): string {
     .replace(/\0/g, '');           // strip null bytes
 }
 
+/**
+ * Validate that a label is safe for Cypher interpolation.
+ * Checks against Zod schemas first, then falls back to identifier regex.
+ * Prevents Cypher injection via entity/relationship type labels.
+ */
+function validateCypherLabel(label: string, kind: 'entity' | 'relationship'): void {
+  // First check: validate against known schema values
+  const schema = kind === 'entity' ? EntityTypeSchema : RelationTypeSchema;
+  const result = schema.safeParse(label);
+  if (result.success) return;
+
+  // Fallback: strict identifier regex (allows only alphanumeric + underscore)
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(label)) return;
+
+  throw new GraphError(
+    `Invalid ${kind} type "${label}" — must be a valid identifier`,
+    'INVALID_FILTER',
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Graph Statistics
 // ---------------------------------------------------------------------------
@@ -444,7 +464,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
       }
 
       const rows = await this.executeCypher(
-        `MATCH (n:${type}) ${whereClause} RETURN n`,
+        `MATCH (n:${(validateCypherLabel(type, 'entity'), type)}) ${whereClause} RETURN n`,
         'n agtype',
       );
       return rows.map((row) => {
@@ -596,6 +616,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
   async upsertEntity(entity: Entity): Promise<Entity> {
     try {
       const props = entityToAgeProps(entity);
+      validateCypherLabel(entity.type, 'entity');
       await this.executeCypher(
         `MERGE (n:${entity.type} {id: '${escapeCypher(entity.id)}'}) SET n += ${props} RETURN n`,
         'n agtype',
@@ -622,6 +643,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
       const props = relationshipToAgeProps(relationship);
       const safeSrcId = escapeCypher(relationship.source_id);
       const safeTgtId = escapeCypher(relationship.target_id);
+      validateCypherLabel(relationship.type, 'relationship');
       await this.executeCypher(
         `MATCH (a {id: '${safeSrcId}'}), (b {id: '${safeTgtId}'}) MERGE (a)-[r:${relationship.type} {id: '${escapeCypher(relationship.id)}'}]->(b) SET r += ${props} RETURN r`,
         'r agtype',
@@ -809,8 +831,12 @@ export class AgeGraphClient implements ExtendedGraphClient {
       const offset = Math.max(0, options?.offset ?? 0);
 
       // Use Cypher to list relationships — consistent with getRelationships()
-      // For type filtering, we filter the label; otherwise match all edges.
-      const typeFilter = options?.type ? `:${options.type}` : '';
+      // For type filtering, validate and apply label filter.
+      let typeFilter = '';
+      if (options?.type) {
+        validateCypherLabel(options.type, 'relationship');
+        typeFilter = `:${options.type}`;
+      }
 
       // Get total count first
       const countCypher = `MATCH ()-[r${typeFilter}]->() RETURN count(r) AS cnt`;

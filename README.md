@@ -62,7 +62,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 | 🔌 MCP tools | 42 |
 | 💬 MCP prompts | 21 |
 | 📦 MCP resources | 16 |
-| 🖥️ Dashboard pages | 46 |
+| 🖥️ Dashboard pages | 48 |
 | 🌐 Website pages | 23 |
 | 📁 Packages | 14 (9 core + 5 apps) |
 
@@ -341,7 +341,7 @@ recurrsive/
 │   ├── cli/            # Commander.js CLI — 28 commands
 │   ├── mcp/            # MCP server — 42 tools, 16 resources, 21 prompts
 │   ├── server/         # Fastify REST + WebSocket + GraphQL API — 160+ endpoints
-│   ├── dashboard/      # Next.js dashboard — 46 pages
+│   ├── dashboard/      # Next.js dashboard — 48 pages
 │   └── website/        # Next.js marketing website — 23 pages + SEO
 ├── docker/             # Dockerfiles + docker-compose
 ├── docs/
@@ -442,6 +442,15 @@ Reports and output formatting:
 - Console notifications with ANSI colors and severity icons
 - Webhook notifications with retry
 - Terminal formatter with box-drawing tables and progress bars
+
+### Dashboard
+Next.js dashboard with **48 pages** providing a full operational UI for the platform:
+
+- **Command Palette** (⌘K) — Instant fuzzy navigation to any page, entity, or action
+- **AI Chat Panel** — Conversational interface for natural-language queries against the knowledge graph
+- **Collapsible 4-Section Sidebar** — Organized navigation across Analysis, Intelligence, Administration, and Settings
+- **Finding Detail Pages** — Deep-dive views for individual analysis findings with evidence, severity, and remediation guidance
+- **Project Detail Pages** — Per-project dashboards showing health scores, dependency graphs, and opportunity timelines
 
 ---
 

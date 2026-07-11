@@ -40,17 +40,19 @@ export default function AcceptInvitePage() {
   // ── Validate the invite token ──────────────────────────────────────────
 
   useEffect(() => {
+    let cancelled = false;
     async function validate() {
       try {
-        const data = await apiFetch<InviteInfo>(`/api/v1/invites/${token}/validate`);
-        setInvite(data);
+        const data = await apiFetch<InviteInfo>(`/api/v1/invites/${encodeURIComponent(token)}/validate`);
+        if (!cancelled) setInvite(data);
       } catch (err) {
-        setError(err instanceof ApiError ? 'This invite link is invalid or has expired.' : 'Failed to validate invite link.');
+        if (!cancelled) setError(err instanceof ApiError ? 'This invite link is invalid or has expired.' : 'Failed to validate invite link.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     validate();
+    return () => { cancelled = true; };
   }, [token]);
 
   // ── Accept the invite ──────────────────────────────────────────────────
@@ -74,7 +76,7 @@ export default function AcceptInvitePage() {
 
     setSubmitting(true);
     try {
-      const body = await apiFetch<{ data?: { token?: string }; token?: string }>(`/api/v1/invites/${token}/accept`, {
+      const body = await apiFetch<{ data?: { token?: string }; token?: string }>(`/api/v1/invites/${encodeURIComponent(token)}/accept`, {
         method: 'POST',
         unwrap: false,
         body: JSON.stringify({ username, password, displayName: displayName || username }),
@@ -85,7 +87,7 @@ export default function AcceptInvitePage() {
       if (newToken) {
         // Store token and redirect
         localStorage.setItem('recurrsive_token', newToken);
-        document.cookie = `recurrsive_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+        document.cookie = `recurrsive_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''}`;
         router.push('/');
       } else {
         // Fallback: redirect to login

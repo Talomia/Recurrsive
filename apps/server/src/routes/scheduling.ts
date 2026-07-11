@@ -184,6 +184,17 @@ async function executeScheduledRun(schedule: ScheduledReport): Promise<ReportRun
   await store.set('schedule_runs', runId, run);
 
   try {
+    // Guard: analysis must have been run before generating reports
+    if (!state.isInitialized()) {
+      run.status = 'failed';
+      run.completedAt = nowISO();
+      run.durationMs = 0;
+      run.error = 'No analysis data available — run an analysis before scheduling reports.';
+      await store.set('schedule_runs', runId, run);
+      logger.warn(`Schedule "${schedule.name}" skipped: no analysis data available`);
+      return run;
+    }
+
     // Generate the report using real analysis data
     const manager = state.getOpportunities();
     const opportunities = manager.list();

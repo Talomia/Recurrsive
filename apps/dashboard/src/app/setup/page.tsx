@@ -35,19 +35,21 @@ export default function SetupPage() {
 
   // Check if setup is actually needed
   useEffect(() => {
+    let cancelled = false;
     async function checkSetup() {
       try {
         const status = await apiFetch<SetupStatus>('/api/v1/setup/status');
-        if (!status?.setupRequired) {
+        if (!cancelled && !status?.setupRequired) {
           router.replace('/login');
           return;
         }
       } catch {
         // If the endpoint errors, assume setup is needed (fresh install)
       }
-      setChecking(false);
+      if (!cancelled) setChecking(false);
     }
     checkSetup();
+    return () => { cancelled = true; };
   }, [router]);
 
   function validate(): boolean {
@@ -92,7 +94,7 @@ export default function SetupPage() {
       if (token) {
         // Auto-login: store token and redirect
         localStorage.setItem('recurrsive_token', token);
-        document.cookie = `recurrsive_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+        document.cookie = `recurrsive_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''}`;
       }
 
       // Redirect to home (or login if no token)

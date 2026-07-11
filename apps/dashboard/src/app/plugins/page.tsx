@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import { Package, Download, Power, Shield, Star, Search } from 'lucide-react';
+import Header from '@/components/header';
 import {
   getInstalledPlugins,
   getMarketplacePlugins,
@@ -158,15 +159,7 @@ export default function PluginsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Package className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-            Plugins
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">{installed.length} installed · {marketplace.length} available in marketplace</p>
-        </div>
-      </div>
+      <Header title="Plugins" subtitle="Manage installed plugins and extensions" />
 
       {/* Error banner */}
       {error && (
@@ -177,10 +170,10 @@ export default function PluginsPage() {
       )}
 
       {/* Installed Plugins */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <Shield className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Installed Plugins
-        </h3>
+        </h2>
         <div className="space-y-3">
           {installed.map(plugin => (
             <div key={plugin.id} className="flex items-center justify-between rounded-xl p-4" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
@@ -210,15 +203,16 @@ export default function PluginsPage() {
       </div>
 
       {/* Marketplace */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <Download className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Marketplace
-        </h3>
+        </h2>
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
             <input
               placeholder="Search plugins..."
+              aria-label="Search plugins"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-2 rounded-lg text-sm"
@@ -228,6 +222,7 @@ export default function PluginsPage() {
           <select
             value={filterType}
             onChange={e => setFilterType(e.target.value)}
+            aria-label="Filter by plugin type"
             className="px-3 py-2 rounded-lg text-sm"
             style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}
           >
@@ -268,8 +263,8 @@ export default function PluginsPage() {
       </div>
 
       {/* Plugin SDK Info */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-        <h3 className="text-base font-semibold text-text-primary mb-2">Plugin SDK</h3>
+      <div className="glass-card rounded-2xl p-5">
+        <h2 className="text-base font-semibold text-text-primary mb-2">Plugin SDK</h2>
         <p className="text-sm text-text-secondary">Build custom plugins with the Recurrsive Plugin SDK. Supports analyzers, collectors, reporters, and integrations.</p>
         <code className="block mt-3 px-4 py-3 rounded-lg text-xs text-green-400 font-mono" style={{ background: 'var(--color-base)' }}>
           npm install @recurrsive/plugin-sdk

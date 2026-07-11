@@ -48,7 +48,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
 
 export default function HealthChart({ data }: HealthChartProps) {
   return (
-    <div className="glass-card p-5">
+    <div className="glass-card p-5" role="img" aria-label="System health trend chart showing Health Score, Quality, Reliability, and Performance over the last 30 days">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="text-sm font-semibold text-text-primary">
