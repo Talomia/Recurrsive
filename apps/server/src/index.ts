@@ -68,29 +68,6 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
   // Initialize the store backend (creates PostgreSQL tables if needed)
   await store.initialize();
 
-  // Seed a known admin user if ALLOW_DEMO_USERS=true and no users exist, or reset admin password
-  if (process.env['ALLOW_DEMO_USERS'] === 'true') {
-    try {
-      const { findUserByUsername, createUser, resetUserPassword } = await import('./middleware/users.js');
-      const adminUser = await findUserByUsername('admin');
-      if (!adminUser) {
-        await createUser({
-          username: 'admin',
-          email: 'admin@recurrsive.local',
-          password: 'secure-password-123',
-          role: 'admin',
-          displayName: 'Admin User',
-        });
-        logger.info('Automatically seeded admin user with username: admin and password: secure-password-123');
-      } else {
-        await resetUserPassword(adminUser.id, 'secure-password-123');
-        logger.info('Automatically reset existing admin user password to secure-password-123');
-      }
-    } catch (err) {
-      logger.error('Failed to auto-seed/reset admin user', { error: err });
-    }
-  }
-
   // Register global error handler
   registerErrorHandler(app);
 
