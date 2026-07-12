@@ -106,7 +106,9 @@ export async function apiFetch<T>(
         localStorage.removeItem('recurrsive_token');
         localStorage.removeItem('recurrsive_user');
         document.cookie = 'recurrsive_token=; path=/; max-age=0';
-        window.location.href = '/login';
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
     }
     throw new ApiError(res.status, res.statusText, path);
