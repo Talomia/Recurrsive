@@ -7,6 +7,9 @@ import { Search, Bell, Sparkles, LogOut, User, Settings } from "lucide-react";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { LiveIndicator } from "./LiveIndicator";
 import { useAuth } from "@/lib/auth-context";
+import { useActiveProject } from "./active-project-context";
+import NotificationsPanel from "./notifications-panel";
+import AiChatPanel from "./ai-chat-panel";
 
 interface HeaderProps {
   title: string;
@@ -22,30 +25,25 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
 
 export default function Header({ title, subtitle }: HeaderProps) {
   const router = useRouter();
+  const { activeProject } = useActiveProject();
   const [searchQuery, setSearchQuery] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showAiChat, setShowAiChat] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const notifButtonRef = useRef<HTMLButtonElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    if (!showUserMenu && !showNotifications) return;
+    if (!showUserMenu) return;
     function handleClickOutside(e: MouseEvent) {
       if (showUserMenu && menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setShowUserMenu(false);
       }
-      if (showNotifications && notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setShowNotifications(false);
-      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserMenu, showNotifications]);
+  }, [showUserMenu]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -55,10 +53,6 @@ export default function Header({ title, subtitle }: HeaderProps) {
         if (showUserMenu) {
           setShowUserMenu(false);
           menuButtonRef.current?.focus();
-        }
-        if (showNotifications) {
-          setShowNotifications(false);
-          notifButtonRef.current?.focus();
         }
         if (showAiChat) setShowAiChat(false);
         if (showCommandPalette) setShowCommandPalette(false);
@@ -71,7 +65,7 @@ export default function Header({ title, subtitle }: HeaderProps) {
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showUserMenu, showNotifications, showAiChat, showCommandPalette]);
+  }, [showUserMenu, showAiChat, showCommandPalette]);
 
   const { status, clientCount } = useWebSocket({ autoConnect: true });
   const { user, logout } = useAuth();
@@ -119,10 +113,20 @@ export default function Header({ title, subtitle }: HeaderProps) {
     <>
       <header className="flex items-center justify-between border-b border-border px-6 py-4" aria-label="Page header">
         {/* Left: title */}
-        <div>
-          <h1 className="text-xl font-bold text-text-primary">{title}</h1>
-          {subtitle && (
-            <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-text-primary">{title}</h1>
+            {subtitle && (
+              <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>
+            )}
+          </div>
+          {activeProject && (
+            <div className="hidden md:flex items-center gap-2 rounded-xl bg-accent-purple/10 px-3 py-1.5 border border-accent-purple/20 shadow-[0_0_10px_rgba(192,132,252,0.15)] animate-fade-in animate-pulse-slow">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-purple" />
+              <span className="text-[11px] font-semibold text-purple-300">
+                Project: {activeProject.name}
+              </span>
+            </div>
           )}
         </div>
 
@@ -162,49 +166,8 @@ export default function Header({ title, subtitle }: HeaderProps) {
             AI Assist
           </button>
 
-          {/* Notifications */}
-          <div className="relative" ref={notifRef}>
-            <button
-              ref={notifButtonRef}
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
-              aria-label="View notifications"
-              aria-expanded={showNotifications}
-              aria-haspopup="true"
-            >
-              <Bell className="h-4 w-4 text-text-secondary" aria-hidden="true" />
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-accent-blue animate-pulse-dot" aria-hidden="true" />
-            </button>
-
-            {/* Notifications dropdown */}
-            {showNotifications && (
-              <div
-                className="absolute right-0 top-full mt-1 w-80 rounded-xl overflow-hidden z-50 glass-card"
-                role="dialog"
-                aria-label="Notifications"
-              >
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                  <h2 className="text-sm font-semibold text-text-primary">Notifications</h2>
-                  <button className="text-[11px] text-accent-blue hover:underline">Mark all read</button>
-                </div>
-                <div className="max-h-[320px] overflow-y-auto">
-                  <div className="px-4 py-8 text-center">
-                    <Bell className="h-6 w-6 text-text-muted mx-auto mb-2" aria-hidden="true" />
-                    <p className="text-xs text-text-muted">No new notifications</p>
-                  </div>
-                </div>
-                <div className="border-t border-white/10 px-4 py-2">
-                  <Link
-                    href="/notifications"
-                    onClick={() => setShowNotifications(false)}
-                    className="text-[11px] text-accent-blue hover:underline"
-                  >
-                    View all notifications →
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Notifications Panel */}
+          <NotificationsPanel />
 
           {/* User menu */}
           <div className="relative" ref={menuRef}>
@@ -273,59 +236,8 @@ export default function Header({ title, subtitle }: HeaderProps) {
         </div>
       </header>
 
-      {/* AI Chat Panel */}
-      {showAiChat && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowAiChat(false)}
-          />
-          <aside
-            className="fixed right-0 top-0 z-50 h-full w-full max-w-[400px] flex flex-col border-l border-white/10"
-            style={{ background: 'var(--color-surface)' }}
-            role="dialog"
-            aria-label="AI Assistant"
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-purple-400" aria-hidden="true" />
-                <h2 className="text-sm font-semibold text-text-primary">Recurrsive AI</h2>
-              </div>
-              <button
-                onClick={() => setShowAiChat(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
-                aria-label="Close AI assistant"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div className="flex gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-purple-500/20">
-                  <Sparkles className="h-4 w-4 text-purple-400" aria-hidden="true" />
-                </div>
-                <div className="glass-card px-3 py-2 text-sm text-text-secondary max-w-[280px]">
-                  Hi! I&apos;m Recurrsive AI. I can help you understand your codebase analysis, explain findings, and suggest improvements. What would you like to know?
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-white/10 p-3">
-              <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 border border-white/5 focus-within:border-accent-purple/40 transition-colors">
-                <input
-                  type="text"
-                  placeholder="Ask about your codebase…"
-                  aria-label="AI chat message"
-                  className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
-                />
-                <button className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-purple/20 hover:bg-accent-purple/30 transition-colors" aria-label="Send message">
-                  <Sparkles className="h-3.5 w-3.5 text-purple-400" aria-hidden="true" />
-                </button>
-              </div>
-              <p className="text-[10px] text-text-muted mt-1.5 text-center">AI assistant is in preview — responses are illustrative</p>
-            </div>
-          </aside>
-        </>
-      )}
+      {/* AI Chat Drawer Panel */}
+      <AiChatPanel open={showAiChat} onClose={() => setShowAiChat(false)} />
 
       {/* Command Palette */}
       {showCommandPalette && (

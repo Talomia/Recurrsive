@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useActiveProject } from "./active-project-context";
 import clsx from "clsx";
 import {
   LayoutDashboard,
@@ -155,6 +156,23 @@ export default function Sidebar() {
   const [opportunityCount, setOpportunityCount] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(DEFAULT_EXPANDED);
 
+  const { projects, activeProject, switchProject } = useActiveProject();
+  const [showProjDropdown, setShowProjDropdown] = useState(false);
+  const [projSearchQuery, setProjSearchQuery] = useState("");
+  const projDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!showProjDropdown) return;
+    function clickOutside(e: MouseEvent) {
+      if (projDropdownRef.current && !projDropdownRef.current.contains(e.target as Node)) {
+        setShowProjDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", clickOutside);
+    return () => document.removeEventListener("mousedown", clickOutside);
+  }, [showProjDropdown]);
+
   // Hydrate expansion state from localStorage
   useEffect(() => {
     setExpanded(loadExpanded());
@@ -221,7 +239,7 @@ export default function Sidebar() {
       >
         {/* ── Logo ───────────────────────────────────────── */}
         <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-purple shadow-lg">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-purple to-accent-pink shadow-[0_0_15px_rgba(192,132,252,0.4)] animate-pulse-dot">
             <Zap className="h-[18px] w-[18px] text-white" />
           </div>
           {!collapsed && (
@@ -229,12 +247,103 @@ export default function Sidebar() {
               <h2 className="text-base font-bold tracking-tight gradient-text leading-tight">
                 Recurrsive
               </h2>
-              <p className="text-[10px] text-text-muted leading-tight">
+              <p className="text-[10px] text-text-secondary leading-tight">
                 Engineering Intelligence
               </p>
             </div>
           )}
         </div>
+
+        {/* ── Project Context Selector ───────────────────── */}
+        {projects.length > 0 && (
+          <div className="px-4 py-3 border-b border-border relative" ref={projDropdownRef}>
+            {collapsed ? (
+              <button
+                onClick={() => setCollapsed(false)}
+                className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-accent-purple"
+                title={`Active: ${activeProject?.name ?? "None"}`}
+              >
+                <FolderGit2 className="h-4 w-4" />
+              </button>
+            ) : (
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted block mb-1 px-1">
+                  Active Scope
+                </span>
+                <button
+                  onClick={() => setShowProjDropdown(!showProjDropdown)}
+                  className="w-full flex items-center justify-between rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 px-3 py-2 text-xs font-semibold text-text-primary transition-all group"
+                  aria-expanded={showProjDropdown}
+                  aria-haspopup="true"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FolderGit2 className="h-3.5 w-3.5 text-accent-purple shrink-0" />
+                    <span className="truncate pr-1 leading-none">{activeProject?.name ?? "Select Project..."}</span>
+                  </div>
+                  <ChevronDown className="h-3.5 w-3.5 text-text-secondary group-hover:text-text-primary transition-transform duration-200" />
+                </button>
+              </div>
+            )}
+
+            {/* Dropdown overlay */}
+            {showProjDropdown && !collapsed && (
+              <div
+                className="absolute left-4 right-4 top-full mt-1.5 rounded-2xl z-50 overflow-hidden shadow-2xl transition-all animate-fade-in-up"
+                style={{
+                  background: "rgba(11, 10, 24, 0.95)",
+                  backdropFilter: "blur(24px)",
+                  border: "1px solid rgba(192, 132, 252, 0.15)",
+                }}
+              >
+                {/* Search query input */}
+                <div className="p-2 border-b border-white/10 flex items-center gap-2 bg-white/[0.02]">
+                  <Search className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Filter repositories..."
+                    value={projSearchQuery}
+                    onChange={(e) => setProjSearchQuery(e.target.value)}
+                    className="w-full bg-transparent border-none text-xs text-text-primary placeholder:text-text-muted outline-none"
+                    aria-label="Filter repositories"
+                  />
+                </div>
+
+                {/* Project list */}
+                <div className="max-h-[220px] overflow-y-auto py-1">
+                  {projects
+                    .filter((p) => p.name.toLowerCase().includes(projSearchQuery.toLowerCase()))
+                    .map((proj) => {
+                      const isSelected = activeProject?.id === proj.id;
+                      return (
+                        <button
+                          key={proj.id}
+                          onClick={() => {
+                            switchProject(proj.id);
+                            setShowProjDropdown(false);
+                            setProjSearchQuery("");
+                          }}
+                          className={clsx(
+                            "w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors hover:bg-white/5",
+                            isSelected ? "text-accent-purple font-bold bg-accent-purple/5" : "text-text-secondary"
+                          )}
+                        >
+                          <span className="truncate pr-2">{proj.name}</span>
+                          <span className="text-[10px] text-text-muted shrink-0 bg-white/5 px-1.5 py-0.5 rounded-md border border-white/5">
+                            {proj.language}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  {projects.filter((p) => p.name.toLowerCase().includes(projSearchQuery.toLowerCase())).length === 0 && (
+                    <div className="px-3 py-4 text-center text-xs text-text-muted">
+                      No matching projects
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Nav links ──────────────────────────────────── */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Main navigation">
@@ -284,15 +393,19 @@ export default function Sidebar() {
                   {section.items.map(({ href, label, icon: Icon, enterprise }) => {
                     const active =
                       href === "/" ? pathname === "/" : pathname.startsWith(href);
+                    const activeProjectId = activeProject?.id;
+                    const finalHref = activeProjectId && href !== "/projects"
+                      ? `${href}?projectId=${encodeURIComponent(activeProjectId)}`
+                      : href;
                     return (
                       <Link
                         key={href}
-                        href={href}
+                        href={finalHref}
                         onClick={() => setMobileOpen(false)}
                         className={clsx(
                           "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 group",
                           active
-                            ? "bg-white/8 text-text-primary"
+                            ? "bg-gradient-to-r from-accent-purple/10 to-accent-cyan/5 border border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.03)] text-text-primary"
                             : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
                         )}
                         aria-current={active ? "page" : undefined}
@@ -302,15 +415,15 @@ export default function Sidebar() {
                           className={clsx(
                             "h-[18px] w-[18px] shrink-0 transition-colors",
                             active
-                              ? "text-accent-blue"
+                              ? "text-accent-purple"
                               : "text-text-muted group-hover:text-text-secondary"
                           )}
                         />
                         {!collapsed && <span>{label}</span>}
-
+                        
                         {/* Opportunity count badge */}
                         {!collapsed && href === "/opportunities" && (
-                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-blue/15 px-1.5 text-[10px] font-semibold text-blue-400">
+                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-purple/15 px-1.5 text-[10px] font-semibold text-purple-300">
                             {opportunityCount}
                           </span>
                         )}

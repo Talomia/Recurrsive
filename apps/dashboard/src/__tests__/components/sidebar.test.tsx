@@ -1,6 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Sidebar from '../../components/sidebar';
+
+// Mock useActiveProject
+vi.mock('../../components/active-project-context', () => ({
+  useActiveProject: () => ({
+    projects: [
+      { id: 'proj-1', name: 'Service A', slug: 'service-a', language: 'TypeScript' },
+      { id: 'proj-2', name: 'Service B', slug: 'service-b', language: 'Python' }
+    ],
+    activeProject: { id: 'proj-1', name: 'Service A', slug: 'service-a', language: 'TypeScript' },
+    loading: false,
+    switchProject: vi.fn(),
+  }),
+}));
 
 describe('Sidebar', () => {
   beforeEach(() => {

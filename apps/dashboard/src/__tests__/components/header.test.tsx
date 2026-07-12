@@ -37,6 +37,19 @@ vi.mock('@/lib/auth-context', () => ({
   }),
 }));
 
+// Mock useActiveProject
+vi.mock('../../components/active-project-context', () => ({
+  useActiveProject: () => ({
+    projects: [
+      { id: 'proj-1', name: 'Service A', slug: 'service-a', language: 'TypeScript' },
+      { id: 'proj-2', name: 'Service B', slug: 'service-b', language: 'Python' }
+    ],
+    activeProject: { id: 'proj-1', name: 'Service A', slug: 'service-a', language: 'TypeScript' },
+    loading: false,
+    switchProject: vi.fn(),
+  }),
+}));
+
 describe('Header', () => {
   beforeEach(() => {
     vi.clearAllMocks();

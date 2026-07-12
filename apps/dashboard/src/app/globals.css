@@ -1,30 +1,30 @@
 @import "tailwindcss";
 
-/* ── Custom theme tokens ─────────────────────────────────── */
+/* ── Custom theme tokens (Cyber/Synthwave Theme) ─────────────────────────── */
 @theme {
-  --color-base: #0a0f1a;
-  --color-surface: #0f1629;
-  --color-card: #1a1f36;
-  --color-card-hover: #222845;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-light: rgba(255, 255, 255, 0.12);
+  --color-base: #03020c;
+  --color-surface: #060515;
+  --color-card: rgba(13, 11, 28, 0.45);
+  --color-card-hover: rgba(22, 18, 48, 0.6);
+  --color-border: rgba(192, 132, 252, 0.08);
+  --color-border-light: rgba(6, 182, 212, 0.15);
 
   --color-accent-blue: #3b82f6;
-  --color-accent-purple: #8b5cf6;
-  --color-accent-cyan: #22d3ee;
-  --color-accent-green: #22c55e;
+  --color-accent-purple: #c084fc;
+  --color-accent-cyan: #06b6d4;
+  --color-accent-green: #10b981;
   --color-accent-amber: #f59e0b;
   --color-accent-red: #ef4444;
-  --color-accent-pink: #ec4899;
+  --color-accent-pink: #f472b6;
 
-  --color-text-primary: #f1f5f9;
+  --color-text-primary: #f8fafc;
   --color-text-secondary: #94a3b8;
-  --color-text-tertiary: #475569;
-  --color-text-muted: #64748b;
+  --color-text-tertiary: #64748b;
+  --color-text-muted: #475569;
 
   /* Semantic accent aliases — referenced by auth pages, error boundary, etc. */
-  --color-accent: #3b82f6;
-  --color-accent-secondary: #8b5cf6;
+  --color-accent: #c084fc;
+  --color-accent-secondary: #06b6d4;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
@@ -41,38 +41,43 @@ html {
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-color: var(--color-accent-purple) transparent;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
   background-color: var(--color-base);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(192, 132, 252, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.03) 0px, transparent 50%);
   color: var(--color-text-primary);
   min-height: 100dvh;
 }
 
-/* ── Scrollbar styling ───────────────────────────────────── */
+/* ── Custom Scrollbar ────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(13, 11, 28, 0.3);
+  border-left: 1px solid rgba(255, 255, 255, 0.02);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  background: linear-gradient(to bottom, rgba(192, 132, 252, 0.2), rgba(6, 182, 212, 0.2));
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(to bottom, rgba(192, 132, 252, 0.4), rgba(6, 182, 212, 0.4));
 }
 
 /* ── Focus visible ───────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--color-accent-blue);
+  outline: 2px solid var(--color-accent-cyan);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 /* ── Skip to main content (a11y) ─────────────────────────── */
@@ -82,7 +87,7 @@ body {
   left: 0;
   z-index: 100;
   padding: 8px 16px;
-  background: var(--color-accent-blue);
+  background: var(--color-accent-purple);
   color: white;
   font-weight: 600;
   border-radius: 0 0 8px 0;
@@ -92,50 +97,58 @@ body {
   top: 0;
 }
 
-/* ── Utility classes ─────────────────────────────────────── */
+/* ── Custom Cyberpunk Classes ────────────────────────────── */
 
-/* Glassmorphism card */
+/* Frosted glassmorphism container */
 .glass-card {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(13, 11, 28, 0.4), rgba(6, 5, 20, 0.2));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(192, 132, 252, 0.08);
   border-radius: 16px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .glass-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, rgba(22, 18, 48, 0.55), rgba(13, 11, 28, 0.35));
+  border-color: rgba(6, 182, 212, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(6, 182, 212, 0.08);
 }
 
-/* Gradient text */
+/* Gradient and Neon Text styles */
 .gradient-text {
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #22d3ee 100%);
+  background: linear-gradient(135deg, #c084fc 0%, #06b6d4 50%, #f472b6 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 30px rgba(192, 132, 252, 0.15);
 }
 
 .gradient-text-warm {
-  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 50%, #ec4899 100%);
+  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 50%, #f472b6 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* Glow effects */
-.glow-blue {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15),
-    0 0 60px rgba(59, 130, 246, 0.05);
+/* Cyber Glow Utilities */
+.glow-cyber-purple {
+  box-shadow: 
+    0 0 15px rgba(192, 132, 252, 0.1),
+    0 0 40px rgba(192, 132, 252, 0.03);
 }
-.glow-purple {
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15),
-    0 0 60px rgba(139, 92, 246, 0.05);
+.glow-cyber-cyan {
+  box-shadow: 
+    0 0 15px rgba(6, 182, 212, 0.1),
+    0 0 40px rgba(6, 182, 212, 0.03);
 }
-.glow-green {
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.15),
-    0 0 60px rgba(34, 197, 94, 0.05);
+.glow-cyber-pink {
+  box-shadow: 
+    0 0 15px rgba(244, 114, 182, 0.1),
+    0 0 40px rgba(244, 114, 182, 0.03);
 }
 
 /* Screen-reader only (a11y) */
@@ -151,16 +164,17 @@ body {
   border-width: 0;
 }
 
-/* Sidebar active indicator */
+/* Sidebar active indicator - sliding styled accent line */
 .nav-active-indicator {
   position: absolute;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 60%;
+  height: 55%;
   border-radius: 0 4px 4px 0;
-  background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(180deg, #c084fc, #06b6d4);
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.5);
 }
 
 /* Pulse dot animation */
@@ -171,22 +185,22 @@ body {
     transform: scale(1);
   }
   50% {
-    opacity: 0.5;
-    transform: scale(1.5);
+    opacity: 0.4;
+    transform: scale(1.4);
   }
 }
 .animate-pulse-dot {
-  animation: pulse-dot 2s ease-in-out infinite;
+  animation: pulse-dot 2.5s ease-in-out infinite;
 }
 
-/* Live pulse animation (WebSocket indicator) */
+/* WebSocket active dot glow */
 @keyframes live-pulse {
   0% {
     transform: scale(1);
     opacity: 0.6;
   }
   50% {
-    transform: scale(2.2);
+    transform: scale(2.4);
     opacity: 0;
   }
   100% {
@@ -207,12 +221,12 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.04) 25%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.04) 75%
+    rgba(192, 132, 252, 0.02) 25%,
+    rgba(192, 132, 252, 0.06) 50%,
+    rgba(192, 132, 252, 0.02) 75%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  animation: shimmer 1.8s ease-in-out infinite;
   border-radius: 8px;
 }
 
@@ -220,7 +234,7 @@ body {
 @keyframes fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -228,31 +242,31 @@ body {
   }
 }
 .animate-fade-in-up {
-  animation: fade-in-up 0.5s ease-out forwards;
+  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Stagger children — supports up to 12 children */
+/* Stagger children - supports up to 12 children with soft hardware-accelerated curves */
 .stagger-children > * {
   opacity: 0;
-  animation: fade-in-up 0.4s ease-out forwards;
+  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-.stagger-children > *:nth-child(1)  { animation-delay: 0.05s; }
-.stagger-children > *:nth-child(2)  { animation-delay: 0.1s; }
-.stagger-children > *:nth-child(3)  { animation-delay: 0.15s; }
-.stagger-children > *:nth-child(4)  { animation-delay: 0.2s; }
-.stagger-children > *:nth-child(5)  { animation-delay: 0.25s; }
-.stagger-children > *:nth-child(6)  { animation-delay: 0.3s; }
-.stagger-children > *:nth-child(7)  { animation-delay: 0.35s; }
-.stagger-children > *:nth-child(8)  { animation-delay: 0.4s; }
-.stagger-children > *:nth-child(9)  { animation-delay: 0.45s; }
-.stagger-children > *:nth-child(10) { animation-delay: 0.5s; }
-.stagger-children > *:nth-child(11) { animation-delay: 0.55s; }
-.stagger-children > *:nth-child(12) { animation-delay: 0.6s; }
-.stagger-children > *:nth-child(n+13) { animation-delay: 0.65s; opacity: 0; animation: fade-in-up 0.4s ease-out 0.65s forwards; }
+.stagger-children > *:nth-child(1)  { animation-delay: 0.04s; }
+.stagger-children > *:nth-child(2)  { animation-delay: 0.08s; }
+.stagger-children > *:nth-child(3)  { animation-delay: 0.12s; }
+.stagger-children > *:nth-child(4)  { animation-delay: 0.16s; }
+.stagger-children > *:nth-child(5)  { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(6)  { animation-delay: 0.24s; }
+.stagger-children > *:nth-child(7)  { animation-delay: 0.28s; }
+.stagger-children > *:nth-child(8)  { animation-delay: 0.32s; }
+.stagger-children > *:nth-child(9)  { animation-delay: 0.36s; }
+.stagger-children > *:nth-child(10) { animation-delay: 0.4s; }
+.stagger-children > *:nth-child(11) { animation-delay: 0.44s; }
+.stagger-children > *:nth-child(12) { animation-delay: 0.48s; }
+.stagger-children > *:nth-child(n+13) { animation-delay: 0.52s; opacity: 0; animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.52s forwards; }
 
-/* Recharts overrides for dark theme */
+/* Recharts overrides for Cyber/Synthwave theme */
 .recharts-cartesian-grid line {
-  stroke: rgba(255, 255, 255, 0.05) !important;
+  stroke: rgba(255, 255, 255, 0.03) !important;
 }
 .recharts-text {
   fill: #64748b !important;

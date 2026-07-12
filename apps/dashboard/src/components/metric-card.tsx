@@ -43,7 +43,7 @@ export default function MetricCard({
       {/* Top row: icon + label */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-white/5 to-white/[0.01] border border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
             {icon}
           </div>
           <span className="text-xs font-medium text-text-secondary">{label}</span>

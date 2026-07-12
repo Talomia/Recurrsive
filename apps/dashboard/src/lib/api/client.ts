@@ -78,8 +78,22 @@ export async function apiFetch<T>(
   }
 
   if (fetchOpts.body) headers['Content-Type'] = 'application/json';
+  
+  // Scoped project query parameter auto-appending
+  let finalPath = path;
+  if (typeof window !== 'undefined') {
+    const method = fetchOpts.method?.toUpperCase() || 'GET';
+    if (method === 'GET') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const projectId = searchParams.get('projectId');
+      if (projectId && !path.includes('projectId=')) {
+        const separator = path.includes('?') ? '&' : '?';
+        finalPath = `${path}${separator}projectId=${encodeURIComponent(projectId)}`;
+      }
+    }
+  }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${BASE_URL}${finalPath}`, {
     ...fetchOpts,
     headers,
     cache: 'no-store',
