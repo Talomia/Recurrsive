@@ -20,12 +20,14 @@ const SERVICE_STATUS_STYLES: Record<string, { bg: string; text: string; dot: str
   healthy: { bg: "bg-green-500/10", text: "text-green-400", dot: "bg-green-400", border: "border-green-500/20" },
   degraded: { bg: "bg-amber-500/10", text: "text-amber-400", dot: "bg-amber-400", border: "border-amber-500/20" },
   down: { bg: "bg-red-500/10", text: "text-red-400", dot: "bg-red-400", border: "border-red-500/20" },
+  idle: { bg: "bg-blue-500/10", text: "text-blue-400", dot: "bg-blue-400", border: "border-blue-500/20" },
 };
 
 const SERVICE_STATUS_ICONS: Record<string, typeof CheckCircle2> = {
   healthy: CheckCircle2,
   degraded: AlertTriangle,
   down: XCircle,
+  idle: Clock,
 };
 
 // ---------------------------------------------------------------------------

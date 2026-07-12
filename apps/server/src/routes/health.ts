@@ -271,13 +271,13 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
     const services = [
       {
         name: 'Analysis Engine',
-        status: state.isInitialized() ? ('healthy' as const) : ('down' as const),
+        status: state.isInitialized() ? ('healthy' as const) : ('idle' as const),
         uptime_percent: state.isInitialized() ? 99.9 : 0,
         last_check: now,
       },
       {
         name: 'Knowledge Graph',
-        status: state.isInitialized() ? ('healthy' as const) : ('down' as const),
+        status: state.isInitialized() ? ('healthy' as const) : ('idle' as const),
         latency_ms: state.isInitialized() ? Math.round(process.uptime() > 60 ? 3 : 8) : 0,
         uptime_percent: state.isInitialized() ? 99.9 : 0,
         last_check: now,
