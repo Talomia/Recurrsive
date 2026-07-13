@@ -30,13 +30,17 @@ describe('AuthProvider', () => {
     });
   });
 
-  it('renders children', () => {
+  it('renders children', async () => {
     render(
       <AuthProvider>
         <div data-testid="child">Hello</div>
+        <AuthConsumer />
       </AuthProvider>
     );
     expect(screen.getByTestId('child')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Not authenticated')).toBeInTheDocument();
+    });
   });
 
   it('starts with no user when no server session exists', async () => {

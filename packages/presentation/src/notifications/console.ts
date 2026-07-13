@@ -60,6 +60,8 @@ export class ConsoleNotificationChannel implements NotificationChannel {
    * @param writer - Optional custom writer function (defaults to console.log)
    */
   constructor(writer?: (msg: string) => void) {
+    // Console output is the explicit transport for this channel.
+    // eslint-disable-next-line no-console
     this.writer = writer ?? console.log;
   }
 

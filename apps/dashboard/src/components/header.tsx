@@ -113,13 +113,13 @@ export default function Header({ title, subtitle }: HeaderProps) {
 
   return (
     <>
-      <header className="flex items-center justify-between border-b border-border px-6 py-4" aria-label="Page header">
+      <header className="flex items-center justify-between border-b border-border py-4 pl-[72px] pr-3 sm:px-6" aria-label="Page header">
         {/* Left: title */}
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-text-primary">{title}</h1>
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-bold text-text-primary sm:text-xl">{title}</h1>
             {subtitle && (
-              <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>
+              <p className="mt-0.5 hidden truncate text-sm text-text-muted sm:block">{subtitle}</p>
             )}
           </div>
           {activeProject && (
@@ -133,7 +133,7 @@ export default function Header({ title, subtitle }: HeaderProps) {
         </div>
 
         {/* Right: search + actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {/* Search */}
           <div className="hidden md:flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 border border-white/5 focus-within:border-accent-blue/40 transition-colors">
             <Search className="h-4 w-4 text-text-muted" aria-hidden="true" />
@@ -156,7 +156,9 @@ export default function Header({ title, subtitle }: HeaderProps) {
           </div>
 
           {/* Live status */}
-          <LiveIndicator status={status} clientCount={clientCount} showClientCount size="sm" />
+          <div className="hidden sm:block">
+            <LiveIndicator status={status} clientCount={clientCount} showClientCount size="sm" />
+          </div>
 
           {/* AI chip */}
           <button
@@ -176,13 +178,13 @@ export default function Header({ title, subtitle }: HeaderProps) {
             <button
               ref={menuButtonRef}
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-white/5 transition-colors"
+              className="flex items-center gap-2 rounded-xl px-1 py-1.5 hover:bg-white/5 transition-colors sm:px-2"
               aria-label="User menu"
               aria-expanded={showUserMenu}
               aria-haspopup="menu"
             >
               <div
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-purple text-xs font-bold text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-accent-blue to-accent-purple text-xs font-bold text-white sm:h-9 sm:w-9"
                 role="img"
                 aria-label={`User avatar: ${user?.username ?? 'Guest'}`}
               >

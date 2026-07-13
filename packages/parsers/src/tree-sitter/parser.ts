@@ -95,7 +95,7 @@ export class TreeSitterParser {
       for (const lang of languages) {
         await this._loadLanguage(lang, ParserConstructor);
       }
-    } catch (_err: unknown) {
+    } catch {
       log.info(
         'tree-sitter native bindings not available — falling back to regex-based extraction',
       );
@@ -152,7 +152,7 @@ export class TreeSitterParser {
         if (parser && typeof (parser as { delete?: () => void }).delete === 'function') {
           (parser as { delete: () => void }).delete();
         }
-      } catch (_err: unknown) {
+      } catch {
         log.warn(`Failed to dispose parser for "${lang}"`);
       }
     }
@@ -186,9 +186,7 @@ export class TreeSitterParser {
           ? langModule.typescript ?? langModule.default?.typescript ?? langModule.default ?? langModule
           : langModule.default ?? langModule;
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       const parser = new ParserConstructor();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       parser.setLanguage(grammar);
       this.parsers.set(language, parser);
       log.info(`Loaded tree-sitter grammar for "${language}"`);

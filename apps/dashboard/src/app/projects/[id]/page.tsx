@@ -451,7 +451,7 @@ export default function ProjectDetailPage() {
 
       {/* Tabs */}
       <div
-        className="flex items-center gap-1 border-b border-white/10"
+        className="flex items-center gap-1 overflow-x-auto border-b border-white/10"
         role="tablist"
         aria-label="Project sections"
       >
@@ -461,7 +461,7 @@ export default function ProjectDetailPage() {
             role="tab"
             aria-selected={activeTab === tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
+            className={`relative shrink-0 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab
                 ? 'text-text-primary'
                 : 'text-text-muted hover:text-text-secondary'

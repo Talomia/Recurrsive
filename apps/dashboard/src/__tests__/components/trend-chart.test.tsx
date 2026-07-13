@@ -15,7 +15,7 @@ vi.mock('recharts', () => ({
     <div data-testid="responsive-container">{children}</div>
   ),
   AreaChart: ({ children, data }: { children: React.ReactNode; data: unknown[] }) => (
-    <div data-testid="area-chart" data-points={data.length}>{children}</div>
+    <svg data-testid="area-chart" data-points={data.length}>{children}</svg>
   ),
   Area: ({ dataKey, stroke }: { dataKey: string; stroke: string }) => (
     <div data-testid="area" data-key={dataKey} data-stroke={stroke} />
