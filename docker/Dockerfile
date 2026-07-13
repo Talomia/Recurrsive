@@ -8,8 +8,10 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 
-# Install pnpm globally
-RUN corepack enable && corepack prepare pnpm@9.14.4 --activate
+# Install the repository-pinned pnpm release directly. The Corepack bundled
+# with some Node 22 images has a stale signing-key set and cannot verify newer
+# pnpm releases.
+RUN npm install --global pnpm@11.7.0
 
 # Install build dependencies (some native modules need python3/make/g++)
 RUN apk add --no-cache python3 make g++ git
@@ -44,7 +46,7 @@ RUN pnpm exec turbo build --filter=@recurrsive/server...
 # ── Stage 2: Prune dependencies ───────────────────────────────────────────────
 FROM node:22-alpine AS deps
 
-RUN corepack enable && corepack prepare pnpm@9.14.4 --activate
+RUN npm install --global pnpm@11.7.0
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
@@ -71,7 +73,7 @@ FROM node:22-alpine AS runner
 RUN apk add --no-cache libstdc++ git dumb-init
 
 # Install pnpm for workspace resolution at runtime
-RUN corepack enable && corepack prepare pnpm@9.14.4 --activate
+RUN npm install --global pnpm@11.7.0
 
 # Security: run as non-root
 RUN addgroup --system --gid 1001 recurrsive && \
