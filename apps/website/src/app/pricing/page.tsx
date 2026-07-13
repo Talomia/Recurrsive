@@ -22,7 +22,7 @@ const PLANS = [
     badge: null,
     features: [
       '14 data collectors',
-      '13 built-in analyzers (89+ rules)',
+      '13 built-in analyzers',
       '19-specialist multi-agent reasoning',
       'Knowledge graph (SQLite + AGE)',
       'CLI for analysis and operations',
@@ -80,7 +80,7 @@ const COMPARISON = [
   { feature: 'Collectors', oss: '14', enterprise: '14', cloud: '14' },
   { feature: 'Analyzers', oss: '13', enterprise: '13 + custom', cloud: '13 + custom' },
   { feature: 'Multi-agent reasoning', oss: true, enterprise: true, cloud: true },
-  { feature: 'Knowledge graph', oss: 'SQLite + AGE', enterprise: 'SQLite + AGE', cloud: 'SQLite + AGE' },
+  { feature: 'Knowledge graph', oss: 'SQLite dev / PostgreSQL+AGE prod', enterprise: 'SQLite dev / PostgreSQL+AGE prod', cloud: 'SQLite dev / PostgreSQL+AGE prod' },
   { feature: 'REST + WebSocket API', oss: true, enterprise: true, cloud: true },
   { feature: 'CLI', oss: true, enterprise: true, cloud: true },
   { feature: 'MCP Server', oss: true, enterprise: true, cloud: true },

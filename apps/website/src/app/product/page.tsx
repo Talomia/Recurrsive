@@ -23,19 +23,19 @@ const PIPELINE_STEPS = [
   {
     icon: Layers,
     title: 'Understand',
-    desc: 'Tree-sitter parsers extract structure from TypeScript, Python, and Go. 13 analyzers with 89+ rules evaluate architecture, performance, security, cost, AI quality, and more.',
+    desc: 'Tree-sitter parsers extract structure from TypeScript, Python, and Go. Thirteen analyzers evaluate architecture, performance, security, cost, AI quality, and more.',
     color: '#3b82f6',
   },
   {
     icon: Brain,
     title: 'Reason',
-    desc: '19 specialist AI agents debate recommendations using a multi-agent protocol. Evidence is fused, confidence is calibrated, and consensus drives prioritization.',
+    desc: 'Nineteen specialist roles can challenge and synthesize findings. Evidence and dissent remain attached to the resulting opportunities.',
     color: '#06b6d4',
   },
   {
     icon: Sparkles,
     title: 'Evolve',
-    desc: 'Ranked, evidence-backed opportunities with expected business impact, validation plans, and rollback strategies. Track outcomes and improve over time.',
+    desc: 'Evidence-linked opportunities retain confidence, provenance, and validation status. Effort, risk, and impact remain unknown until measured.',
     color: '#22c55e',
   },
 ];
@@ -211,7 +211,7 @@ export default function ProductPage() {
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
             <span className="badge badge-accent">
-              <Eye size={14} /> 13 Analyzers · 89+ Rules
+              <Eye size={14} /> 13 Built-in Analyzers
             </span>
             <h2 style={{ marginTop: 'var(--space-md)' }}>
               Deep Analysis Across <span className="text-gradient">Every Dimension</span>
@@ -255,10 +255,10 @@ export default function ProductPage() {
               <p className="text-secondary" style={{ fontSize: '1rem', lineHeight: 1.8, marginBottom: 'var(--space-lg)' }}>
                 Not a single model guessing. Specialized AI agents for architecture, performance,
                 security, cost, AI quality, and more — each bringing domain expertise to a structured
-                debate protocol. Evidence is fused, conflicts are resolved, and confidence is calibrated.
+                debate protocol. Evidence is fused, conflicts are recorded, and unsupported impact remains unknown.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                {['Structured debate with presentation, challenge, and synthesis', 'Cross-domain evidence fusion from configured collectors', 'Recorded reasoning provenance and confidence', 'Evidence-linked recommendations and dissent traces'].map((item) => (
+                {['Structured debate with presentation, challenge, and synthesis', 'Cross-domain evidence fusion from configured collectors', 'Recorded reasoning provenance and confidence', 'Evidence-linked opportunities and dissent traces'].map((item) => (
                   <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <CheckCircle2 size={16} style={{ color: 'var(--green)', flexShrink: 0 }} />
                     <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{item}</span>

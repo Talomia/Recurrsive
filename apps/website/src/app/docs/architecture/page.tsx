@@ -42,19 +42,19 @@ const PIPELINE = [
   {
     icon: Eye,
     title: 'Analyze',
-    desc: '13 analyzers with 89+ rules evaluate architecture, performance, security, cost, data quality, documentation, DevOps, API contracts, and more.',
+    desc: 'Thirteen analyzers evaluate architecture, performance, security, cost, data quality, documentation, DevOps, API contracts, and more.',
     color: '#06b6d4',
   },
   {
     icon: Brain,
     title: 'Reason',
-    desc: '19 specialist AI agents debate recommendations using a structured protocol. Evidence is fused, conflicts resolved, and confidence calibrated.',
+    desc: 'Nineteen specialist roles use a structured protocol. Evidence is fused, conflicts are recorded, and unsupported impact stays unknown.',
     color: '#f59e0b',
   },
   {
     icon: Sparkles,
     title: 'Present',
-    desc: 'Ranked, evidence-backed opportunities with expected business impact, validation plans, and rollback strategies delivered via dashboard, API, or CLI.',
+    desc: 'Evidence-linked opportunities retain provenance, confidence, and validation status across the dashboard, API, and CLI.',
     color: '#22c55e',
   },
 ];
@@ -63,7 +63,7 @@ const CORE_PACKAGES = [
   { name: '@recurrsive/core', desc: 'Analysis pipeline orchestration and lifecycle management' },
   { name: '@recurrsive/graph', desc: 'Knowledge graph abstraction (AGE + SQLite backends)' },
   { name: '@recurrsive/collectors', desc: '14 built-in data collectors (Git, GitHub, OTEL, etc.)' },
-  { name: '@recurrsive/analyzers', desc: '13 domain analyzers with 89+ analysis rules' },
+  { name: '@recurrsive/analyzers', desc: '13 domain analyzers' },
   { name: '@recurrsive/reasoning', desc: 'Multi-agent debate engine and specialist framework' },
   { name: '@recurrsive/types', desc: '43 entity types + 43 relationship types (shared schema)' },
   { name: '@recurrsive/cli', desc: 'Command-line interface' },
@@ -358,7 +358,7 @@ export default function ArchitecturePage() {
             </h2>
             <p style={{ color: 'var(--text-secondary)', maxWidth: 600, margin: '0 auto', lineHeight: 1.7 }}>
               Not a single model guessing — specialized agents bring domain expertise to a
-              structured debate, producing high-confidence, evidence-backed recommendations.
+              structured debate, producing evidence-linked opportunities with recorded dissent.
             </p>
           </div>
 
@@ -407,7 +407,7 @@ export default function ArchitecturePage() {
               { label: '1. Evidence Collection', desc: 'Collectors ingest raw data from 14 sources and emit typed entities.' },
               { label: '2. Structural Parsing', desc: 'Tree-sitter extracts AST-level structure from source code.' },
               { label: '3. Graph Enrichment', desc: 'Entities and relationships are upserted into the knowledge graph.' },
-              { label: '4. Rule Evaluation', desc: '89+ rules from 13 analyzers evaluate the graph and produce findings.' },
+              { label: '4. Rule Evaluation', desc: 'Thirteen analyzers evaluate collected evidence and produce findings.' },
               { label: '5. Multi-Agent Debate', desc: '19 specialists reason over findings, fuse evidence, and rank opportunities.' },
               { label: '6. Presentation', desc: 'Prioritized recommendations are delivered via dashboard, API, or CI/CD checks.' },
             ].map((step) => (
