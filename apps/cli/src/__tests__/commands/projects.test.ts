@@ -57,7 +57,7 @@ describe('projects command', () => {
     vi.clearAllMocks();
     process.exitCode = undefined;
     mockApiRequest.mockResolvedValue([
-      { id: 'proj-1', name: 'Web App', health: 85, status: 'active', language: 'TypeScript', lastAnalyzed: '2026-01-01' },
+      { id: 'proj-1', name: 'Web App', healthScore: 85, language: 'TypeScript', framework: 'React', lastAnalysis: '2026-01-01' },
     ]);
   });
 

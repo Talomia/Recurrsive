@@ -4,7 +4,7 @@
  * MCP tool definitions for project snapshots and timeline.
  *
  * Provides two tools:
- * - `take_snapshot` — Take a snapshot of current project health metrics
+ * - `export_project_snapshot` — Export the current project graph snapshot
  * - `get_timeline` — Get the project evolution timeline
  *
  * @packageDocumentation
@@ -12,7 +12,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { apiGet, apiRequest, apiErrorResult } from '../api.js';
+import { apiGet, apiRequest, apiErrorResult, projectScopedPath } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Tool registration
@@ -24,25 +24,18 @@ import { apiGet, apiRequest, apiErrorResult } from '../api.js';
  * @param server - The MCP server instance.
  */
 export function registerSnapshotTools(server: McpServer): void {
-  // ── take_snapshot ────────────────────────────────────────────────
+  // ── export_project_snapshot ─────────────────────────────────────
   server.tool(
-    'take_snapshot',
-    'Take a snapshot of current project health metrics',
+    'export_project_snapshot',
+    'Export the current project knowledge graph as a portable JSON snapshot',
     {
-      label: z
-        .string()
-        .optional()
-        .describe('Optional label for the snapshot (e.g., "pre-refactor", "v2.1-release")'),
+      project_id: z.string().optional().describe('Project ID. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
-    async ({ label }) => {
+    async ({ project_id }) => {
       try {
-        const body: Record<string, string> = {};
-        if (label) body['label'] = label;
-
-        const result = await apiRequest<unknown>('/api/v1/snapshots', {
-          method: 'POST',
-          body: JSON.stringify(body),
-        });
+        const result = await apiRequest<unknown>(
+          projectScopedPath('/api/v1/snapshots/export', project_id),
+        );
 
         return {
           content: [{
@@ -51,7 +44,7 @@ export function registerSnapshotTools(server: McpServer): void {
           }],
         };
       } catch (error) {
-        return apiErrorResult(error, 'take snapshot');
+        return apiErrorResult(error, 'export project snapshot');
       }
     },
   );
@@ -63,16 +56,22 @@ export function registerSnapshotTools(server: McpServer): void {
     {
       limit: z
         .number()
+        .int()
+        .min(1)
+        .max(100)
         .optional()
-        .describe('Maximum number of timeline entries to return (default 10)'),
+        .describe('Maximum number of timeline entries to return (default 50)'),
+      project_id: z.string().optional().describe('Project ID. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
-    async ({ limit }) => {
+    async ({ limit, project_id }) => {
       try {
         const params = new URLSearchParams();
         if (limit !== undefined) params.set('limit', String(limit));
         const qs = params.toString();
 
-        const result = await apiGet<unknown>(`/api/v1/snapshots${qs ? `?${qs}` : ''}`);
+        const result = await apiGet<unknown>(
+          projectScopedPath(`/api/v1/timeline/events${qs ? `?${qs}` : ''}`, project_id),
+        );
 
         return {
           content: [{

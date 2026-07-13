@@ -82,8 +82,8 @@ export function registerBatchCommand(program: Command): void {
         return;
       }
 
-      if (projectIds.length > 10) {
-        error(`Maximum 10 projects per batch (got ${projectIds.length})`);
+      if (projectIds.length > 100) {
+        error(`Maximum 100 projects per batch (got ${projectIds.length})`);
         process.exitCode = 1;
         return;
       }
@@ -91,10 +91,10 @@ export function registerBatchCommand(program: Command): void {
       try {
         let result: BatchRun;
         try {
-          result = await apiRequest('/api/v1/batch/analyze', {
+          result = await apiRequest<BatchRun>('/api/v1/batch/analyze', {
             method: 'POST',
             body: JSON.stringify({ projectIds }),
-          }) as BatchRun;
+          });
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -134,8 +134,7 @@ export function registerBatchCommand(program: Command): void {
       try {
         let result: BatchRun;
         try {
-          const response = await apiRequest(`/api/v1/batch/status/${batchId}`) as { data: BatchRun };
-          result = response.data;
+          result = await apiRequest<BatchRun>(`/api/v1/batch/status/${encodeURIComponent(batchId)}`);
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -184,8 +183,8 @@ export function registerBatchCommand(program: Command): void {
       try {
         let runs: BatchRun[];
         try {
-          const data = await apiRequest(`/api/v1/batch/history?limit=${opts.limit}`) as { data: BatchRun[] };
-          runs = data.data;
+          const requestedLimit = Math.max(1, Number.parseInt(opts.limit, 10) || 10);
+          runs = (await apiRequest<BatchRun[]>('/api/v1/batch/history')).slice(0, requestedLimit);
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);

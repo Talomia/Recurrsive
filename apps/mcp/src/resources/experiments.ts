@@ -13,7 +13,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { apiGet } from '../api.js';
+import { apiErrorMessage, apiGet, projectScopedPath } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,13 +24,29 @@ interface Experiment {
   name: string;
   hypothesis: string;
   status: string;
-  progress?: number;
-  started_at: string;
-  completed_at?: string;
-  variants?: string[];
-  metrics: Record<string, number>;
-  conclusion?: string;
-  outcome?: string;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  variants: Array<{ name: string }>;
+  metrics: Array<{
+    name: string;
+    variant_a: number;
+    variant_b: number;
+    difference: number;
+    preferred: 'a' | 'b' | 'tie';
+  }>;
+  conclusion: string | null;
+  error: string | null;
+}
+
+function errorResource(uri: URL, error: unknown) {
+  return {
+    contents: [{
+      uri: uri.href,
+      mimeType: 'text/plain',
+      text: apiErrorMessage(error, 'load experiments'),
+    }],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -53,63 +69,51 @@ export function registerExperimentResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      let allExperiments: Experiment[] = [];
-
       try {
-        allExperiments = await apiGet<Experiment[]>('/api/v1/experiments');
-      } catch {
-        // API unavailable — fall back to empty list
-      }
-
-      const activeExperiments = allExperiments.filter(
-        e => e.status === 'running' || e.status === 'active',
-      );
-
-      const lines = [
-        '# Active Experiments',
-        '',
-        `**Total Active:** ${activeExperiments.length}`,
-        '',
-        '| ID | Name | Progress | Status | Started |',
-        '| --- | --- | --- | --- | --- |',
-      ];
-
-      for (const exp of activeExperiments) {
-        lines.push(
-          `| ${exp.id} | ${exp.name} | ${exp.progress ?? 0}% | ${exp.status} | ${exp.started_at} |`,
+        const allExperiments = await apiGet<Experiment[]>(
+          projectScopedPath('/api/v1/experiments'),
         );
-      }
 
-      lines.push('');
+        const activeExperiments = allExperiments.filter(
+          experiment => experiment.status === 'pending' || experiment.status === 'running',
+        );
 
-      for (const exp of activeExperiments) {
-        lines.push(`## ${exp.name} (${exp.id})`);
-        lines.push('');
-        lines.push(`**Hypothesis:** ${exp.hypothesis}`);
-        lines.push(`**Progress:** ${exp.progress ?? 0}%`);
-        if (exp.variants && exp.variants.length > 0) {
-          lines.push(`**Variants:** ${exp.variants.join(' vs ')}`);
+        const lines = [
+          '# Active Experiments',
+          '',
+          `**Total Active:** ${activeExperiments.length}`,
+          '',
+          '| ID | Name | Status | Started | Variants |',
+          '| --- | --- | --- | --- | --- |',
+        ];
+
+        for (const experiment of activeExperiments) {
+          lines.push(
+            `| ${experiment.id} | ${experiment.name} | ${experiment.status} | ${experiment.startedAt ?? 'Not started'} | ${experiment.variants.map((variant) => variant.name).join(' vs ')} |`,
+          );
         }
+
         lines.push('');
-        lines.push('**Current Metrics:**');
-        for (const [key, value] of Object.entries(exp.metrics)) {
-          lines.push(`- ${key}: ${value}`);
+
+        for (const experiment of activeExperiments) {
+          lines.push(`## ${experiment.name} (${experiment.id})`);
+          lines.push('');
+          lines.push(`**Hypothesis:** ${experiment.hypothesis}`);
+          lines.push(`**Variants:** ${experiment.variants.map((variant) => variant.name).join(' vs ')}`);
+          lines.push('');
         }
-        lines.push('');
+
+        lines.push(
+          '> Use the `list_experiments` tool to get real-time experiment data ' +
+          'and `create_experiment` to start new experiments.',
+        );
+
+        return {
+          contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }],
+        };
+      } catch (error) {
+        return errorResource(uri, error);
       }
-
-      lines.push(
-        '> Use the `list_experiments` tool to get real-time experiment data ' +
-        'and `create_experiment` to start new experiments.',
-      );
-
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'text/markdown',
-          text: lines.join('\n'),
-        }],
-      };
     },
   );
 
@@ -123,72 +127,58 @@ export function registerExperimentResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      let allExperiments: Experiment[] = [];
-
       try {
-        allExperiments = await apiGet<Experiment[]>('/api/v1/experiments');
-      } catch {
-        // API unavailable — fall back to empty list
-      }
-
-      const completedExperiments = allExperiments.filter(e => e.status === 'completed');
-
-      const lines = [
-        '# Experiment Results',
-        '',
-        `**Total Completed:** ${completedExperiments.length}`,
-        `**Positive Outcomes:** ${completedExperiments.filter(e => e.outcome === 'positive').length}`,
-        `**Partial Outcomes:** ${completedExperiments.filter(e => e.outcome === 'partial').length}`,
-        '',
-        '| ID | Name | Outcome | Duration | Conclusion |',
-        '| --- | --- | --- | --- | --- |',
-      ];
-
-      for (const exp of completedExperiments) {
-        let durationStr = '—';
-        if (exp.started_at && exp.completed_at) {
-          const start = new Date(exp.started_at);
-          const end = new Date(exp.completed_at);
-          const durationDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-          durationStr = `${durationDays}d`;
-        }
-        const shortConclusion = exp.conclusion
-          ? exp.conclusion.substring(0, 60) + '...'
-          : '—';
-        lines.push(
-          `| ${exp.id} | ${exp.name} | ${exp.outcome ?? '—'} | ${durationStr} | ${shortConclusion} |`,
+        const allExperiments = await apiGet<Experiment[]>(
+          projectScopedPath('/api/v1/experiments'),
         );
-      }
 
-      lines.push('');
+        const completedExperiments = allExperiments.filter(experiment => experiment.status === 'completed');
 
-      for (const exp of completedExperiments) {
-        lines.push(`## ${exp.name} (${exp.id})`);
-        lines.push('');
-        lines.push(`**Hypothesis:** ${exp.hypothesis}`);
-        lines.push(`**Outcome:** ${exp.outcome ?? '—'}`);
-        lines.push(`**Period:** ${exp.started_at} → ${exp.completed_at ?? '—'}`);
-        lines.push('');
-        lines.push(`**Conclusion:** ${exp.conclusion ?? 'No conclusion recorded.'}`);
-        lines.push('');
-        lines.push('**Final Metrics:**');
-        for (const [key, value] of Object.entries(exp.metrics)) {
-          lines.push(`- ${key}: ${value}`);
+        const lines = [
+          '# Experiment Results',
+          '',
+          `**Total Completed:** ${completedExperiments.length}`,
+          '',
+          '| ID | Name | Duration | Conclusion |',
+          '| --- | --- | --- | --- |',
+        ];
+
+        for (const experiment of completedExperiments) {
+          const durationMs = experiment.startedAt && experiment.completedAt
+            ? new Date(experiment.completedAt).getTime() - new Date(experiment.startedAt).getTime()
+            : null;
+          const duration = durationMs === null ? '—' : `${Math.round(durationMs / 1000)}s`;
+          const shortConclusion = experiment.conclusion
+            ? `${experiment.conclusion.substring(0, 60)}${experiment.conclusion.length > 60 ? '…' : ''}`
+            : '—';
+          lines.push(`| ${experiment.id} | ${experiment.name} | ${duration} | ${shortConclusion} |`);
         }
+
         lines.push('');
+
+        for (const experiment of completedExperiments) {
+          lines.push(`## ${experiment.name} (${experiment.id})`);
+          lines.push('');
+          lines.push(`**Hypothesis:** ${experiment.hypothesis}`);
+          lines.push(`**Period:** ${experiment.startedAt ?? '—'} → ${experiment.completedAt ?? '—'}`);
+          lines.push(`**Conclusion:** ${experiment.conclusion ?? 'No conclusion recorded.'}`);
+          lines.push('');
+          lines.push('| Metric | Variant A | Variant B | Difference | Preferred |');
+          lines.push('| --- | --- | --- | --- | --- |');
+          for (const metric of experiment.metrics) {
+            lines.push(`| ${metric.name} | ${metric.variant_a} | ${metric.variant_b} | ${metric.difference} | ${metric.preferred} |`);
+          }
+          lines.push('');
+        }
+
+        lines.push('> Use the `list_experiments` tool with a status filter for real-time data.');
+
+        return {
+          contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }],
+        };
+      } catch (error) {
+        return errorResource(uri, error);
       }
-
-      lines.push(
-        '> Use the `list_experiments` tool with status filter for real-time data.',
-      );
-
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'text/markdown',
-          text: lines.join('\n'),
-        }],
-      };
     },
   );
 }

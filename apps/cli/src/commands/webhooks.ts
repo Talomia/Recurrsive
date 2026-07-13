@@ -79,10 +79,7 @@ export function registerWebhooksCommand(program: Command): void {
       banner();
 
       try {
-        const result = await apiRequest('/api/v1/webhooks') as {
-          data: Webhook[];
-          total: number;
-        };
+        const result = await apiRequest<Webhook[]>('/api/v1/webhooks');
 
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));
@@ -91,12 +88,12 @@ export function registerWebhooksCommand(program: Command): void {
 
         header('Registered Webhooks');
 
-        if (result.data.length === 0) {
+        if (result.length === 0) {
           info('No webhooks registered. Use `recurrsive webhooks add` to create one.');
           return;
         }
 
-        const rows = result.data.map((h) => [
+        const rows = result.map((h) => [
           h.id,
           h.url.length > 40 ? h.url.slice(0, 40) + '…' : h.url,
           h.active ? green('active') : red('inactive'),
@@ -110,7 +107,7 @@ export function registerWebhooksCommand(program: Command): void {
           rows,
         ));
 
-        info(`\n${bold('Total')}: ${cyan(String(result.total))} webhooks`);
+        info(`\n${bold('Total')}: ${cyan(String(result.length))} webhooks`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         error(`Failed to list webhooks: ${msg}`);
@@ -131,19 +128,19 @@ export function registerWebhooksCommand(program: Command): void {
       try {
         const events = options.events.split(',').map((e) => e.trim()) as WebhookEvent[];
 
-        const result = await apiRequest('/api/v1/webhooks', {
+        const result = await apiRequest<Webhook>('/api/v1/webhooks', {
           method: 'POST',
           body: JSON.stringify({
             url: options.url,
             events,
             secret: options.secret,
           }),
-        }) as { data: Webhook };
+        });
 
         header('Webhook Registered');
-        info(`${bold('ID')}: ${cyan(result.data.id)}`);
-        info(`${bold('URL')}: ${result.data.url}`);
-        info(`${bold('Events')}: ${result.data.events.join(', ')}`);
+        info(`${bold('ID')}: ${cyan(result.id)}`);
+        info(`${bold('URL')}: ${result.url}`);
+        info(`${bold('Events')}: ${result.events.join(', ')}`);
         info(`${bold('Status')}: ${green('active')}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -161,7 +158,7 @@ export function registerWebhooksCommand(program: Command): void {
       banner();
 
       try {
-        await apiRequest(`/api/v1/webhooks/${id}`, { method: 'DELETE' });
+        await apiRequest(`/api/v1/webhooks/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
         header('Webhook Removed');
         info(`Webhook ${cyan(id)} has been removed.`);
@@ -181,13 +178,13 @@ export function registerWebhooksCommand(program: Command): void {
       banner();
 
       try {
-        const result = await apiRequest(`/api/v1/webhooks/${id}/test`, {
+        const result = await apiRequest<{ delivered: boolean; payload: unknown }>(`/api/v1/webhooks/${encodeURIComponent(id)}/test`, {
           method: 'POST',
-        }) as { data: { delivered: boolean; payload: unknown } };
+        });
 
         header('Test Delivery');
 
-        if (result.data.delivered) {
+        if (result.delivered) {
           info(`${green('✓')} Test event delivered to webhook ${cyan(id)}`);
         } else {
           info(`${red('✗')} Test delivery failed for webhook ${cyan(id)}`);
@@ -207,13 +204,11 @@ export function registerWebhooksCommand(program: Command): void {
       banner();
 
       try {
-        const result = await apiRequest('/api/v1/webhooks/events') as {
-          data: Array<{ event: string; description: string }>;
-        };
+        const result = await apiRequest<Array<{ event: string; description: string }>>('/api/v1/webhooks/events');
 
         header('Supported Webhook Events');
 
-        const rows = result.data.map((e) => [
+        const rows = result.map((e) => [
           cyan(e.event),
           e.description,
         ]);

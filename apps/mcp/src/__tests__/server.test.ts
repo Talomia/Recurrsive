@@ -109,6 +109,9 @@ vi.mock('zod', () => {
   mockSchema.optional = vi.fn().mockImplementation(chainable);
   mockSchema.url = vi.fn().mockImplementation(chainable);
   mockSchema.min = vi.fn().mockImplementation(chainable);
+  mockSchema.max = vi.fn().mockImplementation(chainable);
+  mockSchema.length = vi.fn().mockImplementation(chainable);
+  mockSchema.int = vi.fn().mockImplementation(chainable);
   return {
     z: {
       string: vi.fn().mockReturnValue(mockSchema),
@@ -377,12 +380,12 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('get_audit_events');
     });
 
-    it('registers "take_snapshot" tool', () => {
+    it('registers "export_project_snapshot" tool', () => {
       createServer();
       const toolNames = mockTool.mock.calls.map(
         (call: unknown[]) => call[0],
       );
-      expect(toolNames).toContain('take_snapshot');
+      expect(toolNames).toContain('export_project_snapshot');
     });
 
     it('registers "get_timeline" tool', () => {

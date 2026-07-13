@@ -7,20 +7,18 @@ import { apiRequest } from '../config.js';
 import { header, info, bold, cyan, dim, green, yellow, red, progressBar, table } from '../output/terminal.js';
 
 interface HealthForecastResponse {
-  data: {
-    currentScore: number;
-    trend: 'improving' | 'declining' | 'stable';
-    confidence: number;
-    history: Array<{ date: string; score: number }>;
-    forecast: Array<{ date: string; predicted: number; lowerBound: number; upperBound: number }>;
-    regression: { slope: number; intercept: number; r2: number };
-  };
-  generatedAt: string;
+  currentScore: number;
+  trend: 'improving' | 'declining' | 'stable' | 'insufficient-data';
+  confidence: number;
+  history: Array<{ date: string; score: number }>;
+  forecast: Array<{ date: string; predicted: number; lowerBound: number; upperBound: number }>;
+  regression: { slope: number; intercept: number; r2: number };
 }
 
-function formatTrend(trend: HealthForecastResponse['data']['trend']): string {
+function formatTrend(trend: HealthForecastResponse['trend']): string {
   if (trend === 'improving') return green('▲ Improving');
   if (trend === 'declining') return red('▼ Declining');
+  if (trend === 'insufficient-data') return yellow('Insufficient data');
   return yellow('─ Stable');
 }
 
@@ -34,12 +32,15 @@ export function registerForecastCommand(program: Command): void {
     .description('Show the health trend projection and its observed-data fit')
     .option('--json', 'Output as JSON')
     .option('--days <n>', 'Projection horizon in days', '30')
-    .action(async (opts: { json?: boolean; days?: string }) => {
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
+    .action(async (opts: { json?: boolean; days?: string; projectId?: string }) => {
       const requestedDays = Number.parseInt(opts.days ?? '30', 10);
       const days = Number.isFinite(requestedDays) ? Math.min(180, Math.max(1, requestedDays)) : 30;
       let response: HealthForecastResponse;
       try {
-        response = await apiRequest(`/api/v1/forecasting/health?horizon=${days}`) as HealthForecastResponse;
+        response = opts.projectId
+          ? await apiRequest<HealthForecastResponse>(`/api/v1/forecasting/health?horizon=${days}`, { projectId: opts.projectId })
+          : await apiRequest<HealthForecastResponse>(`/api/v1/forecasting/health?horizon=${days}`);
       } catch {
         console.error(yellow('⚠ Could not reach the API server. Ensure it is running and you are authenticated.'));
         process.exitCode = 1;
@@ -51,7 +52,7 @@ export function registerForecastCommand(program: Command): void {
         return;
       }
 
-      const data = response.data;
+      const data = response;
       header(`Health Trend Projection (${days} days)`);
       console.log(`  ${bold('Current score:')} ${progressBar(data.currentScore, 100, 35)}`);
       console.log(`  ${bold('Trend:')} ${formatTrend(data.trend)}`);

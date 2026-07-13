@@ -70,17 +70,19 @@ export function registerExportCommand(program: Command): void {
   exp
     .command('create <scope>')
     .description('Create a new data export')
-    .option('--format <format>', 'Export format: json, csv, or markdown', 'json')
+    .option('--format <format>', 'Export format: json, csv, markdown, or sarif', 'json')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (scope: string, opts: { format?: string; json?: boolean }) => {
+    .action(async (scope: string, opts: { format?: string; projectId?: string; json?: boolean }) => {
       try {
         const format = opts.format ?? 'json';
         let result: ExportResult;
         try {
-          result = await apiRequest('/api/v1/export', {
+          result = await apiRequest<ExportResult>('/api/v1/export', {
             method: 'POST',
             body: JSON.stringify({ format, scope }),
-          }) as ExportResult;
+            ...(opts.projectId ? { projectId: opts.projectId } : {}),
+          });
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -110,13 +112,15 @@ export function registerExportCommand(program: Command): void {
   exp
     .command('history')
     .description('View past exports')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { projectId?: string; json?: boolean }) => {
       try {
         let items: ExportHistoryItem[];
         try {
-          const data = await apiRequest('/api/v1/export/history') as { data: ExportHistoryItem[] };
-          items = data.data;
+          items = opts.projectId
+            ? await apiRequest<ExportHistoryItem[]>('/api/v1/export/history', { projectId: opts.projectId })
+            : await apiRequest<ExportHistoryItem[]>('/api/v1/export/history');
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);

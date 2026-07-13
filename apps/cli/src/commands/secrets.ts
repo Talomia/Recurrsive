@@ -15,7 +15,6 @@ import {
   header,
   info,
   success,
-  warning,
   bold,
   cyan,
   dim,
@@ -31,40 +30,34 @@ import {
 // ---------------------------------------------------------------------------
 
 interface SecretEntry {
-  name: string;
+  id: string;
+  key: string;
+  description: string;
   backend: string;
   version: number;
-  lastRotated: string;
-  status: 'current' | 'expiring' | 'expired';
+  lastRotated: string | null;
+  rotationIntervalDays: number;
+  expiresAt: string | null;
 }
 
 interface AuditEvent {
   timestamp: string;
-  key: string;
+  secretKey: string;
   action: string;
   actor: string;
-  sourceIp: string;
+  metadata: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function statusBadge(status: string): string {
-  switch (status) {
-    case 'current':  return green('● current');
-    case 'expiring': return yellow('● expiring');
-    case 'expired':  return red('● expired');
-    default:         return dim('● unknown');
-  }
-}
-
 function actionBadge(action: string): string {
   switch (action) {
     case 'read':   return dim('READ');
-    case 'rotate': return magenta('ROTATE');
-    case 'create': return green('CREATE');
-    case 'delete': return red('DELETE');
+    case 'rotated': return magenta('ROTATED');
+    case 'created': return green('CREATED');
+    case 'deleted': return red('DELETED');
     default:       return dim(action.toUpperCase());
   }
 }
@@ -91,7 +84,7 @@ export function registerSecretsCommand(program: Command): void {
     .action(async (opts: { json?: boolean }) => {
       let data: SecretEntry[];
       try {
-        data = await apiRequest('/api/v1/secrets') as SecretEntry[];
+        data = await apiRequest<SecretEntry[]>('/api/v1/secrets');
       } catch {
         console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
         process.exit(1);
@@ -106,14 +99,14 @@ export function registerSecretsCommand(program: Command): void {
       header('Secrets');
 
       const rows = data.map((s) => [
-        bold(s.name),
+        bold(s.key),
         cyan(s.backend),
         `v${s.version}`,
-        dim(s.lastRotated),
-        statusBadge(s.status),
+        dim(s.lastRotated ?? 'Never'),
+        s.rotationIntervalDays > 0 ? `${s.rotationIntervalDays} days` : 'Manual',
       ]);
 
-      console.log(table(['Key Name', 'Backend', 'Version', 'Last Rotated', 'Status'], rows));
+      console.log(table(['Key Name', 'Backend', 'Version', 'Last Rotated', 'Rotation'], rows));
       console.log('');
       info(dim(`${data.length} secrets managed · Values are never displayed`));
       console.log('');
@@ -123,31 +116,31 @@ export function registerSecretsCommand(program: Command): void {
   secrets
     .command('rotate <id>')
     .description('Trigger secret rotation')
-    .action(async (id: string) => {
-      let secrets: SecretEntry[];
-      try {
-        secrets = await apiRequest('/api/v1/secrets') as SecretEntry[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+    .option('--new-value <value>', 'Replacement value (or set RECURRSIVE_SECRET_VALUE)')
+    .action(async (id: string, opts: { newValue?: string }) => {
+      const newValue = opts.newValue ?? process.env['RECURRSIVE_SECRET_VALUE'];
+      if (!newValue) {
+        console.error(yellow('A replacement value is required. Pass --new-value or set RECURRSIVE_SECRET_VALUE.'));
+        process.exitCode = 1;
+        return;
       }
-      const secret = secrets.find((s) => s.name === id);
-      const oldVersion = secret ? secret.version : 1;
-      const newVersion = oldVersion + 1;
 
-      header('Secret Rotation');
-
-      info(`  ${bold('Key:')}          ${cyan(id)}`);
-      info(`  ${bold('Old Version:')}  v${oldVersion}`);
-      info(`  ${bold('New Version:')}  ${green(`v${newVersion}`)}`);
-      info(`  ${bold('Timestamp:')}    ${dim(new Date().toISOString())}`);
-      console.log('');
-
-      success(`Secret ${bold(id)} rotated to v${newVersion}`);
-      console.log('');
-
-      warning('New version may take up to 60s to propagate across all services.');
-      console.log('');
+      try {
+        const rotated = await apiRequest<SecretEntry>(
+          `/api/v1/secrets/${encodeURIComponent(id)}/rotate`,
+          { method: 'POST', body: JSON.stringify({ newValue }) },
+        );
+        header('Secret Rotation');
+        info(`  ${bold('Key:')}          ${cyan(rotated.key)}`);
+        info(`  ${bold('New Version:')}  ${green(`v${rotated.version}`)}`);
+        info(`  ${bold('Timestamp:')}    ${dim(rotated.lastRotated ?? new Date().toISOString())}`);
+        console.log('');
+        success(`Secret ${bold(rotated.key)} rotated to v${rotated.version}`);
+        console.log('');
+      } catch (caught) {
+        console.error(yellow(`Failed to rotate secret: ${caught instanceof Error ? caught.message : String(caught)}`));
+        process.exitCode = 1;
+      }
     });
 
   // ── secrets audit-log ────────────────────────────────────────────────
@@ -160,7 +153,7 @@ export function registerSecretsCommand(program: Command): void {
       const limit = parseInt(opts.limit ?? '10', 10);
       let allData: AuditEvent[];
       try {
-        allData = await apiRequest('/api/v1/secrets/audit') as AuditEvent[];
+        allData = await apiRequest<AuditEvent[]>('/api/v1/secrets/audit/log');
       } catch {
         console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
         process.exit(1);
@@ -176,13 +169,13 @@ export function registerSecretsCommand(program: Command): void {
 
       const rows = data.map((e) => [
         dim(e.timestamp),
-        bold(e.key),
+        bold(e.secretKey),
         actionBadge(e.action),
         cyan(e.actor),
-        dim(e.sourceIp),
+        dim(JSON.stringify(e.metadata)),
       ]);
 
-      console.log(table(['Timestamp', 'Key', 'Action', 'Actor', 'Source IP'], rows));
+      console.log(table(['Timestamp', 'Key', 'Action', 'Actor', 'Metadata'], rows));
       console.log('');
       info(dim(`Showing ${data.length} most recent events`));
       console.log('');

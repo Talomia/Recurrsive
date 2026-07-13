@@ -9,7 +9,7 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-Node.js 22 and pnpm 9 are recommended.
+Node.js 22 and pnpm 11.7.0 or newer are required.
 
 ## Verify the workspace
 
@@ -42,6 +42,18 @@ recurrsive report --format html
 
 Use `recurrsive --help` for the authoritative command list.
 
+API-backed CLI commands require authentication and, for project data, an
+explicit project scope:
+
+```bash
+export RECURRSIVE_API_URL=http://localhost:3000
+export RECURRSIVE_TOKEN=<jwt>
+export RECURRSIVE_PROJECT_ID=<registered-project-id>
+```
+
+`RECURRSIVE_API_KEY` can be used instead of a bearer token. Project-scoped
+commands also accept `--project-id` to override the environment value.
+
 ## Direct API use
 
 Check first-run state, complete setup or login, then send the returned JWT as a bearer token. Register a project before calling analysis.
@@ -54,7 +66,12 @@ GET /api/v1/openapi.json
 
 ## MCP
 
-Build the MCP app and configure your MCP client to run `apps/mcp/dist/bin.js`. Set the API connection and authentication variables required by `apps/mcp/src/api.ts`. The registered MCP tool list is authoritative; documentation does not hard-code a count.
+Build the MCP app and configure your MCP client to run `apps/mcp/dist/bin.js`.
+Set `RECURRSIVE_API_URL`, either `RECURRSIVE_API_TOKEN` or
+`RECURRSIVE_API_KEY`, and `RECURRSIVE_PROJECT_ID` for API-backed tools and
+resources. Tool calls with a `project_id` argument override the environment
+scope. The registered MCP tool list is authoritative; documentation does not
+hard-code a count.
 
 ## Production
 

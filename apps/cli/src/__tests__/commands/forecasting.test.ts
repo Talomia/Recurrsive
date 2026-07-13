@@ -57,15 +57,12 @@ describe('forecast command', () => {
     vi.clearAllMocks();
     process.exitCode = undefined;
     mockApiRequest.mockResolvedValue({
-      data: {
-        currentScore: 74,
-        trend: 'improving',
-        confidence: 0.82,
-        history: [{ date: '2026-07-01', score: 70 }, { date: '2026-07-08', score: 74 }],
-        forecast: [{ date: '2026-07-14', predicted: 75, lowerBound: 74, upperBound: 76 }],
-        regression: { slope: 0.5, intercept: 70, r2: 0.82 },
-      },
-      generatedAt: '2026-07-13T00:00:00.000Z',
+      currentScore: 74,
+      trend: 'improving',
+      confidence: 0.82,
+      history: [{ date: '2026-07-01', score: 70 }, { date: '2026-07-08', score: 74 }],
+      forecast: [{ date: '2026-07-14', predicted: 75, lowerBound: 74, upperBound: 76 }],
+      regression: { slope: 0.5, intercept: 70, r2: 0.82 },
     });
   });
 
@@ -96,6 +93,12 @@ describe('forecast command', () => {
     const health = forecast.commands.find((c) => c.name() === 'health')!;
     const opt = health.options.find((o) => o.long === '--days');
     expect(opt).toBeDefined();
+  });
+
+  it('renders an unwrapped forecast response', async () => {
+    const program = createCLI();
+    await program.parseAsync(['node', 'test', 'forecast', 'health']);
+    expect(process.exitCode).toBeUndefined();
   });
 
   it('calls the implemented health endpoint with the requested horizon', async () => {

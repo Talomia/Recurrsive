@@ -21,7 +21,7 @@ Recurrsive does not claim to run load tests, chaos experiments, create GitHub pu
 ## Requirements
 
 - Node.js 22 or newer
-- pnpm 9
+- pnpm 11.7.0 or newer
 - Docker for the production-like stack
 
 ## Local development

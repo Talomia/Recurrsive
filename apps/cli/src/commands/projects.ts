@@ -17,10 +17,7 @@ import {
   bold,
   cyan,
   dim,
-  green,
   yellow,
-  red,
-  magenta,
   progressBar,
   table,
 } from '../output/terminal.js';
@@ -32,44 +29,28 @@ import {
 interface ProjectSummary {
   id: string;
   name: string;
-  health: number;
-  status: string;
+  healthScore: number;
   language: string;
-  lastAnalyzed: string;
+  framework: string;
+  lastAnalysis: string | null;
 }
 
 interface ProjectDetail extends ProjectSummary {
   description: string;
-  repoUrl: string;
-  framework: string;
-  analyzers: { name: string; enabled: boolean }[];
-  collectors: { name: string; interval: string }[];
+  repository: string;
+  settings: {
+    analyzers: string[];
+    collectors: string[];
+  };
 }
 
 interface HealthComparison {
-  project: string;
-  health: number;
-  complexity: number;
-  security: number;
-  performance: number;
-  trend: 'improving' | 'declining' | 'stable';
-}
-
-function formatTrend(trend: string): string {
-  switch (trend) {
-    case 'improving': return green('▲');
-    case 'declining': return red('▼');
-    default:          return dim('─');
-  }
-}
-
-function statusBadge(status: string): string {
-  switch (status) {
-    case 'active':   return green('● active');
-    case 'warning':  return yellow('● warning');
-    case 'critical': return red('● critical');
-    default:         return dim('● unknown');
-  }
+  id: string;
+  name: string;
+  healthScore: number;
+  language: string;
+  framework: string;
+  lastAnalysis: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,7 +75,7 @@ export function registerProjectsCommand(program: Command): void {
     .action(async (opts: { json?: boolean }) => {
       let data: ProjectSummary[];
       try {
-        data = await apiRequest('/api/v1/projects') as ProjectSummary[];
+        data = await apiRequest<ProjectSummary[]>('/api/v1/projects');
       } catch {
         console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
         process.exit(1);
@@ -109,13 +90,13 @@ export function registerProjectsCommand(program: Command): void {
 
       const rows = data.map((p) => [
         bold(p.name),
-        progressBar(p.health, 100, 15),
-        statusBadge(p.status),
-        cyan(p.language),
-        dim(p.lastAnalyzed),
+        progressBar(p.healthScore, 100, 15),
+        cyan(p.language || '—'),
+        p.framework || '—',
+        dim(p.lastAnalysis ?? 'Never'),
       ]);
 
-      console.log(table(['Name', 'Health', 'Status', 'Language', 'Last Analyzed'], rows));
+      console.log(table(['Name', 'Health', 'Language', 'Framework', 'Last Analyzed'], rows));
       console.log('');
       info(dim(`${data.length} projects`));
       console.log('');
@@ -129,7 +110,7 @@ export function registerProjectsCommand(program: Command): void {
     .action(async (id: string, opts: { json?: boolean }) => {
       let detail: ProjectDetail;
       try {
-        detail = await apiRequest(`/api/v1/projects/${id}`) as ProjectDetail;
+        detail = await apiRequest<ProjectDetail>(`/api/v1/projects/${encodeURIComponent(id)}`);
       } catch {
         console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
         process.exit(1);
@@ -144,20 +125,19 @@ export function registerProjectsCommand(program: Command): void {
 
       info(`  ${bold('ID:')}          ${cyan(detail.id)}`);
       info(`  ${bold('Description:')} ${detail.description}`);
-      info(`  ${bold('Repository:')}  ${dim(detail.repoUrl)}`);
+      info(`  ${bold('Repository:')}  ${dim(detail.repository)}`);
       info(`  ${bold('Language:')}    ${cyan(detail.language)}`);
       info(`  ${bold('Framework:')}   ${detail.framework}`);
-      info(`  ${bold('Health:')}      ${progressBar(detail.health, 100, 20)}`);
+      info(`  ${bold('Health:')}      ${progressBar(detail.healthScore, 100, 20)}`);
 
       header('Analyzers');
-      for (const a of detail.analyzers) {
-        const badge = a.enabled ? green('● enabled') : dim('○ disabled');
-        info(`  ${badge}  ${bold(a.name)}`);
+      for (const analyzer of detail.settings.analyzers) {
+        info(`  ${bold(analyzer)}`);
       }
 
       header('Collectors');
-      for (const c of detail.collectors) {
-        info(`  ${magenta('◈')} ${bold(c.name)}  ${dim(`every ${c.interval}`)}`);
+      for (const collector of detail.settings.collectors) {
+        info(`  ${bold(collector)}`);
       }
       console.log('');
     });
@@ -170,7 +150,7 @@ export function registerProjectsCommand(program: Command): void {
     .action(async (opts: { json?: boolean }) => {
       let data: HealthComparison[];
       try {
-        data = await apiRequest('/api/v1/projects/comparisons') as HealthComparison[];
+        data = await apiRequest<HealthComparison[]>('/api/v1/projects/compare/health');
       } catch {
         console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
         process.exit(1);
@@ -184,18 +164,19 @@ export function registerProjectsCommand(program: Command): void {
       header('Health Comparison');
 
       const rows = data.map((c) => [
-        bold(c.project),
-        progressBar(c.health, 100, 12),
-        String(c.complexity),
-        String(c.security),
-        String(c.performance),
-        formatTrend(c.trend),
+        bold(c.name),
+        progressBar(c.healthScore, 100, 12),
+        c.language || '—',
+        c.framework || '—',
+        c.lastAnalysis ?? 'Never',
       ]);
 
-      console.log(table(['Project', 'Health', 'Complexity', 'Security', 'Performance', 'Trend'], rows));
+      console.log(table(['Project', 'Health', 'Language', 'Framework', 'Last Analyzed'], rows));
       console.log('');
 
-      const avg = Math.round(data.reduce((s, c) => s + c.health, 0) / data.length);
+      const avg = data.length > 0
+        ? Math.round(data.reduce((sum, project) => sum + project.healthScore, 0) / data.length)
+        : 0;
       info(`  ${bold('Average Health:')} ${progressBar(avg, 100, 20)}`);
       console.log('');
     });

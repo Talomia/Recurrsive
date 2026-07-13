@@ -12,7 +12,14 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { apiGet, apiRequest, apiErrorResult } from '../api.js';
+import { apiData, apiGet, apiErrorResult, projectScopedPath } from '../api.js';
+
+const variantSchema = z.object({
+  name: z.string().min(1).describe('Variant name'),
+  analyzers: z.array(z.string()).min(1).describe('Enabled analyzer IDs'),
+  collectors: z.array(z.string()).min(1).describe('Enabled collector IDs; must include git'),
+  include_reasoning: z.boolean().optional().describe('Whether to run multi-agent reasoning'),
+});
 
 // ---------------------------------------------------------------------------
 // Tool registration
@@ -33,13 +40,14 @@ export function registerExperimentTools(server: McpServer): void {
         .string()
         .optional()
         .describe('Filter experiments by status (pending, running, completed, failed)'),
+      project_id: z.string().optional().describe('Project ID. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
-    async ({ status }) => {
+    async ({ status, project_id }) => {
       try {
         const path = status
           ? `/api/v1/experiments?status=${encodeURIComponent(status)}`
           : '/api/v1/experiments';
-        const result = await apiGet<unknown>(path);
+        const result = await apiGet<unknown>(projectScopedPath(path, project_id));
 
         return {
           content: [{
@@ -60,16 +68,26 @@ export function registerExperimentTools(server: McpServer): void {
     {
       name: z.string().describe('Name of the experiment'),
       hypothesis: z.string().describe('The hypothesis being tested'),
+      description: z.string().optional().describe('Optional experiment description'),
       variants: z
-        .array(z.string().describe('Variant name'))
-        .min(2)
-        .describe('Array of variant names (minimum 2, e.g. ["Control", "Treatment"])'),
+        .array(variantSchema)
+        .length(2)
+        .describe('Exactly two isolated analyzer/collector configurations'),
+      project_id: z.string().optional().describe('Project ID. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
-    async ({ name, hypothesis, variants }) => {
+    async ({ name, hypothesis, description, variants, project_id }) => {
       try {
-        const result = await apiRequest<unknown>('/api/v1/experiments', {
+        const result = await apiData<unknown>(projectScopedPath('/api/v1/experiments', project_id), {
           method: 'POST',
-          body: JSON.stringify({ name, hypothesis, variants }),
+          body: JSON.stringify({
+            name,
+            hypothesis,
+            description,
+            variants: variants.map(({ include_reasoning, ...variant }) => ({
+              ...variant,
+              includeReasoning: include_reasoning,
+            })),
+          }),
         });
 
         return {

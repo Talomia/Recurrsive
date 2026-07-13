@@ -32,10 +32,9 @@ type ChannelType = 'console' | 'slack' | 'http';
 
 /** Notification channel configuration. */
 interface NotificationChannel {
-  type: ChannelType;
-  name: string;
-  enabled: boolean;
-  config_required: string[];
+  channel: ChannelType;
+  configured: boolean;
+  config_hint: string;
   description: string;
 }
 
@@ -43,10 +42,10 @@ interface NotificationChannel {
 interface NotificationEntry {
   id: string;
   channel: ChannelType;
-  title: string;
-  severity: string;
+  message: string;
   sent_at: string;
-  status: 'delivered' | 'failed';
+  status: 'sent' | 'failed';
+  error?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,8 +76,7 @@ export function registerNotificationsCommand(program: Command): void {
       try {
         let channels: NotificationChannel[];
         try {
-          const data = await apiRequest('/api/v1/notifications/channels') as { channels: NotificationChannel[] };
-          channels = data.channels;
+          channels = await apiRequest<NotificationChannel[]>('/api/v1/notifications/channels');
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -92,17 +90,14 @@ export function registerNotificationsCommand(program: Command): void {
         header('Notification Channels');
 
         const rows = channels.map(ch => [
-          ch.enabled ? green('●') : dim('○'),
-          bold(ch.name),
-          ch.type,
+          ch.configured ? green('●') : dim('○'),
+          bold(ch.channel),
           ch.description,
-          ch.config_required.length > 0
-            ? dim(ch.config_required.join(', '))
-            : green('none'),
+          ch.configured ? green('ready') : dim(ch.config_hint),
         ]);
 
         console.log(table(
-          ['', 'Name', 'Type', 'Description', 'Config Required'],
+          ['', 'Channel', 'Description', 'Configuration'],
           rows,
         ));
 
@@ -168,11 +163,11 @@ export function registerNotificationsCommand(program: Command): void {
       try {
         let entries: NotificationEntry[];
         try {
-          const params = new URLSearchParams();
-          params.set('limit', opts.limit);
-          if (opts.channel) params.set('channel', opts.channel);
-          const data = await apiRequest(`/api/v1/notifications/history?${params}`) as { notifications: NotificationEntry[] };
-          entries = data.notifications;
+          const requestedLimit = Math.max(1, Number.parseInt(opts.limit, 10) || 20);
+          const history = await apiRequest<NotificationEntry[]>('/api/v1/notifications/history');
+          entries = history
+            .filter((entry) => !opts.channel || entry.channel === opts.channel)
+            .slice(0, requestedLimit);
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -191,15 +186,15 @@ export function registerNotificationsCommand(program: Command): void {
         }
 
         const rows = entries.map(e => [
-          e.status === 'delivered' ? green('✔') : '\u001b[31m✗\u001b[0m',
-          bold(e.title),
+          e.status === 'sent' ? green('✔') : '\u001b[31m✗\u001b[0m',
+          bold(e.message),
           e.channel,
-          e.severity,
           e.sent_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
+          e.error ?? '',
         ]);
 
         console.log(table(
-          ['', 'Title', 'Channel', 'Severity', 'Sent At'],
+          ['', 'Message', 'Channel', 'Sent At', 'Error'],
           rows,
         ));
 

@@ -57,7 +57,7 @@ describe('secrets command', () => {
     vi.clearAllMocks();
     process.exitCode = undefined;
     mockApiRequest.mockResolvedValue([
-      { name: 'DB_PASSWORD', backend: 'vault', version: 3, lastRotated: '2026-01-01', status: 'current' },
+      { id: 'secret-1', key: 'DB_PASSWORD', description: 'Database password', backend: 'local', version: 3, lastRotated: '2026-01-01', rotationIntervalDays: 30, expiresAt: null },
     ]);
   });
 

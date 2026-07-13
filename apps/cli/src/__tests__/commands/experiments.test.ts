@@ -53,16 +53,15 @@ function createCLI(): Command {
 describe('experiments command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApiRequest.mockReset();
     process.exitCode = undefined;
   });
 
   describe('list', () => {
     it('fetches experiments from the API', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        data: [
-          { id: 'exp_001', name: 'test-exp', status: 'draft', created_at: new Date().toISOString() },
-        ],
-      });
+      mockApiRequest.mockResolvedValueOnce([
+        { id: 'exp_001', name: 'test-exp', status: 'pending', createdAt: new Date().toISOString() },
+      ]);
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'list']);
@@ -82,11 +81,9 @@ describe('experiments command', () => {
     });
 
     it('supports --status filter', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        data: [
-          { id: 'exp_002', name: 'running-exp', status: 'running', created_at: new Date().toISOString() },
-        ],
-      });
+      mockApiRequest.mockResolvedValueOnce([
+        { id: 'exp_002', name: 'running-exp', status: 'running', createdAt: new Date().toISOString() },
+      ]);
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'experiments', 'list', '--status', 'running']);
@@ -97,11 +94,9 @@ describe('experiments command', () => {
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        data: [
-          { id: 'exp_001', name: 'test-exp', status: 'draft', created_at: new Date().toISOString() },
-        ],
-      });
+      mockApiRequest.mockResolvedValueOnce([
+        { id: 'exp_001', name: 'test-exp', status: 'pending', createdAt: new Date().toISOString() },
+      ]);
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
@@ -117,12 +112,18 @@ describe('experiments command', () => {
       mockApiRequest.mockResolvedValueOnce({
         id: 'exp_new',
         name: 'my-experiment',
-        status: 'draft',
-        created_at: new Date().toISOString(),
+        hypothesis: 'The candidate configuration is better',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
       });
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'experiments', 'create', 'my-experiment']);
+      await program.parseAsync([
+        'node', 'test', 'experiments', 'create', 'my-experiment',
+        '--hypothesis', 'The candidate configuration is better',
+        '--control-analyzers', 'architecture.structural',
+        '--candidate-analyzers', 'architecture.structural,security.vulnerabilities',
+      ]);
 
       expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/experiments'),
@@ -135,14 +136,16 @@ describe('experiments command', () => {
         id: 'exp_new',
         name: 'my-experiment',
         hypothesis: 'It will be faster',
-        status: 'draft',
-        created_at: new Date().toISOString(),
+        status: 'pending',
+        createdAt: new Date().toISOString(),
       });
 
       const program = createCLI();
       await program.parseAsync([
         'node', 'test', 'experiments', 'create', 'my-experiment',
         '--hypothesis', 'It will be faster',
+        '--control-analyzers', 'architecture.structural',
+        '--candidate-analyzers', 'performance.general',
       ]);
 
       const body = JSON.parse(mockApiRequest.mock.calls[0][1].body);
@@ -153,7 +156,12 @@ describe('experiments command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'experiments', 'create', 'my-experiment']);
+      await program.parseAsync([
+        'node', 'test', 'experiments', 'create', 'my-experiment',
+        '--hypothesis', 'It will be faster',
+        '--control-analyzers', 'architecture.structural',
+        '--candidate-analyzers', 'performance.general',
+      ]);
 
       expect(process.exitCode).toBe(1);
     });
@@ -164,8 +172,13 @@ describe('experiments command', () => {
       mockApiRequest.mockResolvedValueOnce({
         id: 'exp_001',
         name: 'test-exp',
-        status: 'complete',
-        created_at: new Date().toISOString(),
+        hypothesis: 'Candidate is better',
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        results: [],
+        conclusion: null,
+        error: null,
       });
 
       const program = createCLI();
@@ -189,8 +202,13 @@ describe('experiments command', () => {
       mockApiRequest.mockResolvedValueOnce({
         id: 'exp_001',
         name: 'test-exp',
-        status: 'complete',
-        created_at: new Date().toISOString(),
+        hypothesis: 'Candidate is better',
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        results: [],
+        conclusion: null,
+        error: null,
       });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 

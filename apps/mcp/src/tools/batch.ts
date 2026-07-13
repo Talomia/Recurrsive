@@ -27,37 +27,19 @@ export function registerBatchTools(server: McpServer): void {
   // ── start_batch_analysis ──────────────────────────────────────────
   server.tool(
     'start_batch_analysis',
-    'Start a batch analysis run on multiple projects. Accepts an array of project paths and returns a batch_id with per-project status.',
+    'Start a batch analysis run for registered projects. Returns a batch_id with per-project status.',
     {
-      projects: z
-        .array(z.string().describe('Filesystem path to a project'))
+      project_ids: z
+        .array(z.string().describe('Registered project ID'))
         .min(1)
-        .describe('Array of project paths to analyze (max 10)'),
+        .max(100)
+        .describe('Registered project IDs to analyze (max 100)'),
     },
-    async ({ projects }) => {
+    async ({ project_ids }) => {
       try {
-        if (projects.length > 10) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify(
-                  {
-                    error: 'Too many projects',
-                    message: `Received ${projects.length} projects. Maximum is 10.`,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const result = await apiRequest<unknown>('/api/v1/batch', {
+        const result = await apiRequest<unknown>('/api/v1/batch/analyze', {
           method: 'POST',
-          body: JSON.stringify({ projects }),
+          body: JSON.stringify({ projectIds: project_ids }),
         });
 
         return {
@@ -79,7 +61,7 @@ export function registerBatchTools(server: McpServer): void {
     async ({ batch_id }) => {
       try {
         const result = await apiGet<unknown>(
-          `/api/v1/batch/history/${encodeURIComponent(batch_id)}`,
+          `/api/v1/batch/status/${encodeURIComponent(batch_id)}`,
         );
 
         return {

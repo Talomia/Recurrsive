@@ -12,7 +12,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { apiGet, apiErrorResult } from '../api.js';
+import { apiData, apiGet, apiErrorResult, projectScopedPath } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Tool registration
@@ -35,14 +35,14 @@ export function registerExportTools(server: McpServer): void {
       scope: z
         .enum(['findings', 'opportunities', 'health', 'all'])
         .describe('Data scope to export'),
+      project_id: z.string().optional().describe('Project ID. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
-    async ({ format, scope }) => {
+    async ({ format, scope, project_id }) => {
       try {
-        const params = new URLSearchParams();
-        params.set('format', format);
-        params.set('scope', scope);
-
-        const result = await apiGet<unknown>(`/api/v1/reports/exports?${params.toString()}`);
+        const result = await apiData<unknown>(projectScopedPath('/api/v1/export', project_id), {
+          method: 'POST',
+          body: JSON.stringify({ format, scope }),
+        });
 
         return {
           content: [{
@@ -61,21 +61,18 @@ export function registerExportTools(server: McpServer): void {
     'compare_analysis_runs',
     'Compare two analysis runs to identify changes',
     {
-      baseline_run: z
-        .number()
-        .describe('Run number of the baseline analysis'),
-      target_run: z
-        .number()
-        .describe('Run number of the target analysis to compare against'),
+      baseline_run: z.string().describe('History ID of the baseline analysis run'),
+      target_run: z.string().describe('History ID of the target analysis run'),
+      project_id: z.string().optional().describe('Project ID. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
-    async ({ baseline_run, target_run }) => {
+    async ({ baseline_run, target_run, project_id }) => {
       try {
         const params = new URLSearchParams();
-        params.set('baseline', String(baseline_run));
-        params.set('target', String(target_run));
+        params.set('run_a', baseline_run);
+        params.set('run_b', target_run);
 
         const result = await apiGet<unknown>(
-          `/api/v1/reports/exports/compare?${params.toString()}`,
+          projectScopedPath(`/api/v1/analysis/compare?${params.toString()}`, project_id),
         );
 
         return {

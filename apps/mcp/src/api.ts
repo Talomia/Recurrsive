@@ -19,7 +19,25 @@
  * Reads from `RECURRSIVE_API_URL` env var, falling back to `http://localhost:3000`.
  */
 function getBaseUrl(): string {
-  return process.env['RECURRSIVE_API_URL'] ?? 'http://localhost:3000';
+  return (process.env['RECURRSIVE_API_URL'] ?? 'http://localhost:3000').replace(/\/$/, '');
+}
+
+/**
+ * Add the required project scope to an API path.
+ *
+ * An explicit project ID takes precedence over `RECURRSIVE_PROJECT_ID`.
+ */
+export function projectScopedPath(path: string, projectId?: string): string {
+  const resolvedProjectId = projectId?.trim() || process.env['RECURRSIVE_PROJECT_ID']?.trim();
+  if (!resolvedProjectId) {
+    throw new ConfigurationError(
+      'Project scope is required. Pass project_id or set RECURRSIVE_PROJECT_ID.',
+    );
+  }
+
+  const url = new URL(path, 'http://recurrsive.local');
+  url.searchParams.set('projectId', resolvedProjectId);
+  return `${url.pathname}${url.search}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -46,6 +64,15 @@ export async function apiRequest<T = unknown>(
     'Accept': 'application/json',
     ...(options?.headers as Record<string, string> ?? {}),
   };
+
+  const token = process.env['RECURRSIVE_API_TOKEN']?.trim();
+  const apiKey = process.env['RECURRSIVE_API_KEY']?.trim();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  } else if (apiKey) {
+    headers['X-API-Key'] = apiKey;
+  }
+
   if (options?.body) {
     headers['Content-Type'] = 'application/json';
   }
@@ -84,7 +111,15 @@ export async function apiRequest<T = unknown>(
  * @returns The unwrapped data.
  */
 export async function apiGet<T = unknown>(path: string): Promise<T> {
-  const envelope = await apiRequest<{ data: T }>(path);
+  return apiData<T>(path);
+}
+
+/** Make an API request and unwrap the standard `{ data: T }` envelope. */
+export async function apiData<T = unknown>(
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  const envelope = await apiRequest<{ data: T }>(path, options);
   return envelope.data;
 }
 
@@ -106,6 +141,30 @@ export class ApiError extends Error {
   }
 }
 
+/** Error raised when required MCP API configuration is missing. */
+export class ConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigurationError';
+  }
+}
+
+/** Convert an API/configuration failure into truthful user-facing text. */
+export function apiErrorMessage(error: unknown, context: string): string {
+  const baseUrl = getBaseUrl();
+
+  if (error instanceof ApiError) {
+    return `Error: Could not ${context}. Server returned ${error.status} from ${error.url}.`;
+  }
+
+  if (error instanceof ConfigurationError) {
+    return `Error: Could not ${context}. ${error.message}`;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return `Error: Could not reach Recurrsive server at ${baseUrl}. Ensure the server is running.\nDetails: ${message}`;
+}
+
 /**
  * Format an API error into an MCP-friendly error content block.
  *
@@ -117,24 +176,10 @@ export function apiErrorResult(error: unknown, context: string): {
   content: Array<{ type: 'text'; text: string }>;
   isError: true;
 } {
-  const baseUrl = getBaseUrl();
-
-  if (error instanceof ApiError) {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Error: Could not ${context}. Server returned ${error.status} from ${error.url}.`,
-      }],
-      isError: true,
-    };
-  }
-
-  // Network / connection errors
-  const message = error instanceof Error ? error.message : String(error);
   return {
     content: [{
       type: 'text' as const,
-      text: `Error: Could not reach Recurrsive server at ${baseUrl}. Ensure the server is running.\nDetails: ${message}`,
+      text: apiErrorMessage(error, context),
     }],
     isError: true,
   };

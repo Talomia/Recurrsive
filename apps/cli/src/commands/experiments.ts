@@ -31,11 +31,20 @@ import {
 interface Experiment {
   id: string;
   name: string;
-  hypothesis?: string;
-  status: 'draft' | 'running' | 'complete' | 'failed';
-  created_at: string;
-  completed_at?: string;
-  results?: Record<string, unknown>;
+  hypothesis: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  variants: Array<{ name: string; analyzers: string[]; collectors: string[] }>;
+  results: Array<Record<string, unknown>>;
+  metrics: Array<Record<string, unknown>>;
+  conclusion: string | null;
+  error: string | null;
+}
+
+function csv(value: string): string[] {
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------
@@ -64,15 +73,18 @@ export function registerExperimentsCommand(program: Command): void {
   experiments
     .command('list')
     .description('List all experiments')
-    .option('--status <status>', 'Filter by status (draft, running, complete, failed)')
+    .option('--status <status>', 'Filter by status (pending, running, completed, failed)')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { status?: string; json?: boolean }) => {
+    .action(async (opts: { status?: string; projectId?: string; json?: boolean }) => {
       try {
         let result: Experiment[];
         try {
           const query = opts.status ? `?status=${opts.status}` : '';
-          const data = await apiRequest(`/api/v1/experiments${query}`) as { data: Experiment[] };
-          result = data.data;
+          const data = opts.projectId
+            ? await apiRequest<Experiment[] | { data: Experiment[] }>(`/api/v1/experiments${query}`, { projectId: opts.projectId })
+            : await apiRequest<Experiment[] | { data: Experiment[] }>(`/api/v1/experiments${query}`);
+          result = Array.isArray(data) ? data : data.data;
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -92,10 +104,10 @@ export function registerExperimentsCommand(program: Command): void {
 
         const rows = result.map(e => [
           e.name,
-          e.status === 'complete' ? green(e.status)
+          e.status === 'completed' ? green(e.status)
             : e.status === 'running' ? cyan(e.status)
             : dim(e.status),
-          e.created_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
+          e.createdAt.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
         ]);
 
         table(['Name', 'Status', 'Created'], rows);
@@ -110,17 +122,52 @@ export function registerExperimentsCommand(program: Command): void {
   // ── experiments create <name> ─────────────────────────────────────
   experiments
     .command('create <name>')
-    .description('Create a new experiment')
-    .option('--hypothesis <text>', 'Experiment hypothesis')
+    .description('Create an isolated two-variant analyzer experiment')
+    .requiredOption('--hypothesis <text>', 'Experiment hypothesis')
+    .requiredOption('--control-analyzers <ids>', 'Comma-separated analyzer IDs for Control')
+    .requiredOption('--candidate-analyzers <ids>', 'Comma-separated analyzer IDs for Candidate')
+    .option('--collectors <ids>', 'Comma-separated collector IDs for both variants', 'git')
+    .option('--description <text>', 'Experiment description')
+    .option('--no-reasoning', 'Disable multi-agent reasoning for both variants')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (name: string, opts: { hypothesis?: string; json?: boolean }) => {
+    .action(async (name: string, opts: {
+      hypothesis: string;
+      controlAnalyzers: string;
+      candidateAnalyzers: string;
+      collectors: string;
+      description?: string;
+      reasoning: boolean;
+      projectId?: string;
+      json?: boolean;
+    }) => {
       try {
         let result: Experiment;
         try {
-          result = await apiRequest('/api/v1/experiments', {
+          const request = {
             method: 'POST',
-            body: JSON.stringify({ name, hypothesis: opts.hypothesis }),
-          }) as Experiment;
+            body: JSON.stringify({
+              name,
+              hypothesis: opts.hypothesis,
+              description: opts.description,
+              variants: [
+                {
+                  name: 'Control',
+                  analyzers: csv(opts.controlAnalyzers),
+                  collectors: csv(opts.collectors),
+                  includeReasoning: opts.reasoning,
+                },
+                {
+                  name: 'Candidate',
+                  analyzers: csv(opts.candidateAnalyzers),
+                  collectors: csv(opts.collectors),
+                  includeReasoning: opts.reasoning,
+                },
+              ],
+            }),
+            ...(opts.projectId ? { projectId: opts.projectId } : {}),
+          };
+          result = await apiRequest<Experiment>('/api/v1/experiments', request);
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -148,12 +195,16 @@ export function registerExperimentsCommand(program: Command): void {
   experiments
     .command('status <id>')
     .description('Show experiment details')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (id: string, opts: { json?: boolean }) => {
+    .action(async (id: string, opts: { projectId?: string; json?: boolean }) => {
       try {
         let result: Experiment;
         try {
-          result = await apiRequest(`/api/v1/experiments/${id}`) as Experiment;
+          const path = `/api/v1/experiments/${encodeURIComponent(id)}`;
+          result = opts.projectId
+            ? await apiRequest<Experiment>(path, { projectId: opts.projectId })
+            : await apiRequest<Experiment>(path);
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -167,22 +218,47 @@ export function registerExperimentsCommand(program: Command): void {
         header(`Experiment: ${result.name}`);
         info(`${bold('ID:')}         ${cyan(result.id)}`);
         info(`${bold('Name:')}       ${result.name}`);
-        info(`${bold('Status:')}     ${result.status === 'complete' ? green(result.status) : result.status}`);
-        info(`${bold('Created:')}    ${result.created_at}`);
-        if (result.hypothesis) {
-          info(`${bold('Hypothesis:')} ${result.hypothesis}`);
+        info(`${bold('Status:')}     ${result.status === 'completed' ? green(result.status) : result.status}`);
+        info(`${bold('Created:')}    ${result.createdAt}`);
+        info(`${bold('Hypothesis:')} ${result.hypothesis}`);
+        if (result.completedAt) {
+          info(`${bold('Completed:')}  ${result.completedAt}`);
         }
-        if (result.completed_at) {
-          info(`${bold('Completed:')}  ${result.completed_at}`);
-        }
-        if (result.results) {
+        if (result.results.length > 0) {
           info(`\n${bold('Results:')}`);
-          for (const [key, val] of Object.entries(result.results)) {
-            info(`  ${dim(key)}: ${String(val)}`);
-          }
+          info(JSON.stringify(result.results, null, 2));
+        }
+        if (result.conclusion) {
+          info(`${bold('Conclusion:')} ${result.conclusion}`);
+        }
+        if (result.error) {
+          error(result.error);
         }
       } catch (err) {
         error(`Failed to get experiment: ${err instanceof Error ? err.message : String(err)}`);
+        process.exitCode = 1;
+      }
+    });
+
+  experiments
+    .command('run <id>')
+    .description('Run or re-run an experiment')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
+    .option('--json', 'Output as JSON')
+    .action(async (id: string, opts: { projectId?: string; json?: boolean }) => {
+      try {
+        const path = `/api/v1/experiments/${encodeURIComponent(id)}/run`;
+        const request = { method: 'POST', ...(opts.projectId ? { projectId: opts.projectId } : {}) };
+        const result = await apiRequest<Experiment>(path, request);
+        if (opts.json) {
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+        header('Experiment Started');
+        info(`${bold('ID:')}     ${cyan(result.id)}`);
+        info(`${bold('Status:')} ${cyan(result.status)}`);
+      } catch (caught) {
+        error(`Failed to run experiment: ${caught instanceof Error ? caught.message : String(caught)}`);
         process.exitCode = 1;
       }
     });

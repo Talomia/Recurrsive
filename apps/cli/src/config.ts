@@ -22,6 +22,33 @@ export const API_BASE_URL =
   process.env['RECURRSIVE_API_URL'] ??
   'http://localhost:3000';
 
+const PROJECT_SCOPED_PREFIXES = [
+  '/api/v1/analytics/',
+  '/api/v1/analysis/history',
+  '/api/v1/analysis/compare',
+  '/api/v1/experiments',
+  '/api/v1/export',
+  '/api/v1/forecasting/',
+] as const;
+
+/** Add the API's required projectId query parameter to a scoped path. */
+export function projectScopedPath(path: string, projectId?: string): string {
+  const resolvedProjectId = projectId?.trim() || process.env['RECURRSIVE_PROJECT_ID']?.trim();
+  if (!resolvedProjectId) {
+    throw new Error(
+      'Project scope is required. Pass --project-id or set RECURRSIVE_PROJECT_ID.',
+    );
+  }
+
+  const url = new URL(path, 'http://recurrsive.local');
+  url.searchParams.set('projectId', resolvedProjectId);
+  return `${url.pathname}${url.search}`;
+}
+
+function requiresProjectScope(path: string): boolean {
+  return PROJECT_SCOPED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 /**
  * Resolve the API auth token from available sources.
  *
@@ -75,22 +102,34 @@ function getToken(): string | undefined {
  * @returns Parsed JSON response.
  * @throws Error if the response is not ok (non-2xx status).
  */
-export async function apiRequest(
+export interface ApiRequestOptions extends RequestInit {
+  /** Explicit project scope; otherwise RECURRSIVE_PROJECT_ID is used. */
+  projectId?: string;
+  /** Set false only when the response envelope metadata is required. */
+  unwrap?: boolean;
+}
+
+export async function apiRequest<T = unknown>(
   path: string,
-  options: RequestInit = {},
-): Promise<unknown> {
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  const { projectId, unwrap = true, ...fetchOptions } = options;
   const token = getToken();
+  const apiKey = process.env['RECURRSIVE_API_KEY']?.trim();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> ?? {}),
+    ...(fetchOptions.headers as Record<string, string> ?? {}),
   };
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  } else if (apiKey) {
+    headers['X-API-Key'] = apiKey;
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+  const requestPath = requiresProjectScope(path) ? projectScopedPath(path, projectId) : path;
+  const res = await fetch(`${API_BASE_URL.replace(/\/$/, '')}${requestPath}`, {
+    ...fetchOptions,
     headers,
   });
 
@@ -99,5 +138,16 @@ export async function apiRequest(
     throw new Error(`API error ${res.status}: ${body}`);
   }
 
-  return res.json();
+  if (res.status === 204) return undefined as T;
+
+  const json = await res.json() as unknown;
+  if (
+    unwrap &&
+    json !== null &&
+    typeof json === 'object' &&
+    Object.prototype.hasOwnProperty.call(json, 'data')
+  ) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
 }

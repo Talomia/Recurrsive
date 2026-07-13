@@ -31,7 +31,6 @@ import {
 interface TrendPoint {
   date: string;
   findings: number;
-  resolved: number;
   health: number;
 }
 
@@ -74,12 +73,15 @@ export function registerAnalyticsCommand(program: Command): void {
   analytics
     .command('summary')
     .description('View analytics summary and trends')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { json?: boolean; projectId?: string }) => {
       try {
         let summary: AnalyticsSummary;
         try {
-          summary = await apiRequest('/api/v1/analytics/summary') as AnalyticsSummary;
+          summary = opts.projectId
+            ? await apiRequest<AnalyticsSummary>('/api/v1/analytics/summary', { projectId: opts.projectId })
+            : await apiRequest<AnalyticsSummary>('/api/v1/analytics/summary');
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -105,11 +107,10 @@ export function registerAnalyticsCommand(program: Command): void {
           const rows = summary.trends.map(t => [
             t.date,
             String(t.findings),
-            String(t.resolved),
             `${t.health}%`,
           ]);
 
-          table(['Date', 'Findings', 'Resolved', 'Health'], rows);
+          table(['Date', 'Findings', 'Health'], rows);
         }
 
         info(`\n${dim(`Showing ${summary.trends.length} data point(s)`)}`);
@@ -123,13 +124,16 @@ export function registerAnalyticsCommand(program: Command): void {
   analytics
     .command('categories')
     .description('View top finding categories')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { json?: boolean; projectId?: string }) => {
       try {
         let categories: CategoryStat[];
         try {
-          const data = await apiRequest('/api/v1/analytics/top-categories') as { categories: CategoryStat[] };
-          categories = data.categories;
+          const data = opts.projectId
+            ? await apiRequest<CategoryStat[] | { categories: CategoryStat[] }>('/api/v1/analytics/top-categories', { projectId: opts.projectId })
+            : await apiRequest<CategoryStat[] | { categories: CategoryStat[] }>('/api/v1/analytics/top-categories');
+          categories = Array.isArray(data) ? data : data.categories;
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);

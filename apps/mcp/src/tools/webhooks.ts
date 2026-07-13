@@ -13,7 +13,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { apiGet, apiRequest, apiErrorResult } from '../api.js';
+import { apiData, apiGet, apiErrorResult } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Tool registration
@@ -73,7 +73,7 @@ export function registerWebhookTools(server: McpServer): void {
     },
     async ({ url, events, secret }) => {
       try {
-        const result = await apiRequest<unknown>('/api/v1/webhooks', {
+        const result = await apiData<unknown>('/api/v1/webhooks', {
           method: 'POST',
           body: JSON.stringify({ url, events, secret }),
         });
@@ -102,10 +102,15 @@ export function registerWebhookTools(server: McpServer): void {
     },
     async ({ webhook_id, action }) => {
       try {
-        const result = await apiRequest<unknown>(
-          `/api/v1/webhooks/${encodeURIComponent(webhook_id)}/${encodeURIComponent(action)}`,
-          { method: 'POST' },
-        );
+        const path = `/api/v1/webhooks/${encodeURIComponent(webhook_id)}`;
+        const result = action === 'test'
+          ? await apiData<unknown>(`${path}/test`, { method: 'POST' })
+          : action === 'delete'
+            ? await apiData<unknown>(path, { method: 'DELETE' })
+            : await apiData<unknown>(path, {
+              method: 'PATCH',
+              body: JSON.stringify({ active: action === 'enable' }),
+            });
 
         return {
           content: [{

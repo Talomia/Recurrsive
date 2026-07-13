@@ -25,35 +25,43 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
 }));
 
 vi.mock('../../api.js', () => ({
-  apiRequest: vi.fn().mockImplementation((path: string) => {
+  apiGet: vi.fn().mockImplementation((path: string) => {
     if (path === '/api/v1/analytics/summary') {
       return Promise.resolve({
+        analysis_runs: 5,
+        total_findings: 29,
+        findings_resolved: 26,
+        resolution_rate: 47.3,
+        avg_health_score: 68,
         trends: [
-          { period: '2024-W48', health_score: 62, opportunities: 18, resolved: 4, findings: 45 },
-          { period: '2024-W49', health_score: 65, opportunities: 16, resolved: 6, findings: 41 },
-          { period: '2024-W50', health_score: 68, opportunities: 14, resolved: 5, findings: 38 },
-          { period: '2024-W51', health_score: 71, opportunities: 12, resolved: 7, findings: 33 },
-          { period: '2024-W52', health_score: 74, opportunities: 10, resolved: 4, findings: 29 },
+          { date: '2024-11-25', health: 62, findings: 45 },
+          { date: '2024-12-02', health: 65, findings: 41 },
+          { date: '2024-12-09', health: 68, findings: 38 },
+          { date: '2024-12-16', health: 71, findings: 33 },
+          { date: '2024-12-23', health: 74, findings: 29 },
         ],
-        topCategories: [],
       });
     }
     if (path === '/api/v1/health-score') {
       return Promise.resolve({
+        overall: 74,
         score: 74,
-        dimensions: [
-          { name: 'Architecture', score: 78, trend: '↑' },
-          { name: 'Security', score: 65, trend: '↑' },
-          { name: 'Testing', score: 82, trend: '→' },
-          { name: 'Documentation', score: 55, trend: '↑' },
-          { name: 'Reliability', score: 70, trend: '↑' },
-          { name: 'Developer Experience', score: 73, trend: '→' },
-        ],
+        health_trend: 3,
+        opportunity_count: 10,
+        dimensions: {
+          Architecture: 78,
+          Security: 65,
+          Testing: 82,
+          Documentation: 55,
+          Reliability: 70,
+          'Developer Experience': 73,
+        },
       });
     }
     return Promise.reject(new Error('Unknown path'));
   }),
-  apiGet: vi.fn(),
+  projectScopedPath: vi.fn((path: string) => path),
+  apiErrorMessage: vi.fn((error: unknown) => `Error: ${String(error)}`),
 }));
 
 import { registerAnalyticsResources } from '../../resources/analytics.js';
@@ -159,7 +167,7 @@ describe('registerAnalyticsResources', () => {
       expect(result.contents[0].text).toContain('/100');
     });
 
-    it('contains Score Change over 5-week period', async () => {
+    it('contains the recorded score change', async () => {
       const handler = getHandler();
       const result = await handler({ href: 'recurrsive://analytics/summary' });
       expect(result.contents[0].text).toContain('Score Change');
@@ -170,8 +178,8 @@ describe('registerAnalyticsResources', () => {
       const handler = getHandler();
       const result = await handler({ href: 'recurrsive://analytics/summary' });
       expect(result.contents[0].text).toContain('Health Score Trend');
-      expect(result.contents[0].text).toContain('2024-W48');
-      expect(result.contents[0].text).toContain('2024-W52');
+      expect(result.contents[0].text).toContain('2024-11-25');
+      expect(result.contents[0].text).toContain('2024-12-23');
     });
 
     it('contains dimension breakdown table', async () => {
@@ -193,7 +201,7 @@ describe('registerAnalyticsResources', () => {
     it('identifies documentation as lowest-scoring dimension', async () => {
       const handler = getHandler();
       const result = await handler({ href: 'recurrsive://analytics/summary' });
-      expect(result.contents[0].text).toContain('Documentation remains the lowest');
+      expect(result.contents[0].text).toContain('Documentation is the lowest');
     });
 
     it('identifies testing as strongest dimension', async () => {
@@ -228,10 +236,9 @@ describe('registerAnalyticsResources', () => {
       expect(result.contents[0].text).toContain('+12');
     });
 
-    it('resolved count totals correctly', async () => {
+    it('uses the server-provided resolved count', async () => {
       const handler = getHandler();
       const result = await handler({ href: 'recurrsive://analytics/summary' });
-      // 4 + 6 + 5 + 7 + 4 = 26
       expect(result.contents[0].text).toContain('26');
     });
   });

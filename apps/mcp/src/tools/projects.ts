@@ -29,20 +29,11 @@ export function registerProjectTools(server: McpServer): void {
 
   server.tool(
     'list_projects',
-    'List all projects with their health scores, entity counts, and ' +
-    'opportunity counts. Optionally filter by status (active/archived).',
-    {
-      status: z
-        .string()
-        .optional()
-        .describe('Filter by project status: active, archived'),
-    },
-    async ({ status }) => {
+    'List all registered projects and their current metadata.',
+    {},
+    async () => {
       try {
-        const path = status
-          ? `/api/v1/projects?status=${encodeURIComponent(status)}`
-          : '/api/v1/projects';
-        const projects = await apiGet<unknown[]>(path);
+        const projects = await apiGet<unknown[]>('/api/v1/projects');
 
         return {
           content: [{
@@ -99,15 +90,15 @@ export function registerProjectTools(server: McpServer): void {
     },
     async ({ project_ids }) => {
       try {
-        const params = project_ids
-          ? `?ids=${project_ids.map(id => encodeURIComponent(id)).join(',')}`
-          : '';
-        const comparison = await apiGet<unknown>(`/api/v1/projects/comparisons${params}`);
+        const comparison = await apiGet<Array<{ id: string }>>('/api/v1/projects/compare/health');
+        const selected = project_ids?.length
+          ? comparison.filter((project) => project_ids.includes(project.id))
+          : comparison;
 
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify(comparison, null, 2),
+            text: JSON.stringify(selected, null, 2),
           }],
         };
       } catch (error) {

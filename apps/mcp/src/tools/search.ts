@@ -12,7 +12,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { apiGet, apiErrorResult } from '../api.js';
+import { apiGet, apiErrorResult, projectScopedPath } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Tool registration
@@ -34,14 +34,17 @@ export function registerSearchTools(server: McpServer): void {
         .enum(['findings', 'opportunities', 'entities'])
         .optional()
         .describe('Limit search to a specific scope'),
+      project_id: z.string().optional().describe('Project ID. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
-    async ({ query, scope }) => {
+    async ({ query, scope, project_id }) => {
       try {
         const params = new URLSearchParams();
         params.set('q', query);
         if (scope) params.set('scope', scope);
 
-        const result = await apiGet<unknown>(`/api/v1/search?${params.toString()}`);
+        const result = await apiGet<unknown>(
+          projectScopedPath(`/api/v1/search?${params.toString()}`, project_id),
+        );
 
         return {
           content: [{
@@ -60,23 +63,23 @@ export function registerSearchTools(server: McpServer): void {
     'get_audit_events',
     'Retrieve recent audit trail events',
     {
-      type: z
+      action: z
         .string()
         .optional()
-        .describe('Filter by event type (e.g., analysis.started, policy.evaluated)'),
+        .describe('Filter by audit action (read, write, delete, auth, admin)'),
       limit: z
         .number()
         .optional()
         .describe('Maximum number of events to return (default 20)'),
     },
-    async ({ type, limit }) => {
+    async ({ action, limit }) => {
       try {
         const params = new URLSearchParams();
-        if (type) params.set('type', type);
+        if (action) params.set('action', action);
         if (limit !== undefined) params.set('limit', String(limit));
         const qs = params.toString();
 
-        const result = await apiGet<unknown>(`/api/v1/search/audit${qs ? `?${qs}` : ''}`);
+        const result = await apiGet<unknown>(`/api/v1/audit${qs ? `?${qs}` : ''}`);
 
         return {
           content: [{

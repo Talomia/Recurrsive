@@ -84,8 +84,8 @@ describe('batch command', () => {
       expect(process.exitCode).toBe(1);
     });
 
-    it('rejects more than 10 projects', async () => {
-      const paths = Array.from({ length: 11 }, (_, i) => `/p${i}`);
+    it('rejects more than 100 projects', async () => {
+      const paths = Array.from({ length: 101 }, (_, i) => `p${i}`);
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'run', ...paths]);
@@ -112,12 +112,12 @@ describe('batch command', () => {
 
   describe('status', () => {
     it('fetches batch status from server', async () => {
-      mockApiRequest.mockResolvedValueOnce({ data: {
+      mockApiRequest.mockResolvedValueOnce({
         batch_id: 'batch_001',
         status: 'completed',
         projects: [{ projectId: 'p1', name: 'Project 1', repository: '/app/p1', status: 'completed', findings_count: 5, opportunities_count: 2 }],
         created_at: new Date().toISOString(),
-      } });
+      });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'status', 'batch_001']);
@@ -139,16 +139,14 @@ describe('batch command', () => {
 
   describe('history', () => {
     it('fetches batch history from server', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        data: [
+      mockApiRequest.mockResolvedValueOnce([
           {
             batch_id: 'batch_001',
             status: 'completed',
             projects: [],
             created_at: new Date().toISOString(),
           },
-        ],
-      });
+        ]);
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'history']);
@@ -168,16 +166,14 @@ describe('batch command', () => {
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        data: [
+      mockApiRequest.mockResolvedValueOnce([
           {
             batch_id: 'batch_003',
             status: 'completed',
             projects: [],
             created_at: new Date().toISOString(),
           },
-        ],
-      });
+        ]);
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();

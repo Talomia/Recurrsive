@@ -15,7 +15,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
 import { state } from '../state.js';
-import { apiGet } from '../api.js';
+import { apiErrorMessage, apiGet } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Resource Registration
@@ -149,7 +149,7 @@ export function registerGovernanceResources(server: McpServer): void {
         'snapshot.created',
       ];
 
-      let webhooks: Array<{
+      type WebhookSummary = {
         id: string;
         url: string;
         events: string[];
@@ -157,59 +157,57 @@ export function registerGovernanceResources(server: McpServer): void {
         created_at: string;
         delivery_count: number;
         failure_count: number;
-      }> = [];
+      };
 
       try {
-        webhooks = await apiGet<typeof webhooks>('/api/v1/webhooks');
-      } catch {
-        // API unavailable — fall back to empty list
+        const webhooks = await apiGet<WebhookSummary[]>('/api/v1/webhooks');
+
+        const totalDeliveries = webhooks.reduce((sum, w) => sum + w.delivery_count, 0);
+        const totalFailures = webhooks.reduce((sum, w) => sum + w.failure_count, 0);
+        const activeCount = webhooks.filter((w) => w.active).length;
+        const failureRate = totalDeliveries > 0
+          ? ((totalFailures / totalDeliveries) * 100).toFixed(1)
+          : '0.0';
+
+        const lines = [
+          `# Webhook Status`,
+          '',
+          `**Total Webhooks:** ${webhooks.length}`,
+          `**Active:** ${activeCount}`,
+          `**Total Deliveries:** ${totalDeliveries}`,
+          `**Total Failures:** ${totalFailures}`,
+          `**Failure Rate:** ${failureRate}%`,
+          '',
+          '## Registered Webhooks',
+          '',
+          '| ID | URL | Events | Status | Deliveries | Failures |',
+          '| --- | --- | --- | --- | --- | --- |',
+        ];
+
+        for (const wh of webhooks) {
+          lines.push(
+            `| ${wh.id} | ${wh.url} | ${wh.events.join(', ')} | ${wh.active ? '✅ Active' : '⏸ Paused'} | ${wh.delivery_count} | ${wh.failure_count} |`,
+          );
+        }
+
+        lines.push('', '## Supported Events', '');
+
+        for (const event of supportedEvents) {
+          lines.push(`- \`${event}\``);
+        }
+
+        return {
+          contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }],
+        };
+      } catch (error) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: apiErrorMessage(error, 'load webhook status'),
+          }],
+        };
       }
-
-      const totalDeliveries = webhooks.reduce((sum, w) => sum + w.delivery_count, 0);
-      const totalFailures = webhooks.reduce((sum, w) => sum + w.failure_count, 0);
-      const activeCount = webhooks.filter((w) => w.active).length;
-      const failureRate = totalDeliveries > 0
-        ? ((totalFailures / totalDeliveries) * 100).toFixed(1)
-        : '0.0';
-
-      const lines = [
-        `# Webhook Status`,
-        '',
-        `**Total Webhooks:** ${webhooks.length}`,
-        `**Active:** ${activeCount}`,
-        `**Total Deliveries:** ${totalDeliveries}`,
-        `**Total Failures:** ${totalFailures}`,
-        `**Failure Rate:** ${failureRate}%`,
-        '',
-        '## Registered Webhooks',
-        '',
-        '| ID | URL | Events | Status | Deliveries | Failures |',
-        '| --- | --- | --- | --- | --- | --- |',
-      ];
-
-      for (const wh of webhooks) {
-        lines.push(
-          `| ${wh.id} | ${wh.url} | ${wh.events.join(', ')} | ${wh.active ? '✅ Active' : '⏸ Paused'} | ${wh.delivery_count} | ${wh.failure_count} |`,
-        );
-      }
-
-      lines.push(
-        '',
-        '## Supported Events',
-        '',
-      );
-
-      for (const event of supportedEvents) {
-        lines.push(`- \`${event}\``);
-      }
-
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'text/markdown',
-          text: lines.join('\n'),
-        }],
-      };
     },
   );
 }

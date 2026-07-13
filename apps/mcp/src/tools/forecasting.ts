@@ -12,7 +12,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { apiGet, apiErrorResult } from '../api.js';
+import { apiGet, apiErrorResult, projectScopedPath } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Tool Registration
@@ -39,15 +39,17 @@ export function registerForecastTools(server: McpServer): void {
       project_id: z
         .string()
         .optional()
-        .describe('Project ID to forecast. Omit for the active project.'),
+        .describe('Project ID to forecast. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
     async ({ horizon, project_id }) => {
       try {
         const params = new URLSearchParams();
         if (horizon !== undefined) params.set('horizon', String(horizon));
-        if (project_id) params.set('project_id', project_id);
         const qs = params.toString();
-        const path = `/api/v1/forecasting/health${qs ? `?${qs}` : ''}`;
+        const path = projectScopedPath(
+          `/api/v1/forecasting/health${qs ? `?${qs}` : ''}`,
+          project_id,
+        );
 
         const result = await apiGet<unknown>(path);
 
@@ -64,19 +66,14 @@ export function registerForecastTools(server: McpServer): void {
 
   server.tool(
     'get_evolution',
-    'Get the evolution graph data showing how project health, entity count, ' +
-    'and findings have changed over time. Supports multiple time periods.',
+    'Get recorded analysis events and actual project health changes over time.',
     {
-      period: z
-        .enum(['7d', '30d', '90d', '1y'])
-        .optional()
-        .describe('Time period for evolution data (default: 30d)'),
+      project_id: z.string().optional().describe('Project ID. Defaults to RECURRSIVE_PROJECT_ID.'),
     },
-    async ({ period }) => {
+    async ({ project_id }) => {
       try {
-        const selectedPeriod = period ?? '30d';
         const result = await apiGet<unknown>(
-          `/api/v1/forecasting/evolution?period=${encodeURIComponent(selectedPeriod)}`,
+          projectScopedPath('/api/v1/forecasting/evolution', project_id),
         );
 
         return {

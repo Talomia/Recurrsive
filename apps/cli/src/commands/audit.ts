@@ -27,12 +27,13 @@ import {
 /** Audit event record. */
 interface AuditEvent {
   id: string;
-  type: string;
   action: string;
-  target: string;
+  method: string;
+  url: string;
+  statusCode: number;
   timestamp: string;
-  actor?: string;
-  details?: string;
+  username?: string;
+  resourceType?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,8 +64,8 @@ export function registerAuditCommand(program: Command): void {
       try {
         let events: AuditEvent[];
         try {
-          const data = await apiRequest(`/api/v1/audit?limit=${opts.limit}`) as { events: AuditEvent[] };
-          events = data.events;
+          events = await apiRequest<AuditEvent[] | { events: AuditEvent[] }>(`/api/v1/audit?limit=${opts.limit}`)
+            .then((data) => Array.isArray(data) ? data : data.events);
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -83,13 +84,14 @@ export function registerAuditCommand(program: Command): void {
         }
 
         const rows = events.map(e => [
-          e.type,
+          e.method,
           e.action,
-          e.target,
+          e.url,
+          String(e.statusCode),
           e.timestamp.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
         ]);
 
-        console.log(table(['Type', 'Action', 'Target', 'Timestamp'], rows));
+        console.log(table(['Method', 'Action', 'URL', 'Status', 'Timestamp'], rows));
 
         info(`\n${dim(`Showing ${events.length} event(s)`)}`);
       } catch (err) {
@@ -107,8 +109,12 @@ export function registerAuditCommand(program: Command): void {
       try {
         let events: AuditEvent[];
         try {
-          const data = await apiRequest(`/api/v1/audit/search?q=${encodeURIComponent(query)}`) as { events: AuditEvent[] };
-          events = data.events;
+          const data = await apiRequest<AuditEvent[] | { events: AuditEvent[] }>('/api/v1/audit?limit=1000');
+          const allEvents = Array.isArray(data) ? data : data.events;
+          const normalizedQuery = query.toLowerCase();
+          events = allEvents.filter((event) =>
+            JSON.stringify(event).toLowerCase().includes(normalizedQuery),
+          );
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);
@@ -127,13 +133,14 @@ export function registerAuditCommand(program: Command): void {
         }
 
         const rows = events.map(e => [
-          e.type,
+          e.method,
           e.action,
-          e.target,
+          e.url,
+          String(e.statusCode),
           e.timestamp.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
         ]);
 
-        console.log(table(['Type', 'Action', 'Target', 'Timestamp'], rows));
+        console.log(table(['Method', 'Action', 'URL', 'Status', 'Timestamp'], rows));
 
         info(`\n${dim(`Found ${events.length} matching event(s)`)}`);
       } catch (err) {
@@ -151,8 +158,8 @@ export function registerAuditCommand(program: Command): void {
       try {
         let events: AuditEvent[];
         try {
-          const data = await apiRequest('/api/v1/audit?limit=1000') as { events: AuditEvent[] };
-          events = data.events;
+          const data = await apiRequest<AuditEvent[] | { events: AuditEvent[] }>('/api/v1/audit?limit=1000');
+          events = Array.isArray(data) ? data : data.events;
         } catch {
           console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
           process.exit(1);

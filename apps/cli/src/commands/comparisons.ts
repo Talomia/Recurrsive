@@ -39,11 +39,14 @@ export function registerComparisonsCommand(program: Command): void {
   comparisons
     .command('list')
     .description('List available successful analysis runs')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { json?: boolean; projectId?: string }) => {
       try {
-        const response = await apiRequest('/api/v1/analysis/history') as { data: HistoryEntry[] };
-        const runs = response.data.filter((run) => run.status === 'success' && run.healthScore !== null);
+        const history = opts.projectId
+          ? await apiRequest<HistoryEntry[]>('/api/v1/analysis/history', { projectId: opts.projectId })
+          : await apiRequest<HistoryEntry[]>('/api/v1/analysis/history');
+        const runs = history.filter((run) => run.status === 'success' && run.healthScore !== null);
         if (opts.json) {
           console.log(JSON.stringify(runs, null, 2));
           return;
@@ -74,13 +77,14 @@ export function registerComparisonsCommand(program: Command): void {
   comparisons
     .command('diff <run1> <run2>')
     .description('Show recorded metric deltas between two runs')
+    .option('--project-id <id>', 'Project ID (or set RECURRSIVE_PROJECT_ID)')
     .option('--json', 'Output as JSON')
-    .action(async (run1: string, run2: string, opts: { json?: boolean }) => {
+    .action(async (run1: string, run2: string, opts: { json?: boolean; projectId?: string }) => {
       try {
-        const response = await apiRequest(
-          `/api/v1/analysis/compare?run_a=${encodeURIComponent(run1)}&run_b=${encodeURIComponent(run2)}`,
-        ) as { data: ComparisonDiff };
-        const diff = response.data;
+        const path = `/api/v1/analysis/compare?run_a=${encodeURIComponent(run1)}&run_b=${encodeURIComponent(run2)}`;
+        const diff = opts.projectId
+          ? await apiRequest<ComparisonDiff>(path, { projectId: opts.projectId })
+          : await apiRequest<ComparisonDiff>(path);
         if (opts.json) {
           console.log(JSON.stringify(diff, null, 2));
           return;
