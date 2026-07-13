@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Send, Monitor, MessageSquare, Globe } from 'lucide-react';
 import { testNotificationChannel } from '@/lib/api';
 import type { NotificationChannel } from '@/lib/api';
@@ -13,6 +14,7 @@ const CHANNEL_ICONS: Record<string, typeof Monitor> = {
 };
 
 export function ChannelCard({ channel }: { channel: NotificationChannel }) {
+  const router = useRouter();
   const { user } = useAuth();
   const canTest = user?.role === 'admin';
   const Icon = CHANNEL_ICONS[channel.type] ?? Globe;
@@ -25,6 +27,7 @@ export function ChannelCard({ channel }: { channel: NotificationChannel }) {
     try {
       const res = await testNotificationChannel(channel.type);
       setResult({ ok: true, message: res.message ?? 'Test sent successfully' });
+      router.refresh();
     } catch (e) {
       setResult({ ok: false, message: e instanceof Error ? e.message : 'Test failed' });
     } finally {

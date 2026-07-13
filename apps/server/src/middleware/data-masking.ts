@@ -23,7 +23,7 @@ export type MaskingStrategy =
   | 'redact'        // Replace with '[REDACTED]'
   | 'hash'          // Replace with SHA-256 hash
   | 'partial'       // Show first/last N chars (e.g., 'j***@e***.com')
-  | 'tokenize'      // Replace with deterministic token (reversible with key)
+  | 'tokenize'      // Replace with a deterministic keyed token
   | 'generalize'    // Replace with generalized value (e.g., 'San Francisco' → 'US')
   | 'suppress';     // Remove field entirely
 
@@ -376,7 +376,7 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
         { id: 'redact', name: 'Redact', description: 'Replace with [REDACTED]' },
         { id: 'hash', name: 'Hash', description: 'Replace with SHA-256 hash' },
         { id: 'partial', name: 'Partial Mask', description: 'Show first/last N characters (e.g., j***@e***.com)' },
-        { id: 'tokenize', name: 'Tokenize', description: 'Replace with deterministic token (reversible with key)' },
+        { id: 'tokenize', name: 'Tokenize', description: 'Replace with a deterministic keyed token' },
         { id: 'generalize', name: 'Generalize', description: 'Replace with generalized value (e.g., city → country)' },
         { id: 'suppress', name: 'Suppress', description: 'Remove field entirely from output' },
       ],

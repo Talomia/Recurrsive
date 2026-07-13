@@ -68,7 +68,7 @@ export default async function NotificationsPage() {
     <div className="flex flex-col gap-6 p-6">
       <Header
         title="Notification Center"
-        subtitle={`${channels.length} channels configured · ${enabledCount} active`}
+        subtitle={`${channels.length} available channels · ${enabledCount} active`}
       />
 
       {/* Error state */}

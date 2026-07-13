@@ -14,6 +14,7 @@
 
 import { type NextRequest, NextResponse } from 'next/server';
 import { isTrustedMutationOrigin } from '@/lib/request-origin';
+import { mustOmitResponseBody } from '@/lib/proxy-response';
 
 /** Upstream API server URL, resolved at runtime. */
 function getUpstreamUrl(): string {
@@ -94,8 +95,9 @@ async function handler(
     });
 
     const body = await response.arrayBuffer();
+    const responseBody = mustOmitResponseBody(request.method, response.status) ? null : body;
 
-    let result = new NextResponse(body, {
+    let result = new NextResponse(responseBody, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
