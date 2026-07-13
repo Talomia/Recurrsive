@@ -244,7 +244,7 @@ export default function ProductPage() {
       {/* Reasoning */}
       <section className="section">
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3xl)', alignItems: 'center' }}>
+          <div className="product-reasoning-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3xl)', alignItems: 'center' }}>
             <div>
               <span className="badge badge-accent">
                 <Brain size={14} /> Multi-Agent AI
@@ -335,7 +335,7 @@ export default function ProductPage() {
           <p className="text-secondary" style={{ fontSize: '1.1rem', marginBottom: 'var(--space-xl)', maxWidth: 500, margin: '0 auto var(--space-xl)' }}>
             Open source. Apache 2.0. Start analyzing in 5 minutes.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
             <Link href="/cloud" className="btn btn-primary btn-lg">
               Get Started <ArrowRight size={18} />
             </Link>
@@ -349,7 +349,8 @@ export default function ProductPage() {
       <style>{`
         @media (max-width: 768px) {
           .grid-3 { grid-template-columns: 1fr !important; }
-          div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+          .product-reasoning-grid { grid-template-columns: 1fr !important; }
+          .product-reasoning-grid > * { min-width: 0; }
         }
       `}</style>
     </div>

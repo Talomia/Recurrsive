@@ -250,10 +250,11 @@ export default function ArchitecturePage() {
             {CORE_PACKAGES.map((pkg) => (
               <div
                 key={pkg.name}
-                className="glass-card"
+                className="glass-card architecture-package-row"
                 style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: 'var(--space-md) var(--space-lg)' }}
               >
                 <span
+                  className="architecture-package-name"
                   style={{
                     fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--cyan)',
                     minWidth: 240, flexShrink: 0,
@@ -291,7 +292,7 @@ export default function ArchitecturePage() {
       {/* Knowledge Graph */}
       <section className="section-sm">
         <div className="container" style={{ maxWidth: 900 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3xl)', alignItems: 'start' }}>
+          <div className="architecture-two-column" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3xl)', alignItems: 'start' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: 'var(--space-lg)' }}>
                 <Database size={28} style={{ color: 'var(--cyan)' }} />
@@ -411,8 +412,8 @@ export default function ArchitecturePage() {
               { label: '5. Optional LLM Reasoning', desc: 'When configured, 19 specialists reason over findings; deterministic promotion is the fallback.' },
               { label: '6. Presentation', desc: 'Prioritized recommendations are delivered via dashboard, API, or CI/CD checks.' },
             ].map((step) => (
-              <div key={step.label} className="glass-card" style={{ display: 'flex', gap: '16px', padding: 'var(--space-md) var(--space-lg)' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-accent)', minWidth: 180, flexShrink: 0 }}>
+              <div key={step.label} className="glass-card architecture-flow-row" style={{ display: 'flex', gap: '16px', padding: 'var(--space-md) var(--space-lg)' }}>
+                <span className="architecture-flow-label" style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-accent)', minWidth: 180, flexShrink: 0 }}>
                   {step.label}
                 </span>
                 <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>{step.desc}</span>
@@ -442,7 +443,14 @@ export default function ArchitecturePage() {
 
       <style>{`
         @media (max-width: 768px) {
-          div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+          .architecture-two-column { grid-template-columns: 1fr !important; }
+          .architecture-package-row,
+          .architecture-flow-row {
+            align-items: flex-start !important;
+            flex-direction: column;
+          }
+          .architecture-package-name,
+          .architecture-flow-label { min-width: 0 !important; }
         }
       `}</style>
     </div>
