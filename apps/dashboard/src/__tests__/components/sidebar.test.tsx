@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Sidebar from '../../components/sidebar';
+
+const apiFetchMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../../lib/api/client', () => ({
+  apiFetch: apiFetchMock,
+}));
 
 // Mock useActiveProject
 vi.mock('../../components/active-project-context', () => ({
@@ -18,6 +24,8 @@ vi.mock('../../components/active-project-context', () => ({
 describe('Sidebar', () => {
   beforeEach(() => {
     localStorage.clear();
+    apiFetchMock.mockReset();
+    apiFetchMock.mockResolvedValue({ data: [], total: 12 });
   });
 
   it('renders the Recurrsive brand', () => {
@@ -48,6 +56,18 @@ describe('Sidebar', () => {
     expect(screen.getByText('Findings')).toBeInTheDocument();
     expect(screen.getByText('System Map')).toBeInTheDocument();
     expect(screen.getByText('Analytics')).toBeInTheDocument();
+  });
+
+  it('loads the active project opportunity total from the raw API envelope', async () => {
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        '/api/v1/opportunities?limit=1&projectId=proj-1',
+        { unwrap: false },
+      );
+    });
+    expect(screen.getByText('12')).toBeInTheDocument();
   });
 
   it('renders operations and administration pages when expanded', () => {
@@ -100,4 +120,3 @@ describe('Sidebar', () => {
     expect(links.length).toBe(25);
   });
 });
-

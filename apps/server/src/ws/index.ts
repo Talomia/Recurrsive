@@ -26,7 +26,7 @@ const logger = createLogger({ context: { component: 'server:ws' } });
 /**
  * Register the WebSocket plugin and the `/ws` upgrade route.
  *
- * Clients connect to `ws://host:port/ws?token=JWT_TOKEN` to receive
+ * Clients connect to `ws://host:port/ws?ticket=ONE_USE_TICKET` to receive
  * real-time events:
  * - `analysis:started` — Analysis begun
  * - `analysis:progress` — Progress update (phase, percentage)
@@ -34,8 +34,9 @@ const logger = createLogger({ context: { component: 'server:ws' } });
  * - `analysis:complete` — Analysis finished
  * - `analysis:error` — Error occurred
  *
- * A valid JWT token must be provided via the `token` query parameter.
- * Connections without a valid token are rejected with HTTP 401.
+ * A short-lived ticket obtained from `POST /api/v1/auth/ws-ticket` must be
+ * provided via the `ticket` query parameter. Each ticket is consumed exactly
+ * once; missing, expired, or reused tickets are rejected.
  *
  * @param app - The Fastify application instance.
  */

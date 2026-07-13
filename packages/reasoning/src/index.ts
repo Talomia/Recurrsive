@@ -17,13 +17,12 @@
  *    Proposers defend. Confidence is revised. Debate continues until
  *    consensus or the maximum round count.
  *
- * 3. **Synthesis** — Surviving hypotheses are enriched into full
- *    {@link Opportunity} objects with impact assessments, effort
- *    estimates, validation plans, and rollback plans.
+ * 3. **Synthesis** — Findings are promoted one-to-one into evidence-bounded
+ *    {@link Opportunity} objects. Debate adds provenance but never invents
+ *    impact, effort, implementation risk, or delivery estimates.
  *
- * 4. **Ranking** — A weighted scoring model ranks opportunities by
- *    evidence strength, confidence, business impact, effort efficiency,
- *    and risk profile.
+ * 4. **Ranking** — A weighted scoring model ranks opportunities by recorded
+ *    evidence and confidence; unknown planning fields are treated neutrally.
  *
  * ## Quick Start
  *

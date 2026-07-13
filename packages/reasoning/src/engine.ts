@@ -4,7 +4,8 @@
  * Pipeline stages:
  * 1. **Analysis** — Specialists analyze raw findings and propose hypotheses.
  * 2. **Debate** — Specialists challenge and defend hypotheses across domains.
- * 3. **Synthesis** — Surviving hypotheses are enriched into full opportunities.
+ * 3. **Synthesis** — Findings are promoted one-to-one into evidence-bounded
+ *    opportunities; debate contributes provenance without planning estimates.
  * 4. **Ranking** — Opportunities are scored and ordered by a weighted model.
  *
  * @module
@@ -173,7 +174,7 @@ export class ReasoningEngine {
         : allHypotheses;
 
     // ── Stage 3: Synthesis ─────────────────────────────────────────────────
-    logger.info(`Stage 3: Synthesizing ${finalHypotheses.length} hypotheses into opportunities`);
+    logger.info(`Stage 3: Promoting ${findings.length} findings into evidence-bounded opportunities`);
     const opportunities = await this.synthesizer.synthesize(
       finalHypotheses,
       rounds,

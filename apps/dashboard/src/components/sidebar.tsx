@@ -152,6 +152,7 @@ export default function Sidebar() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(DEFAULT_EXPANDED);
 
   const { projects, activeProject, switchProject } = useActiveProject();
+  const activeProjectId = activeProject?.id ?? null;
   const [showProjDropdown, setShowProjDropdown] = useState(false);
   const [projSearchQuery, setProjSearchQuery] = useState("");
   const projDropdownRef = useRef<HTMLDivElement>(null);
@@ -177,9 +178,16 @@ export default function Sidebar() {
   useEffect(() => {
     const isPublic = ["/login", "/setup", "/invite"].some((p) => pathname === p || pathname.startsWith(p + "/"));
     if (isPublic) return;
+    if (!activeProjectId) {
+      setOpportunityCount(0);
+      return;
+    }
 
     import("@/lib/api/client").then(({ apiFetch }) => {
-      apiFetch<{ data: unknown[]; total: number }>("/api/v1/opportunities?limit=1")
+      apiFetch<{ data: unknown[]; total: number }>(
+        `/api/v1/opportunities?limit=1&projectId=${encodeURIComponent(activeProjectId)}`,
+        { unwrap: false },
+      )
         .then((res) => setOpportunityCount(res.total ?? 0))
         .catch((err) => {
           if (process.env.NODE_ENV === "development") {
@@ -187,7 +195,7 @@ export default function Sidebar() {
           }
         });
     });
-  }, [pathname]);
+  }, [pathname, activeProjectId]);
 
   const toggleSection = useCallback((key: string) => {
     setExpanded((prev) => {

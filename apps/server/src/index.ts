@@ -41,6 +41,18 @@ export interface ServerOptions {
   rateLimitMax?: number;
 }
 
+/**
+ * Keep credentials and opaque tickets out of request logs.
+ *
+ * Query strings are not required for production request tracing and may carry
+ * password-reset tokens, OAuth codes, WebSocket tickets, or values sent by an
+ * outdated client. Request IDs still provide end-to-end correlation.
+ */
+export function sanitizeRequestUrl(url: string): string {
+  const queryIndex = url.indexOf('?');
+  return queryIndex === -1 ? url : url.slice(0, queryIndex);
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -71,7 +83,19 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
   }
 
   const app = Fastify({
-    logger: options?.logger ?? true,
+    logger: options?.logger === false
+      ? false
+      : {
+          serializers: {
+            req: (request) => ({
+              method: request.method,
+              url: sanitizeRequestUrl(request.url),
+              host: request.hostname,
+              remoteAddress: request.ip,
+              remotePort: request.socket.remotePort,
+            }),
+          },
+        },
     // EasyPanel deployments opt in with TRUST_PROXY=true. Never trust forwarded
     // client addresses when the API is reachable directly.
     trustProxy: process.env['TRUST_PROXY'] === 'true',
