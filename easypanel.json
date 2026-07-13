@@ -19,7 +19,7 @@
           {
             "type": "volume",
             "name": "pgdata",
-            "mountPath": "/var/lib/postgresql"
+            "mountPath": "/var/lib/postgresql/data"
           }
         ]
       }
