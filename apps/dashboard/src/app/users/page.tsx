@@ -29,7 +29,6 @@ import {
   XCircle,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
-import { useAuth } from '@/lib/auth-context';
 import ErrorBanner from '@/components/error-banner';
 import Header from '@/components/header';
 
@@ -143,7 +142,6 @@ function formatDate(iso: string): string {
 // ---------------------------------------------------------------------------
 
 export default function UsersPage() {
-  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Users');
 
   // --- Users state ---
@@ -161,10 +159,6 @@ export default function UsersPage() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editRole, setEditRole] = useState('');
   const [editLoading, setEditLoading] = useState(false);
-
-  // Delete confirmation
-  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // --- Invites state ---
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -265,20 +259,6 @@ export default function UsersPage() {
       await fetchUsers();
     } catch {
       setError('Failed to toggle user status. Please try again.');
-    }
-  }
-
-  async function handleDeleteConfirm() {
-    if (!deleteTarget) return;
-    setDeleteLoading(true);
-    try {
-      await apiFetch(`/api/v1/users/${deleteTarget.id}`, { method: 'DELETE' });
-      setDeleteTarget(null);
-      await fetchUsers();
-    } catch {
-      setError('Failed to delete user. Please try again.');
-    } finally {
-      setDeleteLoading(false);
     }
   }
 
@@ -475,15 +455,6 @@ export default function UsersPage() {
                                 : <UserCheck className="w-3.5 h-3.5" />
                               }
                             </button>
-                            {u.id !== currentUser?.userId && (
-                              <button
-                                onClick={() => setDeleteTarget(u)}
-                                className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-text-tertiary hover:text-red-400"
-                                title="Delete user"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -720,49 +691,6 @@ export default function UsersPage() {
                 }}
               >
                 {editLoading ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Delete Confirmation Modal ──────────────────────────────────── */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
-          <div
-            className="relative w-full max-w-sm rounded-2xl p-6"
-            style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-red-400">Delete User</h3>
-              <button onClick={() => setDeleteTarget(null)} className="p-1 rounded-lg hover:bg-white/10 text-text-tertiary hover:text-text-primary">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-sm text-text-secondary mb-5">
-              Are you sure you want to delete{' '}
-              <span className="font-semibold text-text-primary">{deleteTarget.username}</span>?
-              This action cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
-                style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={deleteLoading}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold text-white transition-all duration-200"
-                style={{
-                  background: deleteLoading ? 'var(--color-border)' : 'linear-gradient(135deg, #ef4444, #dc2626)',
-                  opacity: deleteLoading ? 0.6 : 1,
-                }}
-              >
-                {deleteLoading ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
