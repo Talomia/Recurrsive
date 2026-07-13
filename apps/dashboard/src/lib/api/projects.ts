@@ -23,8 +23,6 @@ export interface Project {
   settings: {
     analyzers: string[];
     collectors: string[];
-    autoAnalyze: boolean;
-    notifyOnCritical: boolean;
   };
 }
 
@@ -46,30 +44,6 @@ export interface BatchRun {
   projects: BatchProject[];
   created_at: string;
   completed_at?: string;
-}
-
-export interface BatchJobTask {
-  id: string;
-  name: string;
-  status: "pending" | "running" | "completed" | "failed";
-  started_at?: string;
-  completed_at?: string;
-  error?: string;
-  findings_count?: number;
-}
-
-export interface BatchJobDetail {
-  batch_id: string;
-  name: string;
-  status: "queued" | "running" | "completed" | "failed";
-  progress_percent: number;
-  items_processed: number;
-  total_items: number;
-  duration_ms: number;
-  started_at: string;
-  completed_at?: string;
-  tasks: BatchJobTask[];
-  errors: string[];
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -115,9 +89,9 @@ export async function getBatchStatus(id: string): Promise<BatchRun | null> {
 /**
  * Get a single batch job detail by ID.
  */
-export async function getBatchJob(id: string): Promise<BatchJobDetail | null> {
+export async function getBatchJob(id: string): Promise<BatchRun | null> {
   try {
-    return await apiFetch<BatchJobDetail>(`/api/v1/batch/${encodeURIComponent(id)}`);
+    return await apiFetch<BatchRun>(`/api/v1/batch/status/${encodeURIComponent(id)}`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;

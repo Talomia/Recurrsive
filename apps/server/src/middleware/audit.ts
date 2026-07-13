@@ -54,6 +54,8 @@ export interface AuditEvent {
   resourceType?: string;
   /** Extracted resource ID from the URL, if applicable. */
   resourceId?: string;
+  /** Registered project affected by the event, when applicable. */
+  projectId?: string;
 }
 
 /** Filter options for querying audit events. */
@@ -62,6 +64,8 @@ export interface AuditEventFilter {
   action?: AuditAction;
   /** Filter by user ID. */
   userId?: string;
+  /** Filter by registered project ID. */
+  projectId?: string;
   /** Filter by HTTP method. */
   method?: string;
   /** Filter by status group ('2xx', '4xx', '5xx'). */
@@ -169,6 +173,8 @@ const RESOURCE_MAP: Record<string, string> = {
   experiments: 'experiment',
   'api-keys': 'api-key',
   audit: 'audit',
+  projects: 'project',
+  schedules: 'schedule',
 };
 
 /**
@@ -223,6 +229,12 @@ export function extractResource(url: string): { resourceType?: string; resourceI
  */
 export function registerAuditMiddleware(app: FastifyInstance): void {
   app.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
+    const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase());
+    const isAuth = request.url.startsWith('/api/v1/auth/') || request.url.startsWith('/api/v1/sso/');
+    // Preserve consequential activity and failures. Passive reads create an
+    // unusable audit trail and can drown out administrative actions.
+    if (isRead && !isAuth && reply.statusCode < 400) return;
+
     const user = (request as FastifyRequest & { user?: AuthUser }).user;
 
     const { resourceType, resourceId } = extractResource(request.url);
@@ -231,7 +243,7 @@ export function registerAuditMiddleware(app: FastifyInstance): void {
       id: generateId(),
       timestamp: nowISO(),
       method: request.method,
-      url: request.url,
+      url: request.url.split('?')[0] ?? request.url,
       statusCode: reply.statusCode,
       action: classifyAction(request.method, request.url),
       duration_ms: Math.round(reply.elapsedTime),
@@ -245,6 +257,18 @@ export function registerAuditMiddleware(app: FastifyInstance): void {
       event.userId = user.id;
       event.username = user.username ?? user.id;
       event.role = user.role;
+    }
+
+    const query = request.query as { projectId?: unknown } | undefined;
+    const body = request.body as { projectId?: unknown } | undefined;
+    const projectId = typeof query?.projectId === 'string' ? query.projectId
+      : typeof body?.projectId === 'string' ? body.projectId : undefined;
+    if (projectId) {
+      event.projectId = projectId;
+    } else {
+      const projectMatch = event.url.match(/^\/api\/v1\/projects\/([^/]+)(?:\/|$)/);
+      const candidate = projectMatch?.[1];
+      if (candidate && !['analyzers', 'collectors'].includes(candidate)) event.projectId = candidate;
     }
 
     await store.set(AUDIT_TABLE, event.id, event);
@@ -302,6 +326,10 @@ export async function getAuditEvents(filters?: AuditEventFilter): Promise<{
 
   if (filters?.userId) {
     events = events.filter((e) => e.userId === filters.userId);
+  }
+
+  if (filters?.projectId) {
+    events = events.filter((event) => event.projectId === filters.projectId);
   }
 
   if (filters?.method) {

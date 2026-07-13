@@ -11,7 +11,7 @@
  */
 
 import * as path from 'node:path';
-import { createGraphClient, type ExtendedGraphClient } from '@recurrsive/graph';
+import type { ExtendedGraphClient } from '@recurrsive/graph';
 import { OpportunityManager, promoteFindings } from '@recurrsive/opportunities';
 import { AnalyzerRegistry, AnalyzerRunner, createDefaultAnalyzers } from '@recurrsive/analyzers';
 import { ReasoningEngine } from '@recurrsive/reasoning';
@@ -35,6 +35,7 @@ import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { store } from './store.js';
 import { calculateHealthScore } from './analysis-metrics.js';
+import { getProjectGraph } from './project-graph.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -225,87 +226,14 @@ export class ServerState {
    * @throws {Error} If graph client creation fails.
    */
   async initialize(projectPath: string, projectName?: string, projectId?: string): Promise<void> {
+    if (!projectId?.trim()) {
+      throw new Error('A registered project ID is required to initialize analysis state.');
+    }
     logger.info(`Initializing server state for project: ${projectPath}`);
 
     this.projectPath = projectPath;
-    this.projectId = projectId ?? null;
-
-    const provider = (process.env['GRAPH_PROVIDER'] ?? 'sqlite') as 'sqlite' | 'postgresql_age';
-    const connectionString = process.env['DATABASE_URL'];
-    const isProduction = process.env['NODE_ENV'] === 'production';
-
-    if (provider === 'postgresql_age' && !connectionString && isProduction) {
-      throw new Error('DATABASE_URL is required for the postgresql_age graph provider in production.');
-    }
-
-    if (provider === 'postgresql_age' && connectionString) {
-      // Retry connection with exponential backoff — postgres may not be ready
-      // immediately in Docker/container environments.
-      const MAX_RETRIES = 5;
-      let lastError: unknown;
-
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        try {
-          this.graphClient = await createGraphClient({
-            provider: 'postgresql_age',
-            connectionString,
-            autoMigrate: true,
-          });
-          logger.info(`Connected to PostgreSQL/AGE (attempt ${attempt}/${MAX_RETRIES})`);
-          lastError = undefined;
-          break;
-        } catch (err) {
-          lastError = err;
-          const message = err instanceof Error ? err.message : String(err);
-          if (attempt < MAX_RETRIES) {
-            const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s, 8s, 16s
-            logger.warn(
-              `Database connection attempt ${attempt}/${MAX_RETRIES} failed: ${message}. ` +
-              `Retrying in ${delay / 1000}s…`,
-            );
-            await new Promise((resolve) => setTimeout(resolve, delay));
-          }
-        }
-      }
-
-      // Development may remain usable while PostgreSQL is offline. Production
-      // must fail closed so a container cannot appear healthy while losing data.
-      if (lastError) {
-        const message = lastError instanceof Error ? lastError.message : String(lastError);
-        if (isProduction) {
-          throw new Error(`Unable to connect to PostgreSQL/AGE after ${MAX_RETRIES} attempts: ${message}`);
-        }
-        logger.error(
-          `All ${MAX_RETRIES} database connection attempts failed: ${message}. ` +
-          `Falling back to persistent SQLite.`,
-        );
-        const sqlitePath = process.env['GRAPH_DATABASE_PATH'] ?? path.resolve('./data/recurrsive-graph.db');
-        await mkdir(path.dirname(sqlitePath), { recursive: true });
-        this.graphClient = await createGraphClient({
-          provider: 'sqlite',
-          sqlitePath,
-          autoMigrate: true,
-        });
-      }
-    } else {
-      if (provider === 'postgresql_age' && !connectionString) {
-        logger.warn(
-          'GRAPH_PROVIDER is set to "postgresql_age" but DATABASE_URL is not configured. ' +
-          'Falling back to persistent SQLite.',
-        );
-      }
-      const sqlitePath = process.env['NODE_ENV'] === 'test'
-        ? ':memory:'
-        : process.env['GRAPH_DATABASE_PATH'] ?? path.resolve('./data/recurrsive-graph.db');
-      if (sqlitePath !== ':memory:') {
-        await mkdir(path.dirname(sqlitePath), { recursive: true });
-      }
-      this.graphClient = await createGraphClient({
-        provider: 'sqlite',
-        sqlitePath,
-        autoMigrate: true,
-      });
-    }
+    this.projectId = projectId;
+    this.graphClient = await getProjectGraph(projectId);
 
     this.opportunityManager = new OpportunityManager();
 
@@ -318,13 +246,13 @@ export class ServerState {
     };
 
     // Load persisted analysis history
-    this._analysisHistory = await loadHistory(this.projectId ?? projectPath);
+    this._analysisHistory = await loadHistory(this.projectId);
     if (this._analysisHistory.length > 0) {
       logger.info(`Loaded ${this._analysisHistory.length} historical analysis entries`);
     }
 
     // Restore analysis cache from store (survives restarts)
-    const cachedAnalysis = await store.get<AnalysisCache>('analysis_cache', this.projectId ?? projectPath);
+    const cachedAnalysis = await store.get<AnalysisCache>('analysis_cache', this.projectId);
     if (cachedAnalysis) {
       this.analysisCache = cachedAnalysis;
       this.opportunityManager = new OpportunityManager(cachedAnalysis.opportunities);
@@ -342,8 +270,8 @@ export class ServerState {
    */
   async cloneRepo(gitUrl: string): Promise<string> {
     // Validate URL to prevent SSRF and injection
-    if (!/^https?:\/\//i.test(gitUrl)) {
-      throw new Error('Only HTTP(S) git URLs are allowed');
+    if (!/^https:\/\//i.test(gitUrl)) {
+      throw new Error('Only HTTPS git URLs are allowed');
     }
     if (/[\x00-\x1f\x7f]/.test(gitUrl)) {
       throw new Error('Git URL contains invalid control characters');
@@ -461,6 +389,7 @@ export class ServerState {
   async runAnalysis(
     analyzerIds?: string[],
     includeReasoning?: boolean,
+    collectorIds: string[] = ['git', 'documentation', 'environment', 'cicd', 'database'],
   ): Promise<AnalysisCache> {
     this.assertInitialized();
 
@@ -469,6 +398,11 @@ export class ServerState {
       throw new Error('Analysis already in progress. Wait for the current run to complete.');
     }
     this._analysisLock = true;
+    const enabledCollectors = new Set(collectorIds);
+    if (!enabledCollectors.has('git')) {
+      this._analysisLock = false;
+      throw new Error('The git collector is required for source analysis.');
+    }
 
     const runId = generateId();
     const start = Date.now();
@@ -552,6 +486,7 @@ export class ServerState {
       );
 
       // ── Step 1b: Documentation collector ─────────────────────────────
+      if (enabledCollectors.has('documentation')) {
       this.updateStatus('collecting', 15, 'Running documentation collector…');
       docsCollector = new DocumentationCollector(this.projectPath!);
       await docsCollector.initialize({
@@ -572,8 +507,10 @@ export class ServerState {
         try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`Documentation: ${docsResult.entities.length} entities`);
+      }
 
       // ── Step 1c: Environment collector ───────────────────────────────
+      if (enabledCollectors.has('environment')) {
       this.updateStatus('collecting', 18, 'Running environment collector…');
       envCollector = new EnvironmentCollector(this.projectPath!);
       await envCollector.initialize({
@@ -594,8 +531,10 @@ export class ServerState {
         try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`Environment: ${envResult.entities.length} entities`);
+      }
 
       // ── Step 1d: CI/CD collector ────────────────────────────────────
+      if (enabledCollectors.has('cicd')) {
       this.updateStatus('collecting', 21, 'Running CI/CD collector…');
       cicdCollector = new CICDCollector(this.projectPath!);
       await cicdCollector.initialize({
@@ -616,8 +555,10 @@ export class ServerState {
         try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`CI/CD: ${cicdResult.entities.length} entities`);
+      }
 
       // ── Step 1e: Database collector ──────────────────────────────────
+      if (enabledCollectors.has('database')) {
       this.updateStatus('collecting', 24, 'Running database collector…');
       dbCollector = new DatabaseCollector(this.projectPath!);
       await dbCollector.initialize({
@@ -638,6 +579,7 @@ export class ServerState {
         try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`Database: ${dbResult.entities.length} entities`);
+      }
 
       // ── Step 2: Parse source code ──────────────────────────────────────
       this.updateStatus('collecting', 28, 'Parsing source code…');
@@ -791,12 +733,9 @@ export class ServerState {
             llm_api_key: process.env['RECURRSIVE_LLM_API_KEY'],
             max_debate_rounds: 3,
             min_consensus_score: 0.6,
-            specialists: [
-              'architecture_engineer' as const,
-              'security_engineer' as const,
-              'performance_engineer' as const,
-              'cost_optimizer' as const,
-            ],
+            // An empty selection means the complete built-in panel. This keeps
+            // the runtime aligned with the product's nineteen-specialist claim.
+            specialists: [],
             temperature: 0.3,
           };
 
@@ -841,11 +780,8 @@ export class ServerState {
         : null;
 
       // Persist analysis cache to database so it survives restarts
-      await store.set('analysis_cache', this.projectPath!, cache);
-      if (this.projectId) {
-        await store.set('analysis_cache', this.projectId, cache);
-        logger.info(`Persisted analysis cache under project ID: ${this.projectId}`);
-      }
+      await store.set('analysis_cache', this.projectId!, cache);
+      logger.info(`Persisted analysis cache under project ID: ${this.projectId}`);
 
       this.updateStatus('complete', 100, 'Analysis complete');
 
@@ -872,7 +808,7 @@ export class ServerState {
       }
 
       // Persist history to disk
-      await saveHistory(this.projectId ?? this.projectPath!, this._analysisHistory);
+      await saveHistory(this.projectId!, this._analysisHistory);
 
       this.broadcast({
         type: 'analysis:complete',
@@ -935,7 +871,7 @@ export class ServerState {
       }
 
       // Persist history to disk
-      await saveHistory(this.projectId ?? this.projectPath!, this._analysisHistory);
+      await saveHistory(this.projectId!, this._analysisHistory);
       this.broadcast({
         type: 'analysis:error',
         timestamp: nowISO(),
@@ -1117,10 +1053,10 @@ export class ServerState {
    * Dispose of the server state, releasing all resources.
    */
   async dispose(): Promise<void> {
-    if (this.graphClient) {
-      await this.graphClient.dispose();
-      this.graphClient = null;
-    }
+    // Project graph clients are shared with read routes and remain available
+    // when the analysis worker switches projects. The server close hook owns
+    // their lifecycle.
+    this.graphClient = null;
     this.opportunityManager = new OpportunityManager();
     this.projectPath = null;
     this.projectInfo = null;

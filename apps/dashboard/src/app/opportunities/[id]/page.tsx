@@ -32,11 +32,14 @@ function getSeverityStyle(severity: string) {
 
 interface OpportunityDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ projectId?: string }>;
 }
 
-export default async function OpportunityDetailPage({ params }: OpportunityDetailPageProps) {
+export default async function OpportunityDetailPage({ params, searchParams }: OpportunityDetailPageProps) {
   const { id } = await params;
-  const opportunity = await getOpportunity(id);
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
+  const opportunity = await getOpportunity(id, projectId);
 
   if (!opportunity) {
     return (
@@ -52,7 +55,7 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
           not be found. It may have been resolved or removed.
         </p>
         <Link
-          href="/opportunities"
+          href={`/opportunities?projectId=${encodeURIComponent(projectId)}`}
           className="mt-2 inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-accent-blue/20 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -83,7 +86,7 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
       {/* ── Breadcrumb ─────────────────────────────────── */}
       <nav className="flex items-center gap-2 text-sm text-text-muted">
         <Link
-          href="/opportunities"
+          href={`/opportunities?projectId=${encodeURIComponent(projectId)}`}
           className="inline-flex items-center gap-1.5 hover:text-text-secondary transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />

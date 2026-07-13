@@ -75,9 +75,11 @@ function healthColor(count: number, maxCount: number) {
 // Page
 // ---------------------------------------------------------------------------
 
-export default async function SystemMapPage() {
+export default async function SystemMapPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
   try {
-    const stats = await getGraphStats();
+    const stats = await getGraphStats(projectId);
 
     // ---------- Empty state ----------
     if (stats.total_entities === 0) {

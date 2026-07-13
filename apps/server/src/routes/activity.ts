@@ -11,9 +11,9 @@
 
 import type { FastifyInstance } from 'fastify';
 import { createLogger, nowISO } from '@recurrsive/core';
-import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getAuditEvents } from '../middleware/audit.js';
+import { requireProjectScope, resolveAnalysisHistory } from '../project-analysis.js';
 
 const logger = createLogger({ context: { component: 'server:routes:activity' } });
 
@@ -56,10 +56,11 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
       }
 
       const activities: ActivityItem[] = [];
+      const project = await requireProjectScope(request);
 
       // 1. Analysis runs
       if (!typeFilter || typeFilter === 'analysis') {
-        const history = state.isInitialized() ? state.getAnalysisHistory() : [];
+        const history = await resolveAnalysisHistory(request);
         for (const entry of history) {
           activities.push({
             id: `activity_analysis_${entry.id}`,
@@ -82,7 +83,7 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
       // 2. Audit events (config changes, user actions)
       if (!typeFilter || typeFilter === 'config' || typeFilter === 'user') {
         try {
-          const { events: auditEvents } = await getAuditEvents({ limit: 100 });
+          const { events: auditEvents } = await getAuditEvents({ limit: 100, projectId: project.id });
           for (const event of auditEvents) {
             const activityType = event.action === 'auth' ? 'user' :
                                  event.action === 'admin' ? 'config' : 'system';
@@ -131,8 +132,9 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
    * Return activity statistics: counts by type, recent activity rate,
    * and peak activity periods.
    */
-  app.get('/api/v1/activity/stats', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const history = state.isInitialized() ? state.getAnalysisHistory() : [];
+  app.get('/api/v1/activity/stats', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const project = await requireProjectScope(request);
+    const history = await resolveAnalysisHistory(request);
     const successfulRuns = history.filter(h => h.status === 'success');
     const failedRuns = history.filter(h => h.status === 'error');
 
@@ -148,9 +150,9 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
     let auditTotal = 0;
     let recentAuditCount = 0;
     try {
-      const { events: auditEvents } = await getAuditEvents({ limit: 1000 });
-      auditTotal = auditEvents.length;
-      recentAuditCount = auditEvents.filter(e => e.timestamp >= oneDayAgo).length;
+      const { events: projectEvents } = await getAuditEvents({ limit: 1000, projectId: project.id });
+      auditTotal = projectEvents.length;
+      recentAuditCount = projectEvents.filter(e => e.timestamp >= oneDayAgo).length;
     } catch {
       // Audit not available
     }

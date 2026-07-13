@@ -1,261 +1,187 @@
 'use client';
-/**
- * Report Scheduling page.
- *
- * Scheduled reports, cron display, run history, and create schedule form.
- */
 
-import { useState, useEffect } from 'react';
-import { Calendar, Clock, Play, Pause, Download, FileText, Trash2, Zap } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Calendar, Clock, Download, FileText, Pause, Play, Trash2, Zap } from 'lucide-react';
 import Header from '@/components/header';
+import { useActiveProject } from '@/components/active-project-context';
+import { useAuth } from '@/lib/auth-context';
 import {
-  getSchedules, getScheduleHistory,
-  createSchedule, toggleSchedule as toggleScheduleApi,
-  deleteSchedule, runScheduleNow,
+  createSchedule,
+  deleteSchedule,
+  getScheduleHistory,
+  getSchedules,
+  runScheduleNow,
+  toggleSchedule as toggleScheduleApi,
+  type ReportSchedule,
+  type ScheduleRunHistory,
 } from '@/lib/api';
-import type { ReportSchedule, ScheduleRunHistory } from '@/lib/api';
 
-type Schedule = ReportSchedule;
-type RunHistory = ScheduleRunHistory;
-function ScheduleStatusBadge({ status }: { status: string }) {
-  return (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium ${status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-      {status}
-    </span>
-  );
+const FORMATS: ReportSchedule['format'][] = ['markdown', 'html', 'json', 'sarif'];
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function RunStatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    success: 'bg-green-500/20 text-green-400',
-    failed: 'bg-red-500/20 text-red-400',
-    running: 'bg-blue-500/20 text-blue-400',
-  };
-  return <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status]}`}>{status}</span>;
+function statusClass(status: string): string {
+  if (status === 'active' || status === 'completed') return 'bg-green-500/15 text-green-400';
+  if (status === 'failed' || status === 'error') return 'bg-red-500/15 text-red-400';
+  if (status === 'generating' || status === 'queued') return 'bg-blue-500/15 text-blue-400';
+  return 'bg-yellow-500/15 text-yellow-400';
 }
 
-function ReportTypeBadge({ type }: { type: string }) {
-  const colors: Record<string, string> = {
-    executive: 'bg-purple-500/20 text-purple-400',
-    technical: 'bg-blue-500/20 text-blue-400',
-    compliance: 'bg-orange-500/20 text-orange-400',
-    custom: 'bg-gray-500/20 text-gray-400',
-  };
-  return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[type]}`}>{type}</span>;
-}
-
-function getCountdown(target: string): string {
+function countdown(target: string): string {
   const diff = new Date(target).getTime() - Date.now();
-  if (diff <= 0) return 'Now';
-  const days = Math.floor(diff / 86400000);
-  const hours = Math.floor((diff % 86400000) / 3600000);
-  const mins = Math.floor((diff % 3600000) / 60000);
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${mins}m`;
-  return `${mins}m`;
+  if (diff <= 0) return 'due now';
+  const days = Math.floor(diff / 86_400_000);
+  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((diff % 3_600_000) / 60_000);
+  return days ? `in ${days}d ${hours}h` : hours ? `in ${hours}h ${minutes}m` : `in ${minutes}m`;
 }
 
 export default function SchedulingPage() {
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [history, setHistory] = useState<RunHistory[]>([]);
+  const { activeProject } = useActiveProject();
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin' || user?.role === 'analyst';
+  const [schedules, setSchedules] = useState<ReportSchedule[]>([]);
+  const [history, setHistory] = useState<ScheduleRunHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newCron, setNewCron] = useState('');
-  const [newFormat, setNewFormat] = useState('pdf');
+  const [name, setName] = useState('');
+  const [cron, setCron] = useState('0 9 * * 1');
+  const [timezone, setTimezone] = useState('UTC');
+  const [format, setFormat] = useState<ReportSchedule['format']>('markdown');
   const [error, setError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
 
-  const refetchData = async () => {
-    const [sched, hist] = await Promise.all([getSchedules(), getScheduleHistory()]);
-    setSchedules(sched);
-    setHistory(hist);
-  };
+  const refresh = useCallback(async () => {
+    if (!activeProject) return;
+    const [nextSchedules, nextHistory] = await Promise.all([getSchedules(), getScheduleHistory()]);
+    setSchedules(nextSchedules);
+    setHistory(nextHistory);
+  }, [activeProject]);
 
   useEffect(() => {
-    refetchData().finally(() => setLoading(false));
-  }, []);
-
-  const handleCreate = async () => {
+    setLoading(true);
     setError(null);
+    refresh()
+      .catch((reason) => setError(reason instanceof Error ? reason.message : 'Failed to load schedules'))
+      .finally(() => setLoading(false));
+  }, [refresh]);
+
+  async function mutate(action: () => Promise<unknown>) {
     setMutating(true);
+    setError(null);
     try {
-      await createSchedule({ name: newName, schedule: newCron, format: newFormat });
-      setShowCreate(false);
-      setNewName('');
-      setNewCron('');
-      setNewFormat('pdf');
-      await refetchData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create schedule');
+      await action();
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The schedule operation failed');
     } finally {
       setMutating(false);
     }
-  };
+  }
 
-  const handleToggle = async (id: string) => {
-    setError(null);
-    try {
-      await toggleScheduleApi(id);
-      await refetchData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to toggle schedule');
-    }
-  };
-
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Delete schedule "${name}"?`)) return;
-    setError(null);
-    try {
-      await deleteSchedule(id);
-      await refetchData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete schedule');
-    }
-  };
-
-  const handleRunNow = async (id: string) => {
-    setError(null);
-    try {
-      await runScheduleNow(id);
-      await refetchData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to trigger run');
-    }
-  };
+  async function handleCreate() {
+    await mutate(() => createSchedule({ name, cron, timezone, format }));
+    setShowCreate(false);
+    setName('');
+  }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-accent)' }} />
-      </div>
-    );
+    return <div className="flex h-64 items-center justify-center text-sm text-text-secondary" role="status">Loading schedules…</div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Header title="Scheduling" subtitle="Manage recurring analysis schedules and view run history" />
-      <div className="flex items-center justify-end">
-        <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: 'var(--color-accent)' }}>
-          <Calendar className="w-4 h-4" /> New Schedule
+      <Header title="Report scheduling" subtitle={`Automated reports for ${activeProject?.name ?? 'the selected project'}`} />
+
+      {canEdit && <div className="flex justify-end">
+        <button type="button" onClick={() => setShowCreate((visible) => !visible)} className="flex items-center gap-2 rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white">
+          <Calendar className="h-4 w-4" aria-hidden="true" /> New schedule
         </button>
-      </div>
+      </div>}
 
-      {/* Error Banner */}
-      {error && (
-        <div className="rounded-lg px-4 py-3 text-sm bg-red-500/20 text-red-400 flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300 ml-4 font-bold">×</button>
-        </div>
-      )}
+      {error && <div role="alert" className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
 
-      {/* Create Form */}
       {showCreate && (
-        <div className="glass-card rounded-2xl p-5">
-          <h2 className="text-base font-semibold text-text-primary mb-3">Create New Schedule</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input placeholder="Schedule Name" aria-label="Schedule Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <input placeholder="Cron Expression (e.g. 0 9 * * 1)" aria-label="Cron Expression" value={newCron} onChange={e => setNewCron(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <select value={newFormat} onChange={e => setNewFormat(e.target.value)} aria-label="Report format" className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
-              <option value="pdf">PDF</option>
-              <option value="html">HTML</option>
-              <option value="csv">CSV</option>
-            </select>
+        <form onSubmit={(event) => { event.preventDefault(); void handleCreate(); }} className="glass-card space-y-4 rounded-2xl p-5">
+          <h2 className="text-base font-semibold text-text-primary">Create report schedule</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="text-sm text-text-secondary">Name
+              <input required value={name} onChange={(event) => setName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary" />
+            </label>
+            <label className="text-sm text-text-secondary">Report format
+              <select value={format} onChange={(event) => setFormat(event.target.value as ReportSchedule['format'])} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary">
+                {FORMATS.map((value) => <option key={value} value={value}>{value.toUpperCase()}</option>)}
+              </select>
+            </label>
+            <label className="text-sm text-text-secondary">Cron expression
+              <input required value={cron} onChange={(event) => setCron(event.target.value)} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 font-mono text-text-primary" aria-describedby="cron-help" />
+              <span id="cron-help" className="mt-1 block text-xs text-text-muted">Five fields: minute, hour, day, month, weekday.</span>
+            </label>
+            <label className="text-sm text-text-secondary">IANA timezone
+              <input required value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="UTC" className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary" />
+            </label>
           </div>
-          <div className="flex justify-end gap-2 mt-3">
-            <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary">Cancel</button>
-            <button disabled={!newName || !newCron || mutating} onClick={handleCreate} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newName && newCron ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName && newCron ? 1 : 0.5 }}>
-              {mutating ? 'Creating…' : 'Create'}
-            </button>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg px-4 py-2 text-sm text-text-secondary">Cancel</button>
+            <button disabled={mutating} className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{mutating ? 'Creating…' : 'Create schedule'}</button>
           </div>
-        </div>
+        </form>
       )}
 
-      {/* Schedules */}
-      <div className="space-y-3">
-        {schedules.length === 0 && (
-          <div className="glass-card rounded-2xl p-8 text-center">
-            <Calendar className="w-10 h-10 mx-auto mb-3 text-text-tertiary" />
-            <p className="text-sm text-text-secondary">No schedules yet. Create one to automate report generation.</p>
+      <section aria-labelledby="schedules-title" className="space-y-3">
+        <h2 id="schedules-title" className="text-base font-semibold text-text-primary">Schedules</h2>
+        {schedules.length === 0 ? (
+          <div className="glass-card rounded-2xl p-8 text-center text-sm text-text-secondary">No report schedules for this project.</div>
+        ) : schedules.map((schedule) => (
+          <article key={schedule.id} className="glass-card rounded-2xl p-5">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <FileText className="h-4 w-4 text-text-muted" aria-hidden="true" />
+                  <h3 className="font-semibold text-text-primary">{schedule.name}</h3>
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusClass(schedule.status)}`}>{schedule.status}</span>
+                  <span className="rounded bg-white/5 px-2 py-0.5 text-xs uppercase text-text-secondary">{schedule.format}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
+                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" aria-hidden="true" /><code>{schedule.cron}</code> ({schedule.timezone})</span>
+                  <span>Next run {countdown(schedule.nextRunAt)}</span>
+                  <span>{schedule.totalRuns} run{schedule.totalRuns === 1 ? '' : 's'}</span>
+                </div>
+              </div>
+              {canEdit && <div className="flex gap-2">
+                <button type="button" disabled={mutating} onClick={() => void mutate(() => runScheduleNow(schedule.id))} aria-label={`Run ${schedule.name} now`} className="rounded-lg bg-white/5 p-2 text-blue-400"><Zap className="h-4 w-4" /></button>
+                <button type="button" disabled={mutating} onClick={() => void mutate(() => toggleScheduleApi(schedule.id))} aria-label={`${schedule.status === 'active' ? 'Pause' : 'Resume'} ${schedule.name}`} className="rounded-lg bg-white/5 p-2 text-yellow-400">{schedule.status === 'active' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
+                <button type="button" disabled={mutating} onClick={() => { if (window.confirm(`Delete schedule “${schedule.name}”? Its generated artifacts will also be deleted.`)) void mutate(() => deleteSchedule(schedule.id)); }} aria-label={`Delete ${schedule.name}`} className="rounded-lg bg-white/5 p-2 text-red-400"><Trash2 className="h-4 w-4" /></button>
+              </div>}
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <section aria-labelledby="history-title" className="glass-card rounded-2xl p-5">
+        <h2 id="history-title" className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary"><Clock className="h-4 w-4 text-accent-blue" />Run history</h2>
+        {history.length === 0 ? <p className="text-sm text-text-secondary">No reports have run yet.</p> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-white/10 text-left text-xs text-text-muted"><th className="pb-2">Format</th><th className="pb-2">Status</th><th className="pb-2">Started</th><th className="pb-2">Duration</th><th className="pb-2">Size</th><th className="pb-2"><span className="sr-only">Download</span></th></tr></thead>
+              <tbody>{history.map((run) => (
+                <tr key={run.id} className="border-b border-white/5">
+                  <td className="py-3 uppercase text-text-primary">{run.format}</td>
+                  <td className="py-3"><span className={`rounded px-2 py-0.5 text-xs ${statusClass(run.status)}`}>{run.status}</span>{run.error && <span className="ml-2 text-xs text-red-400">{run.error}</span>}</td>
+                  <td className="py-3 text-xs text-text-muted">{new Date(run.startedAt).toLocaleString()}</td>
+                  <td className="py-3 text-xs text-text-secondary">{run.completedAt ? `${run.durationMs} ms` : '—'}</td>
+                  <td className="py-3 text-xs text-text-secondary">{formatBytes(run.sizeBytes)}</td>
+                  <td className="py-3 text-right">{run.downloadUrl && <a href={run.downloadUrl} className="inline-flex rounded-lg bg-white/5 p-2 text-text-secondary" aria-label={`Download ${run.format} report`}><Download className="h-4 w-4" /></a>}</td>
+                </tr>
+              ))}</tbody>
+            </table>
           </div>
         )}
-        {schedules.map(schedule => (
-          <div key={schedule.id} className="glass-card rounded-2xl p-5 transition-all hover:scale-[1.005]">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-text-tertiary" />
-                  <h2 className="text-sm font-semibold text-text-primary">{schedule.name}</h2>
-                  <ReportTypeBadge type={schedule.reportType} />
-                  <ScheduleStatusBadge status={schedule.status} />
-                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-500/20 text-gray-400 uppercase">{schedule.format}</span>
-                </div>
-                <div className="flex items-center gap-4 mt-2 text-xs text-text-tertiary">
-                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {schedule.cronHuman}</span>
-                  <span className="font-mono" style={{ color: 'var(--color-accent)' }}>{schedule.cron}</span>
-                  <span>•</span>
-                  <span>{schedule.recipients.length} recipient{schedule.recipients.length !== 1 ? 's' : ''}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="text-right mr-1">
-                  <p className="text-xs text-text-tertiary">Next run</p>
-                  <p className="text-sm font-semibold text-text-primary">{getCountdown(schedule.nextRun)}</p>
-                </div>
-                <button onClick={() => handleRunNow(schedule.id)} title="Run Now" className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                  <Zap className="w-4 h-4 text-blue-400" />
-                </button>
-                <button onClick={() => handleToggle(schedule.id)} title={schedule.status === 'active' ? 'Pause' : 'Resume'} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                  {schedule.status === 'active' ? <Pause className="w-4 h-4 text-yellow-400" /> : <Play className="w-4 h-4 text-green-400" />}
-                </button>
-                <button onClick={() => handleDelete(schedule.id, schedule.name)} title="Delete" className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                  <Trash2 className="w-4 h-4 text-red-400" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Run History */}
-      <div className="glass-card rounded-2xl p-5">
-        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
-          <Clock className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Run History
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-text-tertiary text-xs border-b" style={{ borderColor: 'var(--color-border)' }}>
-                <th scope="col" className="pb-2 font-medium">Report</th>
-                <th scope="col" className="pb-2 font-medium">Status</th>
-                <th scope="col" className="pb-2 font-medium">Started</th>
-                <th scope="col" className="pb-2 font-medium">Completed</th>
-                <th scope="col" className="pb-2 font-medium">Size</th>
-                <th scope="col" className="pb-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map(run => (
-                <tr key={run.id} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="py-3 text-text-primary">{run.scheduleName}</td>
-                  <td className="py-3"><RunStatusBadge status={run.status} /></td>
-                  <td className="py-3 text-text-tertiary text-xs">{new Date(run.startedAt).toLocaleString()}</td>
-                  <td className="py-3 text-text-tertiary text-xs">{run.completedAt ? new Date(run.completedAt).toLocaleString() : '—'}</td>
-                  <td className="py-3 text-text-secondary text-xs">{run.fileSize}</td>
-                  <td className="py-3">
-                    {run.status === 'success' && (
-                      <button className="p-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                        <Download className="w-3.5 h-3.5 text-text-tertiary" />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

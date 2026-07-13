@@ -137,14 +137,14 @@ function transformOpportunity(raw: ServerOpportunity): Opportunity {
  *
  * Server returns: `{ data: Opportunity[], total, limit, offset, has_more }`
  */
-export async function getOpportunities(): Promise<Opportunity[]> {
-  const raw = await apiFetch<ServerOpportunity[]>("/api/v1/opportunities?limit=50");
+export async function getOpportunities(projectId?: string): Promise<Opportunity[]> {
+  const raw = await apiFetch<ServerOpportunity[]>("/api/v1/opportunities?limit=50", { projectId });
   return raw.map(transformOpportunity);
 }
 
-export async function getOpportunity(id: string): Promise<Opportunity | undefined> {
+export async function getOpportunity(id: string, projectId?: string): Promise<Opportunity | undefined> {
   try {
-    const raw = await apiFetch<ServerOpportunity>(`/api/v1/opportunities/${encodeURIComponent(id)}`);
+    const raw = await apiFetch<ServerOpportunity>(`/api/v1/opportunities/${encodeURIComponent(id)}`, { projectId });
     return transformOpportunity(raw);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return undefined;

@@ -8,6 +8,7 @@ export interface AuthUser {
   readonly userId: string;
   readonly username: string;
   readonly role: Role;
+  readonly sessionExpiresAt?: number;
 }
 
 export interface AuthContextValue {
@@ -26,8 +27,8 @@ export function useAuth(): AuthContextValue {
   return context;
 }
 
-function mapUser(value: { id: string; username?: string; role: Role }): AuthUser {
-  return { userId: value.id, username: value.username ?? value.id, role: value.role };
+function mapUser(value: { id: string; username?: string; role: Role; sessionExpiresAt?: number }): AuthUser {
+  return { userId: value.id, username: value.username ?? value.id, role: value.role, sessionExpiresAt: value.sessionExpiresAt };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -40,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetch('/api/v1/auth/me', { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) return null;
-        const body = await response.json() as { data?: { id: string; username?: string; role: Role } };
+        const body = await response.json() as { data?: { id: string; username?: string; role: Role; sessionExpiresAt?: number } };
         return body.data ? mapUser(body.data) : null;
       })
       .then((resolvedUser) => { if (active) setUser(resolvedUser); })
@@ -48,6 +49,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!user?.sessionExpiresAt) return;
+    const refreshInMs = Math.max(5_000, user.sessionExpiresAt * 1000 - Date.now() - 5 * 60_000);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch('/api/v1/auth/refresh', { method: 'POST' });
+        const body = await response.json().catch(() => ({})) as {
+          data?: { user?: { id: string; username?: string; role: Role; sessionExpiresAt?: number } };
+        };
+        if (!response.ok || !body.data?.user) {
+          setUser(null);
+          return;
+        }
+        setUser(mapUser(body.data.user));
+      } catch {
+        setUser(null);
+      }
+    }, refreshInMs);
+    return () => window.clearTimeout(timer);
+  }, [user?.sessionExpiresAt]);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     setError(null);
@@ -61,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const body = await response.json().catch(() => ({})) as {
         error?: string;
         message?: string;
-        data?: { user?: { id: string; username?: string; role: Role } };
+        data?: { user?: { id: string; username?: string; role: Role; sessionExpiresAt?: number } };
       };
       if (!response.ok || !body.data?.user) {
         setError(body.message ?? body.error ?? 'Login failed');

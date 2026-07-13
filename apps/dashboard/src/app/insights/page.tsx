@@ -15,8 +15,7 @@ interface Insight {
   bg: string;
   title: string;
   description: string;
-  confidence: number;
-  trend: string;
+  value: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,9 +49,8 @@ function generateInsights(summary: {
       color: "text-red-400",
       bg: "bg-red-500/10",
       title: `${critical} Critical Finding${critical > 1 ? "s" : ""} Require Attention`,
-      description: `Your codebase has ${critical} critical-severity finding${critical > 1 ? "s" : ""} that should be addressed immediately. Critical findings represent active risks to security, reliability, or data integrity.`,
-      confidence: 99,
-      trend: `${critical}`,
+      description: `${critical} finding${critical > 1 ? "s are" : " is"} classified as critical by the enabled analyzers. Review the underlying evidence and remediation guidance.`,
+      value: `${critical}`,
     });
   }
 
@@ -62,9 +60,8 @@ function generateInsights(summary: {
       color: "text-amber-400",
       bg: "bg-amber-500/10",
       title: `${high} High-Priority Findings Identified`,
-      description: `${high} findings are rated high severity across your analysis. Addressing these alongside critical items will significantly improve overall system health.`,
-      confidence: 95,
-      trend: `${high}`,
+      description: `${high} findings are classified as high severity by the enabled analyzers.`,
+      value: `${high}`,
     });
   }
 
@@ -76,23 +73,13 @@ function generateInsights(summary: {
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
     const meta = CATEGORY_ICONS[category] ?? { icon: Eye, color: "text-cyan-400", bg: "bg-cyan-500/10" };
 
-    const descriptions: Record<string, string> = {
-      security: `Security analysis has identified ${count} findings representing ${pct}% of all issues. Review these to harden your system against vulnerabilities and align with security best practices.`,
-      performance: `Performance analysis found ${count} optimization opportunities (${pct}% of total). Addressing bottlenecks in this area can improve response times, throughput, and resource efficiency.`,
-      architecture: `${count} architectural findings (${pct}% of total) suggest structural improvements. These often have the highest long-term ROI by reducing coupling and improving maintainability.`,
-      reliability: `Reliability analysis surfaced ${count} findings (${pct}% of total). Improving resilience patterns, error handling, and fault tolerance reduces incident frequency and MTTR.`,
-      cost: `Cost optimization identified ${count} savings opportunities (${pct}% of total). These typically involve infrastructure right-sizing, resource cleanup, and efficiency improvements.`,
-      documentation: `${count} documentation findings (${pct}% of total) indicate gaps in API docs, architecture docs, or onboarding materials that increase cognitive load for developers.`,
-    };
-
     insights.push({
       icon: meta.icon,
       color: meta.color,
       bg: meta.bg,
       title: `${category.charAt(0).toUpperCase() + category.slice(1)}: ${count} Findings (${pct}%)`,
-      description: descriptions[category] ?? `${count} findings categorized under ${category}, representing ${pct}% of your total analysis results.`,
-      confidence: Math.min(98, 80 + count),
-      trend: `${pct}%`,
+      description: `${count} of ${total} findings are categorized as ${category.replace(/_/g, " ")}.`,
+      value: `${pct}%`,
     });
   }
 
@@ -105,9 +92,8 @@ function generateInsights(summary: {
       color: healthPct > 60 ? "text-green-400" : "text-amber-400",
       bg: healthPct > 60 ? "bg-green-500/10" : "bg-amber-500/10",
       title: `${healthPct}% of Findings are Low/Medium Severity`,
-      description: `${lowMedium} of ${total} findings are low or medium severity, indicating ${healthPct > 60 ? "a healthy codebase with room for improvement" : "significant attention needed on high-priority items"}.`,
-      confidence: 100,
-      trend: `${healthPct}%`,
+      description: `${lowMedium} of ${total} findings are classified as low or medium severity.`,
+      value: `${healthPct}%`,
     });
   }
 
@@ -120,10 +106,12 @@ function generateInsights(summary: {
 // Page component
 // ---------------------------------------------------------------------------
 
-export default async function InsightsPage() {
+export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
   try {
-    const summary = await getFindingsSummary();
-    const { findings } = await getFindings({ limit: 10 });
+    const summary = await getFindingsSummary(projectId);
+    const { findings } = await getFindings({ limit: 10, projectId });
     const insights = summary.total > 0
       ? generateInsights(summary)
       : [];
@@ -139,7 +127,7 @@ export default async function InsightsPage() {
             </div>
             <div>
               <h2 className="text-lg font-bold text-text-primary">
-                AI-Generated Insights
+                Finding Patterns
               </h2>
               <p className="text-sm text-text-secondary">
                 {insights.length} active insights · {summary.total} findings analyzed
@@ -180,18 +168,9 @@ export default async function InsightsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <h3 className="text-sm font-semibold text-text-primary">{insight.title}</h3>
-                          <span className={`text-xs font-bold tabular-nums ${insight.color}`}>{insight.trend}</span>
+                          <span className={`text-xs font-bold tabular-nums ${insight.color}`}>{insight.value}</span>
                         </div>
                         <p className="mt-2 text-sm text-text-secondary leading-relaxed">{insight.description}</p>
-                        <div className="mt-3 flex items-center gap-3">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-text-muted">Confidence</span>
-                            <div className="h-1.5 w-16 rounded-full bg-white/5 overflow-hidden">
-                              <div className="h-full rounded-full bg-accent-blue" style={{ width: `${insight.confidence}%` }} />
-                            </div>
-                            <span className="text-[10px] font-semibold text-text-secondary tabular-nums">{insight.confidence}%</span>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -205,7 +184,7 @@ export default async function InsightsPage() {
               </div>
               <h3 className="text-lg font-semibold text-text-primary mb-2">No insights generated yet</h3>
               <p className="text-sm text-text-secondary max-w-md mx-auto mb-6">
-                Insights are generated from analysis findings. Run an analysis on your project to discover patterns and recommendations.
+                    Patterns are derived from analysis findings. Run an analysis to populate this view.
               </p>
               <Link
                 href="/projects"
@@ -236,7 +215,7 @@ export default async function InsightsPage() {
                   return (
                     <Link
                       key={finding.id}
-                      href={`/insights/${finding.id}`}
+                      href={`/insights/${finding.id}?projectId=${encodeURIComponent(projectId)}`}
                       className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
                     >
                       <div className={`h-2 w-2 rounded-full shrink-0 ${sevColor[finding.severity] ?? "bg-blue-500"}`} />

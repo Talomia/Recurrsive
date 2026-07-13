@@ -32,23 +32,25 @@ function getTypeConfig(type: string) {
 // ---------------------------------------------------------------------------
 
 interface SearchPageProps {
-  searchParams: Promise<{ q?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; projectId?: string }>;
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const params = await searchParams;
   const query = params.q ?? "";
   const typeFilter = params.type ?? "";
+  const projectId = params.projectId;
+  if (!projectId) return null;
 
   // Fetch stats for entity type counts
-  const stats = await getGraphStats();
+  const stats = await getGraphStats(projectId);
   const entityTypes = Object.entries(stats.entities_by_type)
     .sort(([, a], [, b]) => b - a);
 
   // Perform search if query provided
   let results: GraphEntity[] = [];
   if (query.trim()) {
-    results = await searchGraphEntities(query.trim(), typeFilter || undefined, 50);
+    results = await searchGraphEntities(query.trim(), typeFilter || undefined, 50, projectId);
   }
 
   return (
@@ -64,6 +66,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         method="get"
         className="flex flex-col gap-4"
       >
+        <input type="hidden" name="projectId" value={projectId} />
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-text-muted" />
@@ -88,7 +91,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         {entityTypes.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <Link
-              href={query ? `/search?q=${encodeURIComponent(query)}` : "/search"}
+              href={`/search?projectId=${encodeURIComponent(projectId)}${query ? `&q=${encodeURIComponent(query)}` : ''}`}
               className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
                 !typeFilter
                   ? "bg-accent-blue/20 border-accent-blue/40 text-blue-300"
@@ -103,7 +106,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               return (
                 <Link
                   key={type}
-                  href={`/search?q=${encodeURIComponent(query)}&type=${type}`}
+                  href={`/search?projectId=${encodeURIComponent(projectId)}&q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}`}
                   className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
                     isActive
                       ? `${cfg.bg} border-current ${cfg.color}`

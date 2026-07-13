@@ -17,6 +17,8 @@ import { store } from '../store.js';
 import { resolveAnalysisHistory } from '../project-analysis.js';
 import { randomUUID } from 'node:crypto';
 import { releaseAnalysisWorker, tryAcquireAnalysisWorker } from '../analysis-coordinator.js';
+import { requireProjectScope } from '../project-analysis.js';
+import { getPlatformSettings } from './config.js';
 
 const logger = createLogger({ context: { component: 'server:routes:analysis' } });
 
@@ -36,6 +38,10 @@ interface ProjectRecord {
   id: string;
   name: string;
   repository: string;
+  settings: {
+    analyzers: string[];
+    collectors: string[];
+  };
 }
 
 function isAllowedLocalPath(candidate: string): boolean {
@@ -53,11 +59,12 @@ function isAllowedLocalPath(candidate: string): boolean {
 
 async function executeAnalysisJob(input: {
   jobId: string;
-  projectId: string | null;
+  projectId: string;
   projectName?: string;
   projectPath?: string;
   gitUrl?: string;
   analyzers?: string[];
+  collectors: string[];
   includeReasoning?: boolean;
 }): Promise<void> {
   let effectivePath = input.projectPath;
@@ -71,8 +78,8 @@ async function executeAnalysisJob(input: {
     if (!effectivePath) throw new Error('Could not determine project path');
 
     if (state.isInitialized()) await state.dispose();
-    await state.initialize(effectivePath, input.projectName, input.projectId ?? undefined);
-    await state.runAnalysis(input.analyzers, input.includeReasoning);
+    await state.initialize(effectivePath, input.projectName, input.projectId);
+    await state.runAnalysis(input.analyzers, input.includeReasoning, input.collectors);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`Analysis job failed: ${message}`);
@@ -108,12 +115,12 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
   }, async (request, reply) => {
     const { projectId, path: requestedPath, gitUrl: requestedGitUrl, analyzers, include_reasoning } = request.body;
 
-    let project: ProjectRecord | null = null;
-    if (projectId) {
-      project = await store.get<ProjectRecord>('projects', projectId);
-      if (!project) {
-        return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
-      }
+    if (!projectId) {
+      return reply.status(400).send({ error: 'Bad Request', message: 'projectId is required.' });
+    }
+    const project = await store.get<ProjectRecord>('projects', projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
     }
 
     const registeredSource = project?.repository;
@@ -125,7 +132,10 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
     }
 
     const source = registeredSource ?? requestedGitUrl ?? requestedPath;
-    const sourceIsGit = Boolean(source && /^https?:\/\//i.test(source));
+    if (source && /^http:\/\//i.test(source)) {
+      return reply.status(400).send({ error: 'Bad Request', message: 'Repository URLs must use HTTPS.' });
+    }
+    const sourceIsGit = Boolean(source && /^https:\/\//i.test(source));
     const projectPath = sourceIsGit ? undefined : source;
     const gitUrl = sourceIsGit ? source : undefined;
 
@@ -136,15 +146,18 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
       });
     }
 
-    if (gitUrl && !projectId) {
-      return reply.status(400).send({
-        error: 'Bad request',
-        message: 'Remote repositories must first be registered as a project and analyzed with projectId.',
-      });
-    }
-
     if (projectPath && !isAllowedLocalPath(projectPath)) {
       return reply.status(403).send({ error: 'Forbidden', message: 'Project path is outside RECURRSIVE_ALLOWED_PATHS.' });
+    }
+
+    const configuredAnalyzers = project.settings?.analyzers ?? [];
+    const analyzersToRun = analyzers?.length ? analyzers : configuredAnalyzers;
+    const disallowedAnalyzers = analyzersToRun.filter((id) => !configuredAnalyzers.includes(id));
+    if (disallowedAnalyzers.length) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: `Analyzers are not enabled for this project: ${disallowedAnalyzers.join(', ')}`,
+      });
     }
 
     const jobId = randomUUID();
@@ -159,22 +172,23 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
 
     // Mark as starting IMMEDIATELY to prevent TOCTOU race condition
     // (a second request arriving during clone would pass the check above)
-    const persistedSettings = await store.get<{ enable_reasoning?: boolean }>('settings_overrides', 'default');
+    const platformSettings = await getPlatformSettings();
     state.markAnalysisStarting(projectId);
     void executeAnalysisJob({
       jobId,
-      projectId: projectId ?? null,
+      projectId,
       projectName: project?.name,
       projectPath,
       gitUrl,
-      analyzers,
-      includeReasoning: include_reasoning ?? persistedSettings?.enable_reasoning ?? true,
+      analyzers: analyzersToRun,
+      collectors: project.settings.collectors,
+      includeReasoning: include_reasoning ?? platformSettings.enable_reasoning,
     });
 
     return reply.status(202).send({
       message: 'Analysis started',
       status: state.getAnalysisStatus(),
-      projectId: projectId ?? null,
+      projectId,
       project: projectPath,
       gitUrl: gitUrl || undefined,
       endpoints: {
@@ -195,7 +209,8 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
     preHandler: [authMiddleware],
     schema: { querystring: { type: 'object', properties: { projectId: { type: 'string' } } } },
   }, async (request, reply) => {
-    const projectId = request.query.projectId;
+    const project = await requireProjectScope(request);
+    const projectId = project.id;
     const current = state.getAnalysisStatus();
     const status = projectId && current.projectId !== projectId
       ? await store.get<typeof current>('analysis_status', projectId) ?? {
@@ -223,6 +238,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
     preHandler: [authMiddleware],
     schema: { querystring: { type: 'object', properties: { projectId: { type: 'string' } } } },
   }, async (request, reply) => {
+    await requireProjectScope(request);
     const history = await resolveAnalysisHistory(request);
 
     return reply.status(200).send({

@@ -14,15 +14,21 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api/client';
 
-
+interface SSOProvider {
+  id: string;
+  displayName: string;
+  provider: string;
+}
 
 export default function LoginPage() {
   const { login, loading, error } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') ?? '/';
+  const requestedRedirect = searchParams.get('redirect');
+  const redirectTo = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [ssoProviders, setSsoProviders] = useState<SSOProvider[]>([]);
 
   // Check if setup is required (fresh install) — redirect before showing login
   useEffect(() => {
@@ -38,6 +44,9 @@ export default function LoginPage() {
       }
     }
     checkSetup();
+    apiFetch<SSOProvider[]>('/api/v1/sso/discovery').then((providers) => {
+      if (!cancelled) setSsoProviders(providers);
+    }).catch(() => undefined);
     return () => { cancelled = true; };
   }, [router]);
 
@@ -140,6 +149,27 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          {ssoProviders.length > 0 && (
+            <div className="mt-6 border-t border-white/10 pt-6">
+              <p className="mb-3 text-center text-xs text-text-tertiary">Or continue with single sign-on</p>
+              <div className="space-y-2">
+                {ssoProviders.map((provider) => (
+                  <a
+                    key={provider.id}
+                    href={`/api/v1/sso/login/${encodeURIComponent(provider.id)}?returnTo=${encodeURIComponent(redirectTo)}`}
+                    className="block w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-center text-sm font-medium text-text-primary hover:bg-white/10"
+                  >
+                    Continue with {provider.displayName}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="mt-5 text-center text-xs text-text-tertiary">
+            Cannot sign in? Contact a Recurrsive administrator to reset your account or restore access.
+          </p>
         </div>
 
         <p className="text-center text-xs text-text-tertiary mt-6">

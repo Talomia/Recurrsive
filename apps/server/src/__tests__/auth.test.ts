@@ -14,16 +14,19 @@ import Fastify from 'fastify';
 // Mock @recurrsive/core BEFORE any app imports
 // ---------------------------------------------------------------------------
 
-vi.mock('@recurrsive/core', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  generateId: vi.fn().mockReturnValue('test-id-123'),
-  nowISO: vi.fn().mockReturnValue('2024-06-15T00:00:00.000Z'),
-}));
+vi.mock('@recurrsive/core', () => {
+  let id = 0;
+  return {
+    createLogger: vi.fn().mockReturnValue({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+    generateId: vi.fn(() => `test-id-${++id}`),
+    nowISO: vi.fn().mockReturnValue('2024-06-15T00:00:00.000Z'),
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Imports under test
@@ -41,6 +44,8 @@ import {
 import { requireRole, hasMinRole, isValidRole, PERMISSIONS } from '../middleware/rbac.js';
 import type { Role } from '../middleware/rbac.js';
 import { registerAuthRoutes } from '../routes/auth.js';
+import { store } from '../store.js';
+import type { User } from '../middleware/users.js';
 
 // ---------------------------------------------------------------------------
 // JWT unit tests
@@ -320,7 +325,22 @@ describe('Auth middleware — Fastify integration', () => {
   });
 
   it('accepts request with a valid API key', async () => {
-    const { key } = await generateApiKey('test-key', 'user-analyst', 'analyst');
+    const timestamp = '2024-06-15T00:00:00.000Z';
+    await store.set<User>('users', 'api-user-analyst', {
+      id: 'api-user-analyst',
+      username: 'api-analyst',
+      email: 'api-analyst@example.com',
+      passwordHash: '',
+      passwordSalt: '',
+      role: 'analyst',
+      displayName: 'API Analyst',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      authMethod: 'local',
+      status: 'active',
+      sessionVersion: 1,
+    });
+    const { key } = await generateApiKey('test-key', 'api-user-analyst', 'analyst');
     const res = await app.inject({
       method: 'GET',
       url: '/protected',
@@ -328,7 +348,7 @@ describe('Auth middleware — Fastify integration', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.userId).toBe('user-analyst');
+    expect(body.userId).toBe('api-user-analyst');
     expect(body.role).toBe('analyst');
   });
 

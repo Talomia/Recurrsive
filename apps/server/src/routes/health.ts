@@ -12,7 +12,7 @@ import { VERSION, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { calculateHealthScore } from '../analysis-metrics.js';
-import { resolveAnalysis, resolveAnalysisHistory } from '../project-analysis.js';
+import { resolveAnalysis, resolveAnalysisHistory, resolveProjectGraph } from '../project-analysis.js';
 
 const logger = createLogger({ context: { component: 'server:routes:health' } });
 
@@ -177,7 +177,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
     }
 
     try {
-      const graph = state.getGraph();
+      const graph = await resolveProjectGraph(request);
       const stats = await graph.getStats();
       const totalEntities = stats.totalEntities;
       const totalRelationships = stats.totalRelationships;
@@ -252,6 +252,8 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
 
     // Service statuses
     const now = new Date().toISOString();
+    const graph = await resolveProjectGraph(request);
+    const graphStats = await graph.getStats();
     const services = [
       {
         name: 'Analysis Engine',
@@ -260,7 +262,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       },
       {
         name: 'Knowledge Graph',
-        status: state.isInitialized() ? ('healthy' as const) : ('idle' as const),
+        status: graphStats.totalEntities > 0 ? ('healthy' as const) : ('idle' as const),
         last_check: now,
       },
       {

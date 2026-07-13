@@ -32,6 +32,8 @@ export interface AgeConfig {
   connectionTimeoutMs?: number;
   /** Idle timeout in milliseconds (default `30_000`). */
   idleTimeoutMs?: number;
+  /** AGE graph/schema name. Must be a PostgreSQL-safe identifier. */
+  graphName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,12 +316,21 @@ function relationshipToAgeProps(rel: Relationship): string {
  */
 export class AgeGraphClient implements ExtendedGraphClient {
   private readonly pool: pg.Pool;
+  private readonly graphName: string;
   private initialized = false;
 
   /**
    * @param config - AGE connection configuration.
    */
   constructor(config: AgeConfig) {
+    const graphName = config.graphName ?? 'recurrsive';
+    if (!/^[a-z][a-z0-9_]{0,62}$/.test(graphName)) {
+      throw new GraphError(
+        `Invalid AGE graph name "${graphName}"`,
+        'CONFIG_INVALID',
+      );
+    }
+    this.graphName = graphName;
     this.pool = new Pool({
       connectionString: config.connectionString,
       max: config.poolSize ?? 10,
@@ -354,7 +365,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
       await this.prepareConnection(client);
       // Set a per-query timeout to prevent slow Cypher scans from hanging
       await client.query(`SET statement_timeout = '30s';`);
-      const sql = `SELECT * FROM cypher('recurrsive', $$ ${cypher} $$) AS (${returnColumns});`;
+      const sql = `SELECT * FROM cypher('${this.graphName}', $$ ${cypher} $$) AS (${returnColumns});`;
       const result = await client.query(sql);
       return result.rows.map((row: Record<string, unknown>) => {
         const parsed: Record<string, unknown> = {};
@@ -396,6 +407,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
         await migrate(
           async (sql) => { await client.query(sql); },
           'postgresql_age',
+          this.graphName,
         );
       } finally {
         client.release();
@@ -726,7 +738,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
 
       // Build entity counts query
       const entityParts = EntityTypeSchema.options.map(
-        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM recurrsive."${t}"`,
+        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM ${this.graphName}."${t}"`,
       );
       const entitySql = entityParts.join(' UNION ALL ');
 
@@ -747,7 +759,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
         for (const entityType of EntityTypeSchema.options) {
           try {
             const result = await client.query(
-              `SELECT COUNT(*) AS cnt FROM recurrsive."${entityType}";`,
+              `SELECT COUNT(*) AS cnt FROM ${this.graphName}."${entityType}";`,
             );
             const count = Number(result.rows[0]?.['cnt'] ?? 0);
             if (count > 0) {
@@ -762,7 +774,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
 
       // Build relationship counts query
       const relParts = RelationTypeSchema.options.map(
-        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM recurrsive."${t}"`,
+        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM ${this.graphName}."${t}"`,
       );
       const relSql = relParts.join(' UNION ALL ');
 
@@ -783,7 +795,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
         for (const relType of RelationTypeSchema.options) {
           try {
             const result = await client.query(
-              `SELECT COUNT(*) AS cnt FROM recurrsive."${relType}";`,
+              `SELECT COUNT(*) AS cnt FROM ${this.graphName}."${relType}";`,
             );
             const count = Number(result.rows[0]?.['cnt'] ?? 0);
             if (count > 0) {

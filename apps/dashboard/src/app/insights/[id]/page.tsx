@@ -63,11 +63,14 @@ function getConfidenceBarColor(confidence: number): string {
 
 interface FindingDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ projectId?: string }>;
 }
 
-export default async function FindingDetailPage({ params }: FindingDetailPageProps) {
+export default async function FindingDetailPage({ params, searchParams }: FindingDetailPageProps) {
   const { id } = await params;
-  const finding = await getFinding(id);
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
+  const finding = await getFinding(id, projectId);
 
   if (!finding) {
     return (
@@ -83,7 +86,7 @@ export default async function FindingDetailPage({ params }: FindingDetailPagePro
           not be found. It may have been resolved or removed.
         </p>
         <Link
-          href="/insights"
+          href={`/insights?projectId=${encodeURIComponent(projectId)}`}
           className="mt-2 inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-accent-blue/20 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -102,7 +105,7 @@ export default async function FindingDetailPage({ params }: FindingDetailPagePro
       {/* ── Breadcrumb ─────────────────────────────────── */}
       <nav className="flex items-center gap-2 text-sm text-text-muted">
         <Link
-          href="/insights"
+          href={`/insights?projectId=${encodeURIComponent(projectId)}`}
           className="inline-flex items-center gap-1.5 hover:text-text-secondary transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />

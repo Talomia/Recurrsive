@@ -45,13 +45,13 @@ export interface EvolutionData {
 /**
  * Get health forecast data from `GET /api/v1/forecasting/health`.
  */
-export async function getForecast(): Promise<ForecastData> {
-  return apiFetch<ForecastData>("/api/v1/forecasting/health");
+export async function getForecast(projectId?: string): Promise<ForecastData> {
+  return apiFetch<ForecastData>("/api/v1/forecasting/health", { projectId });
 }
 
 /**
  * Get evolution graph data from `GET /api/v1/forecasting/evolution`.
  */
-export async function getEvolution(): Promise<EvolutionData> {
-  return apiFetch<EvolutionData>("/api/v1/forecasting/evolution");
+export async function getEvolution(projectId?: string): Promise<EvolutionData> {
+  return apiFetch<EvolutionData>("/api/v1/forecasting/evolution", { projectId });
 }

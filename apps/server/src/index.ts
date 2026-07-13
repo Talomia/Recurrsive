@@ -12,6 +12,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import formbody from '@fastify/formbody';
 import { registerRoutes } from './routes/index.js';
 import { registerWebSocket } from './ws/index.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
@@ -22,6 +23,7 @@ import { defaultAuthorizationMiddleware } from './middleware/rbac.js';
 import { store } from './store.js';
 import { assertProductionPersistenceConfig } from './production-config.js';
 import { registerRouteInventory } from './route-inventory.js';
+import { disposeProjectGraphs } from './project-graph.js';
 
 // ---------------------------------------------------------------------------
 // Server options
@@ -116,6 +118,7 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
   await app.register(cors, {
     origin: corsOrigin,
   });
+  await app.register(formbody, { bodyLimit: 2_000_000 });
 
   // Register security headers (X-Frame-Options, CSP, etc.)
   await app.register(helmet, {
@@ -144,6 +147,7 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
 
   // Register close hook to cleanly shut down the store
   app.addHook('onClose', async () => {
+    await disposeProjectGraphs();
     await store.close();
   });
 

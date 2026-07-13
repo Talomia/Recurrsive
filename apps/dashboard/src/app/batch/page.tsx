@@ -2,6 +2,7 @@ import Header from "@/components/header";
 import NewBatchButton from "./NewBatchButton";
 import { getBatchHistory } from "@/lib/api";
 import type { BatchRun, BatchProject } from "@/lib/api";
+import Link from 'next/link';
 import {
   Layers,
   CheckCircle2,
@@ -128,7 +129,8 @@ function BatchCard({ batch }: { batch: BatchRun }) {
     (p) => p.status === "completed"
   ).length;
   const totalCount = batch.projects.length;
-  const progressPercent = Math.round((completedCount / totalCount) * 100);
+  const finishedCount = batch.projects.filter((project) => project.status === 'completed' || project.status === 'failed').length;
+  const progressPercent = totalCount ? Math.round((finishedCount / totalCount) * 100) : 0;
 
   return (
     <details className="group rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden transition-all hover:border-white/15">
@@ -143,9 +145,9 @@ function BatchCard({ batch }: { batch: BatchRun }) {
         />
 
         {/* Batch ID */}
-        <span className="text-xs font-mono font-medium text-text-primary">
+        <Link href={`/batch/${encodeURIComponent(batch.batch_id)}`} className="text-xs font-mono font-medium text-text-primary hover:text-blue-400">
           {batch.batch_id}
-        </span>
+        </Link>
 
         {/* Status badge */}
         <span
@@ -221,7 +223,7 @@ export default async function BatchPage() {
   const successRate =
     totalProjects > 0 ? Math.round((completedProjects / totalProjects) * 100) : 0;
 
-  const activeBatch = batches.find((b) => b.status === "running");
+  const activeBatch = batches.find((b) => b.status === "running" || b.status === 'pending');
 
   return (
     <div className="flex flex-col gap-6 p-6">

@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { Play, Plus, X } from "lucide-react";
 import { createBatchRun } from "@/lib/api";
 import { getProjects, type Project } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 /**
  * Client component wrapping the "New Batch" button + form for the server-rendered batch page.
  */
 export default function NewBatchButton() {
+  const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -25,8 +27,8 @@ export default function NewBatchButton() {
       setError("Select at least one registered project.");
       return;
     }
-    if (selectedIds.length > 10) {
-      setError("Maximum 10 projects per batch.");
+    if (selectedIds.length > 100) {
+      setError("Maximum 100 projects per batch.");
       return;
     }
 
@@ -48,6 +50,8 @@ export default function NewBatchButton() {
       setSubmitting(false);
     }
   };
+
+  if (user?.role === 'viewer') return null;
 
   if (!showForm) {
     return (
@@ -78,7 +82,7 @@ export default function NewBatchButton() {
         </div>
 
         <div>
-          <p className="block text-xs text-text-muted font-medium mb-2">Registered projects (max 10)</p>
+          <p className="block text-xs text-text-muted font-medium mb-2">Registered projects (max 100)</p>
           <div className="max-h-56 overflow-y-auto space-y-2">
             {projects.length === 0 ? (
               <p className="text-xs text-text-muted">Create a project before starting a batch.</p>
@@ -88,7 +92,7 @@ export default function NewBatchButton() {
                   type="checkbox"
                   checked={selectedIds.includes(project.id)}
                   onChange={(event) => setSelectedIds((current) => event.target.checked
-                    ? [...current, project.id].slice(0, 10)
+                    ? [...current, project.id].slice(0, 100)
                     : current.filter((id) => id !== project.id))}
                   className="mt-1"
                 />

@@ -10,9 +10,11 @@
 import type { FastifyInstance } from 'fastify';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
 import type { EntityType } from '@recurrsive/core';
-import { state } from '../state.js';
+import type { AnalysisCache } from '../state.js';
 import { store } from '../store.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireProjectScope, resolveAnalysis, resolveProjectGraph } from '../project-analysis.js';
+import { calculateHealthScore } from '../analysis-metrics.js';
 
 const logger = createLogger({ context: { component: 'server:routes:export' } });
 
@@ -35,6 +37,7 @@ interface ExportRequest {
 
 interface ExportRecord {
   export_id: string;
+  projectId: string;
   format: ExportFormat;
   scope: ExportScope;
   status: string;
@@ -42,6 +45,7 @@ interface ExportRecord {
   record_count: number;
   generated_at: string;
   filters?: Record<string, string>;
+  content: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,22 +55,61 @@ interface ExportRecord {
 const VALID_FORMATS: ExportFormat[] = ['json', 'csv', 'markdown', 'sarif'];
 const VALID_SCOPES: ExportScope[] = ['findings', 'opportunities', 'health', 'all'];
 
+function publicExportRecord(record: ExportRecord): Omit<ExportRecord, 'content'> {
+  const { content: _content, ...metadata } = record;
+  return metadata;
+}
+
+function countRecords(
+  cache: AnalysisCache | null,
+  scope: ExportScope,
+  filters?: ExportRequest['filters'],
+): number {
+  const findings = (cache?.findings ?? []).filter((finding) =>
+    (!filters?.severity || finding.severity === filters.severity) &&
+    (!filters?.category || finding.category === filters.category),
+  ).length;
+  const opportunities = (cache?.opportunities ?? []).filter((opportunity) =>
+    (!filters?.severity || opportunity.severity === filters.severity) &&
+    (!filters?.status || opportunity.status === filters.status),
+  ).length;
+  if (scope === 'findings') return findings;
+  if (scope === 'opportunities') return opportunities;
+  if (scope === 'health') return 1;
+  return findings + opportunities + 1;
+}
+
 // ---------------------------------------------------------------------------
 // Content generators — uses real state data when available
 // ---------------------------------------------------------------------------
 
-function generateContent(format: ExportFormat, scope: ExportScope): string {
-  const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+function csvCell(value: unknown): string {
+  const text = String(value ?? '');
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function generateContent(
+  cache: AnalysisCache | null,
+  format: ExportFormat,
+  scope: ExportScope,
+  filters?: ExportRequest['filters'],
+): string {
 
   // Build data from real analysis cache when available
-  const findings = cache?.findings.map((f) => ({
+  const findings = (cache?.findings ?? []).filter((finding) =>
+    (!filters?.severity || finding.severity === filters.severity) &&
+    (!filters?.category || finding.category === filters.category),
+  ).map((f) => ({
     id: f.id,
     title: f.title,
     severity: f.severity,
     category: f.category,
   })) ?? [];
 
-  const opportunities = cache?.opportunities.map((o) => ({
+  const opportunities = (cache?.opportunities ?? []).filter((opportunity) =>
+    (!filters?.severity || opportunity.severity === filters.severity) &&
+    (!filters?.status || opportunity.status === filters.status),
+  ).map((o) => ({
     id: o.id,
     title: o.title,
     severity: o.severity,
@@ -74,9 +117,9 @@ function generateContent(format: ExportFormat, scope: ExportScope): string {
   })) ?? [];
 
   let healthData = { overall_score: 0, dimensions: {} as Record<string, number> };
-  if (state.isInitialized() && cache) {
+  if (cache) {
     try {
-      const hs = state.getHealthScore();
+      const hs = calculateHealthScore(cache);
       healthData = {
         overall_score: hs.overall,
         dimensions: Object.fromEntries(
@@ -98,10 +141,21 @@ function generateContent(format: ExportFormat, scope: ExportScope): string {
       return JSON.stringify(scopeData, null, 2);
 
     case 'csv': {
-      const rows = findings.map(
-        f => `${f.id},${f.title},${f.severity},${f.category}`,
-      );
-      return ['id,title,severity,category', ...rows].join('\n');
+      const rows: string[] = ['record_type,id,title,severity,category_or_status,value'];
+      if (scope === 'findings' || scope === 'all') {
+        rows.push(...findings.map((finding) =>
+          ['finding', finding.id, finding.title, finding.severity, finding.category, ''].map(csvCell).join(','),
+        ));
+      }
+      if (scope === 'opportunities' || scope === 'all') {
+        rows.push(...opportunities.map((opportunity) =>
+          ['opportunity', opportunity.id, opportunity.title, opportunity.severity, opportunity.status, ''].map(csvCell).join(','),
+        ));
+      }
+      if (scope === 'health' || scope === 'all') {
+        rows.push(['health', '', 'Overall health', '', '', healthData.overall_score].map(csvCell).join(','));
+      }
+      return rows.join('\n');
     }
 
     case 'markdown': {
@@ -112,7 +166,9 @@ function generateContent(format: ExportFormat, scope: ExportScope): string {
         '',
         '| ID | Title | Severity |',
         '|---|---|---|',
-        ...findings.map(f => `| ${f.id} | ${f.title} | ${f.severity} |`),
+        ...(scope === 'findings' || scope === 'all' ? findings.map(f => `| ${f.id} | ${f.title.replace(/\|/g, '\\|')} | ${f.severity} |`) : []),
+        ...(scope === 'opportunities' || scope === 'all' ? opportunities.map(o => `| ${o.id} | ${o.title.replace(/\|/g, '\\|')} | ${o.severity} |`) : []),
+        ...(scope === 'health' || scope === 'all' ? [`| health | Overall health | ${healthData.overall_score} |`] : []),
       ];
       return lines.join('\n');
     }
@@ -184,6 +240,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
   app.post<{ Body: ExportRequest }>(
     '/api/v1/export',
     async (request, reply) => {
+      const project = await requireProjectScope(request);
+      const { cache } = await resolveAnalysis(request);
       const { format, scope, filters } = request.body ?? ({} as ExportRequest);
 
       if (!format || !VALID_FORMATS.includes(format)) {
@@ -201,35 +259,34 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
           valid_scopes: VALID_SCOPES,
         });
       }
+      if (format === 'sarif' && scope !== 'findings' && scope !== 'all') {
+        return reply.status(400).send({
+          error: 'Invalid scope',
+          message: 'SARIF exports support the findings and all scopes.',
+        });
+      }
 
       // Compute actual record count from analysis state
-      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
-      const findingsCount = cache?.findings.length ?? 0;
-      const opportunitiesCount = cache?.opportunities.length ?? 0;
-      const recordCount = scope === 'all'
-        ? findingsCount + opportunitiesCount + 1 /* health */
-        : scope === 'health'
-          ? 1
-          : scope === 'findings'
-            ? findingsCount
-            : opportunitiesCount;
+      const recordCount = countRecords(cache, scope, filters);
 
       const exportId = `exp_${generateId().slice(0, 8)}`;
       const record: ExportRecord = {
         export_id: exportId,
+        projectId: project.id,
         format,
         scope,
         status: 'completed',
-        download_url: `/api/v1/export/${exportId}/download`,
+        download_url: `/api/v1/export/${exportId}/download?projectId=${encodeURIComponent(project.id)}`,
         record_count: recordCount,
         generated_at: nowISO(),
         filters: filters as Record<string, string> | undefined,
+        content: generateContent(cache, format, scope, filters),
       };
 
       await store.set<ExportRecord>('exports', exportId, record);
       logger.info(`Export created: ${exportId} (${format}/${scope})`);
 
-      return reply.status(201).send({ data: record });
+      return reply.status(201).send({ data: publicExportRecord(record) });
     },
   );
 
@@ -241,17 +298,16 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
   app.get<{ Params: { id: string } }>(
     '/api/v1/export/:id/download',
     async (request, reply) => {
+      const project = await requireProjectScope(request);
       const { id } = request.params;
       const record = await store.get<ExportRecord>('exports', id);
 
-      if (!record) {
+      if (!record || record.projectId !== project.id) {
         return reply.status(404).send({
           error: 'Export not found',
           message: `No export with ID "${id}" found`,
         });
       }
-
-      const content = generateContent(record.format, record.scope);
 
       const contentTypes: Record<ExportFormat, string> = {
         json: 'application/json; charset=utf-8',
@@ -266,7 +322,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
           'Content-Disposition',
           `attachment; filename="recurrsive-export-${id}.${record.format === 'markdown' ? 'md' : record.format}"`,
         )
-        .send(content);
+        .send(record.content);
     },
   );
 
@@ -275,8 +331,11 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    *
    * List all past exports.
    */
-  app.get('/api/v1/export/history', async (_request, reply) => {
-    const all = await store.all<ExportRecord>('exports');
+  app.get('/api/v1/export/history', async (request, reply) => {
+    const project = await requireProjectScope(request);
+    const all = (await store.all<ExportRecord>('exports'))
+      .filter((record) => record.projectId === project.id)
+      .map(publicExportRecord);
     return reply.send({
       data: all,
       total: all.length,
@@ -304,7 +363,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      const content = generateContent(format as ExportFormat, 'findings');
+      const { cache } = await resolveAnalysis(request);
+      const content = generateContent(cache, format as ExportFormat, 'findings');
       const ext = format === 'markdown' ? 'md' : format;
 
       const contentTypes: Record<string, string> = {
@@ -346,15 +406,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       try {
-        const graph = state.getGraph();
+        const graph = await resolveProjectGraph(request);
         const stats = await graph.getStats();
 
         // Gather all entities
@@ -418,8 +471,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
             break;
 
           case 'csv': {
-            const entityRows = allEntities.map((e) => `entity,${e.id},${e.name},${e.type},${e.qualified_name}`);
-            const relRows = allRels.map((r) => `relationship,${r.id},${r.source_id},${r.target_id},${r.type}`);
+            const entityRows = allEntities.map((e) => ['entity', e.id, e.name, e.type, e.qualified_name].map(csvCell).join(','));
+            const relRows = allRels.map((r) => ['relationship', r.id, r.source_id, r.target_id, r.type].map(csvCell).join(','));
             content = ['kind,id,col1,col2,col3', ...entityRows, ...relRows].join('\n');
             contentType = 'text/csv; charset=utf-8';
             ext = 'csv';
@@ -429,11 +482,11 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
           case 'graphml': {
             const xmlEntities = allEntities.map(
               (e) =>
-                `    <node id="${e.id}">\n      <data key="name">${escapeXml(e.name)}</data>\n      <data key="type">${escapeXml(e.type)}</data>\n    </node>`,
+                `    <node id="${escapeXml(e.id)}">\n      <data key="name">${escapeXml(e.name)}</data>\n      <data key="type">${escapeXml(e.type)}</data>\n    </node>`,
             );
             const xmlEdges = allRels.map(
               (r) =>
-                `    <edge id="${r.id}" source="${r.source_id}" target="${r.target_id}">\n      <data key="type">${escapeXml(r.type)}</data>\n    </edge>`,
+                `    <edge id="${escapeXml(r.id)}" source="${escapeXml(r.source_id)}" target="${escapeXml(r.target_id)}">\n      <data key="type">${escapeXml(r.type)}</data>\n    </edge>`,
             );
             content = [
               '<?xml version="1.0" encoding="UTF-8"?>',
@@ -484,6 +537,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
   app.get<{ Querystring: { format?: string } }>(
     '/api/v1/export/report',
     async (request, reply) => {
+      const project = await requireProjectScope(request);
+      const { cache } = await resolveAnalysis(request);
       const format = (request.query.format ?? 'markdown') as ExportFormat;
 
       if (!VALID_FORMATS.includes(format)) {
@@ -498,17 +553,18 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
       const generatedAt = nowISO();
 
       // Compute record count from analysis state
-      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
       const recordCount = (cache?.findings.length ?? 0) + (cache?.opportunities.length ?? 0) + 1;
 
       const record: ExportRecord = {
         export_id: exportId,
+        projectId: project.id,
         format,
         scope: 'all',
         status: 'completed',
-        download_url: `/api/v1/export/${exportId}/download`,
+        download_url: `/api/v1/export/${exportId}/download?projectId=${encodeURIComponent(project.id)}`,
         record_count: recordCount,
         generated_at: generatedAt,
+        content: generateContent(cache, format, 'all'),
       };
 
       await store.set<ExportRecord>('exports', exportId, record);

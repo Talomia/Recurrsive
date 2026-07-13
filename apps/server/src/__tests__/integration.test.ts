@@ -168,6 +168,7 @@ vi.mock('@recurrsive/core', () => ({
 
 import { createServer } from '../index.js';
 import { createToken } from '../middleware/auth.js';
+import { installProjectScopedInjection, seedTestProject, TEST_PROJECT_ID } from './test-project.js';
 
 // ---------------------------------------------------------------------------
 // Test setup
@@ -180,8 +181,13 @@ const adminToken = createToken('test-admin', 'admin');
 const authHeaders = { authorization: `Bearer ${adminToken}` };
 
 beforeAll (async () => {
+  const { generateId } = await import('@recurrsive/core');
+  let counter = 0;
+  (generateId as ReturnType<typeof vi.fn>).mockImplementation(() => `integration-id-${++counter}`);
   app = await createServer({ logger: false });
   await app.ready();
+  await seedTestProject();
+  installProjectScopedInjection(app);
 });
 
 afterAll (async () => {
@@ -208,16 +214,15 @@ describe ('Flow: Analysis → Findings → Opportunities → Health → Reports'
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/analyze',
-      payload: { path: '/tmp/recurrsive-repos/integration-test' },
+      payload: { projectId: TEST_PROJECT_ID },
     });
-    // Accept 202 (started) or 500 (path doesn't exist but passed validation)
-    expect([202, 500]).toContain(res.statusCode);
+    expect(res.statusCode).toBe(202);
     if (res.statusCode === 202) {
       const body = res.json();
       expect(body).toHaveProperty('message');
       expect(body).toHaveProperty('status');
       expect(body).toHaveProperty('project');
-      expect(body.project).toBe('/tmp/recurrsive-repos/integration-test');
+      expect(body.projectId).toBe(TEST_PROJECT_ID);
     }
   });
 
@@ -460,17 +465,13 @@ describe('Flow: Batch Lifecycle (start → status → history)', async () => {
 describe('Flow: Config + Notifications (config → features → channels → test → history)', async () => {
   it('16. GET /api/v1/config returns current configuration', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/config' });
-    // 200 if initialized, 503 or 404 if not (depends on route guard)
-    expect([200, 404, 503]).toContain(res.statusCode);
-    if (res.statusCode === 200) {
-      const body = res.json();
-      expect(body).toHaveProperty('data');
-      expect(body.data).toHaveProperty('project');
-      expect(body.data).toHaveProperty('graph');
-      expect(body.data).toHaveProperty('analysis');
-      expect(body.data).toHaveProperty('report');
-      expect(body.data).toHaveProperty('features');
-    }
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('project');
+    expect(body.data).toHaveProperty('graph');
+    expect(body.data).toHaveProperty('analysis');
+    expect(body.data).toHaveProperty('report');
   });
 
   it ('17. GET /api/v1/config/features returns feature inventory', async () => {
@@ -480,12 +481,10 @@ describe('Flow: Config + Notifications (config → features → channels → tes
     expect(body).toHaveProperty('data');
     expect(body.data).toHaveProperty('analyzers');
     expect(body.data).toHaveProperty('collectors');
-    expect(body.data).toHaveProperty('policy_sets');
     expect(body.data).toHaveProperty('summary');
     expect(Array.isArray(body.data.analyzers)).toBe(true);
-    expect(body.data.summary).toHaveProperty('total_analyzers');
-    expect(body.data.summary).toHaveProperty('total_collectors');
-    expect(body.data.summary).toHaveProperty('total_policy_sets');
+    expect(body.data.summary.enabled_analyzers).toBe(13);
+    expect(body.data.summary.enabled_collectors).toBe(5);
   });
 
   it ('18. GET /api/v1/notifications/channels returns available channels', async () => {
@@ -542,7 +541,7 @@ describe('Flow: Config + Notifications (config → features → channels → tes
 // Flow 5: Experiment Lifecycle
 // ===========================================================================
 
-describe('Flow: Experiment lifecycle (create → get → update → verify)', async () => {
+describe('Flow: Experiment lifecycle (create → get → run → verify)', async () => {
   let experimentId: string;
 
   it('21. POST /api/v1/experiments creates a new experiment', async () => {
@@ -555,8 +554,18 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', as
         description: 'End-to-end lifecycle test',
         hypothesis: 'Integration tests catch bugs earlier',
         variants: [
-          { name: 'Control', config: { feature: false } },
-          { name: 'Treatment', config: { feature: true } },
+          {
+            name: 'Control',
+            analyzers: ['architecture.structural'],
+            collectors: ['git'],
+            includeReasoning: false,
+          },
+          {
+            name: 'Treatment',
+            analyzers: ['architecture.structural', 'security.vulnerabilities'],
+            collectors: ['git'],
+            includeReasoning: true,
+          },
         ],
       },
     });
@@ -591,35 +600,34 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', as
     expect(body.data.variants).toHaveLength(2);
   });
 
-  it ('24. PUT /api/v1/experiments/:id/status starts the experiment', async () => {
+  it ('24. POST /api/v1/experiments/:id/run starts the experiment', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      method: 'PUT',
-      url: `/api/v1/experiments/${experimentId}/status`,
-      payload: { status: 'running' },
+      method: 'POST',
+      url: `/api/v1/experiments/${experimentId}/run`,
     });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(202);
     const body = res.json();
     expect(body.data.status).toBe('running');
-    expect(body.data.started_at).not.toBeNull();
-    expect(body.data.completed_at).toBeNull();
+    expect(body.data.startedAt).not.toBeNull();
+    expect(body.data.completedAt).toBeNull();
   });
 
-  it ('25. PUT /api/v1/experiments/:id/status completes the experiment', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'PUT',
-      url: `/api/v1/experiments/${experimentId}/status`,
-      payload: {
-        status: 'completed',
-        conclusion: 'Integration test experiment concluded successfully.',
-      },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data.status).toBe('completed');
-    expect(body.data.completed_at).not.toBeNull();
-    expect(body.data.conclusion).toBe('Integration test experiment concluded successfully.');
+  it ('25. GET /api/v1/experiments/:id returns the measured outcome', async () => {
+    let experiment: { status: string; completedAt: string | null; metrics: unknown[]; conclusion: string | null } | null = null;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const response = await app.inject({
+        headers: authHeaders,
+        method: 'GET',
+        url: `/api/v1/experiments/${experimentId}`,
+      });
+      experiment = response.json().data;
+      if (experiment?.status !== 'running') break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(experiment).not.toBeNull();
+    expect(['completed', 'failed']).toContain(experiment!.status);
+    expect(experiment!.completedAt).not.toBeNull();
   });
 });
 

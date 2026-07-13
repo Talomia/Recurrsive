@@ -34,9 +34,11 @@ const SERVICE_STATUS_ICONS: Record<string, typeof CheckCircle2> = {
 // Page component (server component)
 // ---------------------------------------------------------------------------
 
-export default async function HealthPage() {
+export default async function HealthPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
   try {
-    const health = await getHealthDashboard();
+    const health = await getHealthDashboard(projectId);
 
     return (
       <div className="flex flex-col gap-6 p-6">

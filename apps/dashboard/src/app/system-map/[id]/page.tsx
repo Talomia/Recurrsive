@@ -60,11 +60,14 @@ function getRelColor(type: string) {
 
 interface EntityDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ projectId?: string }>;
 }
 
-export default async function EntityDetailPage({ params }: EntityDetailPageProps) {
+export default async function EntityDetailPage({ params, searchParams }: EntityDetailPageProps) {
   const { id } = await params;
-  const result = await getEntityWithRelationships(id);
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
+  const result = await getEntityWithRelationships(id, projectId);
 
   if (!result) {
     return (
@@ -80,7 +83,7 @@ export default async function EntityDetailPage({ params }: EntityDetailPageProps
           not be found in the knowledge graph.
         </p>
         <Link
-          href="/system-map"
+          href={`/system-map?projectId=${encodeURIComponent(projectId)}`}
           className="mt-2 inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-accent-blue/20 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -109,7 +112,7 @@ export default async function EntityDetailPage({ params }: EntityDetailPageProps
       {/* ── Breadcrumb ─────────────────────────────────── */}
       <nav className="flex items-center gap-2 text-sm text-text-muted">
         <Link
-          href="/system-map"
+          href={`/system-map?projectId=${encodeURIComponent(projectId)}`}
           className="inline-flex items-center gap-1.5 hover:text-text-secondary transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -219,7 +222,7 @@ export default async function EntityDetailPage({ params }: EntityDetailPageProps
               {outgoing.map((rel, i) => (
                 <Link
                   key={`out-${i}`}
-                  href={`/system-map/${encodeURIComponent(rel.target_id)}`}
+                  href={`/system-map/${encodeURIComponent(rel.target_id)}?projectId=${encodeURIComponent(projectId)}`}
                   className="flex items-center gap-3 rounded-lg bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] transition-colors group"
                 >
                   <span
@@ -257,7 +260,7 @@ export default async function EntityDetailPage({ params }: EntityDetailPageProps
               {incoming.map((rel, i) => (
                 <Link
                   key={`in-${i}`}
-                  href={`/system-map/${encodeURIComponent(rel.source_id)}`}
+                  href={`/system-map/${encodeURIComponent(rel.source_id)}?projectId=${encodeURIComponent(projectId)}`}
                   className="flex items-center gap-3 rounded-lg bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] transition-colors group"
                 >
                   <span

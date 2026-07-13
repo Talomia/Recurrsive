@@ -11,8 +11,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import { nowISO } from '@recurrsive/core';
-import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { resolveAnalysis, resolveAnalysisHistory, rethrowProjectScopeError } from '../project-analysis.js';
+import { calculateHealthScore } from '../analysis-metrics.js';
+import type { AnalysisHistoryEntry } from '../state.js';
 
 // ---------------------------------------------------------------------------
 // Forecasting utilities
@@ -52,9 +54,8 @@ function linearRegression(points: Array<{ x: number; y: number }>): {
  * Falls back to a single-point timeline from the current health score
  * when insufficient history is available.
  */
-function buildTimeline(): Array<{ date: string; score: number }> {
-  if (!state.isInitialized()) return [];
-  return state.getAnalysisHistory()
+function buildTimeline(history: AnalysisHistoryEntry[]): Array<{ date: string; score: number }> {
+  return history
     .filter((entry) => entry.status === 'success' && entry.healthScore !== null)
     .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
     .map((entry) => ({
@@ -105,8 +106,9 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
         const horizon = Math.min(180, parseInt(request.query.horizon ?? '30', 10) || 30);
 
         // Use real health score as baseline if analysis has been run
-        const currentScore = state.isInitialized() ? state.getHealthScore().overall : 0;
-        const timeline = buildTimeline();
+        const [{ cache }, history] = await Promise.all([resolveAnalysis(request), resolveAnalysisHistory(request)]);
+        const currentScore = calculateHealthScore(cache).overall;
+        const timeline = buildTimeline(history);
         const available = timeline.length >= 3;
 
         const points = toRegressionPoints(timeline);
@@ -160,6 +162,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
           generatedAt: nowISO(),
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         return reply.status(500).send({ error: 'Internal server error', message: (err as Error).message });
       }
     },
@@ -169,10 +172,10 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
    * GET /api/v1/forecasting/evolution
    * Return recorded analysis runs and their actual health-score changes.
    */
-  app.get('/api/v1/forecasting/evolution', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get('/api/v1/forecasting/evolution', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
       // Build evolution events from real analysis history
-      const history = state.isInitialized() ? state.getAnalysisHistory() : [];
+      const [{ cache }, history] = await Promise.all([resolveAnalysis(request), resolveAnalysisHistory(request)]);
       const successfulRuns = history
         .filter((run) => run.status === 'success' && run.healthScore !== null)
         .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
@@ -227,7 +230,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
         data: {
           events,
           trajectory,
-          currentScore: state.isInitialized() ? state.getHealthScore().overall : 0,
+          currentScore: calculateHealthScore(cache).overall,
           totalAnalyses: events.length,
           netHealthChange: firstScore === undefined || lastScore === undefined
             ? 0
@@ -237,6 +240,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
         generatedAt: nowISO(),
       });
     } catch (err) {
+      rethrowProjectScopeError(err);
       return reply.status(500).send({ error: 'Internal server error', message: (err as Error).message });
     }
   });
@@ -255,8 +259,9 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
       try {
         const horizonDays = Math.min(90, parseInt(request.query.horizon ?? '30', 10) || 30);
 
-        const currentScore = state.isInitialized() ? state.getHealthScore().overall : 0;
-        const timeline = buildTimeline();
+        const [{ cache }, history] = await Promise.all([resolveAnalysis(request), resolveAnalysisHistory(request)]);
+        const currentScore = calculateHealthScore(cache).overall;
+        const timeline = buildTimeline(history);
         const available = timeline.length >= 3;
 
         const points = toRegressionPoints(timeline);
@@ -299,6 +304,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
           generatedAt: nowISO(),
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         return reply.status(500).send({ error: 'Internal server error', message: (err as Error).message });
       }
     },

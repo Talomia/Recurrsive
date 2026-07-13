@@ -11,6 +11,7 @@ import { createLogger, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
 import {
   persistFindingStates,
+  rethrowProjectScopeError,
   resolveAnalysis,
   resolveFindingStates,
 } from '../project-analysis.js';
@@ -96,6 +97,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
           limit,
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         logger.error('Failed to list findings', { error: err });
         return reply.status(500).send({
           error: 'Internal server error',
@@ -153,6 +155,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
         },
       });
     } catch (err) {
+      rethrowProjectScopeError(err);
       logger.error('Failed to generate findings summary', { error: err });
       return reply.status(500).send({
         error: 'Internal server error',
@@ -199,6 +202,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
 
       return reply.status(200).send({ data: { findings: items, stats } });
     } catch (err) {
+      rethrowProjectScopeError(err);
       logger.error('Failed to generate findings page', { error: err });
       return reply.status(500).send({
         error: 'Internal server error',
@@ -246,6 +250,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
 
       return reply.status(200).send({ data: categories, total: categories.length });
     } catch (err) {
+      rethrowProjectScopeError(err);
       logger.error('Failed to generate findings categories', { error: err });
       return reply.status(500).send({
         error: 'Internal server error',
@@ -298,6 +303,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
           },
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         logger.error('Failed to get finding', { error: err });
         return reply.status(500).send({
           error: 'Internal server error',

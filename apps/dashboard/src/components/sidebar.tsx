@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useActiveProject } from "./active-project-context";
+import { useAuth, type Role } from "@/lib/auth-context";
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -21,23 +22,14 @@ import {
   X,
   Search,
   Shield,
-  Clock,
-  Webhook,
-  Bell,
   Layers,
   BarChart3,
   History,
   FlaskConical,
-  GitCompare,
   ShieldAlert,
-  HeartPulse,
-  Camera,
-  Brain,
   FolderGit2,
-  Key,
   KeyRound,
   Calendar,
-  Eye,
   Users,
 } from "lucide-react";
 
@@ -53,6 +45,7 @@ interface NavSection {
   key: string;
   label: string;
   items: ReadonlyArray<NavItem>;
+  roles?: ReadonlyArray<Role>;
 }
 
 // ─── Section definitions ─────────────────────────────────────────────────────
@@ -63,10 +56,6 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Intelligence",
     items: [
       { href: "/", label: "Overview", icon: LayoutDashboard },
-      { href: "/forecasting", label: "Forecasting", icon: Brain },
-      { href: "/health", label: "Health", icon: HeartPulse },
-      { href: "/timeline", label: "Timeline", icon: Clock },
-      { href: "/comparisons", label: "Comparisons", icon: GitCompare },
     ],
   },
   {
@@ -87,23 +76,24 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/batch", label: "Batch", icon: Layers },
       { href: "/scheduling", label: "Scheduling", icon: Calendar },
       { href: "/reports", label: "Reports", icon: FileText },
-      { href: "/search", label: "Search", icon: Search },
       { href: "/experiments", label: "Experiments", icon: FlaskConical },
-      { href: "/snapshots", label: "Snapshots", icon: Camera },
+    ],
+  },
+  {
+    key: "governance",
+    label: "Governance",
+    items: [
+      { href: "/policies", label: "Policies", icon: Shield },
     ],
   },
   {
     key: "administration",
     label: "Administration",
+    roles: ["admin"],
     items: [
       { href: "/users", label: "Users", icon: Users },
-      { href: "/policies", label: "Policies", icon: Shield },
       { href: "/audit", label: "Audit Trail", icon: History },
       { href: "/settings", label: "Settings", icon: Settings },
-      { href: "/secrets", label: "Secrets", icon: Key },
-      { href: "/data-masking", label: "Data Masking", icon: Eye },
-      { href: "/webhooks", label: "Webhooks", icon: Webhook },
-      { href: "/notifications", label: "Notifications", icon: Bell },
       { href: "/sso", label: "SSO", icon: KeyRound },
     ],
   },
@@ -117,6 +107,7 @@ const DEFAULT_EXPANDED: Record<string, boolean> = {
   intelligence: true,
   analysis: true,
   operations: false,
+  governance: false,
   administration: false,
 };
 
@@ -150,12 +141,51 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [opportunityCount, setOpportunityCount] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(DEFAULT_EXPANDED);
+  const { user } = useAuth();
 
   const { projects, activeProject, switchProject } = useActiveProject();
   const activeProjectId = activeProject?.id ?? null;
   const [showProjDropdown, setShowProjDropdown] = useState(false);
   const [projSearchQuery, setProjSearchQuery] = useState("");
   const projDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileNavRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(
+      mobileNavRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled])') ?? [],
+    ).filter((element) => element.tabIndex !== -1);
+    focusable()[0]?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [mobileOpen]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -216,6 +246,8 @@ export default function Sidebar() {
         className="fixed top-4 left-4 z-[60] flex items-center justify-center h-10 w-10 rounded-xl bg-surface border border-border lg:hidden"
         onClick={() => setMobileOpen((o) => !o)}
         aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+        aria-expanded={mobileOpen}
+        aria-controls="main-sidebar"
       >
         {mobileOpen ? (
           <X className="h-5 w-5 text-text-secondary" />
@@ -234,6 +266,8 @@ export default function Sidebar() {
       />
 
       <aside
+        id="main-sidebar"
+        ref={mobileNavRef}
         className={clsx(
           "fixed left-0 top-0 z-50 flex h-full flex-col border-r border-border bg-surface transition-all duration-300",
           collapsed ? "lg:w-[68px]" : "lg:w-[260px]",
@@ -351,7 +385,7 @@ export default function Sidebar() {
 
         {/* ── Nav links ──────────────────────────────────── */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Main navigation">
-          {NAV_SECTIONS.map((section) => {
+          {NAV_SECTIONS.filter((section) => !section.roles || (user && section.roles.includes(user.role))).map((section) => {
             const isExpanded = expanded[section.key] ?? true;
             const hasActiveItem = section.items.some(({ href }) =>
               href === "/" ? pathname === "/" : pathname.startsWith(href)

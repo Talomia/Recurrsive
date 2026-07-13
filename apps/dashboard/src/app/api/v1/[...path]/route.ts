@@ -48,12 +48,6 @@ async function handler(
       return NextResponse.json({ error: 'Forbidden', message: 'Cross-origin request rejected.' }, { status: 403 });
     }
   }
-  if (request.method === 'POST' && path.join('/') === 'auth/logout') {
-    const response = NextResponse.json({ message: 'Signed out' });
-    response.cookies.set('recurrsive_token', '', { httpOnly: true, secure: secureCookie, sameSite: 'lax', path: '/', maxAge: 0 });
-    return response;
-  }
-
   // Forward query parameters
   request.nextUrl.searchParams.forEach((value, key) => {
     targetUrl.searchParams.set(key, value);
@@ -76,6 +70,8 @@ async function handler(
       headers.set(key, value);
     }
   });
+  if (!headers.has('x-forwarded-host')) headers.set('x-forwarded-host', request.headers.get('host') ?? request.nextUrl.host);
+  if (!headers.has('x-forwarded-proto')) headers.set('x-forwarded-proto', request.nextUrl.protocol.replace(':', ''));
   const sessionToken = request.cookies.get('recurrsive_token')?.value;
   if (sessionToken) {
     headers.set('authorization', `Bearer ${sessionToken}`);
@@ -85,6 +81,7 @@ async function handler(
     const response = await fetch(targetUrl.toString(), {
       method: request.method,
       headers,
+      redirect: 'manual',
       body: request.method !== 'GET' && request.method !== 'HEAD'
         ? await request.text()
         : undefined,
@@ -109,12 +106,17 @@ async function handler(
     const contentType = response.headers.get('content-type') ?? '';
     if (response.ok && contentType.includes('application/json')) {
       try {
-        const json = JSON.parse(new TextDecoder().decode(body)) as { data?: { token?: string }; token?: string };
+        const json = JSON.parse(new TextDecoder().decode(body)) as { data?: { token?: string; redirectTo?: string }; token?: string };
         const issuedToken = json.data?.token ?? json.token;
         if (issuedToken) {
           if (json.data) delete json.data.token;
           delete json.token;
-          result = NextResponse.json(json, { status: response.status, headers: responseHeaders });
+          const redirectTo = json.data?.redirectTo;
+          if (path[0] === 'sso' && path[1] === 'callback' && redirectTo?.startsWith('/') && !redirectTo.startsWith('//')) {
+            result = NextResponse.redirect(new URL(redirectTo, request.nextUrl.origin), 303);
+          } else {
+            result = NextResponse.json(json, { status: response.status, headers: responseHeaders });
+          }
           result.cookies.set('recurrsive_token', issuedToken, {
             httpOnly: true,
             secure: secureCookie,
@@ -128,6 +130,9 @@ async function handler(
       }
     }
     if (response.status === 401) {
+      result.cookies.set('recurrsive_token', '', { httpOnly: true, secure: secureCookie, sameSite: 'lax', path: '/', maxAge: 0 });
+    }
+    if (response.ok && request.method === 'POST' && path.join('/') === 'auth/logout') {
       result.cookies.set('recurrsive_token', '', { httpOnly: true, secure: secureCookie, sameSite: 'lax', path: '/', maxAge: 0 });
     }
     return result;

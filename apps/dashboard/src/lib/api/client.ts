@@ -26,12 +26,20 @@ const PROJECT_SCOPED_PREFIXES = [
   '/api/v1/assistant',
   '/api/v1/analytics',
   '/api/v1/confidence',
+  '/api/v1/config',
+  '/api/v1/export',
   '/api/v1/findings',
+  '/api/v1/experiments',
   '/api/v1/forecasting',
   '/api/v1/graph',
+  '/api/v1/graphql',
+  '/api/v1/health/',
   '/api/v1/health-score',
+  '/api/v1/metrics/performance',
   '/api/v1/opportunities',
+  '/api/v1/policies',
   '/api/v1/reports',
+  '/api/v1/schedules',
   '/api/v1/search',
   '/api/v1/snapshots',
   '/api/v1/timeline',
@@ -66,9 +74,9 @@ export class ApiError extends Error {
  */
 export async function apiFetch<T>(
   path: string,
-  options?: RequestInit & { unwrap?: boolean },
+  options?: RequestInit & { unwrap?: boolean; projectId?: string },
 ): Promise<T> {
-  const { unwrap = true, ...fetchOpts } = options ?? {};
+  const { unwrap = true, projectId: explicitProjectId, ...fetchOpts } = options ?? {};
 
   const headers: Record<string, string> = {
     ...(fetchOpts.headers as Record<string, string> || {}),
@@ -95,14 +103,13 @@ export async function apiFetch<T>(
   
   // Scoped project query parameter auto-appending
   let finalPath = path;
-  if (typeof window !== 'undefined') {
-    if (PROJECT_SCOPED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
-      const searchParams = new URLSearchParams(window.location.search);
-      const projectId = searchParams.get('projectId');
-      if (projectId && !path.includes('projectId=')) {
-        const separator = path.includes('?') ? '&' : '?';
-        finalPath = `${path}${separator}projectId=${encodeURIComponent(projectId)}`;
-      }
+  if (PROJECT_SCOPED_PREFIXES.some((prefix) => path.startsWith(prefix)) && !path.includes('projectId=')) {
+    const projectId = explicitProjectId ?? (typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('projectId')
+      : null);
+    if (projectId) {
+      const separator = path.includes('?') ? '&' : '?';
+      finalPath = `${path}${separator}projectId=${encodeURIComponent(projectId)}`;
     }
   }
 
@@ -111,6 +118,10 @@ export async function apiFetch<T>(
     headers,
     cache: 'no-store',
   } as RequestInit);
+
+  const body = res.status === 204
+    ? null
+    : await res.json().catch(() => null) as Record<string, unknown> | null;
 
   if (!res.ok) {
     if (res.status === 401) {
@@ -121,14 +132,13 @@ export async function apiFetch<T>(
         }
       }
     }
-    throw new ApiError(res.status, res.statusText, path);
+    const message = typeof body?.['message'] === 'string' ? body['message'] : res.statusText;
+    throw new ApiError(res.status, message, path);
   }
 
   if (res.status === 204) {
     return null as unknown as T;
   }
-
-  const body = await res.json();
 
   if (unwrap && body && typeof body === 'object' && 'data' in body) {
     return body.data as T;

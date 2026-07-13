@@ -101,26 +101,33 @@ export interface SearchResult {
 
 export interface ReportSchedule {
   id: string;
+  projectId: string;
   name: string;
-  reportType: 'executive' | 'technical' | 'compliance' | 'custom';
+  description: string;
   cron: string;
-  cronHuman: string;
-  status: 'active' | 'paused';
-  nextRun: string;
-  recipients: string[];
-  format: 'pdf' | 'html' | 'csv';
-  createdBy: string;
+  timezone: string;
+  status: 'active' | 'paused' | 'error';
+  nextRunAt: string;
+  lastRunAt: string | null;
+  totalRuns: number;
+  includeActionItems: boolean;
+  format: 'markdown' | 'html' | 'json' | 'sarif';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ScheduleRunHistory {
   id: string;
   scheduleId: string;
-  scheduleName: string;
-  status: 'success' | 'failed' | 'running';
+  projectId: string;
+  status: 'queued' | 'generating' | 'completed' | 'failed';
+  format: 'markdown' | 'html' | 'json' | 'sarif';
   startedAt: string;
   completedAt: string | null;
-  fileSize: string;
-  downloadUrl: string;
+  durationMs: number;
+  sizeBytes: number;
+  downloadUrl: string | null;
+  error: string | null;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -131,10 +138,10 @@ export interface ScheduleRunHistory {
  * Server returns trend series grouped by dimension. We transform this
  * into flat TimelinePoint objects for the dashboard charts.
  */
-export async function getTimeline(): Promise<TimelinePoint[]> {
+export async function getTimeline(projectId?: string): Promise<TimelinePoint[]> {
   const trends = await apiFetch<
       { dimension: string; data_points: { timestamp: string; value: number }[] }[]
-    >("/api/v1/timeline/trends");
+    >("/api/v1/timeline/trends", { projectId });
 
     if (!Array.isArray(trends) || trends.length === 0) return [];
 
@@ -165,22 +172,22 @@ export async function getTimeline(): Promise<TimelinePoint[]> {
 /**
  * Get analysis history from `GET /api/v1/analysis/history`.
  */
-export async function getTimelineHistory(): Promise<AnalysisHistoryEntry[]> {
-  return apiFetch<AnalysisHistoryEntry[]>("/api/v1/analysis/history");
+export async function getTimelineHistory(projectId?: string): Promise<AnalysisHistoryEntry[]> {
+  return apiFetch<AnalysisHistoryEntry[]>("/api/v1/analysis/history", { projectId });
 }
 
 /**
  * Get evolution snapshots from `GET /api/v1/timeline/snapshots`.
  */
-export async function getTimelineSnapshots(): Promise<EvolutionSnapshot[]> {
-  return apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
+export async function getTimelineSnapshots(projectId?: string): Promise<EvolutionSnapshot[]> {
+  return apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots", { projectId });
 }
 
 /**
  * Get trend data from `GET /api/v1/timeline/trends`.
  */
-export async function getTimelineTrends(): Promise<TrendData> {
-  const raw = await apiFetch<TrendSeries[] | TrendData>("/api/v1/timeline/trends");
+export async function getTimelineTrends(projectId?: string): Promise<TrendData> {
+  const raw = await apiFetch<TrendSeries[] | TrendData>("/api/v1/timeline/trends", { projectId });
   if (Array.isArray(raw)) {
     return { series: raw, total: raw.length };
   }
@@ -190,8 +197,8 @@ export async function getTimelineTrends(): Promise<TrendData> {
 /**
  * Get project snapshots for the timeline page.
  */
-export async function getSnapshots(): Promise<ProjectSnapshot[]> {
-  const raw = await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
+export async function getSnapshots(projectId?: string): Promise<ProjectSnapshot[]> {
+  const raw = await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots", { projectId });
   return raw.map(snap => ({
       id: snap.id,
       date: snap.timestamp,
@@ -210,8 +217,8 @@ export async function getSnapshots(): Promise<ProjectSnapshot[]> {
  * Trigger a report download from `GET /api/v1/reports/:format`.
  * Returns the download URL. Formats: markdown, html, sarif, json.
  */
-export function getReportUrl(format: string): string {
-  return `${BASE_URL}/api/v1/reports/${encodeURIComponent(format)}`;
+export function getReportUrl(format: string, projectId: string): string {
+  return `${BASE_URL}/api/v1/reports/${encodeURIComponent(format)}?projectId=${encodeURIComponent(projectId)}`;
 }
 
 /**
@@ -243,11 +250,10 @@ export async function getScheduleHistory(): Promise<ScheduleRunHistory[]> {
 export interface CreateSchedulePayload {
   name: string;
   description?: string;
-  schedule: string;
+  cron: string;
   timezone?: string;
-  format?: string;
-  recipients?: string[];
-  scope?: string;
+  format: ReportSchedule['format'];
+  includeActionItems?: boolean;
 }
 
 /**
@@ -302,6 +308,6 @@ export interface ReportsAnalysisHistoryEntry {
 /**
  * Get analysis history for the reports page from `GET /api/v1/analysis/history`.
  */
-export async function getReportsAnalysisHistory(): Promise<ReportsAnalysisHistoryEntry[]> {
-  return apiFetch<ReportsAnalysisHistoryEntry[]>('/api/v1/analysis/history');
+export async function getReportsAnalysisHistory(projectId?: string): Promise<ReportsAnalysisHistoryEntry[]> {
+  return apiFetch<ReportsAnalysisHistoryEntry[]>('/api/v1/analysis/history', { projectId });
 }

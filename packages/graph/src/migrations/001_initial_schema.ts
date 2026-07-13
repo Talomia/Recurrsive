@@ -35,7 +35,14 @@ export interface MigrationResult {
  *
  * @returns Array of SQL statements to execute sequentially.
  */
-function buildAgeStatements(): string[] {
+function assertGraphName(graphName: string): void {
+  if (!/^[a-z][a-z0-9_]{0,62}$/.test(graphName)) {
+    throw new Error(`Invalid AGE graph name "${graphName}"`);
+  }
+}
+
+function buildAgeStatements(graphName = 'recurrsive'): string[] {
+  assertGraphName(graphName);
   const stmts: string[] = [];
 
   // Ensure the AGE extension is available
@@ -49,9 +56,9 @@ function buildAgeStatements(): string[] {
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM ag_catalog.ag_graph WHERE name = 'recurrsive'
+    SELECT 1 FROM ag_catalog.ag_graph WHERE name = '${graphName}'
   ) THEN
-    PERFORM create_graph('recurrsive');
+    PERFORM create_graph('${graphName}');
   END IF;
 END
 $$;
@@ -64,11 +71,11 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM ag_catalog.ag_label
-    WHERE graph = (SELECT graphid FROM ag_catalog.ag_graph WHERE name = 'recurrsive')
+    WHERE graph = (SELECT graphid FROM ag_catalog.ag_graph WHERE name = '${graphName}')
       AND name = '${entityType}'
       AND kind = 'v'
   ) THEN
-    PERFORM create_vlabel('recurrsive', '${entityType}');
+    PERFORM create_vlabel('${graphName}', '${entityType}');
   END IF;
 END
 $$;
@@ -82,11 +89,11 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM ag_catalog.ag_label
-    WHERE graph = (SELECT graphid FROM ag_catalog.ag_graph WHERE name = 'recurrsive')
+    WHERE graph = (SELECT graphid FROM ag_catalog.ag_graph WHERE name = '${graphName}')
       AND name = '${relationType}'
       AND kind = 'e'
   ) THEN
-    PERFORM create_elabel('recurrsive', '${relationType}');
+    PERFORM create_elabel('${graphName}', '${relationType}');
   END IF;
 END
 $$;
@@ -98,7 +105,7 @@ $$;
   // scan instead of a full sequential scan across the entire label table.
   for (const entityType of EntityTypeSchema.options) {
     stmts.push(
-      `CREATE INDEX IF NOT EXISTS idx_recurrsive_${entityType}_props ON recurrsive."${entityType}" USING GIN (properties);`,
+      `CREATE INDEX IF NOT EXISTS idx_${graphName}_${entityType}_props ON ${graphName}."${entityType}" USING GIN (properties);`,
     );
   }
 
@@ -106,13 +113,13 @@ $$;
   // relationship lookups by {id: '...'}, {source_id: '...'}, etc.
   for (const relationType of RelationTypeSchema.options) {
     stmts.push(
-      `CREATE INDEX IF NOT EXISTS idx_recurrsive_${relationType}_props ON recurrsive."${relationType}" USING GIN (properties);`,
+      `CREATE INDEX IF NOT EXISTS idx_${graphName}_${relationType}_props ON ${graphName}."${relationType}" USING GIN (properties);`,
     );
   }
 
   // Create an auxiliary metadata table for tracking migrations
   stmts.push(`
-CREATE TABLE IF NOT EXISTS recurrsive_migrations (
+CREATE TABLE IF NOT EXISTS ${graphName}_migrations (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -251,10 +258,10 @@ export const MIGRATION_NAME = '001_initial_schema';
  * @param provider - Target backend (`'postgresql_age'` or `'sqlite'`).
  * @returns Array of SQL strings.
  */
-export function getMigrationStatements(provider: MigrationProvider): string[] {
+export function getMigrationStatements(provider: MigrationProvider, graphName = 'recurrsive'): string[] {
   switch (provider) {
     case 'postgresql_age':
-      return buildAgeStatements();
+      return buildAgeStatements(graphName);
     case 'sqlite':
       return buildSqliteStatements();
   }
@@ -286,8 +293,9 @@ export function getMigrationStatements(provider: MigrationProvider): string[] {
 export async function migrate(
   exec: (sql: string) => Promise<void> | void,
   provider: MigrationProvider,
+  graphName = 'recurrsive',
 ): Promise<MigrationResult> {
-  const statements = getMigrationStatements(provider);
+  const statements = getMigrationStatements(provider, graphName);
 
   for (const stmt of statements) {
     await exec(stmt);
@@ -296,7 +304,7 @@ export async function migrate(
   // Record that the migration was applied
   if (provider === 'postgresql_age') {
     await exec(
-      `INSERT INTO recurrsive_migrations (name) VALUES ('${MIGRATION_NAME}') ON CONFLICT (name) DO NOTHING;`,
+      `INSERT INTO ${graphName}_migrations (name) VALUES ('${MIGRATION_NAME}') ON CONFLICT (name) DO NOTHING;`,
     );
   } else {
     await exec(

@@ -10,27 +10,44 @@ import { ApiError, apiFetch } from './client';
 
 export interface ExperimentVariant {
   name: string;
-  config: Record<string, unknown>;
+  analyzers: string[];
+  collectors: string[];
+  includeReasoning: boolean;
 }
 
 export interface ExperimentMetric {
   name: string;
   variant_a: number;
   variant_b: number;
-  improvement: number;
+  difference: number;
+  improvement_percent: number | null;
+  preferred: 'a' | 'b' | 'tie';
+}
+
+export interface ExperimentVariantResult {
+  name: string;
+  findingCount: number;
+  opportunityCount: number;
+  criticalFindingCount: number;
+  healthScore: number;
+  durationMs: number;
+  analyzedAt: string;
 }
 
 export interface DashboardExperiment {
   id: string;
+  projectId: string;
   name: string;
   description: string;
   status: "pending" | "running" | "completed" | "failed";
   hypothesis: string;
   variants: ExperimentVariant[];
+  results: ExperimentVariantResult[];
   metrics: ExperimentMetric[];
-  created_at: string;
-  started_at: string | null;
-  completed_at: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  error: string | null;
   conclusion: string | null;
 }
 
@@ -74,10 +91,11 @@ export async function getExperiments(status?: string): Promise<DashboardExperime
 /**
  * Get a single experiment by ID from `GET /api/v1/experiments/:id`.
  */
-export async function getExperiment(id: string): Promise<DashboardExperiment | null> {
+export async function getExperiment(id: string, projectId?: string): Promise<DashboardExperiment | null> {
   try {
     return await apiFetch<DashboardExperiment>(
       `/api/v1/experiments/${encodeURIComponent(id)}`,
+      { projectId },
     );
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
@@ -153,7 +171,7 @@ export async function createExperiment(data: {
   name: string;
   description?: string;
   hypothesis?: string;
-  variants?: ExperimentVariant[];
+  variants: ExperimentVariant[];
 }): Promise<DashboardExperiment> {
   return await apiFetch<DashboardExperiment>('/api/v1/experiments', {
     method: 'POST',
@@ -163,18 +181,15 @@ export async function createExperiment(data: {
 }
 
 /**
- * Update an experiment's status via `PUT /api/v1/experiments/:id/status`.
+ * Execute both variants in isolated analysis namespaces.
  */
-export async function updateExperimentStatus(
-  id: string,
-  data: { status: 'pending' | 'running' | 'completed' | 'failed'; conclusion?: string },
-): Promise<DashboardExperiment> {
+export async function runExperiment(id: string): Promise<DashboardExperiment> {
   return await apiFetch<DashboardExperiment>(
-    `/api/v1/experiments/${encodeURIComponent(id)}/status`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(data),
-      headers: { 'Content-Type': 'application/json' },
-    },
+    `/api/v1/experiments/${encodeURIComponent(id)}/run`,
+    { method: 'POST' },
   );
+}
+
+export async function deleteExperiment(id: string): Promise<void> {
+  await apiFetch(`/api/v1/experiments/${encodeURIComponent(id)}`, { method: 'DELETE', unwrap: false });
 }

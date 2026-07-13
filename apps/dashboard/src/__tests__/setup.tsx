@@ -88,3 +88,4 @@ global.fetch = vi.fn().mockResolvedValue({
   text: () => Promise.resolve(''),
   status: 200,
 });
+import { vi } from 'vitest';

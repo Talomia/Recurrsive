@@ -12,9 +12,8 @@ import { readFileSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import type { Entity, Relationship, EntityType } from '@recurrsive/core';
 import { nowISO, createLogger } from '@recurrsive/core';
-import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { resolveAnalysisHistory } from '../project-analysis.js';
+import { requireProjectScope, resolveAnalysisHistory, resolveProjectGraph, rethrowProjectScopeError } from '../project-analysis.js';
 
 const PKG_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')).version as string;
 
@@ -29,6 +28,7 @@ interface Snapshot {
   version: string;
   exported_at: string;
   project: string;
+  project_id: string;
   entities: Entity[];
   relationships: Relationship[];
   stats: {
@@ -56,16 +56,10 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
    * Export the current knowledge graph state as a portable JSON snapshot.
    * Returns a full dump of all entities and relationships with metadata.
    */
-  app.get('/api/v1/snapshots/export', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    if (!state.isInitialized()) {
-      return reply.status(503).send({
-        error: 'Server not initialized',
-        message: 'Run POST /api/v1/analyze first.',
-      });
-    }
-
+  app.get('/api/v1/snapshots/export', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      const graph = state.getGraph();
+      const project = await requireProjectScope(request);
+      const graph = await resolveProjectGraph(request);
       const graphStats = await graph.getStats();
 
       // Fetch all entities by type
@@ -90,7 +84,8 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
       const snapshot: Snapshot = {
         version: PKG_VERSION,
         exported_at: nowISO(),
-        project: state.getProjectPath() ?? 'unknown',
+        project: project.name,
+        project_id: project.id,
         entities: allEntities,
         relationships: allRelationships,
         stats: {
@@ -110,6 +105,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
         )
         .send(snapshot);
     } catch (err) {
+      rethrowProjectScopeError(err);
       const message = err instanceof Error ? err.message : String(err);
       logger.error('Failed to export snapshot', { error: message });
       return reply.status(500).send({
@@ -126,13 +122,6 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
    * Upserts all entities and relationships from the snapshot file.
    */
   app.post<{ Body: Snapshot }>('/api/v1/snapshots/import', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!state.isInitialized()) {
-      return reply.status(503).send({
-        error: 'Server not initialized',
-        message: 'Run POST /api/v1/analyze first to initialize the graph.',
-      });
-    }
-
     const body = request.body;
 
     // Validate snapshot structure
@@ -144,7 +133,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
     }
 
     try {
-      const graph = state.getGraph();
+      const graph = await resolveProjectGraph(request);
       let entitiesImported = 0;
       let relationshipsImported = 0;
 
@@ -171,6 +160,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
         },
       });
     } catch (err) {
+      rethrowProjectScopeError(err);
       const message = err instanceof Error ? err.message : String(err);
       logger.error('Failed to import snapshot', { error: message });
       return reply.status(500).send({

@@ -50,14 +50,14 @@ export interface HealthDashboardData {
  * Server returns: `{ overall_health, dimensions, snapshot, finding_count, opportunity_count, analyzed_at }`
  * Dashboard needs: `HealthMetrics` shape with scores and trends.
  */
-export async function getHealthMetrics(): Promise<HealthMetrics> {
+export async function getHealthMetrics(projectId?: string): Promise<HealthMetrics> {
   const raw = await apiFetch<{
     overall_health: number;
     dimensions: Record<string, number>;
     health_trend: number;
     finding_count: number;
     opportunity_count: number;
-  }>("/api/v1/health-score");
+  }>("/api/v1/health-score", { projectId });
 
   return {
     healthScore: raw.overall_health,
@@ -79,6 +79,6 @@ export async function getPerformanceMetrics(): Promise<PerformanceMetric[]> {
 /**
  * Get system health dashboard data.
  */
-export async function getHealthDashboard(): Promise<HealthDashboardData> {
-  return apiFetch<HealthDashboardData>("/api/v1/health/dashboard");
+export async function getHealthDashboard(projectId?: string): Promise<HealthDashboardData> {
+  return apiFetch<HealthDashboardData>("/api/v1/health/dashboard", { projectId });
 }

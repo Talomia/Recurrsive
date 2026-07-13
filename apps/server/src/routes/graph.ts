@@ -10,8 +10,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { Entity, EntityType, Relationship } from '@recurrsive/core';
 import { createLogger } from '@recurrsive/core';
-import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { resolveProjectGraph, rethrowProjectScopeError } from '../project-analysis.js';
 
 const logger = createLogger({ context: { component: 'server:routes:graph' } });
 
@@ -49,16 +49,9 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
    * Return aggregate statistics about the knowledge graph: entity and
    * relationship counts, grouped by type.
    */
-  app.get('/api/v1/graph/stats', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    if (!state.isInitialized()) {
-      return reply.status(503).send({
-        error: 'Server not initialized',
-        message: 'Run POST /api/v1/analyze first.',
-      });
-    }
-
+  app.get('/api/v1/graph/stats', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      const graph = state.getGraph();
+      const graph = await resolveProjectGraph(request);
       const stats = await graph.getStats();
 
       return reply.status(200).send({
@@ -70,6 +63,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
         },
       });
     } catch (err) {
+      rethrowProjectScopeError(err);
       const message = err instanceof Error ? err.message : String(err);
       logger.error('Failed to fetch graph stats', { error: message });
       return reply.status(500).send({
@@ -89,19 +83,12 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/entities',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       const { type, search, limit: limitStr } = request.query;
       const parsedLimit = limitStr ? parseInt(limitStr, 10) : 50;
       const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 500));
 
       try {
-        const graph = state.getGraph();
+        const graph = await resolveProjectGraph(request);
 
         if (type) {
           // Query by type
@@ -162,6 +149,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           limit,
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         const message = err instanceof Error ? err.message : String(err);
         logger.error('Failed to list graph entities', { error: message });
         return reply.status(500).send({
@@ -181,17 +169,10 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/entities/:id',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       const { id } = request.params;
 
       try {
-        const graph = state.getGraph();
+        const graph = await resolveProjectGraph(request);
         const entity = await graph.getEntity(id);
 
         if (!entity) {
@@ -210,6 +191,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         const message = err instanceof Error ? err.message : String(err);
         logger.error('Failed to fetch entity by ID', { error: message });
         return reply.status(500).send({
@@ -230,13 +212,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/entities/:id/neighbors',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       const { id } = request.params;
       const depth = request.query.depth ? parseInt(request.query.depth, 10) : 1;
 
@@ -248,7 +223,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        const graph = state.getGraph();
+        const graph = await resolveProjectGraph(request);
 
         // Verify the entity exists
         const entity = await graph.getEntity(id);
@@ -272,6 +247,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         const message = err instanceof Error ? err.message : String(err);
         logger.error('Failed to fetch entity neighbors', { error: message });
         return reply.status(500).send({
@@ -292,13 +268,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/entities/:id/relationships',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       const { id } = request.params;
       const validDirections = ['in', 'out', 'both'] as const;
       const direction = request.query.direction ?? 'both';
@@ -310,7 +279,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        const graph = state.getGraph();
+        const graph = await resolveProjectGraph(request);
 
         // Verify the entity exists
         const entity = await graph.getEntity(id);
@@ -332,6 +301,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         const message = err instanceof Error ? err.message : String(err);
         logger.error('Failed to fetch entity relationships', { error: message });
         return reply.status(500).send({
@@ -357,13 +327,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/relationships',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       const { type, limit: limitStr, offset: offsetStr } = request.query;
       const parsedLimit = limitStr ? parseInt(limitStr, 10) : 50;
       const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 500));
@@ -371,7 +334,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       const offset = Number.isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
 
       try {
-        const graph = state.getGraph();
+        const graph = await resolveProjectGraph(request);
 
         // Use direct SQL listing if the provider supports it (AGE)
         if ('listRelationships' in graph && typeof graph.listRelationships === 'function') {
@@ -421,6 +384,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           offset,
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         const message = err instanceof Error ? err.message : String(err);
         logger.error('Failed to list graph relationships', { error: message });
         return reply.status(500).send({
@@ -447,13 +411,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/search',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       const { q, type, limit: limitStr } = request.query;
 
       if (!q || q.trim().length === 0) {
@@ -467,7 +424,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 200));
 
       try {
-        const graph = state.getGraph();
+        const graph = await resolveProjectGraph(request);
 
         // Try FTS5 search if the client supports it
         if ('searchEntities' in graph && typeof graph.searchEntities === 'function') {
@@ -532,6 +489,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
           query: q.trim(),
         });
       } catch (err) {
+        rethrowProjectScopeError(err);
         const message = err instanceof Error ? err.message : String(err);
         logger.error('Failed to search graph entities', { error: message });
         return reply.status(500).send({

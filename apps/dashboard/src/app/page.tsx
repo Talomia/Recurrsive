@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useActiveProject } from '@/components/active-project-context';
 import Link from 'next/link';
 import {
   Activity,
@@ -308,6 +309,7 @@ function StrategicRecommendation({
 // ---------------------------------------------------------------------------
 
 export default function OverviewPage() {
+  const { activeProject } = useActiveProject();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [loading, setLoading] = useState(true);
   const [hasData, setHasData] = useState(false);
@@ -329,18 +331,18 @@ export default function OverviewPage() {
     (async () => {
       try {
         const [h, t, o, p, projects] = await Promise.all([
-          getHealthMetrics(),
-          getTimeline(),
-          getOpportunities(),
-          getPerformanceMetrics(),
-          getProjects(),
+          getHealthMetrics().catch(() => ({ healthScore: 0, healthTrend: 0, documentationScore: 0, securityScore: 0, opportunities: 0, findingCount: 0 })),
+          getTimeline().catch(() => []),
+          getOpportunities().catch(() => []),
+          getPerformanceMetrics().catch(() => []),
+          getProjects().catch(() => []),
         ]);
         setHealth(h);
         setTimeline(t);
         setOpportunities(o);
         setPerfMetrics(p);
         setProjectCount(projects.length);
-        setHasData(h.healthScore > 0 || t.length > 0 || o.length > 0 || projects.length > 0);
+        setHasData(h.findingCount > 0 || t.length > 0 || o.length > 0);
       } catch {
         // Will show welcome state
       } finally {
@@ -451,7 +453,7 @@ export default function OverviewPage() {
                     <span className={`text-xs font-semibold ${health.healthTrend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {health.healthTrend >= 0 ? '+' : ''}{health.healthTrend}%
                     </span>
-                    <span className="text-xs text-text-muted">since previous analysis</span>
+                    <span className="text-xs text-text-muted">points since previous analysis</span>
                   </div>
                 </div>
               </div>
@@ -485,7 +487,7 @@ export default function OverviewPage() {
                 <HealthChart data={timeline} />
               </div>
               <div className="xl:col-span-2">
-                <OpportunitiesList opportunities={opportunities} />
+                <OpportunitiesList opportunities={opportunities} projectId={activeProject?.id} />
               </div>
             </div>
 
@@ -566,11 +568,11 @@ export default function OverviewPage() {
                       <RiskIndicator level={riskLevel} label="Overall Risk Level" />
                       <RiskIndicator
                         level={criticalCount > 0 ? 'critical' : 'low'}
-                        label={`Security (${criticalCount} critical)`}
+                        label={`Critical severity (${criticalCount})`}
                       />
                       <RiskIndicator
                         level={highCount > 3 ? 'high' : highCount > 0 ? 'medium' : 'low'}
-                        label={`Reliability (${highCount} high findings)`}
+                        label={`High severity (${highCount})`}
                       />
                       <RiskIndicator
                         level={health.findingCount > 40 ? 'high' : health.findingCount > 0 ? 'medium' : 'low'}

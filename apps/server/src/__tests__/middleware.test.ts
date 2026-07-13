@@ -152,7 +152,7 @@ describe('validateBody', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
-      payload: { path: '/my/project' },
+      payload: { projectId: 'project-1', path: '/my/project' },
     });
     expect(res.statusCode).toBe(200);
   });
@@ -162,6 +162,7 @@ describe('validateBody', () => {
       method: 'POST',
       url: '/validate',
       payload: {
+        projectId: 'project-1',
         path: '/my/project',
         analyzers: ['security', 'cost'],
         include_reasoning: true,
@@ -174,7 +175,7 @@ describe('validateBody', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
-      payload: { path: 12345 },
+      payload: { projectId: 'project-1', path: 12345 },
     });
     expect(res.statusCode).toBe(400);
 
@@ -189,7 +190,7 @@ describe('validateBody', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
-      payload: { path: '' },
+      payload: { projectId: 'project-1', path: '' },
     });
     expect(res.statusCode).toBe(400);
   });
@@ -198,7 +199,7 @@ describe('validateBody', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
-      payload: { path: '/project', analyzers: 'not-an-array' },
+      payload: { projectId: 'project-1', path: '/project', analyzers: 'not-an-array' },
     });
     expect(res.statusCode).toBe(400);
 
@@ -221,7 +222,7 @@ describe('validateBody', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/validate',
-      payload: { path: '/project', include_reasoning: 'yes' },
+      payload: { projectId: 'project-1', path: '/project', include_reasoning: 'yes' },
     });
     expect(res.statusCode).toBe(400);
   });

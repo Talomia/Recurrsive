@@ -255,11 +255,11 @@ export default function ExecutivePage() {
                   <RiskIndicator level={riskLevel} label="Overall Risk Level" />
                   <RiskIndicator
                     level={criticalCount > 0 ? 'critical' : 'low'}
-                    label={`Security (${criticalCount} critical)`}
+                    label={`Critical severity (${criticalCount})`}
                   />
                   <RiskIndicator
                     level={highCount > 3 ? 'high' : highCount > 0 ? 'medium' : 'low'}
-                    label={`Reliability (${highCount} high findings)`}
+                    label={`High severity (${highCount})`}
                   />
                   <RiskIndicator
                     level={data.health && data.health.findingCount > 40 ? 'high' : data.health && data.health.findingCount > 0 ? 'medium' : 'low'}

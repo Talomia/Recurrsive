@@ -113,7 +113,7 @@ export interface AnalyticsSummary {
 /**
  * Get analysis status from `GET /api/v1/analysis/status`.
  */
-export async function getAnalysisStatus(): Promise<{
+export async function getAnalysisStatus(projectId?: string): Promise<{
   phase: string;
   progress: number;
   message: string;
@@ -128,14 +128,14 @@ export async function getAnalysisStatus(): Promise<{
       startedAt: string | null;
       completedAt: string | null;
       error: string | null;
-  }>("/api/v1/analysis/status");
+  }>("/api/v1/analysis/status", { projectId });
 }
 
 /**
  * Get findings summary from `GET /api/v1/findings/summary`.
  */
-export async function getFindingsSummary(): Promise<FindingsSummary> {
-  return apiFetch<FindingsSummary>("/api/v1/findings/summary");
+export async function getFindingsSummary(projectId?: string): Promise<FindingsSummary> {
+  return apiFetch<FindingsSummary>("/api/v1/findings/summary", { projectId });
 }
 
 /**
@@ -146,6 +146,7 @@ export async function getFindings(params?: {
   category?: string;
   limit?: number;
   offset?: number;
+  projectId?: string;
 }): Promise<{ findings: Finding[]; total: number }> {
   const query = new URLSearchParams();
   if (params?.severity) query.set("severity", params.severity);
@@ -156,17 +157,18 @@ export async function getFindings(params?: {
   const qs = query.toString();
   const path = `/api/v1/findings${qs ? `?${qs}` : ""}`;
 
-  const res = await apiFetch<{ data: Finding[]; total: number }>(path, { unwrap: false });
+  const res = await apiFetch<{ data: Finding[]; total: number }>(path, { unwrap: false, projectId: params?.projectId });
   return { findings: res.data ?? [], total: res.total ?? 0 };
 }
 
 /**
  * Get a single finding by ID from `GET /api/v1/findings/:id`.
  */
-export async function getFinding(id: string): Promise<Finding | null> {
+export async function getFinding(id: string, projectId?: string): Promise<Finding | null> {
   try {
     return await apiFetch<Finding>(
       `/api/v1/findings/${encodeURIComponent(id)}`,
+      { projectId },
     );
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
@@ -177,22 +179,22 @@ export async function getFinding(id: string): Promise<Finding | null> {
 /**
  * Get findings page data with stats and filterable list.
  */
-export async function getFindingsPage(): Promise<FindingsPageData> {
-  return apiFetch<FindingsPageData>("/api/v1/findings/page");
+export async function getFindingsPage(projectId?: string): Promise<FindingsPageData> {
+  return apiFetch<FindingsPageData>("/api/v1/findings/page", { projectId });
 }
 
 /**
  * Get analytics summary from `GET /api/v1/analytics/summary`.
  */
-export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
-  return apiFetch<AnalyticsSummary>("/api/v1/analytics/summary");
+export async function getAnalyticsSummary(projectId?: string): Promise<AnalyticsSummary> {
+  return apiFetch<AnalyticsSummary>("/api/v1/analytics/summary", { projectId });
 }
 
 /**
  * Get analytics categories from `GET /api/v1/analytics/top-categories`.
  */
-export async function getAnalyticsCategories(): Promise<AnalyticsCategory[]> {
-  return apiFetch<AnalyticsCategory[]>("/api/v1/analytics/top-categories");
+export async function getAnalyticsCategories(projectId?: string): Promise<AnalyticsCategory[]> {
+  return apiFetch<AnalyticsCategory[]>("/api/v1/analytics/top-categories", { projectId });
 }
 
 // ─── Analysis Triggers ──────────────────────────────────────────────────────

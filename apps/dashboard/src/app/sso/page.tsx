@@ -1,221 +1,156 @@
 'use client';
-/**
- * SSO Configuration page.
- *
- * Provider management, active sessions, and configuration form.
- */
 
-import { useState, useEffect } from 'react';
-import { Users, Shield, Globe, LogIn, Loader2 } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Download, KeyRound, Loader2, Pencil, Shield, Trash2, Users } from 'lucide-react';
 import Header from '@/components/header';
-import { getSSOProviders, getSSOSessions, createSsoProvider, deleteSsoProvider, revokeSsoSession } from '@/lib/api';
-import type { SSOProvider, SSOSession } from '@/lib/api';
+import {
+  createSsoProvider,
+  deleteSsoProvider,
+  getSSOMetadataUrl,
+  getSSOProvider,
+  getSSOProviders,
+  getSSOSessions,
+  revokeSsoSession,
+  type SSOProvider,
+  type SSOProviderConfig,
+  type SSOSession,
+} from '@/lib/api';
 
-function ProviderStatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    configured: 'bg-green-500/20 text-green-400 border-green-500/30',
-    pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    error: 'bg-red-500/20 text-red-400 border-red-500/30',
-  };
-  return <span className={`px-2 py-0.5 rounded text-xs font-medium border ${styles[status]}`}>{status}</span>;
+type ProviderType = SSOProviderConfig['provider'];
+
+interface FormState {
+  id: string;
+  provider: ProviderType;
+  displayName: string;
+  idpEntityId: string;
+  spEntityId: string;
+  ssoUrl: string;
+  certificate: string;
+  signatureMode: SSOProviderConfig['signatureMode'];
+  allowedDomains: string;
+  autoProvision: boolean;
+  defaultRole: SSOProviderConfig['defaultRole'];
+  groupRoleMapping: string;
 }
 
-function ProviderIcon({ type }: { type: string }) {
-  const colors: Record<string, string> = { okta: 'text-blue-400', auth0: 'text-orange-400', azure_ad: 'text-cyan-400', google: 'text-red-400' };
-  return <Globe className={`w-5 h-5 ${colors[type] ?? 'text-gray-400'}`} />;
-}
+const EMPTY_FORM: FormState = {
+  id: '', provider: 'custom', displayName: '', idpEntityId: '', spEntityId: '', ssoUrl: '', certificate: '',
+  signatureMode: 'both', allowedDomains: '', autoProvision: true, defaultRole: 'viewer', groupRoleMapping: '{}',
+};
 
 export default function SSOPage() {
   const [providers, setProviders] = useState<SSOProvider[]>([]);
   const [sessions, setSessions] = useState<SSOSession[]>([]);
+  const [form, setForm] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDomain, setNewDomain] = useState('');
-  const [newType, setNewType] = useState<string>('okta');
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function refresh() {
+    const [nextProviders, nextSessions] = await Promise.all([getSSOProviders(), getSSOSessions()]);
+    setProviders(nextProviders);
+    setSessions(nextSessions);
+  }
+
   useEffect(() => {
-    Promise.all([getSSOProviders(), getSSOSessions()])
-      .then(([p, s]) => {
-        setProviders(p);
-        setSessions(s);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load SSO data.'))
-      .finally(() => setLoading(false));
+    refresh().catch((reason) => setError(reason instanceof Error ? reason.message : 'Failed to load SSO configuration.')).finally(() => setLoading(false));
   }, []);
 
-  const reloadData = async () => {
-    const [p, s] = await Promise.all([getSSOProviders(), getSSOSessions()]);
-    setProviders(p);
-    setSessions(s);
-  };
-
-  const handleCreateProvider = async () => {
+  async function editProvider(provider: SSOProvider) {
+    setError(null);
     try {
-      setError(null);
-      await createSsoProvider(newType, {
-        provider: newType as 'okta' | 'auth0' | 'azure_ad' | 'google',
-        displayName: newName,
-        entityId: `https://${newDomain}/${newType}`,
-        ssoUrl: `https://${newDomain}/${newType}/sso`,
+      const config = await getSSOProvider(provider.id);
+      setForm({
+        id: provider.id,
+        provider: config.provider,
+        displayName: config.displayName,
+        idpEntityId: config.idpEntityId,
+        spEntityId: config.spEntityId,
+        ssoUrl: config.ssoUrl,
+        certificate: config.certificate,
+        signatureMode: config.signatureMode,
+        allowedDomains: config.allowedDomains.join(', '),
+        autoProvision: config.autoProvision,
+        defaultRole: config.defaultRole,
+        groupRoleMapping: JSON.stringify(config.groupRoleMapping ?? {}, null, 2),
       });
-      setShowAdd(false);
-      setNewName('');
-      setNewDomain('');
-      setNewType('okta');
-      await reloadData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create SSO provider');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Failed to load provider.');
     }
-  };
-
-  const handleDeleteProvider = async (id: string) => {
-    try {
-      setError(null);
-      await deleteSsoProvider(id);
-      await reloadData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete SSO provider');
-    }
-  };
-
-  const handleRevokeSession = async (id: string) => {
-    try {
-      setError(null);
-      await revokeSsoSession(id);
-      await reloadData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to revoke session');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
-      </div>
-    );
   }
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (!form) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const groupRoleMapping = JSON.parse(form.groupRoleMapping || '{}') as Record<string, 'admin' | 'analyst' | 'viewer'>;
+      await createSsoProvider(form.id, {
+        provider: form.provider,
+        displayName: form.displayName,
+        idpEntityId: form.idpEntityId,
+        spEntityId: form.spEntityId,
+        ssoUrl: form.ssoUrl,
+        certificate: form.certificate,
+        signatureMode: form.signatureMode,
+        allowedDomains: form.allowedDomains.split(',').map((domain) => domain.trim()).filter(Boolean),
+        autoProvision: form.autoProvision,
+        defaultRole: form.defaultRole,
+        groupRoleMapping,
+      });
+      setForm(null);
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Failed to save provider. Check the group mapping JSON.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div className="flex h-64 items-center justify-center" role="status"><Loader2 className="h-8 w-8 animate-spin text-accent-blue" /></div>;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Header title="Single Sign-On" subtitle="Configure identity providers for SSO authentication" />
-      <div className="flex items-center justify-end">
-        <button onClick={() => setShowAdd(!showAdd)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: 'var(--color-accent)' }}>
-          <LogIn className="w-4 h-4" /> Add Provider
-        </button>
-      </div>
+      <Header title="Single sign-on" subtitle="Signed SAML 2.0 identity providers and active sessions" />
+      <div className="flex justify-end"><button type="button" onClick={() => setForm({ ...EMPTY_FORM })} className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white">Add SAML provider</button></div>
+      {error && <div role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
 
-      {/* Error Banner */}
-      {error && (
-        <div className="rounded-xl px-4 py-3 bg-red-500/10 border border-red-500/30 flex items-center justify-between">
-          <span className="text-sm text-red-400">{error}</span>
-          <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-300">Dismiss</button>
-        </div>
+      {form && (
+        <form onSubmit={save} className="glass-card space-y-5 rounded-2xl p-5">
+          <div><h2 className="font-semibold text-text-primary">{providers.some((provider) => provider.id === form.id) ? 'Edit' : 'Configure'} SAML provider</h2><p className="mt-1 text-xs text-text-muted">Responses and assertions are signature-validated and matched to one-time authentication requests.</p></div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="text-sm text-text-secondary">Provider ID<input required disabled={providers.some((provider) => provider.id === form.id)} value={form.id} onChange={(event) => setForm({ ...form, id: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary disabled:opacity-60" placeholder="company-okta" /></label>
+            <label className="text-sm text-text-secondary">Provider type<select value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value as ProviderType })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary"><option value="okta">Okta</option><option value="auth0">Auth0</option><option value="azure-ad">Microsoft Entra ID</option><option value="google-workspace">Google Workspace</option><option value="custom">Custom SAML</option></select></label>
+            <label className="text-sm text-text-secondary">Display name<input required value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary" /></label>
+            <label className="text-sm text-text-secondary">Signature requirement<select value={form.signatureMode} onChange={(event) => setForm({ ...form, signatureMode: event.target.value as FormState['signatureMode'] })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary"><option value="both">Signed response and assertion</option><option value="response">Signed response</option><option value="assertion">Signed assertion</option><option value="either">Either signed element</option></select></label>
+            <label className="text-sm text-text-secondary">IdP entity ID<input required value={form.idpEntityId} onChange={(event) => setForm({ ...form, idpEntityId: event.target.value })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary" /></label>
+            <label className="text-sm text-text-secondary">SP entity ID / audience<input required value={form.spEntityId} onChange={(event) => setForm({ ...form, spEntityId: event.target.value })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary" /></label>
+            <label className="text-sm text-text-secondary md:col-span-2">IdP SSO URL<input required type="url" value={form.ssoUrl} onChange={(event) => setForm({ ...form, ssoUrl: event.target.value })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary" /></label>
+            <label className="text-sm text-text-secondary md:col-span-2">IdP signing certificate<textarea required rows={6} value={form.certificate} onChange={(event) => setForm({ ...form, certificate: event.target.value })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 font-mono text-xs text-text-primary" placeholder="-----BEGIN CERTIFICATE-----" /></label>
+            <label className="text-sm text-text-secondary">Allowed email domains<input value={form.allowedDomains} onChange={(event) => setForm({ ...form, allowedDomains: event.target.value })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary" placeholder="example.com, subsidiary.com" /></label>
+            <label className="text-sm text-text-secondary">Default provisioned role<select value={form.defaultRole} onChange={(event) => setForm({ ...form, defaultRole: event.target.value as FormState['defaultRole'] })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 text-text-primary"><option value="viewer">Viewer</option><option value="analyst">Analyst</option><option value="admin">Admin</option></select></label>
+            <label className="text-sm text-text-secondary md:col-span-2">Group-to-role mapping (JSON)<textarea rows={4} value={form.groupRoleMapping} onChange={(event) => setForm({ ...form, groupRoleMapping: event.target.value })} className="mt-1.5 w-full rounded-lg border border-white/10 bg-base px-3 py-2 font-mono text-xs text-text-primary" /></label>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-text-secondary"><input type="checkbox" checked={form.autoProvision} onChange={(event) => setForm({ ...form, autoProvision: event.target.checked })} />Provision new users after the first valid SAML login</label>
+          <div className="flex justify-end gap-2"><button type="button" onClick={() => setForm(null)} className="px-4 py-2 text-sm text-text-secondary">Cancel</button><button disabled={saving} className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save provider'}</button></div>
+        </form>
       )}
 
-      {/* Add Provider Form */}
-      {showAdd && (
-        <div className="glass-card rounded-2xl p-5">
-          <h2 className="text-base font-semibold text-text-primary mb-3">Configure New SSO Provider</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input placeholder="Provider Name" aria-label="Provider Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <input placeholder="Domain" aria-label="Domain" value={newDomain} onChange={e => setNewDomain(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
-            <select value={newType} onChange={e => setNewType(e.target.value)} aria-label="Identity provider type" className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
-              <option value="okta">Okta</option>
-              <option value="auth0">Auth0</option>
-              <option value="azure_ad">Azure AD</option>
-              <option value="google">Google Workspace</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-2 mt-3">
-            <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary">Cancel</button>
-            <button onClick={handleCreateProvider} disabled={!newName || !newDomain} className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all" style={{ background: newName && newDomain ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName && newDomain ? 1 : 0.5 }}>
-              Save Configuration
-            </button>
-          </div>
-        </div>
-      )}
+      <section className="glass-card rounded-2xl p-5" aria-labelledby="providers-title">
+        <h2 id="providers-title" className="mb-4 flex items-center gap-2 font-semibold"><Shield className="h-4 w-4 text-accent-blue" />Identity providers</h2>
+        {providers.length === 0 ? <p className="text-sm text-text-secondary">No identity providers configured.</p> : <div className="space-y-3">{providers.map((provider) => (
+          <article key={provider.id} className="flex flex-col justify-between gap-4 rounded-xl border border-white/5 bg-base p-4 sm:flex-row sm:items-center">
+            <div><div className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-blue-400" /><h3 className="font-medium text-text-primary">{provider.displayName}</h3><span className="rounded bg-green-500/10 px-2 py-0.5 text-xs text-green-400">SAML</span></div><p className="mt-1 text-xs text-text-muted">{provider.idpEntityId}</p><p className="text-xs text-text-muted">Default role: {provider.defaultRole} · JIT {provider.autoProvision ? 'enabled' : 'disabled'}</p></div>
+            <div className="flex gap-2"><a href={getSSOMetadataUrl(provider.id)} className="rounded-lg bg-white/5 p-2 text-text-secondary" aria-label={`Download ${provider.displayName} metadata`}><Download className="h-4 w-4" /></a><button type="button" onClick={() => void editProvider(provider)} className="rounded-lg bg-white/5 p-2 text-text-secondary" aria-label={`Edit ${provider.displayName}`}><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => { if (window.confirm(`Delete SSO provider “${provider.displayName}”?`)) void deleteSsoProvider(provider.id).then(refresh).catch((reason) => setError(reason instanceof Error ? reason.message : 'Delete failed.')); }} className="rounded-lg bg-white/5 p-2 text-red-400" aria-label={`Delete ${provider.displayName}`}><Trash2 className="h-4 w-4" /></button></div>
+          </article>
+        ))}</div>}
+      </section>
 
-      {/* SSO Providers */}
-      <div className="glass-card rounded-2xl p-5">
-        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
-          <Shield className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Identity Providers
-        </h2>
-        <div className="space-y-3">
-          {providers.length === 0 && (
-            <div className="rounded-xl p-6 text-center" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
-              <p className="text-sm text-text-secondary">No identity providers configured yet.</p>
-            </div>
-          )}
-          {providers.map(provider => (
-            <div key={provider.id} className="flex items-center justify-between rounded-xl p-4" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
-              <div className="flex items-center gap-3">
-                <ProviderIcon type={provider.type} />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-text-primary">{provider.name}</span>
-                    <ProviderStatusBadge status={provider.status} />
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-500/20 text-gray-400">{provider.protocol}</span>
-                  </div>
-                  <p className="text-xs text-text-tertiary mt-0.5">{provider.domain}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-text-tertiary">
-                <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {provider.usersCount} users</span>
-                {provider.lastSync && <span>Synced {new Date(provider.lastSync).toLocaleTimeString()}</span>}
-                <button onClick={() => handleDeleteProvider(provider.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Active Sessions */}
-      <div className="glass-card rounded-2xl p-5">
-        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
-          <Users className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Active Sessions
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-text-tertiary text-xs border-b" style={{ borderColor: 'var(--color-border)' }}>
-                <th scope="col" className="pb-2 font-medium">User</th>
-                <th scope="col" className="pb-2 font-medium">Provider</th>
-                <th scope="col" className="pb-2 font-medium">IP</th>
-                <th scope="col" className="pb-2 font-medium">Login</th>
-                <th scope="col" className="pb-2 font-medium">Expires</th>
-                <th scope="col" className="pb-2 font-medium">Status</th>
-                <th scope="col" className="pb-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.map(session => (
-                <tr key={session.id} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                  <td className="py-3">
-                    <div className="text-text-primary text-sm">{session.user}</div>
-                    <div className="text-text-tertiary text-xs">{session.email}</div>
-                  </td>
-                  <td className="py-3 text-text-secondary text-xs">{session.provider}</td>
-                  <td className="py-3 text-text-tertiary font-mono text-xs">{session.ip}</td>
-                  <td className="py-3 text-text-tertiary text-xs">{new Date(session.loginAt).toLocaleTimeString()}</td>
-                  <td className="py-3 text-text-tertiary text-xs">{new Date(session.expiresAt).toLocaleTimeString()}</td>
-                  <td className="py-3">
-                    <span className={`inline-block w-2 h-2 rounded-full ${session.active ? 'bg-green-400' : 'bg-gray-500'}`} />
-                  </td>
-                  <td className="py-3">
-                    {session.active && (
-                      <button onClick={() => handleRevokeSession(session.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Revoke</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <section className="glass-card rounded-2xl p-5" aria-labelledby="sessions-title">
+        <h2 id="sessions-title" className="mb-4 flex items-center gap-2 font-semibold"><Users className="h-4 w-4 text-accent-blue" />Active SSO sessions</h2>
+        {sessions.length === 0 ? <p className="text-sm text-text-secondary">No active SSO sessions.</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-white/10 text-left text-xs text-text-muted"><th className="pb-2">Account</th><th className="pb-2">Provider</th><th className="pb-2">Created</th><th className="pb-2">Expires</th><th className="pb-2"><span className="sr-only">Actions</span></th></tr></thead><tbody>{sessions.map((session) => <tr key={session.sessionId} className="border-b border-white/5"><td className="py-3 text-text-primary">{session.email}</td><td className="py-3 text-text-secondary">{session.provider}</td><td className="py-3 text-xs text-text-muted">{new Date(session.createdAt).toLocaleString()}</td><td className="py-3 text-xs text-text-muted">{new Date(session.expiresAt).toLocaleString()}</td><td className="py-3 text-right"><button type="button" onClick={() => void revokeSsoSession(session.sessionId).then(refresh).catch((reason) => setError(reason instanceof Error ? reason.message : 'Revoke failed.'))} className="text-xs text-red-400">Revoke</button></td></tr>)}</tbody></table></div>}
+      </section>
     </div>
   );
 }

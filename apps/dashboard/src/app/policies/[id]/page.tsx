@@ -48,11 +48,14 @@ const VIOLATION_STATUS: Record<string, { bg: string; text: string; border: strin
 
 interface PolicyDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ projectId?: string }>;
 }
 
-export default async function PolicyDetailPage({ params }: PolicyDetailPageProps) {
+export default async function PolicyDetailPage({ params, searchParams }: PolicyDetailPageProps) {
   const { id } = await params;
-  const policy = await getPolicy(id);
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
+  const policy = await getPolicy(id, projectId);
 
   if (!policy) {
     return (
@@ -68,7 +71,7 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
           not be found.
         </p>
         <Link
-          href="/policies"
+          href={`/policies?projectId=${encodeURIComponent(projectId)}`}
           className="mt-2 inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-accent-blue/20 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -85,7 +88,7 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-text-muted">
         <Link
-          href="/policies"
+          href={`/policies?projectId=${encodeURIComponent(projectId)}`}
           className="inline-flex items-center gap-1.5 hover:text-text-secondary transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />

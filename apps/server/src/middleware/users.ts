@@ -34,6 +34,8 @@ export interface User {
   authMethod: 'local' | 'sso';
   ssoProvider?: string;
   status: 'active' | 'disabled' | 'pending';
+  /** Incremented whenever credentials, role, or account status changes. */
+  sessionVersion: number;
 }
 
 /** Public-safe user type that excludes password fields. */
@@ -48,6 +50,7 @@ export interface PublicUser {
   authMethod: string;
   ssoProvider?: string;
   status: string;
+  sessionVersion: number;
 }
 
 /** Input for creating a new user. */
@@ -104,6 +107,7 @@ export function toPublicUser(user: User): PublicUser {
     authMethod: user.authMethod,
     ssoProvider: user.ssoProvider,
     status: user.status,
+    sessionVersion: user.sessionVersion ?? 1,
   };
 }
 
@@ -160,6 +164,7 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     updatedAt: now,
     authMethod: 'local',
     status: 'active',
+    sessionVersion: 1,
   };
 
   await store.set<User>(USERS_TABLE, id, user);
@@ -213,7 +218,7 @@ export async function authenticateUser(username: string, password: string): Prom
   if (!user) return null;
 
   // Only active users can log in
-  if (user.status !== 'active') return null;
+  if (user.status !== 'active' || user.authMethod !== 'local') return null;
 
   const valid = await verifyPassword(password, user.passwordHash, user.passwordSalt);
   if (!valid) return null;
@@ -243,6 +248,19 @@ export async function listUsers(): Promise<PublicUser[]> {
 export async function updateUser(id: string, updates: Partial<UpdateUserInput>): Promise<PublicUser | null> {
   const user = await findUserById(id);
   if (!user) return null;
+
+  if (updates.username !== undefined && !/^[A-Za-z0-9._-]{3,64}$/.test(updates.username)) {
+    throw new Error('Username must be 3-64 characters using letters, numbers, dot, underscore, or hyphen');
+  }
+  if (updates.email !== undefined && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) {
+    throw new Error('Email address is invalid');
+  }
+  if (updates.password !== undefined && updates.password.length < 12) {
+    throw new Error('Password must be at least 12 characters');
+  }
+  if (updates.password !== undefined && user.authMethod !== 'local') {
+    throw new Error('Passwords cannot be assigned to SSO-only users');
+  }
 
   const now = nowISO();
   const oldUsername = user.username;
@@ -276,6 +294,10 @@ export async function updateUser(id: string, updates: Partial<UpdateUserInput>):
     user.passwordSalt = salt;
   }
 
+  if (updates.password || updates.role !== undefined || updates.status !== undefined) {
+    user.sessionVersion = (user.sessionVersion ?? 1) + 1;
+  }
+
   user.updatedAt = now;
 
   await store.set<User>(USERS_TABLE, id, user);
@@ -304,6 +326,7 @@ export async function deleteUser(id: string): Promise<boolean> {
   if (!user) return false;
 
   user.status = 'disabled';
+  user.sessionVersion = (user.sessionVersion ?? 1) + 1;
   user.updatedAt = nowISO();
   await store.set<User>(USERS_TABLE, id, user);
   return true;
@@ -343,10 +366,14 @@ export async function findOrCreateSSOUser(
 ): Promise<PublicUser | null> {
   // Use email index for O(1) lookup
   const existingUser = await findUserByEmail(email);
-  if (existingUser && existingUser.authMethod === 'sso' && existingUser.ssoProvider === provider) {
+  if (existingUser) {
+    if (existingUser.status !== 'active' || existingUser.authMethod !== 'sso' || existingUser.ssoProvider !== provider) {
+      return null;
+    }
     // Update role if changed
     if (existingUser.role !== role) {
       existingUser.role = role;
+      existingUser.sessionVersion = (existingUser.sessionVersion ?? 1) + 1;
       existingUser.updatedAt = nowISO();
       await store.set<User>(USERS_TABLE, existingUser.id, existingUser);
     }
@@ -375,6 +402,7 @@ export async function findOrCreateSSOUser(
     authMethod: 'sso',
     ssoProvider: provider,
     status: 'active',
+    sessionVersion: 1,
   };
 
   await store.set<User>(USERS_TABLE, id, user);
@@ -402,9 +430,11 @@ export async function findOrCreateSSOUser(
 export async function resetUserPassword(id: string, newPassword: string): Promise<PublicUser | null> {
   const user = await findUserById(id);
   if (!user) return null;
+  if (user.authMethod !== 'local') throw new Error('Passwords cannot be reset for SSO-only users');
   const { hash, salt } = await hashPassword(newPassword);
   user.passwordHash = hash;
   user.passwordSalt = salt;
+  user.sessionVersion = (user.sessionVersion ?? 1) + 1;
   user.updatedAt = nowISO();
   await store.set<User>(USERS_TABLE, id, user);
   return toPublicUser(user);

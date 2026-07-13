@@ -59,8 +59,10 @@ function formatDate(iso: string): string {
   }
 }
 
-export default async function ReportsPage() {
-  const history = await getReportsAnalysisHistory();
+export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
+  const history = await getReportsAnalysisHistory(projectId);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -83,7 +85,7 @@ export default async function ReportsPage() {
             {REPORT_FORMATS.map(({ id, title, description, icon: Icon, format, ext }) => (
               <a
                 key={id}
-                href={getReportUrl(format)}
+                href={getReportUrl(format, projectId)}
                 download={`recurrsive-report${ext}`}
                 className="group flex flex-col p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/5 hover:border-accent-blue/20 transition-all"
               >
@@ -154,7 +156,7 @@ export default async function ReportsPage() {
                         return (
                           <a
                             key={fmt}
-                            href={getReportUrl(fmt)}
+                            href={getReportUrl(fmt, projectId)}
                             download
                             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
                             title={`Download ${fmtDef?.title ?? fmt}`}

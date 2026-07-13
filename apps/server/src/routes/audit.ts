@@ -4,7 +4,7 @@
  * Enhanced audit trail routes for querying audit log events and statistics.
  *
  * Endpoints are backed by the audit middleware's durable application store.
- * Both routes require authentication with at least `analyst` role.
+ * Audit data contains organization-wide security metadata and is admin-only.
  *
  * @packageDocumentation
  */
@@ -64,7 +64,7 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
       offset?: string;
     };
   }>('/api/v1/audit', {
-    preHandler: [authMiddleware, requireRole('analyst')],
+    preHandler: [authMiddleware, requireRole('admin')],
   }, async (request, reply) => {
     const query = request.query;
 
@@ -143,7 +143,7 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
    * user, status group, and recent errors.
    */
   app.get('/api/v1/audit/stats', {
-    preHandler: [authMiddleware, requireRole('analyst')],
+    preHandler: [authMiddleware, requireRole('admin')],
   }, async (_request, reply) => {
     const stats = await getAuditStats();
 
@@ -159,7 +159,7 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
    * Derived from the same data as /audit/stats but in a simplified shape.
    */
   app.get('/api/v1/audit/summary', {
-    preHandler: [authMiddleware, requireRole('analyst')],
+    preHandler: [authMiddleware, requireRole('admin')],
   }, async (_request, reply) => {
     const stats = await getAuditStats();
 

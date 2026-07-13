@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Search, Bell, Sparkles, LogOut, Settings } from "lucide-react";
 import { useRealtime } from "./realtime-context";
 import { LiveIndicator } from "./LiveIndicator";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, type Role } from "@/lib/auth-context";
 import { useActiveProject } from "./active-project-context";
 import NotificationsPanel from "./notifications-panel";
 import AiChatPanel from "./ai-chat-panel";
@@ -72,7 +72,8 @@ export default function Header({ title, subtitle }: HeaderProps) {
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      const projectParam = activeProject ? `&projectId=${encodeURIComponent(activeProject.id)}` : '';
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}${projectParam}`);
     }
   };
 
@@ -212,14 +213,14 @@ export default function Header({ title, subtitle }: HeaderProps) {
                   </div>
                 )}
                 <Link
-                  href="/settings"
+                  href={user?.role === 'admin' ? "/settings" : "/projects"}
                   onClick={() => setShowUserMenu(false)}
                   className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-text-secondary hover:bg-white/5 transition-colors"
                   role="menuitem"
                   tabIndex={0}
                 >
                   <Settings className="h-4 w-4" aria-hidden="true" />
-                  Settings
+                  {user?.role === 'admin' ? 'Settings' : 'Projects'}
                 </Link>
                 <button
                   onClick={handleLogout}
@@ -252,10 +253,10 @@ export default function Header({ title, subtitle }: HeaderProps) {
 // ---------------------------------------------------------------------------
 
 import {
-  LayoutDashboard, Brain, HeartPulse, Clock, GitCompare,
+  LayoutDashboard,
   FolderGit2, ShieldAlert, Lightbulb, Network, BarChart3,
-  Layers, Calendar, FileText, FlaskConical, Camera,
-  Users, Shield, History, Key, Eye, Webhook, KeyRound
+  Layers, Calendar, FileText, FlaskConical,
+  Users, Shield, History, KeyRound
 } from 'lucide-react';
 
 interface CommandItem {
@@ -263,15 +264,12 @@ interface CommandItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   group: 'Pages' | 'Actions';
+  roles?: Role[];
 }
 
 const COMMAND_ITEMS: CommandItem[] = [
   // Intelligence
   { label: 'Overview', href: '/', icon: LayoutDashboard, group: 'Pages' },
-  { label: 'Forecasting', href: '/forecasting', icon: Brain, group: 'Pages' },
-  { label: 'Health', href: '/health', icon: HeartPulse, group: 'Pages' },
-  { label: 'Timeline', href: '/timeline', icon: Clock, group: 'Pages' },
-  { label: 'Comparisons', href: '/comparisons', icon: GitCompare, group: 'Pages' },
   // Analysis
   { label: 'Projects', href: '/projects', icon: FolderGit2, group: 'Pages' },
   { label: 'Findings', href: '/findings', icon: ShieldAlert, group: 'Pages' },
@@ -283,35 +281,33 @@ const COMMAND_ITEMS: CommandItem[] = [
   { label: 'Scheduling', href: '/scheduling', icon: Calendar, group: 'Pages' },
   { label: 'Reports', href: '/reports', icon: FileText, group: 'Pages' },
   { label: 'Experiments', href: '/experiments', icon: FlaskConical, group: 'Pages' },
-  { label: 'Snapshots', href: '/snapshots', icon: Camera, group: 'Pages' },
   // Administration
-  { label: 'Users', href: '/users', icon: Users, group: 'Pages' },
   { label: 'Policies', href: '/policies', icon: Shield, group: 'Pages' },
-  { label: 'Audit Trail', href: '/audit', icon: History, group: 'Pages' },
-  { label: 'Settings', href: '/settings', icon: Settings, group: 'Pages' },
-  { label: 'Secrets', href: '/secrets', icon: Key, group: 'Pages' },
-  { label: 'Data Masking', href: '/data-masking', icon: Eye, group: 'Pages' },
-  { label: 'Webhooks', href: '/webhooks', icon: Webhook, group: 'Pages' },
-  { label: 'Notifications', href: '/notifications', icon: Bell, group: 'Pages' },
-  { label: 'SSO', href: '/sso', icon: KeyRound, group: 'Pages' },
+  { label: 'Users', href: '/users', icon: Users, group: 'Pages', roles: ['admin'] },
+  { label: 'Audit Trail', href: '/audit', icon: History, group: 'Pages', roles: ['admin'] },
+  { label: 'Settings', href: '/settings', icon: Settings, group: 'Pages', roles: ['admin'] },
+  { label: 'SSO', href: '/sso', icon: KeyRound, group: 'Pages', roles: ['admin'] },
   // Actions
-  { label: 'Run Analysis', href: '/projects', icon: FolderGit2, group: 'Actions' },
-  { label: 'Create Project', href: '/projects', icon: FolderGit2, group: 'Actions' },
+  { label: 'Run Analysis', href: '/projects', icon: FolderGit2, group: 'Actions', roles: ['admin', 'analyst'] },
+  { label: 'Create Project', href: '/projects', icon: FolderGit2, group: 'Actions', roles: ['admin', 'analyst'] },
   { label: 'Export Report', href: '/reports', icon: FileText, group: 'Actions' },
   { label: 'Search Findings', href: '/search', icon: Search, group: 'Actions' },
 ];
 
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const router = useRouter();
+  const { user } = useAuth();
+  const { activeProject } = useActiveProject();
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const availableItems = COMMAND_ITEMS.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
   const filtered = query.trim()
-    ? COMMAND_ITEMS.filter(item =>
+    ? availableItems.filter(item =>
         item.label.toLowerCase().includes(query.toLowerCase())
       )
-    : COMMAND_ITEMS;
+    : availableItems;
 
   const groups = ['Pages', 'Actions'] as const;
 
@@ -325,8 +321,11 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
 
   const handleSelect = useCallback((item: CommandItem) => {
     onClose();
-    router.push(item.href);
-  }, [onClose, router]);
+    const scopedHref = activeProject && !['/projects', '/batch', '/users', '/audit', '/settings', '/sso'].includes(item.href)
+      ? `${item.href}?projectId=${encodeURIComponent(activeProject.id)}`
+      : item.href;
+    router.push(scopedHref);
+  }, [activeProject, onClose, router]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {

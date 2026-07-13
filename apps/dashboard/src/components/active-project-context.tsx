@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { getProjects, type Project } from '@/lib/api';
 
@@ -19,7 +19,7 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
   const searchParams = useSearchParams();
   
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const isPublicRoute = ['/login', '/setup', '/invite'].some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
@@ -28,7 +28,7 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
   // Load all projects on mount
   useEffect(() => {
     if (isPublicRoute) {
-      setLoading(false);
+      setProjectsLoading(false);
       return;
     }
     let active = true;
@@ -36,10 +36,10 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
       .then((data) => {
         if (!active) return;
         setProjects(data);
-        setLoading(false);
+        setProjectsLoading(false);
       })
       .catch(() => {
-        if (active) setLoading(false);
+        if (active) setProjectsLoading(false);
       });
     return () => {
       active = false;
@@ -48,10 +48,24 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
 
   const projectId = searchParams.get('projectId');
 
-  // Resolve the active project whenever the list or the URL query changes
+  const isProjectScopedRoute = useMemo(() => {
+    if (isPublicRoute) return false;
+    const globalPrefixes = [
+      '/projects', '/batch', '/users', '/invites', '/settings',
+      '/sso', '/audit', '/webhooks', '/notifications', '/secrets', '/data-masking',
+      '/cloud',
+    ];
+    return !globalPrefixes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  }, [isPublicRoute, pathname]);
+
+  // A scoped screen is never rendered until its project ID is valid. This
+  // prevents a request from briefly using the previous/default project while
+  // the router is resolving a project switch.
   useEffect(() => {
+    if (projectsLoading || isPublicRoute) return;
     if (projects.length === 0) {
       setActiveProject(null);
+      if (isProjectScopedRoute) router.replace('/projects?create=1');
       return;
     }
 
@@ -63,13 +77,8 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
       }
     }
 
-    // Auto-scoping redirect logic: if there is no query param, or the query param doesn't match any project,
-    // and we are not on a non-scoped route (like /login or /setup), auto-select the first project.
-    const nonScopedRoutes = ['/login', '/setup', '/invites', '/invite/'];
-    const isNonScoped = nonScopedRoutes.some((route) => pathname.startsWith(route));
-
-    if (!isNonScoped && !loading) {
-      // Sort alphabetically to guarantee consistent first selector
+    setActiveProject(null);
+    if (isProjectScopedRoute) {
       const sorted = [...projects].sort((a, b) => a.name.localeCompare(b.name));
       const firstProject = sorted[0];
       if (firstProject) {
@@ -78,23 +87,33 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
         const search = current.toString();
         const query = search ? `?${search}` : '';
         
-        // Use router.replace to avoid clogging browser history
         router.replace(`${pathname}${query}`);
       }
     }
-  }, [projects, projectId, pathname, loading, router, searchParams]);
+  }, [projects, projectId, pathname, projectsLoading, isProjectScopedRoute, isPublicRoute, router, searchParams]);
 
   const switchProject = useCallback((id: string) => {
+    if (!projects.some((project) => project.id === id)) return;
+    setActiveProject(null);
     const current = new URLSearchParams(Array.from(searchParams.entries()));
     current.set('projectId', id);
     const search = current.toString();
     const query = search ? `?${search}` : '';
     router.push(`${pathname}${query}`);
-  }, [pathname, searchParams, router]);
+  }, [pathname, projects, searchParams, router]);
+
+  const loading = projectsLoading || (isProjectScopedRoute && !activeProject);
 
   return (
     <ActiveProjectContext.Provider value={{ projects, activeProject, loading, switchProject }}>
-      {children}
+      {loading && !isPublicRoute ? (
+        <div className="min-h-screen flex flex-1 items-center justify-center" role="status" aria-live="polite">
+          <div className="flex items-center gap-3 text-sm text-text-secondary">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-accent-blue border-t-transparent" aria-hidden="true" />
+            Resolving project…
+          </div>
+        </div>
+      ) : <React.Fragment key={activeProject?.id ?? 'global'}>{children}</React.Fragment>}
     </ActiveProjectContext.Provider>
   );
 }

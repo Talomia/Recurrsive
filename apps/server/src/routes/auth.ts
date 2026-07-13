@@ -12,7 +12,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { createLogger } from '@recurrsive/core';
-import { createToken, authMiddleware } from '../middleware/auth.js';
+import { createToken, authMiddleware, verifyToken } from '../middleware/auth.js';
 import type { AuthUser } from '../middleware/auth.js';
 import { generateApiKey, listApiKeys, revokeApiKey } from '../middleware/api-keys.js';
 import { requireRole } from '../middleware/rbac.js';
@@ -100,12 +100,13 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     // 1. Try real (store-backed) users first
     const realUser = await authenticateUser(username, password);
     if (realUser) {
-      const token = createToken(realUser.id, realUser.role as Role, undefined, realUser.username);
+      const token = createToken(realUser.id, realUser.role as Role, undefined, realUser.username, undefined, realUser.sessionVersion);
+      const sessionExpiresAt = verifyToken(token)!.exp;
       logger.info(`User '${realUser.username}' logged in successfully (store)`);
       return reply.status(200).send({
         data: {
           token,
-          user: realUser,
+          user: { ...realUser, sessionExpiresAt },
         },
       });
     }
@@ -117,6 +118,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
     if (demo) {
       const token = createToken(demo.id, demo.role, undefined, demo.username);
+      const sessionExpiresAt = verifyToken(token)!.exp;
       logger.info(`User '${demo.username}' logged in successfully (demo)`);
       return reply.status(200).send({
         data: {
@@ -126,6 +128,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             username: demo.username,
             role: demo.role,
             displayName: demo.displayName,
+            sessionExpiresAt,
           },
         },
       });
@@ -153,7 +156,14 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const user = (request as typeof request & { user: AuthUser }).user;
 
-    const token = createToken(user.id, user.role, undefined, user.username);
+    const token = createToken(user.id, user.role, undefined, user.username, undefined, user.sessionVersion);
+    const sessionExpiresAt = verifyToken(token)!.exp;
+    if (user.tokenId) {
+      await store.set('revoked_tokens', user.tokenId, {
+        revokedAt: new Date().toISOString(),
+        expiresAt: user.tokenExpiresAt,
+      });
+    }
 
     return reply.status(200).send({
       data: {
@@ -161,9 +171,24 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         user: {
           id: user.id,
           role: user.role,
+          username: user.username,
+          sessionExpiresAt,
         },
       },
     });
+  });
+
+  app.post('/api/v1/auth/logout', {
+    preHandler: authMiddleware,
+  }, async (request, reply) => {
+    const user = (request as typeof request & { user: AuthUser }).user;
+    if (user.tokenId) {
+      await store.set('revoked_tokens', user.tokenId, {
+        revokedAt: new Date().toISOString(),
+        expiresAt: user.tokenExpiresAt,
+      });
+    }
+    return reply.status(204).send();
   });
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -189,6 +214,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           displayName: storeUser.displayName,
           username: storeUser.username,
           email: storeUser.email,
+          sessionExpiresAt: user.tokenExpiresAt,
         },
       });
     }
@@ -203,6 +229,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         authMethod: user.authMethod,
         displayName: demo?.displayName ?? user.id,
         username: demo?.username ?? user.id,
+        sessionExpiresAt: user.tokenExpiresAt,
       },
     });
   });
@@ -332,6 +359,12 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         message: 'User not found in store',
       });
     }
+    if (storeUser.authMethod !== 'local') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Password changes are not available for SSO-only accounts.',
+      });
+    }
 
     // Verify the current password
     const valid = await verifyPassword(currentPassword, storeUser.passwordHash, storeUser.passwordSalt);
@@ -346,6 +379,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const { hash, salt } = await hashPassword(newPassword);
     storeUser.passwordHash = hash;
     storeUser.passwordSalt = salt;
+    storeUser.sessionVersion = (storeUser.sessionVersion ?? 1) + 1;
     storeUser.updatedAt = new Date().toISOString();
     await store.set<User>('users', storeUser.id, storeUser);
 

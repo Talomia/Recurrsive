@@ -131,11 +131,13 @@ function TrendSparkline({
 // Page
 // ---------------------------------------------------------------------------
 
-export default async function TimelinePage() {
+export default async function TimelinePage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
   const [history, snapshots, trends] = await Promise.all([
-    getTimelineHistory(),
-    getTimelineSnapshots(),
-    getTimelineTrends(),
+    getTimelineHistory(projectId),
+    getTimelineSnapshots(projectId),
+    getTimelineTrends(projectId),
   ]);
 
   const hasData = history.length > 0 || snapshots.length > 0;

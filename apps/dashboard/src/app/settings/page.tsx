@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import { getSettingsSections, getSettingsValues } from '@/lib/api';
 import type { SettingsSection, SettingsField } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
+import { useAuth } from '@/lib/auth-context';
 
 // ---------------------------------------------------------------------------
 // Icon map — resolve icon name strings from the API to Lucide components
@@ -36,11 +37,13 @@ function Toggle({
   checked,
   onChange,
   label,
+  disabled = false,
 }: {
   id: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -49,9 +52,10 @@ function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
+      disabled={disabled}
       className={`relative h-6 w-11 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-blue ${
         checked ? 'bg-accent-blue' : 'bg-white/10'
-      }`}
+      } disabled:cursor-not-allowed disabled:opacity-50`}
     >
       <span
         className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
@@ -67,6 +71,8 @@ function Toggle({
 // ---------------------------------------------------------------------------
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin';
   const baseId = useId();
   const [sections, setSections] = useState<SettingsSection[]>([]);
   const [values, setValues] = useState<Record<string, string | boolean | number>>({});
@@ -163,12 +169,14 @@ export default function SettingsPage() {
                           checked={values[setting.key] as boolean}
                           onChange={(v) => handleChange(setting.key, v)}
                           label={setting.label}
+                          disabled={!canEdit}
                         />
                       ) : (
                         <input
                           id={inputId}
                           type={setting.type}
                           value={String(values[setting.key] ?? '')}
+                          disabled={!canEdit}
                           onChange={(e) => handleChange(setting.key, setting.type === 'number' ? Number(e.target.value) : e.target.value)}
                           className="rounded-lg bg-white/5 border border-white/5 px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent-blue/40 transition-colors w-64 text-right"
                         />
@@ -181,7 +189,8 @@ export default function SettingsPage() {
           );
         })}
 
-        <div className="flex justify-end gap-3">
+        {!canEdit && <p className="text-sm text-text-muted">Only administrators can change platform settings.</p>}
+        {canEdit && <div className="flex justify-end gap-3">
           <button
             onClick={handleReset}
             className="rounded-xl bg-white/5 border border-white/5 px-5 py-2.5 text-sm font-medium text-text-secondary hover:bg-white/8 transition-colors"
@@ -194,7 +203,7 @@ export default function SettingsPage() {
           >
             {saved ? '✓ Saved' : 'Save Changes'}
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   );

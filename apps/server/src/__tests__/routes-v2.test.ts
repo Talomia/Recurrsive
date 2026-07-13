@@ -26,7 +26,7 @@
  * Total: 130+ tests
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
 // ---------------------------------------------------------------------------
@@ -60,6 +60,7 @@ vi.mock('@recurrsive/graph', () => ({
     }),
     upsertEntity: vi.fn().mockResolvedValue(undefined),
     upsertRelationship: vi.fn().mockResolvedValue(undefined),
+    clearAll: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn().mockResolvedValue(undefined),
   }),
 }));
@@ -170,6 +171,7 @@ vi.mock('@recurrsive/core', () => ({
 
 import { createServer } from '../index.js';
 import { createToken } from '../middleware/auth.js';
+import { installProjectScopedInjection, seedTestProject } from './test-project.js';
 
 // ---------------------------------------------------------------------------
 // Test setup
@@ -189,6 +191,8 @@ beforeAll(async () => {
 
   app = await createServer({ logger: false, rateLimitMax: 500 });
   await app.ready();
+  await seedTestProject();
+  installProjectScopedInjection(app);
 });
 
 afterAll (async () => {
@@ -422,13 +426,13 @@ describe ('GraphQL endpoints', () => {
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/graphql',
-      payload: { query: '{ projects { id name } }' },
+      payload: { query: '{ project { id name } }' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
-    expect(body.data).toHaveProperty('projects');
-    expect(Array.isArray(body.data.projects)).toBe(true);
+    expect(body.data).toHaveProperty('project');
+    expect(body.data.project.id).toBe('test-project');
   });
 
   it ('Query returns requested fields only', async () => {
@@ -436,19 +440,14 @@ describe ('GraphQL endpoints', () => {
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/graphql',
-      payload: { query: '{ projects { id name } }' },
+      payload: { query: '{ project { id name } }' },
     });
     const body = res.json();
-    // With no seed data and state not initialized, projects returns []
-    expect(Array.isArray(body.data.projects)).toBe(true);
-    if (body.data.projects.length > 0) {
-      const project = body.data.projects[0];
-      expect(project).toHaveProperty('id');
-      expect(project).toHaveProperty('name');
-      // Should NOT have fields we didn't request
-      expect(project).not.toHaveProperty('healthScore');
-      expect(project).not.toHaveProperty('language');
-    }
+    const project = body.data.project;
+    expect(project).toHaveProperty('id');
+    expect(project).toHaveProperty('name');
+    expect(project).not.toHaveProperty('healthScore');
+    expect(project).not.toHaveProperty('language');
   });
 
   it('Arguments filter correctly (severity, limit)', async () => {
@@ -456,14 +455,14 @@ describe ('GraphQL endpoints', () => {
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/graphql',
-      payload: { query: '{ findings(severity: "critical", limit: 3) { id title severity } }' },
+      payload: { query: '{ findings(severity: critical, limit: 3) { nodes { id title severity } total } }' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.data).toHaveProperty('findings');
-    expect(Array.isArray(body.data.findings)).toBe(true);
-    expect(body.data.findings.length).toBeLessThanOrEqual(3);
-    for (const finding of body.data.findings) {
+    expect(Array.isArray(body.data.findings.nodes)).toBe(true);
+    expect(body.data.findings.nodes.length).toBeLessThanOrEqual(3);
+    for (const finding of body.data.findings.nodes) {
       expect(finding.severity).toBe('critical');
     }
   });
@@ -474,16 +473,35 @@ describe ('GraphQL endpoints', () => {
       method: 'POST',
       url: '/api/v1/graphql',
       payload: {
-        query: 'query GetFindings($sev: String) { findings(severity: $sev) { id severity } }',
+        query: 'query GetFindings($sev: Severity!) { findings(severity: $sev) { nodes { id severity } } }',
         variables: { sev: 'high' },
       },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.data).toHaveProperty('findings');
-    for (const finding of body.data.findings) {
+    for (const finding of body.data.findings.nodes) {
       expect(finding.severity).toBe('high');
     }
+  });
+
+  it ('supports named operations, aliases, and fragments', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/graphql',
+      payload: {
+        operationName: 'ScopedProject',
+        query: `
+          query ScopedProject {
+            selected: project { ...ProjectIdentity }
+          }
+          fragment ProjectIdentity on Project { id name }
+        `,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.selected).toEqual({ id: 'test-project', name: 'Test Project' });
   });
 
   it ('GET /api/v1/graphql/schema returns schema text', async () => {
@@ -527,33 +545,28 @@ describe ('GraphQL endpoints', () => {
       url: '/api/v1/graphql',
       payload: { query: 'not valid graphql at all !!!' },
     });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body.data).toBeNull();
     expect(body.errors).toBeDefined();
     expect(body.errors.length).toBeGreaterThan(0);
   });
 
-  it ('projects query works and returns empty array when uninitialized', async () => {
+  it ('project query returns the selected scoped project', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/graphql',
-      payload: { query: '{ projects { id name slug healthScore language } }' },
+      payload: { query: '{ project { id name slug healthScore language } }' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    // No seed data; state is not initialized so projects should be empty
-    expect(Array.isArray(body.data.projects)).toBe(true);
-    expect(body.data.projects.length).toBeGreaterThanOrEqual(0);
-    if (body.data.projects.length > 0) {
-      const project = body.data.projects[0];
-      expect(project).toHaveProperty('id');
-      expect(project).toHaveProperty('name');
-      expect(project).toHaveProperty('slug');
-      expect(project).toHaveProperty('healthScore');
-      expect(project).toHaveProperty('language');
-    }
+    const project = body.data.project;
+    expect(project).toHaveProperty('id');
+    expect(project).toHaveProperty('name');
+    expect(project).toHaveProperty('slug');
+    expect(project).toHaveProperty('healthScore');
+    expect(project).toHaveProperty('language');
   });
 
   it ('findings query with severity filter returns only matching', async () => {
@@ -561,11 +574,11 @@ describe ('GraphQL endpoints', () => {
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/graphql',
-      payload: { query: '{ findings(severity: "low") { id title severity } }' },
+      payload: { query: '{ findings(severity: low) { nodes { id title severity } } }' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    for (const f of body.data.findings) {
+    for (const f of body.data.findings.nodes) {
       expect(f.severity).toBe('low');
     }
   });
@@ -789,21 +802,45 @@ describe('Removed confidence-calibration surface', () => {
 // ===========================================================================
 
 describe ('SSO endpoints', () => {
+  const testIdpCertificate = `-----BEGIN CERTIFICATE-----
+MIIDHTCCAgWgAwIBAgIUNOygQHFJCnkIOXZC4/6B4z0tgjUwDQYJKoZIhvcNAQEL
+BQAwHjEcMBoGA1UEAwwTcmVjdXJyc2l2ZS10ZXN0LWlkcDAeFw0yNjA3MTMxNTU0
+NDFaFw0zNjA3MTAxNTU0NDFaMB4xHDAaBgNVBAMME3JlY3VycnNpdmUtdGVzdC1p
+ZHAwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC46jfl4LmVAQ4kve6C
+XEOPmWFbCFKGMnLaDiXOctGJ6nzEcSiiD4RturIbGlASLhmHyYhIantupkaGrQfA
+tDv97rTvZWpZSWvR4UzWgBcrj/oTxjFXMFSOxJq9RZpjzguPTZfGcCUwxWAKoegx
++Dipz8VHDE1z96kDQHRRds7YQaMoov/Ndj8/wr9KKNQSb7PHyVnVN3WmpPxTVt5j
+2hm7I3fCDebLaAp5k/1W5J9eTUl9LJcPkqieU4esQ5Frt9634wV4bfk9QbcfAI8z
+293nLdtUlx6eWpNPeHCSk06HYqszl4ZX78YupTcFN1CF4j1ADaSoI/ppUKsq1eh1
+GkZJAgMBAAGjUzBRMB0GA1UdDgQWBBQZpghYp4EfnXHXnfrTE4vSe8aAGzAfBgNV
+HSMEGDAWgBQZpghYp4EfnXHXnfrTE4vSe8aAGzAPBgNVHRMBAf8EBTADAQH/MA0G
+CSqGSIb3DQEBCwUAA4IBAQBdRxMv5HdR5OMYvyqifAEm5/xC3aIh3uBvqRtt10jC
+inOgMvf+JfgWW3zMjSjBekAkytTelr95Qp6fT0zJ2vg4SErB4KddL6wlgBRtwefJ
+wFsEJodh//yyV/lC3m4SMcJcJgPaDnGl9GL268Ml2mbd0mn8F9rJoljv2pRvQ0df
+o9NTiWalTh0gaezTJYHwYNl7h+oSbExCIXylYldwPkTk1xuwAbS2m3cNTay1mn+a
+oU5S4c4C7xjlYnSmqEumfcIjoMif7LrEuzPfR/BA2ZN8bodYMX7haCj8nTsczC24
+BL+ux5ISEOzWXKg/2wB4+gVdNlO3sfnYKhHryobNw0qo
+-----END CERTIFICATE-----`;
+
+  const providerPayload = (displayName: string) => ({
+    provider: 'custom',
+    displayName,
+    idpEntityId: 'https://test-idp.example.com/metadata',
+    spEntityId: 'https://recurrsive.example.com/saml/metadata',
+    ssoUrl: 'https://test-idp.example.com/sso',
+    certificate: testIdpCertificate,
+    signatureMode: 'both',
+    autoProvision: true,
+    defaultRole: 'viewer',
+  });
+
   it('GET /api/v1/sso/providers returns provider list', async () => {
     // Create a provider first since there is no seed data
     await app.inject({
       headers: authHeaders,
       method: 'PUT',
       url: '/api/v1/sso/providers/okta',
-      payload: {
-        provider: 'okta',
-        displayName: 'Test Okta',
-        entityId: 'https://test.okta.com/app/recurrsive',
-        ssoUrl: 'https://test.okta.com/app/recurrsive/sso/saml',
-        certificate: 'test-cert',
-        autoProvision: true,
-        defaultRole: 'analyst',
-      },
+      payload: { ...providerPayload('Test Okta'), provider: 'okta', defaultRole: 'analyst' },
     });
 
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/sso/providers' });
@@ -820,15 +857,7 @@ describe ('SSO endpoints', () => {
       headers: authHeaders,
       method: 'PUT',
       url: '/api/v1/sso/providers/test-provider',
-      payload: {
-        provider: 'custom',
-        displayName: 'Test IdP',
-        entityId: 'https://test-idp.example.com',
-        ssoUrl: 'https://test-idp.example.com/sso',
-        certificate: 'test-cert',
-        autoProvision: true,
-        defaultRole: 'viewer',
-      },
+      payload: providerPayload('Test IdP'),
     });
     expect([200, 201]).toContain(res.statusCode);
     const body = res.json();
@@ -860,38 +889,34 @@ describe ('SSO endpoints', () => {
       headers: authHeaders,
       method: 'PUT',
       url: '/api/v1/sso/providers/okta',
-      payload: {
-        provider: 'okta',
-        displayName: 'Test Okta',
-        entityId: 'https://test.okta.com/app/recurrsive',
-        ssoUrl: 'https://test.okta.com/app/recurrsive/sso/saml',
-        certificate: 'test-cert',
-        autoProvision: true,
-        defaultRole: 'analyst',
-      },
+      payload: { ...providerPayload('Test Okta'), provider: 'okta', defaultRole: 'analyst' },
     });
 
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/sso/login/okta' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('redirectUrl');
-    expect(body).toHaveProperty('provider');
-    expect(body).toHaveProperty('entityId');
-    expect(body.provider).toBe('okta');
-    expect(body.redirectUrl).toContain('https://');
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toContain('https://test-idp.example.com/sso');
   });
 
-  it ('Provider has protocol and status fields', async () => {
+  it ('Provider exposes the signed SAML configuration', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/sso/providers' });
     const body = res.json();
     expect(body.data.length).toBeGreaterThan(0);
     const provider = body.data[0];
     expect(provider).toHaveProperty('provider');
     expect(provider).toHaveProperty('ssoUrl');
+    expect(provider).toHaveProperty('idpEntityId');
+    expect(provider).toHaveProperty('spEntityId');
     expect(provider).toHaveProperty('autoProvision');
     expect(provider).toHaveProperty('defaultRole');
     // Verify provider is a known type
     expect(['okta', 'auth0', 'azure-ad', 'google-workspace', 'custom']).toContain(provider.provider);
+
+    const detail = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: `/api/v1/sso/providers/${provider.id}`,
+    });
+    expect(detail.json().data.signatureMode).toBe('both');
   });
 });
 
@@ -917,18 +942,17 @@ describe ('Scheduling endpoints', () => {
       url: '/api/v1/schedules',
       payload: {
         name: 'Daily Security Scan Report',
-        schedule: '0 8 * * *',
+        cron: '0 8 * * *',
         timezone: 'UTC',
-        formats: ['json', 'html'],
-        recipients: ['security@test.io'],
-        sections: ['summary', 'findings'],
+        format: 'html',
+        includeActionItems: true,
       },
     });
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.data).toHaveProperty('id');
     expect(body.data.name).toBe('Daily Security Scan Report');
-    expect(body.data.schedule).toBe('0 8 * * *');
+    expect(body.data.cron).toBe('0 8 * * *');
     expect(body.data.status).toBe('active');
     expect(body.data).toHaveProperty('nextRunAt');
   });
@@ -937,10 +961,10 @@ describe ('Scheduling endpoints', () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/schedules' });
     const body = res.json();
     for (const schedule of body.data) {
-      expect(schedule).toHaveProperty('schedule');
-      expect(typeof schedule.schedule).toBe('string');
+      expect(schedule).toHaveProperty('cron');
+      expect(typeof schedule.cron).toBe('string');
       // Cron expressions have space-separated fields
-      expect(schedule.schedule.split(' ').length).toBeGreaterThanOrEqual(5);
+      expect(schedule.cron.split(' ').length).toBeGreaterThanOrEqual(5);
     }
   });
 
@@ -984,10 +1008,10 @@ describe ('Scheduling endpoints', () => {
     const body = res.json();
     expect(body.data.id).toBe(firstSchedule.id);
     expect(body.data).toHaveProperty('name');
-    expect(body.data).toHaveProperty('schedule');
+    expect(body.data).toHaveProperty('cron');
     expect(body.data).toHaveProperty('timezone');
-    expect(body.data).toHaveProperty('formats');
-    expect(body.data).toHaveProperty('recipients');
+    expect(body.data).toHaveProperty('format');
+    expect(body.data).toHaveProperty('includeActionItems');
     expect(body.data).toHaveProperty('status');
     expect(body.data).toHaveProperty('totalRuns');
   });
@@ -1429,16 +1453,19 @@ describe ('Invite endpoints', () => {
 describe ('Password change endpoint', () => {
   let userId: string;
   let userToken: string;
+  let userSequence = 0;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    userSequence += 1;
+    const username = `pwd-change-user-${userSequence}`;
     // Create a user to test password change on
     const createRes = await app.inject({
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/users',
       payload: {
-        username: 'pwd-change-user',
-        email: 'pwdchange@recurrsive.dev',
+        username,
+        email: `pwdchange-${userSequence}@recurrsive.dev`,
         password: 'old-password-123',
         role: 'viewer',
       },
@@ -1450,7 +1477,7 @@ describe ('Password change endpoint', () => {
       method: 'POST',
       url: '/api/v1/auth/login',
       payload: {
-        username: 'pwd-change-user',
+        username,
         password: 'old-password-123',
       },
     });
@@ -1470,6 +1497,13 @@ describe ('Password change endpoint', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.message).toBe('Password changed successfully');
+
+    const staleSession = await app.inject({
+      headers: { authorization: `Bearer ${userToken}` },
+      method: 'GET',
+      url: '/api/v1/auth/me',
+    });
+    expect(staleSession.statusCode).toBe(401);
   });
 
   it ('PUT /api/v1/auth/change-password fails with wrong current password', async () => {

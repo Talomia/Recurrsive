@@ -104,7 +104,7 @@ export async function registerSetupRoutes(app: FastifyInstance): Promise<void> {
         displayName: displayName ?? username,
       });
 
-      const token = createToken(user.id, 'admin', undefined, user.username);
+      const token = createToken(user.id, 'admin', undefined, user.username, undefined, user.sessionVersion);
 
       logger.info(`Initial setup completed — admin user '${username}' created`);
 

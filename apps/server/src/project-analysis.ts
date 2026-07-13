@@ -1,10 +1,30 @@
 import type { FastifyRequest } from 'fastify';
-import { state, type AnalysisCache, type AnalysisHistoryEntry } from './state.js';
+import type { AnalysisCache, AnalysisHistoryEntry } from './state.js';
 import { store } from './store.js';
+import { getProjectGraph } from './project-graph.js';
 
-interface ProjectRecord {
+export interface ProjectRecord {
   id: string;
+  name: string;
+  slug: string;
   repository: string;
+  language: string;
+  settings: { analyzers: string[]; collectors: string[] };
+}
+
+export class ProjectScopeError extends Error {
+  readonly statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = 'ProjectScopeError';
+    this.statusCode = statusCode;
+  }
+}
+
+/** Preserve project-scope status codes when route handlers wrap operational errors. */
+export function rethrowProjectScopeError(error: unknown): void {
+  if (error instanceof ProjectScopeError) throw error;
 }
 
 export interface ResolvedAnalysis {
@@ -28,26 +48,27 @@ export function projectIdFromRequest(request: FastifyRequest): string | null {
     : null;
 }
 
-/** Resolve persisted results by project ID, falling back to active state. */
-export async function resolveAnalysis(request: FastifyRequest): Promise<ResolvedAnalysis> {
+/** Require and validate the registered project scope for a product read. */
+export async function requireProjectScope(request: FastifyRequest): Promise<ProjectRecord> {
   const projectId = projectIdFromRequest(request);
-  if (projectId) {
-    const direct = await store.get<AnalysisCache>('analysis_cache', projectId);
-    if (direct) return { cache: direct, persistenceKey: projectId, projectId };
-
-    const project = await store.get<ProjectRecord>('projects', projectId);
-    if (project) {
-      const byRepository = await store.get<AnalysisCache>('analysis_cache', project.repository);
-      return { cache: byRepository, persistenceKey: projectId, projectId };
-    }
-    return { cache: null, persistenceKey: projectId, projectId };
+  if (!projectId) {
+    throw new ProjectScopeError('The projectId query parameter is required.');
   }
+  const project = await store.get<ProjectRecord>('projects', projectId);
+  if (!project) throw new ProjectScopeError('Project not found.', 404);
+  return project;
+}
 
-  return {
-    cache: state.getAnalysisCache(),
-    persistenceKey: state.isInitialized() ? state.getProjectPath() : null,
-    projectId: null,
-  };
+export async function resolveProjectGraph(request: FastifyRequest) {
+  const project = await requireProjectScope(request);
+  return getProjectGraph(project.id);
+}
+
+/** Resolve persisted results exclusively by registered project ID. */
+export async function resolveAnalysis(request: FastifyRequest): Promise<ResolvedAnalysis> {
+  const project = await requireProjectScope(request);
+  const cache = await store.get<AnalysisCache>('analysis_cache', project.id);
+  return { cache, persistenceKey: project.id, projectId: project.id };
 }
 
 export async function persistResolvedAnalysis(
@@ -58,11 +79,8 @@ export async function persistResolvedAnalysis(
 }
 
 export async function resolveAnalysisHistory(request: FastifyRequest): Promise<AnalysisHistoryEntry[]> {
-  const projectId = projectIdFromRequest(request);
-  if (projectId) {
-    return (await store.get<AnalysisHistoryEntry[]>('analysis_history', projectId)) ?? [];
-  }
-  return state.getAnalysisHistory();
+  const project = await requireProjectScope(request);
+  return (await store.get<AnalysisHistoryEntry[]>('analysis_history', project.id)) ?? [];
 }
 
 export async function resolveFindingStates(resolved: ResolvedAnalysis): Promise<FindingWorkflowStates> {

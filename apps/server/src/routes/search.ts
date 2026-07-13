@@ -8,9 +8,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import { createLogger } from '@recurrsive/core';
-import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
 import type { EntityType } from '@recurrsive/core';
+import { resolveAnalysis, resolveProjectGraph } from '../project-analysis.js';
+import type { FastifyRequest } from 'fastify';
 
 const logger = createLogger({ context: { component: 'server:routes:search' } });
 
@@ -42,8 +43,8 @@ interface SearchResult {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getSearchableItems(): Promise<SearchItem[]> {
-  const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+async function getSearchableItems(request: FastifyRequest): Promise<SearchItem[]> {
+  const [{ cache }, graph] = await Promise.all([resolveAnalysis(request), resolveProjectGraph(request)]);
   const items: SearchItem[] = [];
 
   // Add live findings from analysis cache
@@ -71,9 +72,7 @@ async function getSearchableItems(): Promise<SearchItem[]> {
   }
 
   // Query entities from the knowledge graph
-  if (state.isInitialized()) {
-    try {
-      const graph = state.getGraph();
+  try {
       const stats = await graph.getStats();
       for (const entityType of Object.keys(stats.entityCountsByType)) {
         try {
@@ -90,18 +89,17 @@ async function getSearchableItems(): Promise<SearchItem[]> {
           // Some entity types may not be queryable — skip
         }
       }
-    } catch {
-      // Graph query failed — skip entities
-    }
+  } catch {
+    // Graph query failed — findings and opportunities remain searchable.
   }
 
   return items;
 }
 
-async function searchItems(query: string, scope: string): Promise<SearchResult[]> {
+async function searchItems(request: FastifyRequest, query: string, scope: string): Promise<SearchResult[]> {
   const q = query.toLowerCase();
 
-  let items = await getSearchableItems();
+  let items = await getSearchableItems(request);
   if (scope !== 'all') {
     // Map plural scope names to singular type names
     const scopeMap: Record<string, string> = {
@@ -175,7 +173,7 @@ export async function registerSearchRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      const results = await searchItems(q.trim(), scope);
+      const results = await searchItems(request, q.trim(), scope);
 
       logger.debug(`Search for "${q}" (scope=${scope}) returned ${results.length} results`);
 

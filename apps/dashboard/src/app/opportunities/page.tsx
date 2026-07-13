@@ -23,6 +23,7 @@ const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low"]
 
 export default function OpportunitiesPage() {
   const searchParams = useSearchParams();
+  const projectId = searchParams.get('projectId');
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
@@ -209,7 +210,7 @@ export default function OpportunitiesPage() {
                         )}
                       >
                         <Link
-                          href={`/opportunities/${encodeURIComponent(opp.id)}`}
+                          href={`/opportunities/${encodeURIComponent(opp.id)}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`}
                           className="hover:underline hover:text-accent-blue transition-colors"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -259,7 +260,7 @@ export default function OpportunitiesPage() {
             </div>
             <h2 className="text-xl font-bold text-text-primary leading-snug">
               <Link
-                href={`/opportunities/${encodeURIComponent(selected.id)}`}
+                href={`/opportunities/${encodeURIComponent(selected.id)}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`}
                 className="hover:underline hover:text-accent-blue transition-colors inline-flex items-center gap-2"
               >
                 {selected.title}

@@ -5,10 +5,12 @@ import type { Opportunity } from "@/lib/api";
 
 interface OpportunitiesListProps {
   opportunities: Opportunity[];
+  projectId?: string;
 }
 
 export default function OpportunitiesList({
   opportunities,
+  projectId,
 }: OpportunitiesListProps) {
   const top = opportunities.slice(0, 5);
 
@@ -19,7 +21,7 @@ export default function OpportunitiesList({
           Top Opportunities
         </h3>
         <Link
-          href="/opportunities"
+          href={`/opportunities${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`}
           className="flex items-center gap-1 text-xs font-medium text-accent-blue hover:text-blue-300 transition-colors"
         >
           Explore All Opportunities
@@ -39,7 +41,7 @@ export default function OpportunitiesList({
         {top.map((opp, i) => (
           <li key={opp.id}>
           <Link
-            href={`/opportunities/${opp.id}`}
+            href={`/opportunities/${opp.id}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`}
             className="flex items-start gap-4 rounded-xl bg-white/[0.02] border border-white/5 p-4 hover:bg-white/[0.04] hover:border-white/8 transition-all duration-200 animate-fade-in-up"
             style={{ animationDelay: `${i * 0.07}s` }}
           >

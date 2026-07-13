@@ -3,9 +3,22 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Sidebar from '../../components/sidebar';
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
+const authState = vi.hoisted(() => ({
+  user: { userId: 'admin-1', username: 'admin', role: 'admin' as 'admin' | 'analyst' | 'viewer' },
+}));
 
 vi.mock('../../lib/api/client', () => ({
   apiFetch: apiFetchMock,
+}));
+
+vi.mock('../../lib/auth-context', () => ({
+  useAuth: () => ({
+    user: authState.user,
+    loading: false,
+    error: null,
+    login: vi.fn(),
+    logout: vi.fn(),
+  }),
 }));
 
 // Mock useActiveProject
@@ -24,6 +37,7 @@ vi.mock('../../components/active-project-context', () => ({
 describe('Sidebar', () => {
   beforeEach(() => {
     localStorage.clear();
+    authState.user = { userId: 'admin-1', username: 'admin', role: 'admin' };
     apiFetchMock.mockReset();
     apiFetchMock.mockResolvedValue({ data: [], total: 12 });
   });
@@ -38,22 +52,25 @@ describe('Sidebar', () => {
     expect(screen.getByText('Intelligence')).toBeInTheDocument();
     expect(screen.getByText('Analysis')).toBeInTheDocument();
     expect(screen.getByText('Operations')).toBeInTheDocument();
+    expect(screen.getByText('Governance')).toBeInTheDocument();
     expect(screen.getByText('Administration')).toBeInTheDocument();
+  });
+
+  it('hides administration navigation from viewers', () => {
+    authState.user = { userId: 'viewer-1', username: 'viewer', role: 'viewer' };
+    render(<Sidebar />);
+    expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   });
 
   it('renders navigation items within default expanded sections', () => {
     render(<Sidebar />);
     // Intelligence section (expanded by default)
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Forecasting')).toBeInTheDocument();
-    expect(screen.getByText('Health')).toBeInTheDocument();
-    expect(screen.getByText('Timeline')).toBeInTheDocument();
-    expect(screen.getByText('Comparisons')).toBeInTheDocument();
 
     // Analysis section (expanded by default)
     expect(screen.getByText('Projects')).toBeInTheDocument();
-    expect(screen.getByText('Opportunities')).toBeInTheDocument();
     expect(screen.getByText('Findings')).toBeInTheDocument();
+    expect(screen.getByText('Opportunities')).toBeInTheDocument();
     expect(screen.getByText('System Map')).toBeInTheDocument();
     expect(screen.getByText('Analytics')).toBeInTheDocument();
   });
@@ -80,43 +97,42 @@ describe('Sidebar', () => {
     expect(screen.getByText('Batch')).toBeInTheDocument();
     expect(screen.getByText('Scheduling')).toBeInTheDocument();
     expect(screen.getByText('Reports')).toBeInTheDocument();
-    expect(screen.getByText('Search')).toBeInTheDocument();
     expect(screen.getByText('Experiments')).toBeInTheDocument();
-    expect(screen.getByText('Snapshots')).toBeInTheDocument();
+
+    const governanceButton = screen.getByRole('button', { name: /Governance/i });
+    fireEvent.click(governanceButton);
+    expect(screen.getByText('Policies')).toBeInTheDocument();
 
     // Expand Administration
     const adminButton = screen.getByRole('button', { name: /Administration/i });
     fireEvent.click(adminButton);
 
     expect(screen.getByText('Users')).toBeInTheDocument();
-    expect(screen.getByText('Policies')).toBeInTheDocument();
     expect(screen.getByText('Audit Trail')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
-    expect(screen.getByText('Secrets')).toBeInTheDocument();
-    expect(screen.getByText('Data Masking')).toBeInTheDocument();
-    expect(screen.getByText('Webhooks')).toBeInTheDocument();
-    expect(screen.getByText('Notifications')).toBeInTheDocument();
     expect(screen.getByText('SSO')).toBeInTheDocument();
   });
 
   it('renders navigation links as anchor elements', () => {
     render(<Sidebar />);
-    // By default, only expanded section links are visible (10 links)
+    // By default, only Intelligence and Analysis are expanded.
     const links = screen.getAllByRole('link');
-    expect(links.length).toBe(10);
+    expect(links.length).toBe(6);
   });
 
   it('renders all links when all sections are expanded', () => {
     render(<Sidebar />);
 
     const operationsButton = screen.getByRole('button', { name: /Operations/i });
+    const governanceButton = screen.getByRole('button', { name: /Governance/i });
     const adminButton = screen.getByRole('button', { name: /Administration/i });
 
     fireEvent.click(operationsButton);
+    fireEvent.click(governanceButton);
     fireEvent.click(adminButton);
 
     const links = screen.getAllByRole('link');
     // Current production navigation across all expanded sections.
-    expect(links.length).toBe(25);
+    expect(links.length).toBe(15);
   });
 });

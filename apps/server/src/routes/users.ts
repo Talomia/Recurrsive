@@ -13,6 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import { createLogger } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import type { AuthUser } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import {
   createUser,
@@ -180,6 +181,25 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
     try {
       const { id } = request.params;
       const updates = request.body as Partial<UpdateUserInput>;
+      const actor = (request as typeof request & { user: AuthUser }).user;
+      const existing = await findUserById(id);
+      if (!existing) {
+        return reply.status(404).send({ error: 'Not Found', message: 'User not found' });
+      }
+      if (actor.id === id && ((updates.role && updates.role !== 'admin') || (updates.status && updates.status !== 'active'))) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Administrators cannot remove their own administrative access or disable their own account.',
+        });
+      }
+      const removesActiveAdmin = existing.role === 'admin' && existing.status === 'active' &&
+        ((updates.role !== undefined && updates.role !== 'admin') || (updates.status !== undefined && updates.status !== 'active'));
+      if (removesActiveAdmin) {
+        const activeAdmins = (await listUsers()).filter((user) => user.role === 'admin' && user.status === 'active').length;
+        if (activeAdmins <= 1) {
+          return reply.status(409).send({ error: 'Conflict', message: 'At least one active administrator is required.' });
+        }
+      }
 
       const user = await updateUser(id, updates);
       if (!user) {
@@ -193,7 +213,9 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(200).send({ data: user });
     } catch (err) {
       logger.error('Failed to update user', { error: err });
-      return reply.status(500).send({ error: 'Internal server error', message: 'Failed to update user.' });
+      const message = err instanceof Error ? err.message : 'Failed to update user.';
+      const status = /already|registered/.test(message) ? 409 : 400;
+      return reply.status(status).send({ error: status === 409 ? 'Conflict' : 'Bad Request', message });
     }
   });
 
@@ -210,6 +232,17 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authMiddleware, requireRole('admin')],
   }, async (request, reply) => {
     const { id } = request.params;
+    const actor = (request as typeof request & { user: AuthUser }).user;
+    if (actor.id === id) {
+      return reply.status(400).send({ error: 'Bad Request', message: 'Administrators cannot disable their own account.' });
+    }
+    const existing = await findUserById(id);
+    if (existing?.role === 'admin' && existing.status === 'active') {
+      const activeAdmins = (await listUsers()).filter((user) => user.role === 'admin' && user.status === 'active').length;
+      if (activeAdmins <= 1) {
+        return reply.status(409).send({ error: 'Conflict', message: 'At least one active administrator is required.' });
+      }
+    }
     const deleted = await deleteUser(id);
 
     if (!deleted) {
@@ -249,7 +282,12 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    const user = await resetUserPassword(id, password);
+    let user;
+    try {
+      user = await resetUserPassword(id, password);
+    } catch (error) {
+      return reply.status(400).send({ error: 'Bad Request', message: error instanceof Error ? error.message : 'Password reset failed' });
+    }
     if (!user) {
       return reply.status(404).send({
         error: 'Not Found',

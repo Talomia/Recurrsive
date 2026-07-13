@@ -52,8 +52,10 @@ function formatDate(iso: string): string {
 // Page component (server component)
 // ---------------------------------------------------------------------------
 
-export default async function SnapshotsPage() {
-  const snapshots = await getSnapshots();
+export default async function SnapshotsPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
+  const snapshots = await getSnapshots(projectId);
 
   return (
     <div className="flex flex-col gap-6 p-6">

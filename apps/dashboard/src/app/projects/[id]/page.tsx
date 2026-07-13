@@ -23,6 +23,7 @@ import Header from '@/components/header';
 import ErrorBanner from '@/components/error-banner';
 import ScoreGauge from '@/components/score-gauge';
 import { apiFetch, ApiError } from '@/lib/api/client';
+import { useAuth } from '@/lib/auth-context';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,8 +43,6 @@ interface Project {
   settings: {
     analyzers: string[];
     collectors: string[];
-    schedule?: string;
-    branch?: string;
   };
 }
 
@@ -71,6 +70,13 @@ interface Opportunity {
 
 const TABS = ['Overview', 'Findings', 'Opportunities', 'Settings'] as const;
 type Tab = typeof TABS[number];
+const ANALYZERS = [
+  'architecture.structural', 'ai.quality', 'performance.general', 'cost.optimization',
+  'reliability.resilience', 'security.vulnerabilities', 'data.schema-quality',
+  'docs.completeness', 'ux.quality', 'product.health', 'dependency.vulnerabilities',
+  'api-contract.quality', 'ai.runtime',
+] as const;
+const COLLECTORS = ['git', 'documentation', 'environment', 'cicd', 'database'] as const;
 
 const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; border: string }> = {
   critical: { bg: 'bg-red-500/10', text: 'text-red-400', dot: 'bg-red-400', border: 'border-red-500/20' },
@@ -98,6 +104,8 @@ interface AnalysisStatus {
 }
 
 export default function ProjectDetailPage() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin' || user?.role === 'analyst';
   const params = useParams();
   const id = params.id as string;
 
@@ -110,6 +118,7 @@ export default function ProjectDetailPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [status, setStatus] = useState<AnalysisStatus | null>(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const fetchProject = useCallback(async () => {
     setError(null);
@@ -211,7 +220,7 @@ export default function ProjectDetailPage() {
     try {
       await apiFetch('/api/v1/analyze', {
         method: 'POST',
-        body: JSON.stringify({ projectId: project.id, include_reasoning: true }),
+        body: JSON.stringify({ projectId: project.id }),
       });
 
       // Clear existing client lists to show fresh tracking
@@ -227,6 +236,23 @@ export default function ProjectDetailPage() {
         setError(err instanceof Error ? err.message : 'Failed to start analysis.');
         setAnalyzing(false);
       }
+    }
+  };
+
+  const saveSettings = async () => {
+    if (!project || !canEdit) return;
+    setSavingSettings(true);
+    setError(null);
+    try {
+      const updated = await apiFetch<Project>(`/api/v1/projects/${encodeURIComponent(project.id)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ settings: project.settings }),
+      });
+      setProject(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save project settings.');
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -297,15 +323,17 @@ export default function ProjectDetailPage() {
               {project.framework !== 'Unknown' && (
                 <span>{project.framework}</span>
               )}
-              <a
-                href={project.repository}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Repository
-              </a>
+              {project.repository.startsWith('https://') ? (
+                <a
+                  href={project.repository}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Repository
+                </a>
+              ) : <span className="font-mono text-[11px] text-text-secondary">{project.repository}</span>}
               {project.lastAnalysis && (
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
@@ -314,7 +342,7 @@ export default function ProjectDetailPage() {
               )}
             </div>
           </div>
-          <button
+          {canEdit && <button
             onClick={handleAnalyze}
             disabled={analyzing}
             className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-60 shrink-0"
@@ -326,7 +354,7 @@ export default function ProjectDetailPage() {
               <Play className="h-4 w-4" />
             )}
             {project.lastAnalysis ? 'Re-analyze' : 'Analyze'}
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -519,10 +547,10 @@ export default function ProjectDetailPage() {
                     return (
                       <tr key={f.id} className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.02] transition-colors">
                         <td className="px-5 py-3">
-                          <Link href={`/findings/${f.id}`} className="text-xs font-mono text-accent-blue hover:underline">{f.id}</Link>
+                          <Link href={`/findings/${f.id}?projectId=${encodeURIComponent(id)}`} className="text-xs font-mono text-accent-blue hover:underline">{f.id}</Link>
                         </td>
                         <td className="px-5 py-3">
-                          <Link href={`/findings/${f.id}`} className="text-xs font-medium text-text-primary hover:text-accent-blue transition-colors truncate block max-w-xs">{f.title}</Link>
+                          <Link href={`/findings/${f.id}?projectId=${encodeURIComponent(id)}`} className="text-xs font-medium text-text-primary hover:text-accent-blue transition-colors truncate block max-w-xs">{f.title}</Link>
                         </td>
                         <td className="px-5 py-3">
                           <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${s.bg} ${s.text} border ${s.border}`}>
@@ -596,24 +624,6 @@ export default function ProjectDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Branch</label>
-                <input
-                  type="text"
-                  value={project.settings.branch ?? 'main'}
-                  readOnly
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-text-primary"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Schedule</label>
-                <input
-                  type="text"
-                  value={project.settings.schedule ?? 'Manual'}
-                  readOnly
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-text-primary"
-                />
-              </div>
-              <div>
                 <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Language</label>
                 <input
                   type="text"
@@ -625,20 +635,27 @@ export default function ProjectDetailPage() {
             </div>
             <div>
               <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Active Analyzers</label>
-              <div className="flex flex-wrap gap-2">
-                {project.settings.analyzers.map((a) => (
-                  <span key={a} className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 text-xs text-blue-400 font-medium">{a}</span>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {ANALYZERS.map((analyzer) => (
+                  <label key={analyzer} className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-xs text-text-secondary">
+                    <input type="checkbox" disabled={!canEdit} checked={project.settings.analyzers.includes(analyzer)} onChange={(event) => setProject({ ...project, settings: { ...project.settings, analyzers: event.target.checked ? [...project.settings.analyzers, analyzer] : project.settings.analyzers.filter((id) => id !== analyzer) } })} />
+                    {analyzer}
+                  </label>
                 ))}
               </div>
             </div>
             <div>
               <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Active Collectors</label>
               <div className="flex flex-wrap gap-2">
-                {project.settings.collectors.map((c) => (
-                  <span key={c} className="rounded-lg bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 text-xs text-purple-400 font-medium">{c}</span>
+                {COLLECTORS.map((collector) => (
+                  <label key={collector} className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-xs text-text-secondary">
+                    <input type="checkbox" disabled={!canEdit || collector === 'git'} checked={project.settings.collectors.includes(collector)} onChange={(event) => setProject({ ...project, settings: { ...project.settings, collectors: event.target.checked ? [...project.settings.collectors, collector] : project.settings.collectors.filter((id) => id !== collector) } })} />
+                    {collector}{collector === 'git' ? ' (required)' : ''}
+                  </label>
                 ))}
               </div>
             </div>
+            {canEdit && <div className="flex justify-end"><button type="button" disabled={savingSettings || project.settings.analyzers.length === 0} onClick={() => void saveSettings()} className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{savingSettings ? 'Saving…' : 'Save configuration'}</button></div>}
           </div>
         )}
       </div>

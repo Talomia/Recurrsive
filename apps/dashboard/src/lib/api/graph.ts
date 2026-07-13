@@ -37,20 +37,20 @@ export interface SystemNode {
 /**
  * Get graph statistics from `GET /api/v1/graph/stats`.
  */
-export async function getGraphStats(): Promise<GraphStats> {
-  return apiFetch<GraphStats>("/api/v1/graph/stats");
+export async function getGraphStats(projectId?: string): Promise<GraphStats> {
+  return apiFetch<GraphStats>("/api/v1/graph/stats", { projectId });
 }
 
 /**
  * Get entities by type from `GET /api/v1/graph/entities`.
  */
-export async function getGraphEntities(type?: string, search?: string, limit = 50): Promise<GraphEntity[]> {
+export async function getGraphEntities(type?: string, search?: string, limit = 50, projectId?: string): Promise<GraphEntity[]> {
   const query = new URLSearchParams();
   if (type) query.set("type", type);
   if (search) query.set("search", search);
   query.set("limit", String(limit));
 
-  return apiFetch<GraphEntity[]>(`/api/v1/graph/entities?${query.toString()}`);
+  return apiFetch<GraphEntity[]>(`/api/v1/graph/entities?${query.toString()}`, { projectId });
 }
 
 /**
@@ -62,19 +62,20 @@ export async function searchGraphEntities(
   q: string,
   type?: string,
   limit = 50,
+  projectId?: string,
 ): Promise<GraphEntity[]> {
   const query = new URLSearchParams();
   query.set("q", q);
   if (type) query.set("type", type);
   query.set("limit", String(limit));
 
-  return apiFetch<GraphEntity[]>(`/api/v1/graph/search?${query.toString()}`);
+  return apiFetch<GraphEntity[]>(`/api/v1/graph/search?${query.toString()}`, { projectId });
 }
 
 /**
  * Get entity with relationships from `GET /api/v1/graph/entities/:id`.
  */
-export async function getEntityWithRelationships(id: string): Promise<{
+export async function getEntityWithRelationships(id: string, projectId?: string): Promise<{
   entity: GraphEntity;
   relationships: Array<{ type: string; source_id: string; target_id: string }>;
 } | null> {
@@ -82,7 +83,7 @@ export async function getEntityWithRelationships(id: string): Promise<{
     return await apiFetch<{
       entity: GraphEntity;
       relationships: Array<{ type: string; source_id: string; target_id: string }>;
-    }>(`/api/v1/graph/entities/${encodeURIComponent(id)}`);
+    }>(`/api/v1/graph/entities/${encodeURIComponent(id)}`, { projectId });
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;

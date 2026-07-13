@@ -10,9 +10,9 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { state } from '../state.js';
 import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
 import { authMiddleware } from '../middleware/auth.js';
+import { resolveAnalysis, rethrowProjectScopeError } from '../project-analysis.js';
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -123,17 +123,10 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
     '/api/v1/policies/evaluate',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       try {
         const pe = getEngine();
-        const manager = state.getOpportunities();
-        const allOpportunities = manager.list();
+        const { cache } = await resolveAnalysis(request);
+        const allOpportunities = cache?.opportunities ?? [];
 
         // Filter if specific IDs are requested
         const ids = request.body?.opportunity_ids;
@@ -180,7 +173,8 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
             },
           },
         });
-      } catch {
+      } catch (error) {
+        rethrowProjectScopeError(error);
         return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
       }
     },
@@ -192,17 +186,11 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
    * Quick compliance check — returns the overall compliance rate
    * without full evaluation details.
    */
-  app.get('/api/v1/policies/compliance', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    if (!state.isInitialized()) {
-      return reply.status(503).send({
-        error: 'Server not initialized',
-        message: 'Run POST /api/v1/analyze first.',
-      });
-    }
-
+  app.get('/api/v1/policies/compliance', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
       const pe = getEngine();
-      const allOpportunities = state.getOpportunities().list();
+      const { cache } = await resolveAnalysis(request);
+      const allOpportunities = cache?.opportunities ?? [];
 
       let passed = 0;
       let blocked = 0;
@@ -224,7 +212,8 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
           policy_sets_active: pe.getPolicies().filter((ps) => ps.enabled).length,
         },
       });
-    } catch {
+    } catch (error) {
+      rethrowProjectScopeError(error);
       return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
     }
   });

@@ -122,7 +122,9 @@ function PolicySetCard({ policySet }: { policySet: PolicySet }) {
 // Page component (server component)
 // ---------------------------------------------------------------------------
 
-export default async function PoliciesPage() {
+export default async function PoliciesPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
+  const { projectId } = await searchParams;
+  if (!projectId) return null;
   let policies: PolicySet[] = [];
   let compliance = {
     total_opportunities: 0,
@@ -135,8 +137,8 @@ export default async function PoliciesPage() {
 
   try {
     [policies, compliance] = await Promise.all([
-      getPolicies(),
-      getComplianceReport(),
+      getPolicies(projectId),
+      getComplianceReport(projectId),
     ]);
   } catch (err) {
     error = err instanceof Error ? err.message : "Failed to load policies";

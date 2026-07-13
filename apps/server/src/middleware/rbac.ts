@@ -173,7 +173,9 @@ export const defaultAuthorizationMiddleware: preHandlerHookHandler = async (requ
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
 
   const pathname = request.url.split('?')[0] ?? request.url;
-  const selfService = pathname === '/api/v1/auth/change-password' || pathname === '/api/v1/auth/refresh';
+  const selfService = pathname === '/api/v1/auth/change-password' ||
+    pathname === '/api/v1/auth/refresh' ||
+    pathname === '/api/v1/auth/logout';
   const minimum: Role = selfService
     ? 'viewer'
     : ADMIN_MUTATION_PREFIXES.some((prefix) =>

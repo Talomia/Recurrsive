@@ -349,7 +349,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
       await store.set<Invite>(INVITES_TABLE, invite.id, invite);
 
       // Generate a JWT token for the new user
-      const jwtToken = createToken(newUser.id, invite.role, undefined, username);
+      const jwtToken = createToken(newUser.id, invite.role, undefined, username, undefined, newUser.sessionVersion);
 
       logger.info(`Invite '${invite.id}' accepted by '${username}'`);
       return reply.status(201).send({

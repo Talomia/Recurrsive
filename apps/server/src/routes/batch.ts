@@ -11,10 +11,11 @@ import type { FastifyInstance } from 'fastify';
 import path from 'node:path';
 import { store } from '../store.js';
 import { state } from '../state.js';
-import { createLogger } from '@recurrsive/core';
+import { createLogger, generateId } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { releaseAnalysisWorker, tryAcquireAnalysisWorker } from '../analysis-coordinator.js';
+import { getPlatformSettings } from './config.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +32,8 @@ export interface BatchProject {
   projectId: string;
   name: string;
   repository: string;
+  analyzers: string[];
+  collectors: string[];
   /** Current analysis status. */
   status: ProjectStatus;
   /** ISO timestamp of when analysis started (null if pending). */
@@ -39,6 +42,8 @@ export interface BatchProject {
   completed_at: string | null;
   /** Error message if analysis failed. */
   error?: string;
+  findings_count?: number;
+  opportunities_count?: number;
 }
 
 /** A batch analysis run. */
@@ -64,8 +69,7 @@ export interface BatchRun {
 const MAX_HISTORY = 50;
 
 async function generateBatchId(): Promise<string> {
-  const count = await store.count('batches') + 1;
-  return `batch_${String(count).padStart(6, '0')}`;
+  return `batch_${generateId()}`;
 }
 
 const batchLogger = createLogger({ context: { component: 'server:routes:batch' } });
@@ -74,6 +78,7 @@ interface RegisteredProject {
   id: string;
   name: string;
   repository: string;
+  settings: { analyzers: string[]; collectors: string[] };
 }
 
 /**
@@ -83,7 +88,10 @@ const envPrefixes = process.env['RECURRSIVE_ALLOWED_PATHS']?.split(',').map(p =>
 const ALLOWED_PREFIXES = envPrefixes ?? ['/app', '/tmp/recurrsive-repos/'];
 function isSafePath(projectPath: string): boolean {
   const resolved = path.resolve(projectPath);
-  return ALLOWED_PREFIXES.some((prefix) => resolved.startsWith(prefix));
+  return ALLOWED_PREFIXES.some((prefix) => {
+    const allowed = path.resolve(prefix);
+    return resolved === allowed || resolved.startsWith(`${allowed}${path.sep}`);
+  });
 }
 
 /**
@@ -98,6 +106,7 @@ function isSafePath(projectPath: string): boolean {
  * After all projects complete, set the final batch status.
  */
 async function runBatchAnalysis(batchId: string): Promise<void> {
+  try {
   const batch = await store.get<BatchRun>('batches', batchId);
   if (!batch) {
     releaseAnalysisWorker(batchId);
@@ -135,7 +144,13 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
       try {
         if (state.isInitialized()) await state.dispose();
         await state.initialize(effectivePath, project.name, project.projectId);
-        await state.runAnalysis();
+        const cache = await state.runAnalysis(
+          project.analyzers,
+          currentBatch.options['includeReasoning'] !== false,
+          project.collectors,
+        );
+        project.findings_count = cache.findings.length;
+        project.opportunities_count = cache.opportunities.length;
       } finally {
         if (clonedDir) await state.cleanupClone(clonedDir);
       }
@@ -150,6 +165,8 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
       if (afterProject) {
         afterProject.status = 'completed';
         afterProject.completed_at = new Date().toISOString();
+        afterProject.findings_count = project.findings_count;
+        afterProject.opportunities_count = project.opportunities_count;
         await store.set<BatchRun>('batches', batchId, afterBatch);
       }
 
@@ -183,7 +200,24 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
     await store.set<BatchRun>('batches', batchId, finalBatch);
     batchLogger.info(`Batch ${batchId}: ${finalBatch.status} (${finalBatch.projects.length} projects)`);
   }
-  releaseAnalysisWorker(batchId);
+  } catch (error) {
+    const failedBatch = await store.get<BatchRun>('batches', batchId).catch(() => null);
+    if (failedBatch) {
+      failedBatch.status = 'failed';
+      failedBatch.completed_at = new Date().toISOString();
+      for (const project of failedBatch.projects) {
+        if (project.status === 'pending' || project.status === 'running') {
+          project.status = 'failed';
+          project.completed_at = failedBatch.completed_at;
+          project.error = error instanceof Error ? error.message : 'Batch worker failed';
+        }
+      }
+      await store.set('batches', batchId, failedBatch).catch(() => undefined);
+    }
+    throw error;
+  } finally {
+    releaseAnalysisWorker(batchId);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +236,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
    * Submit a batch of project paths for sequential analysis.
    *
    * Body:
-   * - projectIds: string[] — registered project IDs (max 10)
+   * - projectIds: string[] — registered project IDs (max 100)
    * - options: Record<string, unknown> (optional)
    */
   app.post<{
@@ -221,9 +255,14 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
             type: 'array',
             items: { type: 'string', minLength: 1 },
             minItems: 1,
-            maxItems: 10,
+            maxItems: 100,
+            uniqueItems: true,
           },
-          options: { type: 'object' },
+          options: {
+            type: 'object',
+            properties: { includeReasoning: { type: 'boolean' } },
+            additionalProperties: false,
+          },
         },
       },
     },
@@ -238,7 +277,11 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const projectIds = body['projectIds'];
-    const options = (body['options'] as Record<string, unknown>) ?? {};
+    const requestedOptions = (body['options'] as Record<string, unknown>) ?? {};
+    const platformSettings = await getPlatformSettings();
+    const options: Record<string, unknown> = {
+      includeReasoning: requestedOptions['includeReasoning'] ?? platformSettings.enable_reasoning,
+    };
 
     if (!Array.isArray(projectIds)) {
       return reply.status(400).send({
@@ -254,10 +297,10 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    if (projectIds.length > 10) {
+    if (projectIds.length > 100) {
       return reply.status(400).send({
         error: 'Invalid request',
-        message: `Too many projects: ${projectIds.length}. Maximum is 10.`,
+        message: `Too many projects: ${projectIds.length}. Maximum is 100.`,
       });
     }
 
@@ -269,6 +312,9 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
           message: `projectIds[${i}] must be a non-empty string.`,
         });
       }
+    }
+    if (new Set(projectIds).size !== projectIds.length) {
+      return reply.status(400).send({ error: 'Invalid request', message: 'projectIds must not contain duplicates.' });
     }
 
     const batchId = await generateBatchId();
@@ -294,6 +340,8 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
         projectId: project.id,
         name: project.name,
         repository: project.repository,
+        analyzers: project.settings.analyzers,
+        collectors: project.settings.collectors,
         status: 'pending' as ProjectStatus,
         started_at: null,
         completed_at: null,

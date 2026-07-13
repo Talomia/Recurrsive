@@ -43,24 +43,40 @@ export interface DashboardAuditEntry {
 
 export interface SSOProvider {
   id: string;
-  name: string;
-  type: 'okta' | 'auth0' | 'azure_ad' | 'google';
-  status: 'configured' | 'pending' | 'error';
-  domain: string;
-  protocol: 'SAML' | 'OIDC';
-  usersCount: number;
-  lastSync: string;
+  provider: 'okta' | 'auth0' | 'azure-ad' | 'google-workspace' | 'custom';
+  displayName: string;
+  idpEntityId: string;
+  spEntityId: string;
+  ssoUrl: string;
+  autoProvision: boolean;
+  defaultRole: 'admin' | 'analyst' | 'viewer';
+  createdAt: string;
+}
+
+export interface SSOProviderConfig {
+  provider: SSOProvider['provider'];
+  displayName: string;
+  idpEntityId: string;
+  spEntityId: string;
+  ssoUrl: string;
+  certificate: string;
+  signatureMode: 'both' | 'response' | 'assertion' | 'either';
+  allowedDomains: string[];
+  attributeMapping?: Record<string, string>;
+  groupRoleMapping?: Record<string, 'admin' | 'analyst' | 'viewer'>;
+  autoProvision: boolean;
+  defaultRole: SSOProvider['defaultRole'];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface SSOSession {
-  id: string;
-  user: string;
+  sessionId: string;
+  userId: string;
   email: string;
   provider: string;
-  ip: string;
-  loginAt: string;
+  createdAt: string;
   expiresAt: string;
-  active: boolean;
 }
 
 export async function getCloudServices(): Promise<CloudServiceTier[]> {
@@ -90,11 +106,19 @@ export async function getSSOSessions(): Promise<SSOSession[]> {
 
 // ─── SSO Mutations ───────────────────────────────────────────────────────────
 
-export async function createSsoProvider(id: string, data: { provider: string; displayName: string; entityId?: string; ssoUrl?: string }): Promise<SSOProvider> {
-  return await apiFetch<SSOProvider>(`/api/v1/sso/providers/${encodeURIComponent(id)}`, {
+export async function getSSOProvider(id: string): Promise<SSOProviderConfig> {
+  return apiFetch<SSOProviderConfig>(`/api/v1/sso/providers/${encodeURIComponent(id)}`);
+}
+
+export async function createSsoProvider(id: string, data: SSOProviderConfig): Promise<SSOProviderConfig> {
+  return await apiFetch<SSOProviderConfig>(`/api/v1/sso/providers/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
+}
+
+export function getSSOMetadataUrl(id: string): string {
+  return `/api/v1/sso/providers/${encodeURIComponent(id)}/metadata`;
 }
 
 export async function deleteSsoProvider(id: string): Promise<void> {

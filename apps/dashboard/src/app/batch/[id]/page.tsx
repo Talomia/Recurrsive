@@ -1,236 +1,73 @@
-import Link from "next/link";
-import {
-  ArrowLeft,
-  AlertCircle,
-  Layers,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Loader2,
-  Play,
-  Timer,
-  ListChecks,
-  AlertTriangle,
-} from "lucide-react";
-import { getBatchJob } from "@/lib/api";
+import Link from 'next/link';
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Layers, Loader2, XCircle } from 'lucide-react';
+import { getBatchJob } from '@/lib/api';
 
-// ---------------------------------------------------------------------------
-// Status styling
-// ---------------------------------------------------------------------------
+const STATUS = {
+  pending: { color: 'text-text-muted', background: 'bg-white/5', icon: Clock },
+  running: { color: 'text-blue-400', background: 'bg-blue-500/10', icon: Loader2 },
+  completed: { color: 'text-green-400', background: 'bg-green-500/10', icon: CheckCircle2 },
+  partial: { color: 'text-amber-400', background: 'bg-amber-500/10', icon: AlertCircle },
+  failed: { color: 'text-red-400', background: 'bg-red-500/10', icon: XCircle },
+} as const;
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; border: string }> = {
-  queued:    { bg: "bg-white/5",       text: "text-text-muted",  dot: "bg-gray-400",    border: "border-white/10" },
-  running:   { bg: "bg-blue-500/10",   text: "text-blue-400",    dot: "bg-blue-400",    border: "border-blue-500/20" },
-  completed: { bg: "bg-green-500/10",  text: "text-green-400",   dot: "bg-green-400",   border: "border-green-500/20" },
-  failed:    { bg: "bg-red-500/10",    text: "text-red-400",     dot: "bg-red-400",     border: "border-red-500/20" },
-  pending:   { bg: "bg-white/5",       text: "text-text-muted",  dot: "bg-gray-400",    border: "border-white/10" },
-};
-
-const TASK_STATUS_ICONS: Record<string, typeof CheckCircle2> = {
-  pending: Clock,
-  running: Loader2,
-  completed: CheckCircle2,
-  failed: XCircle,
-};
-
-function formatDate(iso?: string): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function timestamp(value?: string | null): string {
+  return value ? new Date(value).toLocaleString() : '—';
 }
 
-function formatDuration(ms: number): string {
-  const secs = Math.floor(ms / 1000);
-  if (secs < 60) return `${secs}s`;
-  const mins = Math.floor(secs / 60);
-  const remSecs = secs % 60;
-  return `${mins}m ${remSecs}s`;
+function duration(start: string, end?: string | null): string {
+  const elapsed = (end ? new Date(end).getTime() : Date.now()) - new Date(start).getTime();
+  const seconds = Math.max(0, Math.floor(elapsed / 1000));
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
-interface BatchDetailPageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default async function BatchDetailPage({ params }: BatchDetailPageProps) {
+export default async function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const batch = await getBatchJob(id);
-
   if (!batch) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <div className="rounded-2xl bg-white/5 p-6">
-          <AlertCircle className="h-10 w-10 text-text-muted" />
-        </div>
-        <h2 className="text-lg font-semibold text-text-primary">
-          Batch Job Not Found
-        </h2>
-        <p className="text-sm text-text-muted max-w-xs text-center">
-          The batch job <span className="text-text-secondary font-mono">{id}</span> could
-          not be found.
-        </p>
-        <Link
-          href="/batch"
-          className="mt-2 inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-accent-blue/20 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Batch
-        </Link>
-      </div>
-    );
+    return <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center"><AlertCircle className="h-10 w-10 text-text-muted" /><h1 className="text-lg font-semibold">Batch not found</h1><Link href="/batch" className="text-sm text-blue-400">Back to batch history</Link></div>;
   }
 
-  const status = STATUS_STYLES[batch.status] ?? STATUS_STYLES.queued!;
+  const completed = batch.projects.filter((project) => project.status === 'completed').length;
+  const terminal = batch.projects.filter((project) => project.status === 'completed' || project.status === 'failed').length;
+  const progress = batch.projects.length ? Math.round((terminal / batch.projects.length) * 100) : 0;
+  const batchStyle = STATUS[batch.status];
+  const BatchIcon = batchStyle.icon;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto animate-fade-in-up">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-text-muted">
-        <Link
-          href="/batch"
-          className="inline-flex items-center gap-1.5 hover:text-text-secondary transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Batch
-        </Link>
-        <span>/</span>
-        <span className="text-text-secondary font-mono text-xs">{batch.batch_id}</span>
-      </nav>
-
-      {/* Header */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-6 space-y-4">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <Layers className="h-5 w-5 text-blue-400" />
-              <h1 className="text-2xl font-bold text-text-primary leading-snug">
-                {batch.name}
-              </h1>
-            </div>
-            <p className="mt-1 text-xs text-text-muted font-mono">{batch.batch_id}</p>
-          </div>
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider border ${status.bg} ${status.text} ${status.border}`}>
-            <span className={`h-2 w-2 rounded-full ${status.dot} ${batch.status === "running" ? "animate-pulse" : ""}`} />
-            {batch.status}
-          </span>
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+      <nav><Link href="/batch" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-text-primary"><ArrowLeft className="h-4 w-4" />Batch history</Link></nav>
+      <header className="glass-card rounded-2xl p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div><div className="flex items-center gap-2"><Layers className="h-5 w-5 text-blue-400" /><h1 className="text-xl font-bold">Batch analysis</h1></div><code className="mt-2 block text-xs text-text-muted">{batch.batch_id}</code></div>
+          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${batchStyle.background} ${batchStyle.color}`}><BatchIcon className={`h-3.5 w-3.5 ${batch.status === 'running' ? 'animate-spin' : ''}`} />{batch.status}</span>
         </div>
+        <div className="mt-5 flex justify-between text-xs text-text-secondary"><span>{terminal} of {batch.projects.length} projects finished</span><span>{progress}%</span></div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} /></div>
+      </header>
 
-        {/* Progress Bar */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-text-secondary">
-              {batch.items_processed} of {batch.total_items} items processed
-            </span>
-            <span className="text-xs font-medium text-blue-400 tabular-nums">
-              {batch.progress_percent}%
-            </span>
-          </div>
-          <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                batch.status === "completed"
-                  ? "bg-gradient-to-r from-green-500 to-green-400"
-                  : batch.status === "failed"
-                  ? "bg-gradient-to-r from-red-500 to-red-400"
-                  : "bg-gradient-to-r from-blue-500 to-blue-400"
-              }`}
-              style={{ width: `${batch.progress_percent}%` }}
-            />
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="glass-card p-4 text-center"><strong className="block text-2xl text-green-400">{completed}</strong><span className="text-xs text-text-muted">Completed</span></div>
+        <div className="glass-card p-4 text-center"><strong className="block text-2xl text-red-400">{batch.projects.filter((project) => project.status === 'failed').length}</strong><span className="text-xs text-text-muted">Failed</span></div>
+        <div className="glass-card p-4 text-center"><strong className="block text-sm text-text-primary">{duration(batch.created_at, batch.completed_at)}</strong><span className="text-xs text-text-muted">Duration</span></div>
+        <div className="glass-card p-4 text-center"><strong className="block text-sm text-text-primary">{timestamp(batch.created_at)}</strong><span className="text-xs text-text-muted">Created</span></div>
       </div>
 
-      {/* Info Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="glass-card flex flex-col items-center justify-center p-5 gap-2">
-          <ListChecks className="h-5 w-5 text-green-400" />
-          <span className="text-2xl font-bold text-green-400 tabular-nums">{batch.items_processed}</span>
-          <span className="text-[11px] text-text-muted font-medium">Processed</span>
-        </div>
-        <div className="glass-card flex flex-col items-center justify-center p-5 gap-2">
-          <Layers className="h-5 w-5 text-blue-400" />
-          <span className="text-2xl font-bold text-text-primary tabular-nums">{batch.total_items}</span>
-          <span className="text-[11px] text-text-muted font-medium">Total Items</span>
-        </div>
-        <div className="glass-card flex flex-col items-center justify-center p-5 gap-2">
-          <Timer className="h-5 w-5 text-amber-400" />
-          <span className="text-lg font-bold text-text-primary tabular-nums">{formatDuration(batch.duration_ms)}</span>
-          <span className="text-[11px] text-text-muted font-medium">Duration</span>
-        </div>
-        <div className="glass-card flex flex-col items-center justify-center p-5 gap-2">
-          <Play className="h-5 w-5 text-purple-400" />
-          <span className="text-xs font-bold text-text-primary tabular-nums">{formatDate(batch.started_at)}</span>
-          <span className="text-[11px] text-text-muted font-medium">Started At</span>
-        </div>
-      </div>
-
-      {/* Task List */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <ListChecks className="h-4 w-4 text-blue-400" />
-          <h2 className="text-sm font-semibold text-text-primary">Tasks</h2>
-          <span className="ml-auto text-xs text-text-muted">
-            {batch.tasks.length} task{batch.tasks.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-        <div className="rounded-xl border border-white/5 overflow-hidden divide-y divide-white/5">
-          {batch.tasks.map((task) => {
-            const taskStatus = STATUS_STYLES[task.status] ?? STATUS_STYLES.pending!;
-            const TaskIcon = TASK_STATUS_ICONS[task.status] ?? Clock;
-
+      <section className="glass-card overflow-hidden rounded-2xl" aria-labelledby="project-results-title">
+        <h2 id="project-results-title" className="border-b border-white/5 p-5 text-sm font-semibold">Project results</h2>
+        <div className="divide-y divide-white/5">
+          {batch.projects.map((project) => {
+            const projectStyle = STATUS[project.status];
+            const ProjectIcon = projectStyle.icon;
             return (
-              <div key={task.id} className="flex items-center gap-4 px-4 py-3 hover:bg-white/[0.02] transition-colors">
-                <TaskIcon className={`h-4 w-4 shrink-0 ${taskStatus.text} ${task.status === "running" ? "animate-spin" : ""}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text-primary truncate">{task.name}</p>
-                  {task.error && (
-                    <p className="text-[10px] text-red-400 mt-0.5 truncate">{task.error}</p>
-                  )}
-                </div>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium border ${taskStatus.bg} ${taskStatus.text} ${taskStatus.border}`}>
-                  {task.status}
-                </span>
-                {task.findings_count !== undefined && (
-                  <span className="text-[10px] text-text-secondary tabular-nums hidden sm:block">
-                    {task.findings_count} findings
-                  </span>
-                )}
-                <span className="text-[10px] text-text-muted hidden md:block">
-                  {formatDate(task.started_at)}
-                </span>
-              </div>
+              <article key={project.projectId} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
+                <ProjectIcon className={`h-4 w-4 ${projectStyle.color} ${project.status === 'running' ? 'animate-spin' : ''}`} />
+                <div className="min-w-0 flex-1"><Link href={`/projects/${encodeURIComponent(project.projectId)}`} className="font-medium text-text-primary hover:text-blue-400">{project.name}</Link><p className="truncate text-xs text-text-muted">{project.repository}</p>{project.error && <p className="mt-1 text-xs text-red-400">{project.error}</p>}</div>
+                <div className="flex items-center gap-3 text-xs text-text-secondary">{project.findings_count !== undefined && <span>{project.findings_count} findings</span>}{project.opportunities_count !== undefined && <span>{project.opportunities_count} opportunities</span>}<span className={`rounded px-2 py-1 ${projectStyle.background} ${projectStyle.color}`}>{project.status}</span></div>
+              </article>
             );
           })}
         </div>
-      </div>
-
-      {/* Error Log */}
-      {batch.errors.length > 0 && (
-        <div className="rounded-2xl bg-red-500/[0.03] border border-red-500/15 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="h-4 w-4 text-red-400" />
-            <h2 className="text-sm font-semibold text-red-400">Error Log</h2>
-          </div>
-          <div className="space-y-2">
-            {batch.errors.map((error, idx) => (
-              <div
-                key={idx}
-                className="flex items-start gap-3 rounded-lg bg-red-500/5 border border-red-500/10 p-3"
-              >
-                <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-red-300 leading-relaxed">{error}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      </section>
     </div>
   );
 }

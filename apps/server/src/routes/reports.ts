@@ -7,10 +7,10 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 import { generateReport } from '@recurrsive/presentation';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireProjectScope, resolveAnalysis } from '../project-analysis.js';
 
 const logger = createLogger({ context: { component: 'server:routes:reports' } });
 
@@ -42,7 +42,8 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
     '/api/v1/reports/:format',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const cache = state.getAnalysisCache();
+      const project = await requireProjectScope(request);
+      const { cache } = await resolveAnalysis(request);
       if (!cache) {
         return reply.status(404).send({
           error: 'No analysis results available',
@@ -51,16 +52,8 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
       }
 
       const format = request.params.format.toLowerCase();
-      const manager = state.getOpportunities();
-      const opportunities = manager.list();
-
-      let projectName = 'Recurrsive Project';
-      try {
-        const info = state.getProjectInfo();
-        projectName = info.name;
-      } catch (err) {
-        logger.warn('Could not fetch project info for report', { error: err instanceof Error ? err.message : String(err) });
-      }
+      const opportunities = cache.opportunities;
+      const projectName = project.name;
 
       logger.info(`Generating ${format} report`);
 

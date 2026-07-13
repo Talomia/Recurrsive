@@ -14,11 +14,13 @@
  * @packageDocumentation
  */
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
 import { createLogger } from '@recurrsive/core';
 import type { Role } from './rbac.js';
 import { validateApiKey } from './api-keys.js';
+import { store } from '../store.js';
+import { findUserById } from './users.js';
 
 const logger = createLogger({ context: { component: 'server:middleware:auth' } });
 
@@ -79,8 +81,12 @@ export interface TokenPayload {
   iat: number;
   /** Expiry timestamp (Unix seconds). */
   exp: number;
+  /** Unique token ID used for explicit logout/session revocation. */
+  jti: string;
   /** Optional username (present for local/SSO users, absent for API keys). */
   username?: string;
+  /** Version of the user's authenticated sessions at issue time. */
+  ver?: number;
 }
 
 /** Shape of the `user` object decorated onto Fastify requests. */
@@ -93,6 +99,12 @@ export interface AuthUser {
   authMethod: 'jwt' | 'api-key';
   /** Username (present when authenticated via JWT with a username claim). */
   username?: string;
+  /** JWT identifier, present for JWT-authenticated requests. */
+  tokenId?: string;
+  /** JWT expiry (Unix seconds), present for JWT-authenticated requests. */
+  tokenExpiresAt?: number;
+  /** Store-backed session version, present for user JWTs. */
+  sessionVersion?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,14 +157,22 @@ function sign(headerPayload: string): string {
  * @param username - Optional username to embed in the token.
  * @returns A signed `header.payload.signature` JWT string.
  */
-export function createToken(userId: string, role: Role, ttlSeconds?: number, username?: string): string {
+export function createToken(
+  userId: string,
+  role: Role,
+  ttlSeconds?: number,
+  username?: string,
+  tokenId: string = randomUUID(),
+  sessionVersion?: number,
+): string {
   const now = Math.floor(Date.now() / 1000);
   const exp = now + (ttlSeconds ?? TOKEN_TTL_SECONDS);
 
-  const tokenPayload: TokenPayload = { sub: userId, role, iat: now, exp };
+  const tokenPayload: TokenPayload = { sub: userId, role, iat: now, exp, jti: tokenId };
   if (username) {
     tokenPayload.username = username;
   }
+  if (sessionVersion !== undefined) tokenPayload.ver = sessionVersion;
 
   const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const payload = base64UrlEncode(JSON.stringify(tokenPayload));
@@ -197,7 +217,8 @@ export function verifyToken(token: string): TokenPayload | null {
       typeof decoded.sub !== 'string' ||
       typeof decoded.role !== 'string' ||
       typeof decoded.iat !== 'number' ||
-      typeof decoded.exp !== 'number'
+      typeof decoded.exp !== 'number' ||
+      typeof decoded.jti !== 'string'
     ) {
       return null;
     }
@@ -231,14 +252,40 @@ async function authenticateRequest(request: FastifyRequest): Promise<AuthUser | 
     const token = authHeader.slice(7);
     const payload = verifyToken(token);
     if (payload) {
+      const revoked = await store.get<{ expiresAt?: number }>('revoked_tokens', payload.jti);
+      if (revoked) {
+        if (revoked.expiresAt && revoked.expiresAt <= Math.floor(Date.now() / 1000)) {
+          await store.delete('revoked_tokens', payload.jti);
+        } else {
+          return null;
+        }
+      }
+      let effectiveRole = payload.role;
+      let sessionVersion: number | undefined;
+      if (payload.username) {
+        const storedUser = await findUserById(payload.sub);
+        if (!storedUser) {
+          // Store-backed sessions must continue to resolve to an active user.
+          // Test-only demo users intentionally have no persistent user record.
+          if (process.env['NODE_ENV'] !== 'test') return null;
+        } else {
+          const currentVersion = storedUser.sessionVersion ?? 1;
+          if (storedUser.status !== 'active' || payload.ver !== currentVersion) return null;
+          effectiveRole = storedUser.role;
+          sessionVersion = currentVersion;
+        }
+      }
       const user: AuthUser = {
         id: payload.sub,
-        role: payload.role,
+        role: effectiveRole,
         authMethod: 'jwt',
+        tokenId: payload.jti,
+        tokenExpiresAt: payload.exp,
       };
       if (payload.username) {
         user.username = payload.username;
       }
+      if (sessionVersion !== undefined) user.sessionVersion = sessionVersion;
       return user;
     }
     // Invalid token — fall through (don't try API key if Bearer was provided)
@@ -250,9 +297,11 @@ async function authenticateRequest(request: FastifyRequest): Promise<AuthUser | 
   if (typeof apiKey === 'string' && apiKey.length > 0) {
     const keyInfo = await validateApiKey(apiKey);
     if (keyInfo) {
+      const storedUser = await findUserById(keyInfo.userId);
+      if (!storedUser || storedUser.status !== 'active') return null;
       return {
         id: keyInfo.userId,
-        role: keyInfo.role,
+        role: storedUser.role,
         authMethod: 'api-key',
       };
     }
@@ -310,6 +359,7 @@ export function isPublicRoute(method: string, pathname: string): boolean {
     exact === 'GET /api/v1/setup/status' ||
     exact === 'POST /api/v1/setup' ||
     exact === 'POST /api/v1/auth/login' ||
+    exact === 'GET /api/v1/sso/discovery' ||
     exact === 'POST /api/v1/contact' ||
     exact === 'GET /api/v1/openapi.json' ||
     exact === 'GET /api/docs' ||

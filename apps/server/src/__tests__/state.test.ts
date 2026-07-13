@@ -113,24 +113,24 @@ describe('ServerState', () => {
 
   describe ('initialization', () => {
     it('initializes with a project path', async () => {
-      await state.initialize('/tmp/test-project');
+      await state.initialize('/tmp/test-project', undefined, 'project-1');
       expect(state.getProjectPath()).toBe('/tmp/test-project');
     });
 
     it ('marks state as initialized', async () => {
-      await state.initialize('/tmp/test-project');
+      await state.initialize('/tmp/test-project', undefined, 'project-1');
       expect(state.isInitialized()).toBe(true);
     });
 
     it ('sets project info with name from path', async () => {
-      await state.initialize('/tmp/test-project');
+      await state.initialize('/tmp/test-project', undefined, 'project-1');
       const info = state.getProjectInfo();
       expect(info).not.toBeNull();
       expect(info.name).toBe('test-project');
     });
 
     it ('sets project info root_path', async () => {
-      await state.initialize('/tmp/test-project');
+      await state.initialize('/tmp/test-project', undefined, 'project-1');
       const info = state.getProjectInfo();
       expect(info.root_path).toBe('/tmp/test-project');
     });
@@ -202,12 +202,12 @@ describe('ServerState', () => {
     });
 
     it ('disposes graph client after initialization', async () => {
-      await state.initialize('/tmp/test-project');
+      await state.initialize('/tmp/test-project', undefined, 'project-1');
       await expect(state.dispose()).resolves.not.toThrow();
     });
 
     it ('resets initialized state after dispose', async () => {
-      await state.initialize('/tmp/test-project');
+      await state.initialize('/tmp/test-project', undefined, 'project-1');
       expect(state.isInitialized()).toBe(true);
       await state.dispose();
       expect(state.isInitialized()).toBe(false);

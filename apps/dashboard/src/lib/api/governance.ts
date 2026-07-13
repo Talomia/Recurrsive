@@ -144,17 +144,17 @@ export interface AuditEvent {
 
 // ─── Policies API ────────────────────────────────────────────────────────────
 
-export async function getPolicies(): Promise<PolicySet[]> {
-  return apiFetch<PolicySet[]>("/api/v1/policies");
+export async function getPolicies(projectId?: string): Promise<PolicySet[]> {
+  return apiFetch<PolicySet[]>("/api/v1/policies", { projectId });
 }
 
-export async function getComplianceReport(): Promise<ComplianceReport> {
-  return apiFetch<ComplianceReport>("/api/v1/policies/compliance");
+export async function getComplianceReport(projectId?: string): Promise<ComplianceReport> {
+  return apiFetch<ComplianceReport>("/api/v1/policies/compliance", { projectId });
 }
 
-export async function getPolicy(id: string): Promise<PolicyDetail | null> {
+export async function getPolicy(id: string, projectId?: string): Promise<PolicyDetail | null> {
   try {
-    return await apiFetch<PolicyDetail>(`/api/v1/policies/${encodeURIComponent(id)}`);
+    return await apiFetch<PolicyDetail>(`/api/v1/policies/${encodeURIComponent(id)}`, { projectId });
   } catch (caught) {
     if (caught instanceof ApiError && caught.status === 404) return null;
     throw caught;

@@ -57,6 +57,13 @@ export interface GraphConfig {
    * (default `true`).
    */
   autoMigrate?: boolean;
+
+  /**
+   * Logical graph namespace (AGE only). Each project should use a distinct
+   * namespace so clearing or querying one project cannot affect another.
+   * Defaults to `recurrsive` for standalone/CLI consumers.
+   */
+  graphName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +114,7 @@ export async function createGraphClient(config: GraphConfig): Promise<ExtendedGr
         {
           connectionString: config.connectionString,
           poolSize: config.poolSize,
+          graphName: config.graphName,
         },
         autoMigrate,
       );
