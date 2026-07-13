@@ -26,9 +26,8 @@ import { state } from './state.js';
  * Create a configured MCP server with all tools, resources, and prompts
  * registered.
  *
- * The server exposes:
- * - **42 tools** for analysis, inspection, governance, batch operations,
- *   webhooks, forecasting, simulation, and platform management
+ * The server exposes tools for analysis, inspection, governance, batch
+ * operations, webhooks, forecasting, and platform management
  * - **6 resource modules** for read-only access to health, opportunities,
  *   graph statistics, timeline, analytics, and configuration
  * - **7 prompt modules** for guided report interpretation, improvement

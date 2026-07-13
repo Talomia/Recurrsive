@@ -32,9 +32,8 @@ const PREREQUISITES = [
 ];
 
 const NEXT_LINKS = [
-  { icon: Code2, title: 'API Reference', desc: 'Explore 160+ REST endpoints', href: '/docs/api-reference' },
-  { icon: Terminal, title: 'CLI Reference', desc: 'Master 28 CLI commands', href: '/docs/cli-reference' },
-  { icon: Puzzle, title: 'Plugin SDK', desc: 'Build custom analyzers', href: '/docs/plugin-sdk' },
+  { icon: Code2, title: 'API Reference', desc: 'Review authentication and the live route inventory', href: '/docs/api-reference' },
+  { icon: Terminal, title: 'CLI Reference', desc: 'Analysis and operations commands', href: '/docs/cli-reference' },
   { icon: Server, title: 'Deployment Guide', desc: 'Production setup', href: '/docs/deployment' },
   { icon: Map, title: 'Architecture', desc: 'How it works under the hood', href: '/docs/architecture' },
 ];

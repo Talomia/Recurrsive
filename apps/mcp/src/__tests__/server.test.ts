@@ -3,9 +3,9 @@
  *
  * Tests cover:
  * - Server has correct name and version
- * - All 42 tools are registered
- * - All 16 resources are registered
- * - All 21 prompts are registered
+ * - All production tools are registered
+ * - All production resources are registered
+ * - All production prompts are registered
  * - Tools have valid schemas (verified by spy call args)
  * - createServer returns a valid McpServer instance
  */
@@ -180,9 +180,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 42 tools', () => {
+    it('registers exactly 35 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(42);
+      expect(mockTool).toHaveBeenCalledTimes(35);
     });
 
     it('registers "analyze_project" tool', () => {
@@ -409,13 +409,13 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('compare_analysis_runs');
     });
 
-    it('all 42 tool names are unique', () => {
+    it('all 35 tool names are unique', () => {
       createServer();
       const toolNames = mockTool.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(toolNames);
-      expect(uniqueNames.size).toBe(42);
+      expect(uniqueNames.size).toBe(35);
     });
 
     it('each tool has a description string as second argument', () => {
@@ -452,9 +452,9 @@ describe('MCP Server', () => {
   // ── Resource Registration ──────────────────────────────────────────────
 
   describe('resource registration', () => {
-    it('registers exactly 16 resources', () => {
+    it('registers exactly 13 resources', () => {
       createServer();
-      expect(mockResource).toHaveBeenCalledTimes(16);
+      expect(mockResource).toHaveBeenCalledTimes(13);
     });
 
     it('registers "health-latest" resource', () => {
@@ -565,9 +565,9 @@ describe('MCP Server', () => {
   // ── Prompt Registration ────────────────────────────────────────────────
 
   describe('prompt registration', () => {
-    it('registers exactly 21 prompts', () => {
+    it('registers exactly 17 prompts', () => {
       createServer();
-      expect(mockPrompt).toHaveBeenCalledTimes(21);
+      expect(mockPrompt).toHaveBeenCalledTimes(17);
     });
 
     it('registers "interpret_health_report" prompt', () => {
@@ -690,13 +690,13 @@ describe('MCP Server', () => {
       expect(promptNames).toContain('generate_action_items');
     });
 
-    it('all 21 prompt names are unique', () => {
+    it('all 17 prompt names are unique', () => {
       createServer();
       const promptNames = mockPrompt.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(promptNames);
-      expect(uniqueNames.size).toBe(21);
+      expect(uniqueNames.size).toBe(17);
     });
 
     it('each prompt has a description string', () => {

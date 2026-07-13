@@ -168,7 +168,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
         },
         analysis: {
           severity_threshold: ov.severityThreshold ?? 'info',
-          parallel: true,
+          parallel: false,
           timeout_ms: 60_000,
         },
         report: {
@@ -187,7 +187,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
           session_timeout: settings.session_timeout ?? 60,
           enable_notifications: settings.enable_notifications ?? true,
           data_retention_days: settings.data_retention_days ?? 90,
-          max_concurrent: settings.max_concurrent ?? 3,
+          max_concurrent: 1,
           rate_limit: settings.rate_limit ?? 100,
           enable_reasoning: settings.enable_reasoning ?? true,
           max_findings: settings.max_findings ?? 500,
@@ -332,7 +332,13 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
       settingsChanged = true;
     }
     if (typeof body['max_concurrent'] === 'number') {
-      settings.max_concurrent = body['max_concurrent'];
+      if (body['max_concurrent'] !== 1) {
+        return reply.status(400).send({
+          error: 'Invalid concurrency',
+          message: 'This deployment uses one serialized analysis worker; max_concurrent must be 1.',
+        });
+      }
+      settings.max_concurrent = 1;
       settingsChanged = true;
     }
     if (typeof body['rate_limit'] === 'number') {
@@ -424,43 +430,11 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
     return reply.send({
       data: [
         {
-          icon: '🔧',
-          title: 'General',
-          description: 'Platform-wide configuration',
+          icon: 'Shield',
+          title: 'Analysis Defaults',
+          description: 'Defaults applied when an analysis request does not override them',
           settings: [
-            { label: 'Platform Name', key: 'platform_name', type: 'text', defaultValue: 'Recurrsive' },
-            { label: 'Auto-Analysis on Push', key: 'auto_analyze', type: 'toggle', defaultValue: true },
-            { label: 'Max Concurrent Analysis', key: 'max_concurrent', type: 'number', defaultValue: '3' },
-          ],
-        },
-        {
-          icon: '🔐',
-          title: 'Security',
-          description: 'Authentication and access control',
-          settings: [
-            { label: 'Require MFA', key: 'require_mfa', type: 'toggle', defaultValue: false },
-            { label: 'Session Timeout (minutes)', key: 'session_timeout', type: 'number', defaultValue: '60' },
-            { label: 'API Rate Limit (req/min)', key: 'rate_limit', type: 'number', defaultValue: '100' },
-          ],
-        },
-        {
-          icon: '📊',
-          title: 'Analysis',
-          description: 'Analysis engine configuration',
-          settings: [
-            { label: 'Severity Threshold', key: 'severity_threshold', type: 'text', defaultValue: 'low' },
-            { label: 'Enable AI Reasoning', key: 'enable_reasoning', type: 'toggle', defaultValue: true },
-            { label: 'Max Findings per Report', key: 'max_findings', type: 'number', defaultValue: '500' },
-          ],
-        },
-        {
-          icon: '🔔',
-          title: 'Notifications',
-          description: 'Alert and notification preferences',
-          settings: [
-            { label: 'Email Notifications', key: 'email_notifications', type: 'toggle', defaultValue: true },
-            { label: 'Slack Integration', key: 'slack_enabled', type: 'toggle', defaultValue: false },
-            { label: 'Webhook URL', key: 'webhook_url', type: 'text', defaultValue: '' },
+            { label: 'Enable AI Reasoning by Default', key: 'enable_reasoning', type: 'toggle', defaultValue: true },
           ],
         },
       ],
@@ -484,7 +458,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
         session_timeout: settings.session_timeout ?? 60,
         enable_notifications: settings.enable_notifications ?? true,
         data_retention_days: settings.data_retention_days ?? 90,
-        max_concurrent: settings.max_concurrent ?? 3,
+        max_concurrent: 1,
         rate_limit: settings.rate_limit ?? 100,
         enable_reasoning: settings.enable_reasoning ?? true,
         max_findings: settings.max_findings ?? 500,

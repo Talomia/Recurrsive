@@ -96,7 +96,6 @@ function makeOpp(overrides: Partial<{
 /** Create data suitable for manager.create() (without id/timestamps). */
 function makeCreateData(overrides: Record<string, unknown> = {}) {
   const full = makeOpp(overrides as any);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id: _id, created_at: _ca, updated_at: _ua, ...data } = full;
   return data;
 }

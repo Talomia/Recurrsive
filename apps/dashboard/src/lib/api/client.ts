@@ -19,6 +19,24 @@ export const BASE_URL =
     ? ''  // Browser: use relative URLs → Next.js rewrite proxy
     : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000');
 
+/** Endpoints whose read models are scoped to the active project. */
+const PROJECT_SCOPED_PREFIXES = [
+  '/api/v1/activity',
+  '/api/v1/analysis',
+  '/api/v1/assistant',
+  '/api/v1/analytics',
+  '/api/v1/confidence',
+  '/api/v1/findings',
+  '/api/v1/forecasting',
+  '/api/v1/graph',
+  '/api/v1/health-score',
+  '/api/v1/opportunities',
+  '/api/v1/reports',
+  '/api/v1/search',
+  '/api/v1/snapshots',
+  '/api/v1/timeline',
+] as const;
+
 /**
  * API error class for non-OK responses.
  */
@@ -56,13 +74,9 @@ export async function apiFetch<T>(
     ...(fetchOpts.headers as Record<string, string> || {}),
   };
 
-  // Attach JWT token from localStorage (client) or cookie (SSR)
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('recurrsive_token');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  } else {
+  // Browser requests authenticate through the dashboard's HttpOnly cookie.
+  // Server-side direct requests translate that cookie into a Bearer header.
+  if (typeof window === 'undefined') {
     // Server-side: read token from the incoming request cookies
     try {
       // Dynamic import to avoid bundling issues in client code
@@ -82,8 +96,7 @@ export async function apiFetch<T>(
   // Scoped project query parameter auto-appending
   let finalPath = path;
   if (typeof window !== 'undefined') {
-    const method = fetchOpts.method?.toUpperCase() || 'GET';
-    if (method === 'GET') {
+    if (PROJECT_SCOPED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
       const searchParams = new URLSearchParams(window.location.search);
       const projectId = searchParams.get('projectId');
       if (projectId && !path.includes('projectId=')) {
@@ -103,9 +116,6 @@ export async function apiFetch<T>(
     if (res.status === 401) {
       // Clear stored auth on token expiry
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('recurrsive_token');
-        localStorage.removeItem('recurrsive_user');
-        document.cookie = 'recurrsive_token=; path=/; max-age=0';
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
@@ -126,6 +136,3 @@ export async function apiFetch<T>(
 
   return body as T;
 }
-
-
-

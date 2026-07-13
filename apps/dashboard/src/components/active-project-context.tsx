@@ -21,9 +21,16 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
+  const isPublicRoute = ['/login', '/setup', '/invite'].some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
 
   // Load all projects on mount
   useEffect(() => {
+    if (isPublicRoute) {
+      setLoading(false);
+      return;
+    }
     let active = true;
     getProjects()
       .then((data) => {
@@ -37,7 +44,7 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
     return () => {
       active = false;
     };
-  }, []);
+  }, [isPublicRoute]);
 
   const projectId = searchParams.get('projectId');
 

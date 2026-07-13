@@ -45,6 +45,7 @@ const { makeCollectorInstance, mockGraphClient, mockRegistry, mockRunner } = vi.
   });
 
   const mockGraphClient = {
+    clearAll: vi.fn().mockResolvedValue(undefined),
     upsertEntity: vi.fn().mockResolvedValue(undefined),
     upsertRelationship: vi.fn().mockResolvedValue(undefined),
     getStats: vi.fn().mockResolvedValue({ totalEntities: 10, totalRelationships: 5 }),

@@ -19,15 +19,18 @@
 services:
   # ── PostgreSQL + Apache AGE ────────────────────────────────────────────────
   postgres:
-    image: apache/age:latest
+    image: apache/age:release_PG16_1.5.0
     environment:
       POSTGRES_USER: recurrsive
-      POSTGRES_PASSWORD: recurrsive
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: recurrsive
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recurrsive -d recurrsive"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   # ── Recurrsive API Server ──────────────────────────────────────────────────
@@ -36,9 +39,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://recurrsive:recurrsive@postgres:5432/recurrsive
+      DATABASE_URL: postgresql://recurrsive:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/recurrsive
       GRAPH_PROVIDER: postgresql_age
       PORT: "3000"
       NODE_ENV: production
@@ -51,10 +55,13 @@ services:
       RECURRSIVE_WEBHOOK_TIMEOUT_MS: ${RECURRSIVE_WEBHOOK_TIMEOUT_MS:-5000}
       RECURRSIVE_WEBHOOK_MAX_RETRIES: ${RECURRSIVE_WEBHOOK_MAX_RETRIES:-3}
       # Auth configuration
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      ALLOW_DEMO_USERS: ${ALLOW_DEMO_USERS:-false}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set to at least 32 random characters}
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:?SECRETS_ENCRYPTION_KEY must be a different random value of at least 32 characters}
+      ALLOW_DEMO_USERS: "false"
+      TRUST_PROXY: "true"
+      RECURRSIVE_ALLOWED_GIT_HOSTS: ${RECURRSIVE_ALLOWED_GIT_HOSTS:-github.com,gitlab.com,bitbucket.org}
       # CORS — allow dashboard and website origins
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3100,http://localhost:3200}
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN must list the production dashboard and website origins}
       # Tier configuration
       ENABLE_ENTERPRISE: ${ENABLE_ENTERPRISE:-true}
       ENABLE_ECOSYSTEM: ${ENABLE_ECOSYSTEM:-true}
@@ -62,6 +69,8 @@ services:
       - "3000:3000"
     volumes:
       - server-data:/app/data
+    tmpfs:
+      - /tmp:size=1g,mode=1777
     restart: unless-stopped
 
   # ── Recurrsive Dashboard ───────────────────────────────────────────────────
@@ -76,6 +85,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://server:3000
       INTERNAL_API_URL: http://server:3000
+      PUBLIC_API_URL: http://localhost:3000
       PORT: "3100"
       NODE_ENV: production
     ports:
@@ -88,6 +98,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.website
     environment:
+      INTERNAL_API_URL: http://server:3000
       PORT: "3200"
       NODE_ENV: production
     ports:

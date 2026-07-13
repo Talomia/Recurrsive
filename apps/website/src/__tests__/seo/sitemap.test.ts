@@ -39,7 +39,6 @@ describe('Sitemap', () => {
     expect(urls).toContain('https://recurrsive.dev/docs/getting-started');
     expect(urls).toContain('https://recurrsive.dev/docs/api-reference');
     expect(urls).toContain('https://recurrsive.dev/docs/cli-reference');
-    expect(urls).toContain('https://recurrsive.dev/docs/plugin-sdk');
   });
 
   it('includes /about', () => {
@@ -50,17 +49,6 @@ describe('Sitemap', () => {
   it('includes /blog', () => {
     const urls = entries.map((e) => e.url);
     expect(urls).toContain('https://recurrsive.dev/blog');
-  });
-
-  it('includes /marketplace', () => {
-    const urls = entries.map((e) => e.url);
-    expect(urls).toContain('https://recurrsive.dev/marketplace');
-  });
-
-  it('includes /partners routes', () => {
-    const urls = entries.map((e) => e.url);
-    expect(urls).toContain('https://recurrsive.dev/partners');
-    expect(urls).toContain('https://recurrsive.dev/partners/directory');
   });
 
   it('includes /cloud', () => {

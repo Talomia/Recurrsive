@@ -364,17 +364,18 @@ describe ('Forecasting endpoints', () => {
     expect(body.data).toHaveProperty('trend');
     expect(body.data).toHaveProperty('confidence');
     expect(body.data).toHaveProperty('forecast');
+    expect(body.data).toHaveProperty('available');
   });
 
   it ('Prediction has trend, confidence, and forecast fields', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/health' });
     const body = res.json();
-    expect(['improving', 'declining', 'stable']).toContain(body.data.trend);
+    expect(['improving', 'declining', 'stable', 'insufficient-data']).toContain(body.data.trend);
     expect(typeof body.data.confidence).toBe('number');
     expect(body.data.confidence).toBeGreaterThanOrEqual(0);
     expect(body.data.confidence).toBeLessThanOrEqual(1);
     expect(Array.isArray(body.data.forecast)).toBe(true);
-    expect(body.data.forecast.length).toBeGreaterThan(0);
+    expect(body.data.forecast.length).toBeGreaterThanOrEqual(0);
   });
 
   it ('Horizon parameter limits forecast length', async () => {
@@ -385,62 +386,6 @@ describe ('Forecasting endpoints', () => {
     expect(body.data.forecast.length).toBeLessThanOrEqual(7);
   });
 
-  it ('POST /api/v1/forecasting/what-if returns impact analysis', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/forecasting/what-if',
-      payload: {
-        actions: [
-          { type: 'fix-critical-findings', description: 'Fix all critical findings' },
-          { type: 'add-tests', description: 'Add unit test coverage' },
-        ],
-      },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body.data).toHaveProperty('currentScore');
-    expect(body.data).toHaveProperty('projectedScore');
-    expect(body.data).toHaveProperty('totalImpact');
-    expect(body.data).toHaveProperty('actions');
-    expect(body.data.actions).toHaveLength(2);
-  });
-
-  it ('What-if accepts actions array and returns per-action impact', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/forecasting/what-if',
-      payload: {
-        actions: [
-          { type: 'add-monitoring', description: 'Add APM monitoring' },
-        ],
-      },
-    });
-    const body = res.json();
-    const action = body.data.actions[0];
-    expect(action).toHaveProperty('type');
-    expect(action).toHaveProperty('description');
-    expect(action).toHaveProperty('impact');
-    expect(action.impact).toHaveProperty('healthScoreDelta');
-    expect(action.impact).toHaveProperty('confidence');
-    expect(action.impact).toHaveProperty('timeToRealize');
-  });
-
-  it ('POST /api/v1/forecasting/what-if returns 400 without actions', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/forecasting/what-if',
-      payload: {},
-    });
-    expect(res.statusCode).toBe(400);
-    const body = res.json();
-    expect(body.error).toBe('Bad Request');
-    expect(body.message).toMatch(/At least one action is required|must have required property/);
-  });
-
   it ('GET /api/v1/forecasting/evolution returns evolution graph', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/evolution' });
     expect(res.statusCode).toBe(200);
@@ -448,19 +393,18 @@ describe ('Forecasting endpoints', () => {
     expect(body).toHaveProperty('data');
     expect(body.data).toHaveProperty('events');
     expect(body.data).toHaveProperty('trajectory');
-    expect(body.data).toHaveProperty('totalDecisions');
-    expect(body.data).toHaveProperty('totalMilestones');
+    expect(body.data).toHaveProperty('totalAnalyses');
+    expect(body.data).toHaveProperty('netHealthChange');
     expect(body.data).toHaveProperty('allLearnings');
   });
 
-  it ('Evolution events have decisions and outcomes', async () => {
+  it ('Evolution events contain recorded analysis evidence', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/evolution' });
     const body = res.json();
     expect(body.data.events.length).toBeGreaterThanOrEqual(0);
     if (body.data.events.length > 0) {
       const event = body.data.events[0];
-      expect(event).toHaveProperty('type');
-      expect(event).toHaveProperty('outcome');
+      expect(event.type).toBe('analysis');
       expect(event).toHaveProperty('healthImpact');
       expect(event).toHaveProperty('learnings');
       expect(Array.isArray(event.learnings)).toBe(true);
@@ -628,249 +572,6 @@ describe ('GraphQL endpoints', () => {
 });
 
 // ===========================================================================
-// Multi-Tenant (8 tests)
-// ===========================================================================
-
-describe ('Multi-Tenant endpoints', () => {
-  it('GET /api/v1/tenants returns an array of tenants', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/tenants' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
-    expect(Array.isArray(body.data)).toBe(true);
-    // No seed data — may be empty until tenants are created
-    expect(body.total).toBeGreaterThanOrEqual(0);
-  });
-
-  it ('GET /api/v1/tenants/:id returns tenant details', async () => {
-    // Create a tenant first since there's no seed data
-    const createRes = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/tenants',
-      payload: { name: 'Detail Test Tenant', slug: `detail-test-${Date.now()}`, tier: 'free', ownerId: 'test-user' },
-    });
-    const tenantId = createRes.json().data?.id ?? createRes.json().id;
-
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: `/api/v1/tenants/${tenantId}` });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data.id).toBe(tenantId);
-    expect(body.data).toHaveProperty('name');
-    expect(body.data).toHaveProperty('tier');
-    expect(body.data).toHaveProperty('quotas');
-    expect(body.data).toHaveProperty('features');
-  });
-
-  it ('POST /api/v1/tenants creates a tenant', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/tenants',
-      payload: {
-        name: 'Test Tenant Corp',
-        slug: `test-tenant-${Date.now()}`,
-        tier: 'team',
-        ownerId: 'test-user',
-      },
-    });
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body.data.name).toBe('Test Tenant Corp');
-    expect(body.data.tier).toBe('team');
-    expect(body.data).toHaveProperty('quotas');
-    expect(body.data).toHaveProperty('usage');
-  });
-
-  it ('Tenants have tier field', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/tenants' });
-    const body = res.json();
-    for (const tenant of body.data) {
-      expect(tenant).toHaveProperty('tier');
-      expect(['free', 'team', 'enterprise']).toContain(tenant.tier);
-    }
-  });
-
-  it ('GET /api/v1/tenants/:id/quotas returns usage data', async () => {
-    const listRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/tenants' });
-    const firstTenant = listRes.json().data[0];
-
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: `/api/v1/tenants/${firstTenant.id}/quotas` });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toHaveProperty('tenant');
-    expect(body.data).toHaveProperty('quotas');
-    expect(body.data).toHaveProperty('overallUtilization');
-    expect(Array.isArray(body.data.quotas)).toBe(true);
-    expect(body.data.quotas.length).toBeGreaterThan(0);
-    // Verify quota entry shape
-    const quota = body.data.quotas[0];
-    expect(quota).toHaveProperty('resource');
-    expect(quota).toHaveProperty('limit');
-    expect(quota).toHaveProperty('current');
-  });
-
-  it ('GET /api/v1/tenants/tiers/info returns tier comparison', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/tenants/tiers/info' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toHaveProperty('tiers');
-    expect(Array.isArray(body.data.tiers)).toBe(true);
-    expect(body.data.tiers).toHaveLength(3);
-    const tierNames = body.data.tiers.map((t: { tier: string }) => t.tier);
-    expect(tierNames).toContain('free');
-    expect(tierNames).toContain('team');
-    expect(tierNames).toContain('enterprise');
-  });
-
-  it ('Invalid tenant ID returns 404', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/tenants/nonexistent-tenant-xyz' });
-    expect(res.statusCode).toBe(404);
-    const body = res.json();
-    expect(body.error).toBe('Not Found');
-    expect(body.message).toBe('Tenant not found');
-  });
-
-  it ('Tiers are free/team/enterprise', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/tenants/tiers/info' });
-    const body = res.json();
-    for (const tier of body.data.tiers) {
-      expect(['free', 'team', 'enterprise']).toContain(tier.tier);
-      expect(tier).toHaveProperty('price');
-      expect(tier).toHaveProperty('quotas');
-      expect(tier).toHaveProperty('features');
-    }
-  });
-});
-
-// ===========================================================================
-// Simulation (8 tests)
-// ===========================================================================
-
-describe ('Simulation endpoints', () => {
-  it('GET /api/v1/simulations returns an array', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/simulations' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
-    expect(Array.isArray(body.data)).toBe(true);
-  });
-
-  it ('GET /api/v1/simulations/:id returns simulation details', async () => {
-    // Create a simulation first since there's no seed data
-    const createRes = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/simulations',
-      payload: { name: 'Test Sim', type: 'load-test' },
-    });
-    const simId = createRes.json().data.id;
-
-    const res = await app.inject({
-      headers: authHeaders, method: 'GET', url: `/api/v1/simulations/${simId}` });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data.id).toBe(simId);
-    expect(body.data).toHaveProperty('name');
-    expect(body.data).toHaveProperty('type');
-    expect(body.data).toHaveProperty('status');
-  });
-
-  it ('POST /api/v1/simulations creates a simulation', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/simulations',
-      payload: {
-        name: 'Test Load Simulation',
-        type: 'load-test',
-        description: 'Testing load simulation creation',
-        parameters: { concurrency: 100, duration: '1h' },
-      },
-    });
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body.data).toHaveProperty('id');
-    expect(body.data.name).toBe('Test Load Simulation');
-    expect(body.data.type).toBe('load-test');
-    expect(body.data.status).toBe('completed');
-  });
-
-  it ('Simulation has results with metrics', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/simulations',
-      payload: {
-        name: 'Metrics Test Sim',
-        type: 'traffic-replay',
-      },
-    });
-    const body = res.json();
-    expect(body.data).toHaveProperty('results');
-    expect(body.data.results).not.toBeNull();
-    expect(body.data.results).toHaveProperty('impactScore');
-    expect(body.data.results).toHaveProperty('riskLevel');
-    expect(body.data.results).toHaveProperty('metrics');
-    expect(body.data.results.metrics).toHaveProperty('estimatedLatencyChangeMs');
-    expect(body.data.results.metrics).toHaveProperty('estimatedErrorRateChange');
-  });
-
-  it ('Pull requests endpoint works', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/pull-requests' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
-    expect(Array.isArray(body.data)).toBe(true);
-  });
-
-  it ('Intelligence packs endpoint works', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/intelligence-packs' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
-    expect(Array.isArray(body.data)).toBe(true);
-    // Intelligence packs may be seeded or empty depending on test environment
-    expect(body.total).toBeGreaterThanOrEqual(0);
-  });
-
-  it ('Intelligence pack by ID returns details or 404', async () => {
-    const listRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/intelligence-packs' });
-    const packs = listRes.json().data;
-
-    if (packs.length > 0) {
-      const firstPack = packs[0];
-      const res = await app.inject({
-      headers: authHeaders, method: 'GET', url: `/api/v1/intelligence-packs/${firstPack.id}` });
-      expect(res.statusCode).toBe(200);
-      const body = res.json();
-      expect(body.data.id).toBe(firstPack.id);
-      expect(body.data).toHaveProperty('name');
-      expect(body.data).toHaveProperty('domain');
-      expect(body.data).toHaveProperty('analyzers');
-      expect(body.data).toHaveProperty('frameworks');
-      expect(body.data).toHaveProperty('ruleCount');
-    } else {
-      // No packs available — verify 404 for unknown ID
-      const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/intelligence-packs/nonexistent' });
-      expect(res.statusCode).toBe(404);
-    }
-  });
-
-  it ('Invalid simulation ID returns 404', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/simulations/nonexistent-sim' });
-    expect(res.statusCode).toBe(404);
-    const body = res.json();
-    expect(body.error).toBe('Not Found');
-    expect(body.message).toBe('Simulation not found');
-  });
-});
-
-// ===========================================================================
 // Cloud (8 tests)
 // ===========================================================================
 
@@ -906,16 +607,6 @@ describe ('Cloud endpoints', () => {
     expect(body.total).toBeGreaterThanOrEqual(0);
   });
 
-  it ('GET /api/v1/partners returns partner list', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
-    expect(Array.isArray(body.data)).toBe(true);
-    expect(body.total).toBeGreaterThanOrEqual(0);
-  });
-
   it ('GET /api/v1/cloud/services returns service tiers', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/cloud/services' });
     expect(res.statusCode).toBe(200);
@@ -930,7 +621,7 @@ describe ('Cloud endpoints', () => {
     expect(service).toHaveProperty('tier');
     expect(service).toHaveProperty('features');
     expect(service).toHaveProperty('priceRange');
-    expect(service).toHaveProperty('sla');
+    expect(service).toHaveProperty('availability');
   });
 
   it ('GET /api/v1/cloud/info returns platform info', async () => {
@@ -954,6 +645,7 @@ describe ('Cloud endpoints', () => {
         industry: 'fintech',
         teamSize: 'medium',
         scores: { overall: 72, architecture: 75, security: 68, performance: 80, reliability: 71, documentation: 60 },
+        meta: { codebaseSize: 'medium', primaryLanguage: 'TypeScript', analyzersUsed: 10, collectorsUsed: 4 },
       },
     });
     expect(res.statusCode).toBe(201);
@@ -962,25 +654,6 @@ describe ('Cloud endpoints', () => {
     expect(body.data).toHaveProperty('message');
   });
 
-  it ('POST /api/v1/partners/apply submits partner application', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/partners/apply',
-      payload: {
-        companyName: 'Test Partner Inc',
-        contactEmail: 'partner@test.com',
-        partnerType: 'consulting',
-        description: 'Cloud migration and security consulting',
-      },
-    });
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body.data).toHaveProperty('id');
-    expect(body.data.companyName).toBe('Test Partner Inc');
-    expect(body.data.status).toBe('pending');
-    expect(body).toHaveProperty('message');
-  });
 });
 
 // ===========================================================================
@@ -1104,212 +777,10 @@ describe ('Secrets endpoints', () => {
   });
 });
 
-// ===========================================================================
-// Confidence (6 tests)
-// ===========================================================================
-
-describe ('Confidence calibration endpoints', () => {
-  it('GET /api/v1/confidence/overview returns calibration data', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/overview' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('generatedAt');
-    expect(body.data).toHaveProperty('totalPredictions');
-    expect(body.data).toHaveProperty('resolved');
-    expect(body.data).toHaveProperty('pending');
-    expect(body.data).toHaveProperty('overallBrierScore');
-    expect(body.data).toHaveProperty('calibrationCurve');
-    expect(body.data).toHaveProperty('analyzerScores');
-  });
-
-  it ('Overview has Brier score', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/overview' });
-    const body = res.json();
-    expect(typeof body.data.overallBrierScore).toBe('number');
-    expect(body.data.overallBrierScore).toBeGreaterThanOrEqual(0);
-    expect(body.data.overallBrierScore).toBeLessThanOrEqual(1);
-  });
-
-  it ('GET /api/v1/confidence/predictions returns predictions list', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/predictions' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
-    expect(Array.isArray(body.data)).toBe(true);
-    expect(body.total).toBeGreaterThanOrEqual(0);
-  });
-
-  it ('POST outcome recording works', async () => {
-    // Get a prediction with pending outcome
-    const listRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/predictions?status=pending' });
-    const pending = listRes.json().data;
-    if (pending.length > 0) {
-      const predId = pending[0].id;
-      const res = await app.inject({
-      headers: authHeaders,
-        method: 'POST',
-        url: `/api/v1/confidence/predictions/${predId}/outcome`,
-        payload: { occurred: true },
-      });
-      expect(res.statusCode).toBe(200);
-      const body = res.json();
-      expect(body.data.actualOutcome).toBe(true);
-      expect(body.data.resolvedAt).not.toBeNull();
-    } else {
-      // If no pending predictions, verify the endpoint at least exists
-      const res = await app.inject({
-      headers: authHeaders,
-        method: 'POST',
-        url: '/api/v1/confidence/predictions/nonexistent/outcome',
-        payload: { occurred: true },
-      });
-      expect(res.statusCode).toBe(404);
-    }
-  });
-
-  it ('Calibration curve has buckets', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/overview' });
-    const body = res.json();
-    const curve = body.data.calibrationCurve;
-    expect(Array.isArray(curve)).toBe(true);
-    expect(curve.length).toBe(5); // 5 buckets: 0-20%, 20-40%, 40-60%, 60-80%, 80-100%
-    if (curve.length > 0) {
-      const bucket = curve[0];
-      expect(bucket).toHaveProperty('range');
-      expect(bucket).toHaveProperty('count');
-      expect(bucket).toHaveProperty('avgPredicted');
-      expect(bucket).toHaveProperty('actualRate');
-      expect(bucket).toHaveProperty('calibrationError');
-    }
-  });
-
-  it ('Per-analyzer calibration works', async () => {
-    // Get a valid analyzer ID from the overview
-    const overviewRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/overview' });
-    const analyzerScores = overviewRes.json().data.analyzerScores;
-    const validAnalyzer = analyzerScores.find((a: { totalPredictions: number }) => a.totalPredictions > 0);
-
-    if (validAnalyzer) {
-      const res = await app.inject({
-      headers: authHeaders,
-        method: 'GET',
-        url: `/api/v1/confidence/calibration/${validAnalyzer.analyzerId}`,
-      });
-      expect(res.statusCode).toBe(200);
-      const body = res.json();
-      expect(body.data).toHaveProperty('analyzerId');
-      expect(body.data.analyzerId).toBe(validAnalyzer.analyzerId);
-      expect(body.data).toHaveProperty('brierScore');
-      expect(body.data).toHaveProperty('calibrationCurve');
-      expect(body.data).toHaveProperty('totalPredictions');
-    } else {
-      // Verify endpoint returns 404 for unknown analyzer
-      const res = await app.inject({
-      headers: authHeaders,
-        method: 'GET',
-        url: '/api/v1/confidence/calibration/nonexistent',
-      });
-      expect(res.statusCode).toBe(404);
-    }
-  });
-});
-
-// ===========================================================================
-// Plugins (6 tests)
-// ===========================================================================
-
-describe ('Plugins endpoints', () => {
-  it('GET /api/v1/plugins/installed returns installed plugin list', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/installed' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
-    expect(Array.isArray(body.data)).toBe(true);
-  });
-
-  it ('GET /api/v1/plugins/marketplace returns marketplace listing', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/marketplace' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('total');
-    expect(Array.isArray(body.data)).toBe(true);
-    expect(body.total).toBeGreaterThan(0);
-    // Verify marketplace entry shape
-    const entry = body.data[0];
-    expect(entry).toHaveProperty('name');
-    expect(entry).toHaveProperty('version');
-    expect(entry).toHaveProperty('type');
-    expect(entry).toHaveProperty('downloads');
-    expect(entry).toHaveProperty('rating');
-  });
-
-  it ('POST /api/v1/plugins/install/:id installs a plugin', async () => {
-    // Find a plugin in marketplace that is NOT already installed
-    const marketRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/marketplace' });
-    const installedRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/installed' });
-    const installedIds = new Set(installedRes.json().data.map((p: { id: string }) => p.id));
-    const available = marketRes.json().data.find((p: { id: string }) => !installedIds.has(p.id));
-
-    if (available) {
-      const res = await app.inject({
-      headers: authHeaders,
-        method: 'POST',
-        url: `/api/v1/plugins/install/${available.id}`,
-      });
-      expect(res.statusCode).toBe(201);
-      const body = res.json();
-      expect(body.data.id).toBe(available.id);
-      expect(body.data.status).toBe('enabled');
-    }
-  });
-
-  it ('DELETE /api/v1/plugins/installed/:id uninstalls a plugin', async () => {
-    // Install a plugin first, then uninstall it
-    const marketRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/marketplace' });
-    const installedRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/installed' });
-    const installedIds = new Set(installedRes.json().data.map((p: { id: string }) => p.id));
-    const available = marketRes.json().data.find((p: { id: string }) => !installedIds.has(p.id));
-
-    if (available) {
-      // Install it
-      await app.inject({ headers: authHeaders, method: 'POST', url: `/api/v1/plugins/install/${available.id}` });
-      // Uninstall it
-      const res = await app.inject({ headers: authHeaders, method: 'DELETE', url: `/api/v1/plugins/installed/${available.id}` });
-      expect(res.statusCode).toBe(204);
-    }
-  });
-
-  it ('GET /api/v1/plugins/installed/:id/health returns plugin health', async () => {
-    const installedRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/installed' });
-    const plugins = installedRes.json().data;
-
-    if (plugins.length > 0) {
-      const pluginId = plugins[0].id;
-      const res = await app.inject({ headers: authHeaders, method: 'GET', url: `/api/v1/plugins/installed/${pluginId}/health` });
-      expect(res.statusCode).toBe(200);
-      const body = res.json();
-      expect(body.data).toHaveProperty('status');
-      expect(body.data).toHaveProperty('lastCheck');
-      expect(body.data).toHaveProperty('message');
-      expect(['healthy', 'degraded', 'unhealthy']).toContain(body.data.status);
-    }
-  });
-
-  it ('GET /api/v1/plugins/sdk returns SDK info', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/sdk' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toHaveProperty('version');
-    expect(body.data).toHaveProperty('interfaces');
-    expect(body.data.interfaces).toHaveProperty('collector');
-    expect(body.data.interfaces).toHaveProperty('analyzer');
-    expect(body.data.interfaces).toHaveProperty('reporter');
-    expect(body.data).toHaveProperty('templateRepo');
-    expect(body.data).toHaveProperty('cliCommand');
+describe('Removed confidence-calibration surface', () => {
+  it('does not expose analyzer findings as outcome predictions', async () => {
+    const response = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/overview' });
+    expect(response.statusCode).toBe(404);
   });
 });
 
@@ -1522,210 +993,15 @@ describe ('Scheduling endpoints', () => {
   });
 });
 
-// ==========================================================================
-// Marketplace Routes (10 tests)
-// ==========================================================================
-
-describe ('Marketplace Routes', () => {
-  it('GET /api/v1/marketplace/extensions returns extension list', async () => {
-    // Create an extension first since there is no seed data
-    await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/marketplace/extensions',
-      payload: { name: 'Seed-Like Analyzer', category: 'analyzer', description: 'An analyzer for testing', repositoryUrl: 'https://github.com/test/analyzer', author: 'TestAuthor', version: '1.0.0' },
-    });
-
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/marketplace/extensions' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toBeInstanceOf(Array);
-    // Submitted extensions start in 'review' status and won't appear in the published list.
-    // The total may be 0 since listing filters by status === 'published'.
-    expect(body).toHaveProperty('total');
-    expect(body).toHaveProperty('categories');
-  });
-
-  it ('GET /api/v1/marketplace/extensions supports category filter', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/marketplace/extensions?category=analyzer' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    body.data.forEach((ext: any) => {
-      expect(ext.category).toBe('analyzer');
-    });
-  });
-
-  it ('GET /api/v1/marketplace/extensions supports source filter', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/marketplace/extensions?source=built-in' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    body.data.forEach((ext: any) => {
-      expect(ext.source).toBe('built-in');
-    });
-  });
-
-  it ('GET /api/v1/marketplace/extensions supports search', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/marketplace/extensions?search=security' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    // No seed data, so search may return 0 results
-    expect(body.data).toBeInstanceOf(Array);
-  });
-
-  it ('GET /api/v1/marketplace/extensions supports sorting', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/marketplace/extensions?sort=rating' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    for (let i = 1; i < body.data.length; i++) {
-      expect(body.data[i - 1].rating).toBeGreaterThanOrEqual(body.data[i].rating);
-    }
-  });
-
-  it ('GET /api/v1/marketplace/extensions/:id returns extension detail', async () => {
-    // Create an extension and look it up by its ID from the creation response
-    const createRes = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/marketplace/extensions',
-      payload: { name: 'Detail Test Extension', category: 'collector', description: 'For detail test', repositoryUrl: 'https://github.com/test/detail', author: 'Tester', version: '0.1.0' },
-    });
-    const extId = createRes.json().data.id;
-    const res = await app.inject({
-      headers: authHeaders, method: 'GET', url: `/api/v1/marketplace/extensions/${extId}` });
-    expect(res.statusCode).toBe(200);
-    expect(res.json().data.id).toBe(extId);
-  });
-
-  it ('GET /api/v1/marketplace/extensions/:id returns 404 for unknown', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/marketplace/extensions/nonexistent' });
-    expect(res.statusCode).toBe(404);
-  });
-
-  it ('POST /api/v1/marketplace/extensions submits new extension', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/marketplace/extensions',
-      payload: { name: 'Test Analyzer', category: 'analyzer', description: 'Test extension', repositoryUrl: 'https://github.com/test/test', author: 'Test', version: '1.0.0' },
-    });
-    expect(res.statusCode).toBe(201);
-    expect(res.json().data.status).toBe('review');
-  });
-
-  it ('GET /api/v1/marketplace/categories returns category list', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/marketplace/categories' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toBeInstanceOf(Array);
-    expect(body.data.length).toBe(4);
-  });
-
-  it ('GET /api/v1/marketplace/stats returns statistics', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/marketplace/stats' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toHaveProperty('totalExtensions');
-    expect(body.data).toHaveProperty('totalDownloads');
-    expect(body.data).toHaveProperty('averageRating');
-    expect(body.data).toHaveProperty('categoryCounts');
-    expect(body.data).toHaveProperty('sourceCounts');
+describe('Removed promotional program routes', () => {
+  it.each([
+    '/api/v1/marketplace/extensions',
+    '/api/v1/partners',
+  ])('does not expose %s', async (url) => {
+    const response = await app.inject({ headers: authHeaders, method: 'GET', url });
+    expect(response.statusCode).toBe(404);
   });
 });
-
-// ==========================================================================
-// Partner Routes (10 tests)
-// ==========================================================================
-
-describe ('Partner Routes', () => {
-  it('GET /api/v1/partners returns partner list', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toBeInstanceOf(Array);
-    // No seed data, so partners may be empty
-    expect(body).toHaveProperty('total');
-    expect(body).toHaveProperty('tierCounts');
-  });
-
-  it ('GET /api/v1/partners supports tier filter', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners?tier=platinum' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    body.data.forEach((p: any) => {
-      expect(p.tier).toBe('platinum');
-    });
-  });
-
-  it ('GET /api/v1/partners supports type filter', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners?type=consulting' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    body.data.forEach((p: any) => {
-      expect(p.type).toBe('consulting');
-    });
-  });
-
-  it ('GET /api/v1/partners supports region filter', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners?region=europe' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    body.data.forEach((p: any) => {
-      expect(p.regions.some((r: string) => r.toLowerCase().includes('europe'))).toBe(true);
-    });
-  });
-
-  it ('GET /api/v1/partners/:id returns 404 for unknown partner', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners/nonexistent-partner' });
-    expect(res.statusCode).toBe(404);
-    expect(res.json().error).toBe('Not Found');
-  });
-
-  it ('GET /api/v1/partners/:id returns 404 for unknown', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners/nonexistent' });
-    expect(res.statusCode).toBe(404);
-  });
-
-  it ('POST /api/v1/partners/apply submits application', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/partners/apply',
-      payload: { companyName: 'Test Corp', contactEmail: 'test@example.com', partnerType: 'consulting', website: 'https://test.com', contactName: 'John Doe', companySize: '50-200', description: 'Test application' },
-    });
-    expect(res.statusCode).toBe(201);
-    expect(res.json().data.status).toBe('pending');
-  });
-
-  it ('POST /api/v1/partners/apply validates required fields', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/partners/apply',
-      payload: { companyName: 'Test Corp' },
-    });
-    expect(res.statusCode).toBe(400);
-  });
-
-  it ('GET /api/v1/partners/certifications returns certification tracks', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners/certifications' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toBeInstanceOf(Array);
-    // No seed data, so certifications may be empty
-    expect(body.data.length).toBeGreaterThanOrEqual(0);
-  });
-
-  it ('GET /api/v1/partners/stats returns program statistics', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/partners/stats' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toHaveProperty('totalPartners');
-    expect(body.data).toHaveProperty('totalCertifiedEngineers');
-    expect(body.data).toHaveProperty('totalCustomersServed');
-    expect(body.data).toHaveProperty('tierDistribution');
-  });
-});
-
 // ==========================================================================
 // OpenAPI Routes (3 tests)
 // ==========================================================================
@@ -1747,17 +1023,12 @@ describe ('OpenAPI Routes', () => {
     const body = res.json();
     expect(body.paths).toHaveProperty('/api/v1/health');
     expect(body.paths).toHaveProperty('/api/v1/findings');
-    expect(body.paths).toHaveProperty('/api/v1/marketplace/extensions');
-    expect(body.paths).toHaveProperty('/api/v1/partners');
   });
 
-  it ('GET /api/docs returns HTML documentation page', async () => {
+  it ('GET /api/docs redirects to the generated OpenAPI document', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/docs' });
-    expect(res.statusCode).toBe(200);
-    expect(res.headers['content-type']).toContain('text/html');
-    const html = res.body;
-    expect(html).toContain('swagger-ui');
-    expect(html).toContain('Recurrsive API');
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe('/api/v1/openapi.json');
   });
 });
 
@@ -1840,7 +1111,7 @@ describe ('Setup Wizard endpoints', () => {
       payload: {
         username: 'duplicate-admin',
         email: 'dup@test.com',
-        password: 'password',
+        password: 'strong-password-123',
       },
     });
     expect(res.statusCode).toBe(409);
@@ -1939,7 +1210,7 @@ describe ('User Management endpoints', () => {
       payload: {
         username: 'update-target-user',
         email: 'update-target@test.com',
-        password: 'password',
+        password: 'strong-password-123',
         role: 'viewer',
       },
     });
@@ -1966,7 +1237,7 @@ describe ('User Management endpoints', () => {
       payload: {
         username: 'delete-target-user',
         email: 'delete-target@test.com',
-        password: 'password',
+        password: 'strong-password-123',
       },
     });
     const userId = createRes.json().data.id;
@@ -2105,7 +1376,6 @@ describe ('Invite endpoints', () => {
 
   it ('GET /api/v1/invites/:token/validate validates a valid invite', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: `/api/v1/invites/${inviteToken}/validate`,
     });
@@ -2118,7 +1388,6 @@ describe ('Invite endpoints', () => {
 
   it ('POST /api/v1/invites/:token/accept creates a user and returns token', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       method: 'POST',
       url: `/api/v1/invites/${inviteToken}/accept`,
       payload: {
@@ -2190,7 +1459,6 @@ describe ('Password change endpoint', () => {
 
   it ('PUT /api/v1/auth/change-password succeeds with correct current password', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: { authorization: `Bearer ${userToken}` },
       method: 'PUT',
       url: '/api/v1/auth/change-password',
@@ -2206,7 +1474,6 @@ describe ('Password change endpoint', () => {
 
   it ('PUT /api/v1/auth/change-password fails with wrong current password', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: { authorization: `Bearer ${userToken}` },
       method: 'PUT',
       url: '/api/v1/auth/change-password',
@@ -2223,7 +1490,6 @@ describe ('Password change endpoint', () => {
 
   it ('PUT /api/v1/auth/change-password rejects short new password', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: { authorization: `Bearer ${userToken}` },
       method: 'PUT',
       url: '/api/v1/auth/change-password',
@@ -2235,7 +1501,7 @@ describe ('Password change endpoint', () => {
     expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body.error).toBe('Bad Request');
-    expect(body.message).toContain('at least 6 characters');
+    expect(body.message).toContain('at least 12 characters');
   });
 });
 

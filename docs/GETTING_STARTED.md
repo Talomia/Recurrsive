@@ -1,321 +1,61 @@
-# Getting Started with Recurrsive
+# Getting Started
 
-A step-by-step tutorial to get Recurrsive running and analyzing your first project.
-
-## Prerequisites
-
-| Requirement | Minimum Version |
-|-------------|----------------|
-| **Node.js** | 20.0.0+ |
-| **pnpm** | 9.0.0+ |
-| **Git** | 2.30+ |
-
-## Step 1: Clone and Build
+## Install
 
 ```bash
 git clone https://github.com/Talomia/Recurrsive.git
 cd Recurrsive
-
-# Install dependencies
-pnpm install
-
-# Build all packages
+pnpm install --frozen-lockfile
 pnpm build
 ```
 
-This will build 14 packages including the CLI, server, dashboard, website, and MCP server.
+Node.js 22 and pnpm 9 are recommended.
 
-## Step 2: Link the CLI
+## Verify the workspace
 
 ```bash
-# Option A: Use npx (no global install)
-npx --package ./apps/cli recurrsive --help
-
-# Option B: Link globally for development
-pnpm --filter @recurrsive/cli link --global
-recurrsive --help
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
-## Step 3: Initialize a Project
+## Run locally
 
-Navigate to any project you want to analyze:
+Start the server and dashboard using their package scripts. The API defaults to port 3000 and the dashboard to port 3100. Local development uses persistent SQLite state unless a PostgreSQL/AGE URL is configured.
+
+Open the dashboard. A fresh deployment redirects to `/setup`; create the first administrator there. The dashboard stores the resulting session in an HttpOnly cookie.
+
+## Register and analyze a project
+
+From the dashboard, create a project with its repository details and start analysis from that project. Server analysis is keyed by project ID. For remote repositories, the submitted URL must match the registered project and an allowed Git host.
+
+From the CLI:
 
 ```bash
-cd /path/to/your/project
 recurrsive init
-```
-
-This creates a `.recurrsive/` directory with:
-- `config.json` (or `config.yaml`) — Configuration file
-- `graph.db` — SQLite knowledge graph database
-- `snapshots/` — Intelligence timeline data
-
-### Configuration
-
-The init command auto-detects your project's language, frameworks, and AI providers.
-You can customize the configuration:
-
-```yaml
-# .recurrsive/config.yaml
-version: "1"
-
-project:
-  name: my-project
-  repository: https://github.com/org/my-project
-
-graph:
-  provider: sqlite
-
-analyzers:
-  enabled: ["*"]       # Run all analyzers
-  disabled: []         # Or exclude specific ones
-
-output:
-  format: markdown     # json, markdown, sarif, html
-  directory: .recurrsive
-```
-
-## Step 4: Run Analysis
-
-```bash
-# Full analysis (all 13 analyzers)
 recurrsive analyze .
-
-# Run specific analyzers only
-recurrsive analyze . --analyzers security,performance
-
-# Include AI-powered reasoning (requires LLM API key)
-recurrsive analyze . --reasoning
-```
-
-The analysis pipeline:
-1. **Collect** — Discovers code, docs, configs, CI/CD, databases
-2. **Parse** — Extracts entities and relationships using Tree-sitter
-3. **Build Graph** — Populates the knowledge graph with entities
-4. **Analyze** — Runs all enabled analyzers against the graph
-5. **Reason** (optional) — AI agents debate and rank opportunities
-
-## Step 5: Explore Results
-
-### Health Score
-
-```bash
 recurrsive health
-```
-
-Shows an overall health score (0–100) with maturity breakdown across 10 dimensions.
-
-### Opportunities
-
-```bash
-# View top 10 opportunities
-recurrsive opportunities --top 10
-
-# Filter by type
-recurrsive opportunities --type risk
-recurrsive opportunities --type debt
-recurrsive opportunities --type opportunity
-```
-
-### Knowledge Graph
-
-```bash
-# Graph statistics
-recurrsive graph
-
-# Search entities
-recurrsive graph --search "auth"
-
-# View entity details
-recurrsive graph --neighbors <entity-id>
-
-# Filter by type
-recurrsive graph --type function
-```
-
-### Timeline
-
-```bash
-# View intelligence timeline
-recurrsive timeline
-
-# Compare two snapshots
-recurrsive timeline --compare snap-1 snap-2
-```
-
-### Search
-
-```bash
-# Full-text search across the knowledge graph
-recurrsive search "authentication"
-
-# Search with type filter
-recurrsive search "handler" --type function
-```
-
-### Snapshots
-
-```bash
-# Export the knowledge graph as portable JSON
-recurrsive snapshot export --output backup.json
-
-# Import from a snapshot file
-recurrsive snapshot import backup.json
-```
-
-### Reports
-
-```bash
-# Generate a markdown report
-recurrsive report --format markdown
-
-# Generate SARIF for GitHub Code Scanning
-recurrsive report --format sarif > results.sarif
-
-# Generate JSON for CI/CD pipelines
-recurrsive report --format json
-
-# Generate HTML for sharing
+recurrsive opportunities
 recurrsive report --format html
 ```
 
-## Step 6: Start the Server (Optional)
+Use `recurrsive --help` for the authoritative command list.
 
-```bash
-# Start the REST API + WebSocket server
-node apps/server/dist/bin.js
+## Direct API use
 
-# Server runs at http://localhost:3000
-# API docs (Swagger UI): http://localhost:3000/api/docs
-# OpenAPI spec: http://localhost:3000/api/v1/openapi.json
+Check first-run state, complete setup or login, then send the returned JWT as a bearer token. Register a project before calling analysis.
+
+The authoritative runtime route list is available at:
+
+```text
+GET /api/v1/openapi.json
 ```
 
-### Key API Endpoints
+## MCP
 
-The server exposes 160+ REST endpoints. Key ones include:
+Build the MCP app and configure your MCP client to run `apps/mcp/dist/bin.js`. Set the API connection and authentication variables required by `apps/mcp/src/api.ts`. The registered MCP tool list is authoritative; documentation does not hard-code a count.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/setup/status` | Check if initial setup is required |
-| `POST` | `/api/v1/setup` | Create first admin account |
-| `POST` | `/api/v1/auth/login` | Login with credentials |
-| `POST` | `/api/v1/analyze` | Trigger analysis |
-| `GET` | `/api/v1/health-score` | Health + maturity scores |
-| `GET` | `/api/v1/opportunities` | Prioritized opportunities |
-| `GET` | `/api/v1/graph/entities` | Browse knowledge graph |
-| `GET` | `/api/v1/reports/:format` | Download reports |
-| `GET` | `/api/docs` | Swagger UI (interactive API docs) |
-| `GET` | `/api/v1/openapi.json` | OpenAPI 3.1 specification |
+## Production
 
-## Step 7: Launch the Dashboard
-
-```bash
-cd apps/dashboard
-pnpm dev
-# Opens at http://localhost:3100
-```
-
-### First-Time Setup
-
-On a fresh install, the dashboard automatically redirects to the **setup wizard**:
-
-1. Visit `http://localhost:3100`
-2. You are redirected to `/setup` (no users exist yet)
-3. Create the first admin account (username, email, password)
-4. You are automatically logged in
-
-### Inviting Team Members
-
-After setup, admins can invite team members:
-
-1. Go to **Administration → Invites** in the sidebar
-2. Click **Invite Member**, enter their email and role
-3. Copy the invite link and share it
-4. The invitee visits the link, sets a username/password, and joins the team
-
-### Dashboard Features
-
-The dashboard provides 46 pages including:
-- Health score gauge and trend charts
-- Opportunity browser with filtering
-- Knowledge graph visualization
-- Report generation and export
-- User management and team invites
-- System configuration
-
-## Step 7.5: Launch the Marketing Website (Optional)
-
-```bash
-pnpm dev --filter @recurrsive/website
-# Opens at http://localhost:3200
-```
-
-The website provides 23 pages including:
-- Product features and pricing
-- Extension marketplace
-- Cloud offering and billing
-- Partner program and directory
-- Documentation hub (7 pages)
-- Blog, changelog, and contact
-
-## Step 8: Connect AI Assistants via MCP (Optional)
-
-Add Recurrsive as an MCP server for Claude, Cursor, or Copilot:
-
-```json
-{
-  "mcpServers": {
-    "recurrsive": {
-      "command": "node",
-      "args": ["path/to/recurrsive/apps/mcp/dist/bin.js"],
-      "env": {
-        "RECURRSIVE_PROJECT_PATH": "/path/to/your/project"
-      }
-    }
-  }
-}
-```
-
-This gives your AI assistant 42 tools, 21 prompts, and 16 resources to analyze, query, and reason about your codebase.
-
----
-
-## Troubleshooting
-
-### Build Errors
-
-```bash
-# Clean and rebuild
-pnpm clean
-pnpm install
-pnpm build
-```
-
-### Analysis Fails
-
-```bash
-# Check the config is valid
-recurrsive config validate
-
-# Try with verbose logging
-recurrsive analyze . --verbose
-```
-
-### Missing Dependencies
-
-```bash
-# Check Node.js version
-node --version  # Should be 20+
-
-# Check pnpm version
-pnpm --version  # Should be 9+
-```
-
-## Next Steps
-
-- Read the [Architecture Guide](ARCHITECTURE.md) for system design details
-- Read the [API Reference](API.md) for endpoint documentation
-- Browse the [API docs](http://localhost:3000/api/docs) (Swagger UI) for interactive endpoint testing
-- Read the [Product Requirements](PRD.md) for full capability descriptions
-- Visit the [Documentation Hub](http://localhost:3200/docs) on the marketing website
-- Check the [Roadmap](ROADMAP.md) for upcoming features
+Do not use development defaults in production. PostgreSQL with Apache AGE, strong unique JWT and encryption secrets, exact CORS origin, HTTPS domains, backups, and tested rollback are required. See [DEPLOYMENT.md](DEPLOYMENT.md).

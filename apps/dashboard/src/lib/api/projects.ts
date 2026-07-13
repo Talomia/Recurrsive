@@ -4,7 +4,7 @@
  * Project management and batch operations.
  */
 
-import { apiFetch } from './client';
+import { ApiError, apiFetch } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,7 +29,9 @@ export interface Project {
 }
 
 export interface BatchProject {
-  path: string;
+  projectId: string;
+  name: string;
+  repository: string;
   status: "pending" | "running" | "completed" | "failed";
   findings_count?: number;
   opportunities_count?: number;
@@ -76,11 +78,7 @@ export interface BatchJobDetail {
  * Get all projects from `GET /api/v1/projects`.
  */
 export async function getProjects(): Promise<Project[]> {
-  try {
-    return await apiFetch<Project[]>("/api/v1/projects");
-  } catch {
-    return [];
-  }
+  return apiFetch<Project[]>("/api/v1/projects");
 }
 
 /**
@@ -89,8 +87,9 @@ export async function getProjects(): Promise<Project[]> {
 export async function getProject(id: string): Promise<Project | null> {
   try {
     return await apiFetch<Project>(`/api/v1/projects/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
 }
 
@@ -98,11 +97,7 @@ export async function getProject(id: string): Promise<Project | null> {
  * Get batch analysis history from `GET /api/v1/batch/history`.
  */
 export async function getBatchHistory(): Promise<BatchRun[]> {
-  try {
-    return await apiFetch<BatchRun[]>("/api/v1/batch/history");
-  } catch {
-    return [];
-  }
+  return apiFetch<BatchRun[]>("/api/v1/batch/history");
 }
 
 /**
@@ -111,8 +106,9 @@ export async function getBatchHistory(): Promise<BatchRun[]> {
 export async function getBatchStatus(id: string): Promise<BatchRun | null> {
   try {
     return await apiFetch<BatchRun>(`/api/v1/batch/status/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
 }
 
@@ -122,8 +118,9 @@ export async function getBatchStatus(id: string): Promise<BatchRun | null> {
 export async function getBatchJob(id: string): Promise<BatchJobDetail | null> {
   try {
     return await apiFetch<BatchJobDetail>(`/api/v1/batch/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
 }
 
@@ -131,10 +128,10 @@ export async function getBatchJob(id: string): Promise<BatchJobDetail | null> {
  * Submit a new batch analysis run via `POST /api/v1/batch/analyze`.
  */
 export async function createBatchRun(data: {
-  projects: string[];
+  projectIds: string[];
   options?: Record<string, unknown>;
-}): Promise<{ batch_id: string; status: string; projects: { path: string; status: string }[] }> {
-  return await apiFetch<{ batch_id: string; status: string; projects: { path: string; status: string }[] }>(
+}): Promise<{ batch_id: string; status: string; projects: { projectId: string; name: string; status: string }[] }> {
+  return await apiFetch<{ batch_id: string; status: string; projects: { projectId: string; name: string; status: string }[] }>(
     '/api/v1/batch/analyze',
     {
       method: 'POST',

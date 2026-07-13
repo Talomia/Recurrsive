@@ -4,7 +4,7 @@
  * Opportunity CRUD operations.
  */
 
-import { apiFetch } from './client';
+import { ApiError, apiFetch } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,14 +27,16 @@ export interface Opportunity {
   title: string;
   description: string;
   categories: string[];
-  severity: "critical" | "high" | "medium" | "low";
-  score: number;
-  impact: number;
+  severity: "critical" | "high" | "medium" | "low" | "info";
   confidence: number;
-  effort: number;
-  risk: number;
-  roi: number;
-  rootCauses: string[];
+  effort: string;
+  estimatedHours: number | null;
+  risk: string;
+  status: string;
+  impactSummary: string;
+  businessValue: string | null;
+  recommendation: string;
+  assumptions: string[];
   evidence: EvidenceItem[];
   affectedComponents: string[];
   solution: SolutionStep[];
@@ -49,54 +51,82 @@ export interface Opportunity {
 interface ServerOpportunity {
   id: string;
   title: string;
-  description: string;
+  problem: string;
   category: string;
   severity: string;
   status: string;
-  score?: number;
-  impact?: number;
-  confidence?: number;
-  effort_estimate?: string;
-  risk_assessment?: { risk_level?: string };
-  root_causes?: string[];
-  evidence?: Array<{ type: string; description: string; source: string; value?: string }>;
-  affected_entities?: string[];
-  recommendations?: Array<{ title: string; description: string; effort?: string }>;
-  created_at?: string;
+  confidence: number;
+  recommendation: string;
+  expected_impact: {
+    summary: string;
+    affected_services: string[];
+    business_value?: string;
+  };
+  effort: {
+    t_shirt: string;
+    estimated_hours?: number;
+  };
+  risk: { level: string };
+  assumptions?: string[];
+  evidence: Array<{
+    type: string;
+    description: string;
+    source: string;
+    data?: Record<string, unknown>;
+  }>;
+  locations: Array<{ file: string }>;
+  validation: {
+    steps: Array<{ description: string; type: string; duration?: string }>;
+  };
+  created_at: string;
 }
 
 /** Transform a server opportunity into the dashboard shape. */
-function transformOpportunity(raw: ServerOpportunity, idx: number): Opportunity {
+function transformOpportunity(raw: ServerOpportunity): Opportunity {
   const severityMap: Record<string, Opportunity["severity"]> = {
-    critical: "critical", high: "high", medium: "medium", low: "low",
+    critical: "critical", high: "high", medium: "medium", low: "low", info: "info",
   };
+  const affectedComponents = Array.from(new Set([
+    ...raw.locations.map((location) => location.file),
+    ...raw.expected_impact.affected_services,
+  ]));
   return {
-    id: raw.id || `OPP-${1000 + idx}`,
+    id: raw.id,
     title: raw.title,
-    description: raw.description,
+    description: raw.problem,
     categories: [raw.category].filter(Boolean),
     severity: severityMap[raw.severity] ?? "medium",
-    score: raw.score ?? 70,
-    impact: raw.impact ?? 70,
-    confidence: raw.confidence ?? 80,
-    effort: parseInt(raw.effort_estimate ?? "50", 10) || 50,
-    risk: raw.risk_assessment?.risk_level === "high" ? 70 : raw.risk_assessment?.risk_level === "medium" ? 40 : 20,
-    roi: Math.round(((raw.impact ?? 70) * (raw.confidence ?? 80)) / 100),
-    rootCauses: raw.root_causes ?? [],
-    evidence: (raw.evidence ?? []).map((e) => ({
+    confidence: Math.round(raw.confidence * 100),
+    effort: raw.effort.t_shirt,
+    estimatedHours: raw.effort.estimated_hours ?? null,
+    risk: raw.risk.level,
+    status: raw.status,
+    impactSummary: raw.expected_impact.summary,
+    businessValue: raw.expected_impact.business_value ?? null,
+    recommendation: raw.recommendation,
+    assumptions: raw.assumptions ?? [],
+    evidence: raw.evidence.map((e) => ({
       type: e.type,
       description: e.description,
       source: e.source,
-      value: e.value ?? "",
+      value: e.data ? JSON.stringify(e.data) : "",
     })),
-    affectedComponents: raw.affected_entities ?? [],
-    solution: (raw.recommendations ?? []).map((r, i) => ({
-      step: i + 1,
-      title: r.title,
-      description: r.description,
-      effort: r.effort ?? "TBD",
-    })),
-    createdAt: raw.created_at ?? new Date().toISOString(),
+    affectedComponents,
+    solution: [
+      {
+        step: 1,
+        title: "Recommendation",
+        description: raw.recommendation,
+        effort: raw.effort.t_shirt === 'unknown' ? 'Not estimated' : raw.effort.t_shirt.toUpperCase(),
+      },
+      ...raw.validation.steps.map((step, i) => ({
+        step: i + 2,
+        title: step.type.replaceAll('_', ' '),
+        description: step.description,
+        effort: step.duration ?? "",
+      })),
+    ],
+    createdAt: raw.created_at,
   };
 }
 
@@ -108,19 +138,16 @@ function transformOpportunity(raw: ServerOpportunity, idx: number): Opportunity 
  * Server returns: `{ data: Opportunity[], total, limit, offset, has_more }`
  */
 export async function getOpportunities(): Promise<Opportunity[]> {
-  try {
-    const raw = await apiFetch<ServerOpportunity[]>("/api/v1/opportunities?limit=50");
-    return raw.map(transformOpportunity);
-  } catch {
-    return [];
-  }
+  const raw = await apiFetch<ServerOpportunity[]>("/api/v1/opportunities?limit=50");
+  return raw.map(transformOpportunity);
 }
 
 export async function getOpportunity(id: string): Promise<Opportunity | undefined> {
   try {
     const raw = await apiFetch<ServerOpportunity>(`/api/v1/opportunities/${encodeURIComponent(id)}`);
-    return transformOpportunity(raw, 0);
-  } catch {
-    return undefined;
+    return transformOpportunity(raw);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return undefined;
+    throw error;
   }
 }

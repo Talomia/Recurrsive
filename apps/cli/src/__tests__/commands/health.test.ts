@@ -4,7 +4,7 @@
  * Tests cover:
  * - Renders the health score from a snapshot
  * - Renders the maturity breakdown from snapshot data
- * - Handles missing snapshot gracefully (estimated score)
+ * - Keeps health unavailable when no recorded analysis exists
  * - Handles no data at all (no config / no snapshot)
  * - JSON output mode
  * - Opportunity filtering by type (risk, debt, opportunity)
@@ -212,7 +212,7 @@ describe('registerHealthCommand', () => {
       consoleSpy.mockRestore();
     });
 
-    it('renders an estimated health score when no snapshot exists', async () => {
+    it('does not invent a health score when no analysis exists', async () => {
       // No snapshots, no graph
       (existsSync as Mock).mockReturnValue(false);
       (readdir as Mock).mockResolvedValue([]);
@@ -221,8 +221,8 @@ describe('registerHealthCommand', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       await runAction();
 
-      // With no opportunities and no entities, estimated score should be 70
-      expect(progressBar).toHaveBeenCalledWith(70, 100, 40);
+      expect(progressBar).not.toHaveBeenCalled();
+      expect(info).toHaveBeenCalledWith(expect.stringContaining('No recorded analysis results'));
       consoleSpy.mockRestore();
     });
 
@@ -266,13 +266,13 @@ describe('registerHealthCommand', () => {
       await runAction();
 
       expect(info).toHaveBeenCalledWith(
-        expect.stringContaining('No maturity data available'),
+        expect.stringContaining('No recorded analysis results'),
       );
       consoleSpy.mockRestore();
     });
 
     it('does not render maturity section when snapshot has empty maturity_scores', async () => {
-      (existsSync as Mock).mockReturnValue(false);
+      (existsSync as Mock).mockImplementation((path: string) => path.includes('snapshots'));
       (readdir as Mock).mockResolvedValue(['snap.json']);
       (readFile as Mock).mockResolvedValue(
         JSON.stringify(makeSnapshot({ maturity_scores: [] })),
@@ -347,7 +347,7 @@ describe('registerHealthCommand', () => {
       consoleSpy.mockRestore();
     });
 
-    it('includes null snapshot data when no snapshot exists in JSON mode', async () => {
+    it('keeps health null when no recorded analysis exists in JSON mode', async () => {
       (existsSync as Mock).mockReturnValue(false);
       (readdir as Mock).mockResolvedValue([]);
 
@@ -358,7 +358,7 @@ describe('registerHealthCommand', () => {
       const output = JSON.parse(consoleSpy.mock.calls[0]![0] as string);
       expect(output.snapshot_id).toBeNull();
       expect(output.snapshot_timestamp).toBeNull();
-      expect(output.overall_health).toBe(70); // estimated
+      expect(output.overall_health).toBeNull();
       consoleSpy.mockRestore();
     });
 

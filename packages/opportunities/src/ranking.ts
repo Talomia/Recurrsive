@@ -45,6 +45,7 @@ const SEVERITY_IMPACT: Record<Severity, number> = {
 
 /** Map t-shirt size to a 0–1 numeric effort value (higher = more effort). */
 const EFFORT_MAP: Record<string, number> = {
+  unknown: 0.5,
   xs: 0.1,
   s: 0.25,
   m: 0.5,
@@ -54,6 +55,7 @@ const EFFORT_MAP: Record<string, number> = {
 
 /** Map risk level to a 0–1 numeric risk value. */
 const RISK_MAP: Record<string, number> = {
+  unknown: 0.5,
   negligible: 0.1,
   low: 0.25,
   medium: 0.5,

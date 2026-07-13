@@ -227,7 +227,7 @@ export class DocumentationCollector implements Collector {
       if (!stat.isDirectory()) {
         errors.push(`'${this.rootPath}' is not a directory`);
       }
-    } catch (err: unknown) {
+    } catch {
       errors.push(`Directory '${this.rootPath}' does not exist or is not accessible`);
     }
 
@@ -383,7 +383,7 @@ export class DocumentationCollector implements Collector {
     let entries: Dirent[];
     try {
       entries = await fs.readdir(dirPath, { withFileTypes: true });
-    } catch (err: unknown) {
+    } catch {
       return results;
     }
 
@@ -463,7 +463,7 @@ export class DocumentationCollector implements Collector {
           category,
           entityType,
         });
-      } catch (err: unknown) {
+      } catch {
         // Skip
       }
     }
@@ -488,7 +488,7 @@ export class DocumentationCollector implements Collector {
       let entries: Dirent[];
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
-      } catch (err: unknown) {
+      } catch {
         return;
       }
 
@@ -513,7 +513,7 @@ export class DocumentationCollector implements Collector {
               category: 'api_contract',
               entityType: 'api_contract',
             });
-          } catch (err: unknown) {
+          } catch {
             // Skip
           }
         }
@@ -553,7 +553,7 @@ export class DocumentationCollector implements Collector {
         if (this.governance.pii_detection) {
           content = this.governanceFilter.sanitizeText(content);
         }
-      } catch (err: unknown) {
+      } catch {
         // Failed to read — use default description
       }
     }
@@ -588,7 +588,7 @@ export class DocumentationCollector implements Collector {
   }
 
   /**
-   * Build `contains` relationships from a synthetic repository reference
+   * Build `contains` relationships from a generated repository reference
    * to each document entity.
    *
    * Note: The actual repository entity is created by the GitCollector.

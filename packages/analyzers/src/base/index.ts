@@ -13,6 +13,7 @@ export {
   createFinding,
   createEvidence,
   locationFromEntity,
+  isTestOrFixtureEntity,
   type CreateFindingOptions,
   type CreateEvidenceOptions,
 } from './helpers.js';

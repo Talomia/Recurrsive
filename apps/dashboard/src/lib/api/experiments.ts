@@ -4,7 +4,7 @@
  * Experiments and analysis run comparisons.
  */
 
-import { apiFetch } from './client';
+import { ApiError, apiFetch } from './client';
 
 // ─── Experiment Types ────────────────────────────────────────────────────────
 
@@ -47,7 +47,8 @@ export interface AnalysisRun {
   date: string;
   health_score: number;
   findings: number;
-  resolved: number;
+  opportunities: number;
+  duration_ms: number;
   categories: AnalysisRunCategory[];
 }
 
@@ -56,11 +57,8 @@ export interface ComparisonData {
   runB: AnalysisRun;
   health_delta: number;
   findings_delta: number;
-  resolution_rate_a: number;
-  resolution_rate_b: number;
-  resolution_rate_delta: number;
-  new_findings: number;
-  findings_resolved: number;
+  opportunities_delta: number;
+  duration_delta_ms: number;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -69,12 +67,8 @@ export interface ComparisonData {
  * Get all experiments from `GET /api/v1/experiments`.
  */
 export async function getExperiments(status?: string): Promise<DashboardExperiment[]> {
-  try {
-    const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    return await apiFetch<DashboardExperiment[]>(`/api/v1/experiments${query}`);
-  } catch {
-    return [];
-  }
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch<DashboardExperiment[]>(`/api/v1/experiments${query}`);
 }
 
 /**
@@ -85,8 +79,9 @@ export async function getExperiment(id: string): Promise<DashboardExperiment | n
     return await apiFetch<DashboardExperiment>(
       `/api/v1/experiments/${encodeURIComponent(id)}`,
     );
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
 }
 
@@ -100,6 +95,7 @@ interface ServerAnalysisHistoryEntry {
   durationMs: number;
   findingCount: number;
   opportunityCount: number;
+  healthScore: number | null;
   includeReasoning: boolean;
   status: 'success' | 'error';
   error: string | null;
@@ -112,30 +108,25 @@ interface ServerAnalysisHistoryEntry {
  * `AnalysisRun` shape expected by the comparisons page.
  */
 export async function getAnalysisRuns(): Promise<AnalysisRun[]> {
-  try {
-    const res = await apiFetch<{ data: ServerAnalysisHistoryEntry[]; total: number }>(
-      "/api/v1/analysis/history",
-      { unwrap: false },
-    );
-    const entries = res.data ?? [];
-    return entries.map((entry) => {
+  const res = await apiFetch<{ data: ServerAnalysisHistoryEntry[]; total: number }>(
+    "/api/v1/analysis/history",
+    { unwrap: false },
+  );
+  const entries = (res.data ?? []).filter((entry) => entry.status === 'success' && entry.healthScore !== null);
+  return entries.map((entry) => {
       const date = new Date(entry.startedAt);
       const label = `Run ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-      // Approximate health score: fewer findings = higher score (cap 0–100)
-      const health_score = Math.max(0, Math.round(100 - entry.findingCount * 1.5));
       return {
         id: entry.id,
         label,
         date: entry.startedAt,
-        health_score,
+        health_score: entry.healthScore ?? 0,
         findings: entry.findingCount,
-        resolved: 0, // Server doesn't track resolved count per run
+        opportunities: entry.opportunityCount,
+        duration_ms: entry.durationMs,
         categories: [] as AnalysisRunCategory[],
       };
-    });
-  } catch {
-    return [];
-  }
+  });
 }
 
 /**
@@ -149,8 +140,9 @@ export async function getComparisonData(
     return await apiFetch<ComparisonData>(
       `/api/v1/analysis/compare?run_a=${encodeURIComponent(runAId)}&run_b=${encodeURIComponent(runBId)}`,
     );
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
 }
 

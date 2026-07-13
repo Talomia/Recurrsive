@@ -7,9 +7,13 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { state } from '../state.js';
-import { createLogger } from '@recurrsive/core';
+import { createLogger, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import {
+  persistFindingStates,
+  resolveAnalysis,
+  resolveFindingStates,
+} from '../project-analysis.js';
 
 const logger = createLogger({ context: { component: 'server:routes:findings' } });
 
@@ -18,6 +22,7 @@ const logger = createLogger({ context: { component: 'server:routes:findings' } }
 // ---------------------------------------------------------------------------
 
 interface FindingsQuery {
+  projectId?: string;
   severity?: string;
   category?: string;
   analyzer?: string;
@@ -27,6 +32,11 @@ interface FindingsQuery {
 
 interface FindingParams {
   id: string;
+}
+
+interface UpdateFindingBody {
+  status?: 'open' | 'resolved' | 'suppressed';
+  assignee?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,7 +60,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
-        const cache = state.getAnalysisCache();
+        const { cache } = await resolveAnalysis(request);
         if (!cache) {
           return reply.status(404).send({
             error: 'No analysis results available',
@@ -105,9 +115,9 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
    *
    * Get a summary of findings grouped by severity and category.
    */
-  app.get('/api/v1/findings/summary', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: FindingsQuery }>('/api/v1/findings/summary', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      const cache = state.getAnalysisCache();
+      const { cache } = await resolveAnalysis(request);
       if (!cache) {
         return reply.status(404).send({
           error: 'No analysis results available',
@@ -155,9 +165,10 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
   // Dashboard findings page — returns findings with severity stats.
   // Maps core Finding objects to the FindingsPageItem shape.
 
-  app.get('/api/v1/findings/page', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: FindingsQuery }>('/api/v1/findings/page', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      const cache = state.getAnalysisCache();
+      const resolved = await resolveAnalysis(request);
+      const { cache } = resolved;
       if (!cache) {
         return reply.status(503).send({
           error: 'Not ready',
@@ -166,14 +177,15 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
       }
 
       const { findings } = cache;
+      const states = await resolveFindingStates(resolved);
 
       const items = findings.map((f) => ({
         id: f.id,
         title: f.title,
         severity: f.severity,
         category: f.category,
-        status: 'open' as const,
-        assignee: '',
+        status: states[f.id]?.status ?? ('open' as const),
+        assignee: states[f.id]?.assignee ?? '',
         created_at: f.created_at ?? cache.analyzedAt,
       }));
 
@@ -200,9 +212,9 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
    *
    * Return categories of findings with counts and highest severity per category.
    */
-  app.get('/api/v1/findings/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: FindingsQuery }>('/api/v1/findings/categories', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      const cache = state.getAnalysisCache();
+      const { cache } = await resolveAnalysis(request);
       if (!cache) {
         return reply.status(200).send({ data: [], total: 0 });
       }
@@ -251,12 +263,13 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
    * sub-path routes (summary, page, categories) to prevent Fastify
    * from matching literal paths like "summary" as `:id`.
    */
-  app.get<{ Params: FindingParams }>(
+  app.get<{ Params: FindingParams; Querystring: FindingsQuery }>(
     '/api/v1/findings/:id',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
-        const cache = state.getAnalysisCache();
+        const resolved = await resolveAnalysis(request);
+        const { cache } = resolved;
         if (!cache) {
           return reply.status(404).send({
             error: 'No analysis results available',
@@ -272,7 +285,18 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
           });
         }
 
-        return reply.status(200).send({ data: finding });
+        const states = await resolveFindingStates(resolved);
+        const workflow = states[finding.id] ?? { status: 'open', assignee: '' };
+        const firstLocation = finding.locations[0];
+        return reply.status(200).send({
+          data: {
+            ...finding,
+            ...workflow,
+            file_path: firstLocation?.file,
+            line_start: firstLocation?.start_line,
+            line_end: firstLocation?.end_line,
+          },
+        });
       } catch (err) {
         logger.error('Failed to get finding', { error: err });
         return reply.status(500).send({
@@ -280,6 +304,44 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
           message: 'Failed to retrieve finding.',
         });
       }
+    },
+  );
+
+  app.patch<{
+    Params: FindingParams;
+    Querystring: FindingsQuery;
+    Body: UpdateFindingBody;
+  }>(
+    '/api/v1/findings/:id',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        body: {
+          type: 'object',
+          minProperties: 1,
+          properties: {
+            status: { type: 'string', enum: ['open', 'resolved', 'suppressed'] },
+            assignee: { type: 'string', maxLength: 120 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const resolved = await resolveAnalysis(request);
+      const finding = resolved.cache?.findings.find((item) => item.id === request.params.id);
+      if (!finding) return reply.status(404).send({ error: 'Finding not found' });
+
+      const states = await resolveFindingStates(resolved);
+      const previous = states[finding.id] ?? { status: 'open' as const, assignee: '', updatedAt: nowISO() };
+      const updated = {
+        status: request.body.status ?? previous.status,
+        assignee: request.body.assignee?.trim() ?? previous.assignee,
+        updatedAt: nowISO(),
+      };
+      states[finding.id] = updated;
+      await persistFindingStates(resolved, states);
+      return reply.send({ data: { ...finding, ...updated } });
     },
   );
 }

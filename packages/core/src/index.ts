@@ -38,7 +38,6 @@ export {
   RollbackPlanSchema,
   AgentProvenanceSchema,
   SourceLocationSchema,
-  SimulationResultSchema,
   OpportunitySchema,
   type OpportunityCategory,
   type OpportunityType,
@@ -52,7 +51,6 @@ export {
   type RollbackPlan,
   type AgentProvenance,
   type SourceLocation,
-  type SimulationResult,
   type Opportunity,
   // Findings
   FindingSchema,
@@ -160,6 +158,7 @@ export {
   deepMerge,
   debounce,
   LRUCache,
+  calculateFindingHealth,
 } from './utils/index.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ export {
   createFinding,
   createEvidence,
   locationFromEntity,
+  isTestOrFixtureEntity,
   type CreateFindingOptions,
   type CreateEvidenceOptions,
 } from './base/index.js';

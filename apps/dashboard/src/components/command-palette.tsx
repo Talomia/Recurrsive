@@ -27,7 +27,6 @@ import {
   FileText,
   Search,
   FlaskConical,
-  Bot,
   Camera,
   Users,
   Shield,
@@ -37,12 +36,8 @@ import {
   Eye,
   Webhook,
   Bell,
-  Zap,
-  Package,
   KeyRound,
-  Building2,
   Crown,
-  Target,
   Sparkles,
   Play,
   Plus,
@@ -72,7 +67,6 @@ const PAGE_ITEMS: PaletteItem[] = [
   { id: "p-overview", label: "Overview", icon: LayoutDashboard, group: "Pages", href: "/", keywords: ["home", "dashboard"] },
   { id: "p-executive", label: "Executive", icon: Crown, group: "Pages", href: "/executive", keywords: ["exec", "summary"] },
   { id: "p-forecasting", label: "Forecasting", icon: Brain, group: "Pages", href: "/forecasting", keywords: ["predict", "ml"] },
-  { id: "p-confidence", label: "Confidence", icon: Target, group: "Pages", href: "/confidence", keywords: ["score"] },
   // Analysis
   { id: "p-projects", label: "Projects", icon: FolderGit2, group: "Pages", href: "/projects", keywords: ["repos"] },
   { id: "p-findings", label: "Findings", icon: ShieldAlert, group: "Pages", href: "/findings", keywords: ["issues", "alerts"] },
@@ -90,12 +84,9 @@ const PAGE_ITEMS: PaletteItem[] = [
   { id: "p-experiments", label: "Experiments", icon: FlaskConical, group: "Pages", href: "/experiments", keywords: ["ab-test"] },
   { id: "p-comparisons", label: "Comparisons", icon: GitCompare, group: "Pages", href: "/comparisons", keywords: ["diff"] },
   // Integrations
-  { id: "p-simulation", label: "Simulation", icon: Bot, group: "Pages", href: "/simulation", keywords: ["simulate"] },
   { id: "p-snapshots", label: "Snapshots", icon: Camera, group: "Pages", href: "/snapshots", keywords: ["capture"] },
   { id: "p-webhooks", label: "Webhooks", icon: Webhook, group: "Pages", href: "/webhooks", keywords: ["hook"] },
   { id: "p-notifications", label: "Notifications", icon: Bell, group: "Pages", href: "/notifications", keywords: ["alerts"] },
-  { id: "p-plugins", label: "Plugins", icon: Package, group: "Pages", href: "/plugins", keywords: ["extensions"] },
-  { id: "p-marketplace", label: "Marketplace", icon: Zap, group: "Pages", href: "/marketplace", keywords: ["store"] },
   // Administration
   { id: "p-users", label: "Users", icon: Users, group: "Pages", href: "/users", keywords: ["members", "team"] },
   { id: "p-policies", label: "Policies", icon: Shield, group: "Pages", href: "/policies", keywords: ["rules", "permissions"] },
@@ -105,7 +96,6 @@ const PAGE_ITEMS: PaletteItem[] = [
   { id: "p-data-masking", label: "Data Masking", icon: Eye, group: "Pages", href: "/data-masking", keywords: ["privacy", "pii"] },
   // Enterprise
   { id: "p-sso", label: "SSO", icon: KeyRound, group: "Pages", href: "/sso", keywords: ["saml", "oidc"] },
-  { id: "p-tenants", label: "Tenants", icon: Building2, group: "Pages", href: "/tenants", keywords: ["orgs", "multi-tenant"] },
 ];
 
 // ── Fuzzy match helper ───────────────────────────────────

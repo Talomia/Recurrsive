@@ -13,7 +13,6 @@ import Link from 'next/link';
 import {
   Activity,
   Lightbulb,
-  DollarSign,
   Brain,
   Clock,
   Globe,
@@ -274,16 +273,17 @@ function RiskIndicator({ level, label }: { level: 'low' | 'medium' | 'high' | 'c
 function StrategicRecommendation({
   title,
   description,
-  impact,
+  severity,
   effort,
 }: {
   title: string;
   description: string;
-  impact: 'high' | 'medium' | 'low';
-  effort: 'high' | 'medium' | 'low';
+  severity: Opportunity['severity'];
+  effort: Opportunity['effort'];
 }) {
-  const impactColors = { high: '#22c55e', medium: '#eab308', low: '#6b7280' };
-  const effortColors = { high: '#ef4444', medium: '#eab308', low: '#22c55e' };
+  const severityColors: Record<Opportunity['severity'], string> = {
+    critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e', info: '#6b7280',
+  };
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
@@ -291,12 +291,12 @@ function StrategicRecommendation({
       <p className="text-xs text-text-secondary mb-3">{description}</p>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-text-tertiary">Impact</span>
-          <span className="text-[10px] font-bold uppercase" style={{ color: impactColors[impact] }}>{impact}</span>
+          <span className="text-[10px] text-text-tertiary">Severity</span>
+          <span className="text-[10px] font-bold uppercase" style={{ color: severityColors[severity] }}>{severity}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-text-tertiary">Effort</span>
-          <span className="text-[10px] font-bold uppercase" style={{ color: effortColors[effort] }}>{effort}</span>
+          <span className="text-[10px] font-bold uppercase text-text-secondary">{effort === 'unknown' ? 'Not estimated' : effort}</span>
         </div>
       </div>
     </div>
@@ -314,7 +314,7 @@ export default function OverviewPage() {
   const [projectCount, setProjectCount] = useState(0);
 
   // Overview data
-  const [health, setHealth] = useState<HealthMetrics>({ healthScore: 0, healthTrend: 0, qualityScore: 0, qualityTrend: 0, opportunities: 0, newOpportunities: 0, techDebt: 0, techDebtTrend: 0, aiQualityScore: 0, aiQualityTrend: 0 });
+  const [health, setHealth] = useState<HealthMetrics>({ healthScore: 0, healthTrend: 0, documentationScore: 0, securityScore: 0, opportunities: 0, findingCount: 0 });
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [perfMetrics, setPerfMetrics] = useState<Awaited<ReturnType<typeof getPerformanceMetrics>>>([]);
@@ -451,7 +451,7 @@ export default function OverviewPage() {
                     <span className={`text-xs font-semibold ${health.healthTrend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {health.healthTrend >= 0 ? '+' : ''}{health.healthTrend}%
                     </span>
-                    <span className="text-xs text-text-muted">vs last 30d</span>
+                    <span className="text-xs text-text-muted">since previous analysis</span>
                   </div>
                 </div>
               </div>
@@ -461,41 +461,22 @@ export default function OverviewPage() {
                 icon={<Lightbulb className="h-4 w-4 text-amber-400" />}
                 label="Opportunities"
                 value={health.opportunities}
-                trend={12.5}
-              >
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-semibold text-blue-400">
-                  +{health.newOpportunities} new this week
-                </span>
-              </MetricCard>
+              />
 
-              {/* Tech Debt */}
+              {/* Findings */}
               <MetricCard
-                icon={<DollarSign className="h-4 w-4 text-red-400" />}
-                label="Tech Debt Estimate"
-                value={`$${(health.techDebt / 1000).toFixed(1)}K`}
-                trend={health.techDebtTrend}
-              >
-                <TrendChart
-                  data={timeline.slice(-8).map(t => ({ value: Math.round(100 - t.healthScore * 0.3) }))}
-                  color="#ef4444"
-                  height={32}
-                />
-              </MetricCard>
+                icon={<ShieldAlert className="h-4 w-4 text-red-400" />}
+                label="Open Findings"
+                value={health.findingCount}
+              />
 
-              {/* AI Quality */}
+              {/* Security */}
               <MetricCard
-                icon={<Brain className="h-4 w-4 text-purple-400" />}
-                label="AI Quality Score"
-                value={health.aiQualityScore}
+                icon={<ShieldAlert className="h-4 w-4 text-purple-400" />}
+                label="Security Score"
+                value={health.securityScore}
                 suffix="/100"
-                trend={health.aiQualityTrend}
-              >
-                <TrendChart
-                  data={timeline.slice(-8).map(t => ({ value: Math.round(t.quality * 0.95 + t.reliability * 0.05) }))}
-                  color="#8b5cf6"
-                  height={32}
-                />
-              </MetricCard>
+              />
             </div>
 
             {/* Health Chart + Opportunities */}
@@ -557,24 +538,21 @@ export default function OverviewPage() {
                     gradient="linear-gradient(135deg, #22c55e, #16a34a)"
                   />
                   <KPICard
-                    title="Code Quality"
-                    value={pct(health.qualityScore)}
-                    trend={health.qualityTrend}
+                    title="Documentation"
+                    value={pct(health.documentationScore)}
                     icon="⚡"
                     gradient="linear-gradient(135deg, #3b82f6, #2563eb)"
                   />
                   <KPICard
-                    title="AI Quality"
-                    value={pct(health.aiQualityScore)}
-                    trend={health.aiQualityTrend}
-                    icon="🤖"
+                    title="Security"
+                    value={pct(health.securityScore)}
+                    icon="🛡️"
                     gradient="linear-gradient(135deg, #8b5cf6, #7c3aed)"
                   />
                   <KPICard
-                    title="Tech Debt"
-                    value={`${health.techDebt}h`}
-                    trend={health.techDebtTrend}
-                    icon="🏗️"
+                    title="Open Findings"
+                    value={String(health.findingCount)}
+                    icon="🔎"
                     gradient="linear-gradient(135deg, #f97316, #ea580c)"
                   />
                 </div>
@@ -595,8 +573,8 @@ export default function OverviewPage() {
                         label={`Reliability (${highCount} high findings)`}
                       />
                       <RiskIndicator
-                        level={health.techDebt > 40 ? 'high' : 'medium'}
-                        label={`Tech Debt (${health.techDebt}h estimated)`}
+                        level={health.findingCount > 40 ? 'high' : health.findingCount > 0 ? 'medium' : 'low'}
+                        label={`Open Findings (${health.findingCount})`}
                       />
                     </div>
 
@@ -624,8 +602,8 @@ export default function OverviewPage() {
                             key={opp.id}
                             title={opp.title}
                             description={(opp.description ?? 'No description').slice(0, 120) + '...'}
-                            impact={opp.severity === 'critical' || opp.severity === 'high' ? 'high' : opp.severity === 'medium' ? 'medium' : 'low'}
-                            effort={opp.effort > 60 ? 'high' : opp.effort > 30 ? 'medium' : 'low'}
+                            severity={opp.severity}
+                            effort={opp.effort}
                           />
                         ))
                       ) : (

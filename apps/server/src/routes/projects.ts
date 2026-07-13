@@ -14,6 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
 import { store } from '../store.js';
+import type { AnalysisCache } from '../state.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,7 +57,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         data: list,
         total: list.length,
       });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to list projects.' });
     }
   });
@@ -86,7 +87,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
           ? Math.round(comparison.reduce((s, p) => s + p.healthScore, 0) / comparison.length)
           : 0,
       });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to compare projects.' });
     }
   });
@@ -99,7 +100,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
       }
       return reply.status(200).send({ data: project });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to get project.' });
     }
   });
@@ -112,16 +113,16 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
       }
 
-      let cache = await store.get<any>('analysis_cache', project.id);
+      let cache = await store.get<AnalysisCache>('analysis_cache', project.id);
       if (!cache) {
-        cache = await store.get<any>('analysis_cache', project.repository);
+        cache = await store.get<AnalysisCache>('analysis_cache', project.repository);
       }
 
       return reply.status(200).send({
         data: cache?.findings ?? [],
         total: cache?.findings?.length ?? 0,
       });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to get project findings.' });
     }
   });
@@ -134,16 +135,16 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
       }
 
-      let cache = await store.get<any>('analysis_cache', project.id);
+      let cache = await store.get<AnalysisCache>('analysis_cache', project.id);
       if (!cache) {
-        cache = await store.get<any>('analysis_cache', project.repository);
+        cache = await store.get<AnalysisCache>('analysis_cache', project.repository);
       }
 
       return reply.status(200).send({
         data: cache?.opportunities ?? [],
         total: cache?.opportunities?.length ?? 0,
       });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to get project opportunities.' });
     }
   });
@@ -207,7 +208,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
       await store.set('projects', id, project);
       return reply.status(201).send({ data: project });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to create project.' });
     }
   });
@@ -252,7 +253,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
       await store.set('projects', updated.id, updated);
       return reply.status(200).send({ data: updated });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to update project.' });
     }
   });
@@ -265,7 +266,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       }
       await store.delete('projects', request.params.id);
       return reply.status(204).send();
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to delete project.' });
     }
   });

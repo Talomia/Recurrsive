@@ -46,3 +46,5 @@ export {
 } from './validation.js';
 
 export { LRUCache } from './cache.js';
+
+export { calculateFindingHealth } from './health.js';

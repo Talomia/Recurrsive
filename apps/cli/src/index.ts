@@ -24,11 +24,8 @@
  * - `comparisons` — Compare analysis runs side-by-side
  * - `export` — Export analysis data
  * - `projects` — Multi-project management
- * - `forecast` — Health forecasting and what-if analysis
- * - `plugins` — Plugin marketplace and management
+ * - `forecast` — History-based health trend projection
  * - `secrets` — Secret rotation and audit
- * - `simulate` — Simulation engine
- * - `cloud` — Cloud benchmarks and patterns
  * - `login` — Authenticate with the server
  * - `logout` — Remove saved credentials
  * - `whoami` — Show current user
@@ -61,10 +58,7 @@ import { registerComparisonsCommand } from './commands/comparisons.js';
 import { registerExportCommand } from './commands/export.js';
 import { registerProjectsCommand } from './commands/projects.js';
 import { registerForecastCommand } from './commands/forecasting.js';
-import { registerPluginsCommand } from './commands/plugins.js';
 import { registerSecretsCommand } from './commands/secrets.js';
-import { registerSimulationCommand } from './commands/simulation.js';
-import { registerCloudCommand } from './commands/cloud.js';
 import { registerLoginCommand } from './commands/login.js';
 
 /**
@@ -110,10 +104,7 @@ export function createProgram(): Command {
   registerExportCommand(program);
   registerProjectsCommand(program);
   registerForecastCommand(program);
-  registerPluginsCommand(program);
   registerSecretsCommand(program);
-  registerSimulationCommand(program);
-  registerCloudCommand(program);
   registerLoginCommand(program);
 
   return program;

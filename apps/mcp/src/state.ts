@@ -232,7 +232,7 @@ export class ServerState {
           ? filePath.slice(this.projectPath!.length + 1)
           : filePath;
         sourceFiles.push({ path: relativePath, content, language });
-      } catch (_e) {
+      } catch {
         // Skip unreadable or binary files — expected during source discovery
       }
     }
@@ -243,7 +243,7 @@ export class ServerState {
         await this.graphClient!.upsertEntity(entity);
       }
       for (const rel of parseResult.relationships) {
-        try { await this.graphClient!.upsertRelationship(rel); } catch (_e) { /* Skip FK violations from orphaned refs */ }
+        try { await this.graphClient!.upsertRelationship(rel); } catch { /* Skip FK violations from orphaned refs */ }
       }
       logger.info(`Parsed ${sourceFiles.length} files → ${parseResult.entities.length} code entities`);
     }

@@ -38,7 +38,6 @@ export {
   RollbackPlanSchema,
   AgentProvenanceSchema,
   SourceLocationSchema,
-  SimulationResultSchema,
   OpportunitySchema,
   type OpportunityCategory,
   type OpportunityType,
@@ -52,7 +51,6 @@ export {
   type RollbackPlan,
   type AgentProvenance,
   type SourceLocation,
-  type SimulationResult,
   type Opportunity,
 } from './opportunities.js';
 

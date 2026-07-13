@@ -40,20 +40,17 @@ import { registerExportRoutes } from './export.js';
 import { registerProjectRoutes } from './projects.js';
 import { registerForecastingRoutes } from './forecasting.js';
 import { registerSchedulingRoutes } from './scheduling.js';
-import { registerPluginRoutes } from './plugins.js';
-import { registerConfidenceRoutes } from './confidence.js';
-import { registerSimulationRoutes } from './simulation.js';
 import { registerGraphQLRoutes } from './graphql.js';
 import { registerOpenAPIRoutes } from './openapi.js';
-import { registerIntelligencePackRoutes } from './intelligence-packs.js';
 import { registerOpportunityRoutes } from './opportunities.js';
 import { registerActivityRoutes } from './activity.js';
+import { registerContactRoutes } from './contact.js';
+import { registerAssistantRoutes } from './assistant.js';
 
 // ---------------------------------------------------------------------------
 // Tier 2 — Enterprise
 // ---------------------------------------------------------------------------
 import { registerSSORoutes } from './sso.js';
-import { registerMultiTenantRoutes } from './multi-tenant.js';
 import { registerSecretRoutes } from './secrets.js';
 import { registerDataMaskingRoutes } from '../middleware/data-masking.js';
 
@@ -61,8 +58,6 @@ import { registerDataMaskingRoutes } from '../middleware/data-masking.js';
 // Tier 3 — Ecosystem
 // ---------------------------------------------------------------------------
 import { registerCloudRoutes } from './cloud.js';
-import { registerMarketplaceRoutes } from './marketplace.js';
-import { registerPartnerRoutes } from './partners.js';
 import { registerEcosystemRoutes } from './ecosystem.js';
 
 /**
@@ -93,23 +88,16 @@ import { registerEcosystemRoutes } from './ecosystem.js';
  * - `/api/v1/projects/*` — Project management
  * - `/api/v1/forecasting/*` — Trend forecasting and projections
  * - `/api/v1/scheduling/*` — Scheduled analysis and cron jobs
- * - `/api/v1/plugins/*` — Plugin management and lifecycle
- * - `/api/v1/confidence/*` — Confidence scoring and calibration
- * - `/api/v1/simulations/*` — What-if simulation and scenario analysis
  * - `/api/v1/graphql` — GraphQL query endpoint
  * - `/api/v1/openapi` — OpenAPI specification and docs
- * - `/api/v1/intelligence-packs/*` — Domain intelligence packs
  *
  * **Tier 2 (Enterprise)** — gated by `ENABLE_ENTERPRISE`:
  * - `/api/v1/sso/*` — Single sign-on integration
- * - `/api/v1/tenants/*` — Multi-tenant workspace management
  * - `/api/v1/secrets/*` — Secret and credential management
  * - `/api/v1/data-masking/*` — Data masking and PII redaction
  *
  * **Tier 3 (Ecosystem)** — gated by `ENABLE_ECOSYSTEM`:
- * - `/api/v1/cloud/*` — Cloud provider integration
- * - `/api/v1/marketplace/*` — Plugin marketplace and distribution
- * - `/api/v1/partners/*` — Partner integration and management
+ * - `/api/v1/cloud/*` — Self-hosted service and benchmark information
  *
  * @param app - The Fastify application instance.
  */
@@ -145,18 +133,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerProjectRoutes(app);
   await registerForecastingRoutes(app);
   await registerSchedulingRoutes(app);
-  await registerPluginRoutes(app);
-  await registerConfidenceRoutes(app);
-  await registerSimulationRoutes(app);
   await registerGraphQLRoutes(app);
   await registerOpenAPIRoutes(app);
-  await registerIntelligencePackRoutes(app);
   await registerActivityRoutes(app);
+  await registerContactRoutes(app);
+  await registerAssistantRoutes(app);
 
   // ── Tier 2 — Enterprise ─────────────────────────────────────────────────
   if (enableEnterprise) {
     await registerSSORoutes(app);
-    await registerMultiTenantRoutes(app);
     await registerSecretRoutes(app);
     await registerDataMaskingRoutes(app);
   }
@@ -164,8 +149,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // ── Tier 3 — Ecosystem ──────────────────────────────────────────────────
   if (enableEcosystem) {
     await registerCloudRoutes(app);
-    await registerMarketplaceRoutes(app);
-    await registerPartnerRoutes(app);
     await registerEcosystemRoutes(app);
   }
 }

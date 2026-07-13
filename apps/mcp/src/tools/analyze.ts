@@ -62,18 +62,8 @@ function formatOpportunitySummary(opp: Opportunity): string {
 }
 
 /**
- * Compute a synthetic health score from graph stats and opportunities.
- *
- * The score is a weighted blend of:
- * - Base score of 100
- * - Penalties for critical/high/medium severity issues
- * - Bonus for low issue density relative to graph size
- *
- * @param opportunities - Current opportunities.
- * @param stats - Graph statistics.
- * @returns A health score between 0 and 100.
+ * The overall health score uses the canonical finding-based calculation.
  */
-// computeHealthScore is imported from ../health.js
 
 /**
  * Compute per-dimension maturity scores from opportunities.
@@ -218,8 +208,7 @@ export function registerAnalyzeTools(server: McpServer): void {
         }
 
         // Compute health score
-        const stats = await state.getGraph().getStats();
-        const health = computeHealthScore(cache.opportunities, stats);
+        const health = computeHealthScore(cache.findings);
         summary.push('', `## Health Score: ${health}/100`, '');
 
         return {
@@ -718,9 +707,13 @@ export function registerAnalyzeTools(server: McpServer): void {
           };
         }
 
+        const cache = state.getAnalysisCache();
+        if (!cache) {
+          return { content: [{ type: 'text' as const, text: 'No analysis results are available yet.' }] };
+        }
         const opportunities = state.getOpportunities().list();
         const stats = await state.getGraph().getStats();
-        const health = computeHealthScore(opportunities, stats);
+        const health = computeHealthScore(cache.findings);
         const maturity = computeMaturityScores(opportunities);
 
         const output = [

@@ -43,18 +43,14 @@ const _ALL_DEMO_USERS: DemoUser[] = [
 ];
 
 /**
- * In production, demo users are disabled unless ALLOW_DEMO_USERS=true.
- * This prevents trivial credential-based access to production deployments.
+ * Demo users are test-only. Production configuration rejects
+ * ALLOW_DEMO_USERS entirely before the server starts.
  */
 const DEMO_USERS: DemoUser[] =
-  process.env['NODE_ENV'] === 'production' && process.env['ALLOW_DEMO_USERS'] !== 'true'
-    ? []
-    : _ALL_DEMO_USERS;
+  process.env['NODE_ENV'] === 'test' ? _ALL_DEMO_USERS : [];
 
-if (DEMO_USERS.length === 0) {
-  logger.warn('Demo users disabled in production. Set ALLOW_DEMO_USERS=true to override.');
-} else if (process.env['NODE_ENV'] === 'production') {
-  logger.warn('Demo users are enabled in production (ALLOW_DEMO_USERS=true).');
+if (DEMO_USERS.length === 0 && process.env['NODE_ENV'] !== 'test') {
+  logger.info('Demo users are disabled.');
 }
 
 // ---------------------------------------------------------------------------
@@ -321,10 +317,10 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+    if (typeof newPassword !== 'string' || newPassword.length < 12) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: 'New password must be at least 6 characters',
+        message: 'New password must be at least 12 characters',
       });
     }
 

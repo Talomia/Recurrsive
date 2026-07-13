@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { KeyRound, Users, Shield, Globe, LogIn, Loader2 } from 'lucide-react';
+import { Users, Shield, Globe, LogIn, Loader2 } from 'lucide-react';
 import Header from '@/components/header';
 import { getSSOProviders, getSSOSessions, createSsoProvider, deleteSsoProvider, revokeSsoSession } from '@/lib/api';
 import type { SSOProvider, SSOSession } from '@/lib/api';

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Cloud Dashboard',
   description:
-    'Manage your Recurrsive Cloud deployment. View usage, configure settings, and monitor your engineering intelligence pipeline.',
+    'Review self-hosted deployment guidance, configuration, and operational status.',
 };
 
 export default function CloudDashboardLayout({ children }: { children: React.ReactNode }) {

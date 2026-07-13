@@ -89,7 +89,6 @@ export const EvidenceSchema = z.object({
     'ticket',
     'benchmark',
     'historical',
-    'simulation',
   ]),
   /** Human-readable source label (e.g. collector or analyzer ID). */
   source: z.string(),
@@ -141,8 +140,8 @@ export type Impact = z.infer<typeof ImpactSchema>;
  * T-shirt sizing and dependency info for effort estimation.
  */
 export const EffortEstimateSchema = z.object({
-  /** Rough t-shirt size. */
-  t_shirt: z.enum(['xs', 's', 'm', 'l', 'xl']),
+  /** Rough t-shirt size, or unknown when no estimate has been made. */
+  t_shirt: z.enum(['unknown', 'xs', 's', 'm', 'l', 'xl']),
   /** Estimated engineering hours. */
   estimated_hours: z.number().optional(),
   /** Estimated calendar days. */
@@ -160,8 +159,8 @@ export type EffortEstimate = z.infer<typeof EffortEstimateSchema>;
  * Risk assessment for implementing an opportunity.
  */
 export const RiskAssessmentSchema = z.object({
-  /** Overall risk level. */
-  level: z.enum(['critical', 'high', 'medium', 'low', 'negligible']),
+  /** Overall risk level, or unknown when implementation has not been planned. */
+  level: z.enum(['unknown', 'critical', 'high', 'medium', 'low', 'negligible']),
   /** Narrative description of the risk. */
   description: z.string(),
   /** Concrete mitigation steps. */
@@ -261,33 +260,6 @@ export const SourceLocationSchema = z.object({
 /** Inferred TypeScript type for {@link SourceLocationSchema}. */
 export type SourceLocation = z.infer<typeof SourceLocationSchema>;
 
-/**
- * Result of a traffic-replay or shadow simulation that validates
- * expected impact before deployment.
- */
-export const SimulationResultSchema = z.object({
-  /** ISO-8601 timestamp of when the simulation was executed. */
-  ran_at: z.string().datetime(),
-  /** Number of traffic samples used. */
-  traffic_sample_size: z.number(),
-  /** Per-metric simulation outcomes. */
-  results: z.array(
-    z.object({
-      metric: z.string(),
-      baseline: z.number(),
-      simulated: z.number(),
-      change_percent: z.number(),
-    }),
-  ),
-  /** Overall confidence in the simulation result (0–1). */
-  confidence: z.number().min(0).max(1),
-  /** Description of the simulation methodology. */
-  methodology: z.string(),
-});
-
-/** Inferred TypeScript type for {@link SimulationResultSchema}. */
-export type SimulationResult = z.infer<typeof SimulationResultSchema>;
-
 // ---------------------------------------------------------------------------
 // THE OPPORTUNITY — the core output of the entire system
 // ---------------------------------------------------------------------------
@@ -334,8 +306,6 @@ export const OpportunitySchema = z.object({
   reasoning: AgentProvenanceSchema,
   /** Source locations relevant to this opportunity. */
   locations: z.array(SourceLocationSchema),
-  /** Optional simulation result. */
-  simulation: SimulationResultSchema.optional(),
   /** IDs of related opportunities. */
   related: z.array(z.string().uuid()),
   /** Current lifecycle status. */

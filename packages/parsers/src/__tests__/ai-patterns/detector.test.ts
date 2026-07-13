@@ -504,5 +504,20 @@ const response = await openai.chat.completions.create({
       const patterns = detector.detect('   \n\n   ', 'blank.ts', 'typescript');
       expect(patterns).toEqual([]);
     });
+
+    it('does not interpret regex declarations or comments as live AI code', () => {
+      const source = `
+const AGENT_PATTERNS = [
+  { re: /@agent\\b/g, label: 'Agent Decorator' },
+  { re: /StateGraph\\s*\\(/g, label: 'StateGraph' },
+];
+// const graph = StateGraph(state);
+/*
+ * @agent is an example marker.
+ */
+`;
+      const patterns = detector.detect(source, 'detector.ts', 'typescript');
+      expect(patterns.filter((pattern) => pattern.type === 'agent_definition')).toEqual([]);
+    });
   });
 });

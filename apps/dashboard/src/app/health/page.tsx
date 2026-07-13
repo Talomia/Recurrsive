@@ -41,17 +41,17 @@ export default async function HealthPage() {
     return (
       <div className="flex flex-col gap-6 p-6">
         <Header
-          title="System Health"
-          subtitle="Real-time system health monitoring and service status"
+          title="Deployment & Project Health"
+          subtitle="Current process telemetry and the selected project's latest analysis score"
         />
 
         {/* Health Score + Status Cards */}
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Large Circular Health Score */}
           <div className="glass-card flex flex-col items-center justify-center px-8 py-6 min-w-[200px]">
-            <ScoreGauge value={health.overall_score} size={160} label="Health" />
+            <ScoreGauge value={health.overall_score} size={160} label="Analysis" />
             <p className="mt-3 text-xs text-text-muted text-center">
-              Overall System Health
+              Project Analysis Health
             </p>
           </div>
 
@@ -175,8 +175,8 @@ export default async function HealthPage() {
     return (
       <div className="flex flex-col gap-6 p-6">
         <Header
-          title="System Health"
-          subtitle="Real-time system health monitoring and service status"
+          title="Deployment & Project Health"
+          subtitle="Current process telemetry and the selected project's latest analysis score"
         />
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-text-muted">
           Unable to load data. The API may be unavailable.

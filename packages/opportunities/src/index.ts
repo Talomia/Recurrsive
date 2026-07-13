@@ -23,3 +23,6 @@ export { exportToMarkdown } from './markdown.js';
 // Roadmap
 export { generateRoadmap, renderRoadmapMarkdown } from './roadmap.js';
 export type { PhaseName, RoadmapEntry, RoadmapPhase, Roadmap } from './roadmap.js';
+
+// Deterministic promotion (LLM-independent core path)
+export { promoteFinding, promoteFindings } from './promotion.js';

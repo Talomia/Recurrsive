@@ -171,7 +171,7 @@ export default function DataMaskingPage() {
               <p className="text-xs text-text-secondary mb-3">{s.description}</p>
               <div className="flex items-center gap-3 text-xs mb-2">
                 {'reversible' in s && <span className={s.reversible ? 'text-green-400' : 'text-red-400'}>{s.reversible ? 'Reversible' : 'Irreversible'}</span>}
-                {'performanceImpact' in s && <span className="text-text-tertiary">Perf: {(s as any).performanceImpact}</span>}
+                <span className="text-text-tertiary">Perf: {s.performanceImpact}</span>
               </div>
               {s.example && (
                 <div className="p-2 rounded-lg font-mono text-xs" style={{ background: 'var(--color-surface)' }}>

@@ -29,16 +29,16 @@ const contactCards = [
   },
   {
     icon: MessageCircle,
-    title: 'Discord Community',
-    value: 'discord.gg/recurrsive',
-    description: 'Chat with the team and community',
+    title: 'Security Reports',
+    value: 'security@recurrsive.dev',
+    description: 'Private vulnerability disclosure',
     color: 'var(--cyan)',
   },
   {
     icon: MapPin,
-    title: 'Office',
-    value: 'San Francisco, CA',
-    description: 'Remote-first, HQ for meetups',
+    title: 'Deployment',
+    value: 'Self-hosted',
+    description: 'Your infrastructure and data boundary',
     color: 'var(--green)',
   },
 ];
@@ -47,17 +47,17 @@ const faqs = [
   {
     question: 'How quickly can I get Recurrsive running?',
     answer:
-      'The open-source version can be deployed in under 15 minutes with Docker Compose. Our cloud platform requires zero setup — just connect your repositories and you\'ll have your first analysis within the hour.',
+      'Use the production Docker Compose or EasyPanel definitions, configure unique secrets and domains, then complete first-run setup in the dashboard. Deployment time depends on your infrastructure and DNS.',
   },
   {
     question: 'Do you offer enterprise support?',
     answer:
-      'Yes. Enterprise plans include dedicated support, SLA guarantees, SSO/SAML integration, custom collectors, on-premise deployment options, and a dedicated customer success manager.',
+      'Production support and implementation services are available by agreement. The software itself remains Apache-2.0 licensed and self-hosted.',
   },
   {
     question: 'Is my source code safe?',
     answer:
-      'Absolutely. Recurrsive never stores your raw source code. Our collectors extract metadata and structural information only. For on-premise deployments, all data stays within your infrastructure.',
+      'Remote repositories are shallow-cloned into temporary storage for analysis and removed when the run finishes. Derived findings, evidence, and project metadata are persisted in your configured database. In self-hosted deployments, those systems remain inside your infrastructure.',
   },
 ];
 
@@ -74,6 +74,7 @@ export default function ContactPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -82,17 +83,28 @@ export default function ContactPage() {
     message: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) {
       alert('Please fill out all required fields (Name, Email, Message)');
       return;
     }
+    setSubmitError(null);
     setSubmitting(true);
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, website: '' }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? 'Unable to send your message.');
       setSubmitting(false);
       setSubmitted(true);
-    }, 1800);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to send your message.');
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -197,7 +209,7 @@ export default function ContactPage() {
                   }}
                 >
                   Thank you for reaching out, <strong>{formData.name}</strong>. Our engineering
-                  intelligence squad has received your message and will get back to you within 24 hours.
+                  team has securely received your message.
                 </p>
                 <button
                   onClick={() => {
@@ -217,6 +229,11 @@ export default function ContactPage() {
                   onSubmit={handleSubmit}
                   style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
                 >
+                  {submitError && (
+                    <div role="alert" style={{ color: 'var(--red)', fontSize: '0.88rem' }}>
+                      {submitError}
+                    </div>
+                  )}
                   {/* Name */}
                   <div>
                     <label

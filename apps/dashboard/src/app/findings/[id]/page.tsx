@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2,
   ChevronRight,
   ShieldAlert,
-  AlertTriangle,
   AlertCircle,
   CheckCircle2,
   EyeOff,
@@ -15,6 +14,8 @@ import {
   Lightbulb,
   UserPlus,
   ArrowLeft,
+  FileCode2,
+  Target,
 } from 'lucide-react';
 import Header from '@/components/header';
 import ErrorBanner from '@/components/error-banner';
@@ -39,6 +40,25 @@ interface Finding {
   analyzer_id?: string;
   created_at?: string;
   updated_at?: string;
+  confidence: number;
+  suggested_fix?: string;
+  evidence: Array<{
+    id: string;
+    type: string;
+    source: string;
+    description: string;
+    confidence: number;
+    data?: Record<string, unknown>;
+  }>;
+  locations: Array<{
+    file: string;
+    start_line?: number;
+    end_line?: number;
+  }>;
+  estimated_impact?: {
+    summary?: string;
+    metrics?: Array<{ name: string; current_value?: string | number; expected_value?: string | number }>;
+  };
   related_opportunities?: Array<{
     id: string;
     title: string;
@@ -70,7 +90,9 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string; 
 
 export default function FindingDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const projectId = searchParams.get('projectId');
 
   const [finding, setFinding] = useState<Finding | null>(null);
   const [loading, setLoading] = useState(true);
@@ -186,7 +208,7 @@ export default function FindingDetailPage() {
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
         <Link
-          href="/findings"
+          href={`/findings${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`}
           className="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -240,6 +262,10 @@ export default function FindingDetailPage() {
               <p className="text-sm text-text-primary font-medium">{finding.analyzer_id}</p>
             </div>
           )}
+          <div>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Confidence</p>
+            <p className="text-sm text-text-primary font-medium">{Math.round(finding.confidence * 100)}%</p>
+          </div>
           {finding.file_path && (
             <div>
               <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">File</p>
@@ -257,6 +283,60 @@ export default function FindingDetailPage() {
           <p className="text-sm text-text-secondary leading-relaxed">{finding.description}</p>
         </div>
       </div>
+
+      {/* Evidence and source provenance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Target className="h-4 w-4 text-purple-400" />
+            <h3 className="text-sm font-semibold text-text-primary">Evidence</h3>
+            <span className="text-xs text-text-muted ml-auto">{finding.evidence.length}</span>
+          </div>
+          {finding.evidence.length === 0 ? (
+            <p className="text-sm text-text-muted">No supporting evidence was recorded.</p>
+          ) : (
+            <div className="space-y-3">
+              {finding.evidence.map((item) => (
+                <div key={item.id} className="rounded-xl bg-white/[0.02] border border-white/5 p-3">
+                  <div className="flex items-center justify-between gap-3 mb-1">
+                    <span className="text-[10px] uppercase tracking-wider text-purple-400">{item.type} · {item.source}</span>
+                    <span className="text-[10px] text-text-muted">{Math.round(item.confidence * 100)}%</span>
+                  </div>
+                  <p className="text-sm text-text-secondary leading-relaxed">{item.description}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <FileCode2 className="h-4 w-4 text-blue-400" />
+            <h3 className="text-sm font-semibold text-text-primary">Source locations</h3>
+          </div>
+          {finding.locations.length === 0 ? (
+            <p className="text-sm text-text-muted">This is a repository-level finding without a single source location.</p>
+          ) : (
+            <div className="space-y-2">
+              {finding.locations.map((location, index) => (
+                <div key={`${location.file}-${index}`} className="rounded-xl bg-black/20 border border-white/5 px-3 py-2 font-mono text-xs text-text-secondary break-all">
+                  {location.file}{location.start_line != null ? `:${location.start_line}` : ''}{location.end_line != null && location.end_line !== location.start_line ? `-${location.end_line}` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {finding.suggested_fix && (
+        <div className="glass-card p-5 border border-green-500/10">
+          <div className="flex items-center gap-2 mb-3">
+            <Lightbulb className="h-4 w-4 text-green-400" />
+            <h3 className="text-sm font-semibold text-text-primary">Recommended action</h3>
+          </div>
+          <p className="text-sm text-text-secondary leading-relaxed">{finding.suggested_fix}</p>
+        </div>
+      )}
 
       {/* Code snippet */}
       {finding.code_snippet && (

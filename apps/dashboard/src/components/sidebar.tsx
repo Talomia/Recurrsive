@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useActiveProject } from "./active-project-context";
 import clsx from "clsx";
+import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Lightbulb,
-  Sparkles,
   Network,
   FileText,
   Settings,
@@ -34,10 +34,8 @@ import {
   Camera,
   Brain,
   FolderGit2,
-  Package,
   Key,
   KeyRound,
-  Building2,
   Calendar,
   Eye,
   Users,
@@ -48,9 +46,7 @@ import {
 interface NavItem {
   readonly href: string;
   readonly label: string;
-  readonly icon: any;
-  /** Show a small purple enterprise badge next to this item */
-  readonly enterprise?: boolean;
+  readonly icon: LucideIcon;
 }
 
 interface NavSection {
@@ -93,7 +89,6 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/reports", label: "Reports", icon: FileText },
       { href: "/search", label: "Search", icon: Search },
       { href: "/experiments", label: "Experiments", icon: FlaskConical },
-      { href: "/simulation", label: "Simulation", icon: Bot },
       { href: "/snapshots", label: "Snapshots", icon: Camera },
     ],
   },
@@ -109,10 +104,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/data-masking", label: "Data Masking", icon: Eye },
       { href: "/webhooks", label: "Webhooks", icon: Webhook },
       { href: "/notifications", label: "Notifications", icon: Bell },
-      { href: "/marketplace", label: "Marketplace", icon: Sparkles },
-      { href: "/plugins", label: "Plugins", icon: Package },
-      { href: "/sso", label: "SSO", icon: KeyRound, enterprise: true },
-      { href: "/tenants", label: "Tenants", icon: Building2, enterprise: true },
+      { href: "/sso", label: "SSO", icon: KeyRound },
     ],
   },
 ];
@@ -151,6 +143,9 @@ function saveExpanded(state: Record<string, boolean>) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const isPublicRoute = ["/login", "/setup", "/invite"].some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [opportunityCount, setOpportunityCount] = useState(0);
@@ -202,8 +197,9 @@ export default function Sidebar() {
     });
   }, []);
 
-  // Hide sidebar on the login page
-  if (pathname === "/login") return null;
+  // Public authentication/setup flows use a distraction-free shell and must
+  // never trigger authenticated project data requests.
+  if (isPublicRoute) return null;
 
   return (
     <>
@@ -390,7 +386,7 @@ export default function Sidebar() {
                   id={`nav-section-${section.key}`}
                   isOpen={collapsed || isExpanded}
                 >
-                  {section.items.map(({ href, label, icon: Icon, enterprise }) => {
+                  {section.items.map(({ href, label, icon: Icon }) => {
                     const active =
                       href === "/" ? pathname === "/" : pathname.startsWith(href);
                     const activeProjectId = activeProject?.id;
@@ -428,13 +424,6 @@ export default function Sidebar() {
                           </span>
                         )}
 
-                        {/* Enterprise badge (purple dot) */}
-                        {!collapsed && enterprise && (
-                          <span
-                            className="ml-auto h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0"
-                            title="Enterprise"
-                          />
-                        )}
                       </Link>
                     );
                   })}
@@ -446,16 +435,16 @@ export default function Sidebar() {
 
         {/* ── Bottom ─────────────────────────────────────── */}
         <div className="px-3 pb-4 space-y-2">
-          {/* AI Assistant badge */}
+          {/* Evidence search status */}
           {!collapsed && (
             <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-accent-purple/10 to-accent-blue/10 border border-purple-500/15 px-3 py-2.5">
               <Bot className="h-[18px] w-[18px] text-purple-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-purple-300">
-                  Recurrsive AI
+                  Analysis Search
                 </p>
                 <p className="text-[10px] text-text-muted truncate">
-                  Ready for analysis
+                  Uses recorded evidence
                 </p>
               </div>
               <span className="h-2 w-2 rounded-full bg-purple-400 shrink-0" />

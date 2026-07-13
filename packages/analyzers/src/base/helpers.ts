@@ -139,3 +139,44 @@ export function locationFromEntity(entity: Entity): SourceLocation | undefined {
     commit: loc.commit,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Source Classification
+// ---------------------------------------------------------------------------
+
+/**
+ * Return true when an entity originates from a test, mock, snapshot, or
+ * fixture. Runtime-risk analyzers use this to avoid reporting deliberately
+ * unsafe sample code as production behavior while test-quality analyzers can
+ * still inspect the same entities.
+ */
+export function isTestOrFixtureEntity(entity: Entity): boolean {
+  const candidate = (
+    entity.source_location?.file ??
+    (typeof entity.properties['path'] === 'string' ? entity.properties['path'] : '')
+  ).replaceAll('\\', '/').toLowerCase();
+
+  if (!candidate) return false;
+
+  const segments = candidate.split('/');
+  if (segments.some((segment) => [
+    '__tests__',
+    '__mocks__',
+    '__snapshots__',
+    'test',
+    'tests',
+    'spec',
+    'specs',
+    'fixture',
+    'fixtures',
+  ].includes(segment))) {
+    return true;
+  }
+
+  const filename = segments.at(-1) ?? '';
+  return (
+    /\.(test|spec)\.[^.]+$/.test(filename) ||
+    /_test\.[^.]+$/.test(filename) ||
+    /^test_.+\.[^.]+$/.test(filename)
+  );
+}

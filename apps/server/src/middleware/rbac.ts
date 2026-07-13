@@ -11,6 +11,7 @@
  */
 
 import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
+import { isPublicRequest } from './auth.js';
 
 // ---------------------------------------------------------------------------
 // Role definitions
@@ -150,3 +151,39 @@ export function requireRole(minRole: Role): preHandlerHookHandler {
     }
   };
 }
+
+const ADMIN_MUTATION_PREFIXES = [
+  '/api/v1/api-keys',
+  '/api/v1/auth/users',
+  '/api/v1/config',
+  '/api/v1/data-masking',
+  '/api/v1/secrets',
+  '/api/v1/sso',
+] as const;
+
+/**
+ * Global least-privilege baseline: viewers are read-only, analysts may mutate
+ * ordinary project data, and security/identity/configuration mutations require
+ * an administrator. Route-level checks may impose stricter requirements.
+ */
+export const defaultAuthorizationMiddleware: preHandlerHookHandler = async (request, reply) => {
+  if (isPublicRequest(request)) return;
+
+  const method = request.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
+
+  const pathname = request.url.split('?')[0] ?? request.url;
+  const selfService = pathname === '/api/v1/auth/change-password' || pathname === '/api/v1/auth/refresh';
+  const minimum: Role = selfService
+    ? 'viewer'
+    : ADMIN_MUTATION_PREFIXES.some((prefix) =>
+        pathname === prefix || pathname.startsWith(`${prefix}/`),
+      ) ? 'admin' : 'analyst';
+  const user = (request as FastifyRequest & { user?: { role?: string } }).user;
+  if (!user?.role || !isValidRole(user.role) || !hasMinRole(user.role, minimum)) {
+    reply.code(403).send({
+      error: 'Forbidden',
+      message: `Requires '${minimum}' role or higher`,
+    });
+  }
+};

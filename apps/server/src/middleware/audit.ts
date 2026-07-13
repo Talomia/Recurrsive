@@ -5,7 +5,7 @@
  *
  * Registers a Fastify `onResponse` hook that captures request metadata,
  * authenticated user info, action classification, and timing for every
- * request. Events are stored in an in-memory circular buffer (last 1000).
+ * request. Events are stored through the configured durable application store.
  *
  * @packageDocumentation
  */

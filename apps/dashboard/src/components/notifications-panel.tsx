@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
+import Link from "next/link";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -330,12 +331,12 @@ export default function NotificationsPanel({
 
           {/* Footer */}
           <div className="border-t border-white/10 px-4 py-2.5">
-            <a
+            <Link
               href="/notifications"
               className="block w-full text-center text-xs font-medium text-accent-blue hover:text-blue-300 transition-colors"
             >
               View all notifications →
-            </a>
+            </Link>
           </div>
         </div>
       )}

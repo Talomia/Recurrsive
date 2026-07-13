@@ -226,7 +226,7 @@ export default function HomePage() {
                 <br />
                 <div>
                   <span className="keyword">{'▸'} Discovery</span>{'   '}
-                  <span className="string">160+ endpoints</span>{' · '}
+                  <span className="string">generated route inventory</span>{' · '}
                   <span className="string">42 MCP tools</span>{' · '}
                   <span className="string">13 analyzers</span>
                 </div>
@@ -278,7 +278,7 @@ export default function HomePage() {
             }}
           >
             {[
-              { value: '160+', label: 'API Endpoints', icon: Globe },
+              { value: 'Live', label: 'API Inventory', icon: Globe },
               { value: '42', label: 'MCP Tools', icon: Puzzle },
               { value: '13', label: 'Analyzers', icon: Search },
               { value: '25', label: 'CLI Commands', icon: Terminal },
@@ -599,9 +599,9 @@ export default function HomePage() {
               },
               {
                 icon: Puzzle,
-                title: 'Plugin SDK',
-                desc: 'Build custom analyzers and collectors. Extend the platform with your domain-specific logic and data sources.',
-                stat: 'Fully extensible',
+                title: 'Self-Hosted Operations',
+                desc: 'Run the API, dashboard, website, PostgreSQL, and Apache AGE in infrastructure you control.',
+                stat: 'Docker ready',
                 color: 'var(--amber)',
               },
               {

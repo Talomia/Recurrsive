@@ -1,72 +1,15 @@
 # Recurrsive Dashboard
 
-**Engineering Intelligence Dashboard** — 46 pages, dark theme with glassmorphism design, built on Next.js App Router with real-time WebSocket updates.
+The authenticated Next.js dashboard for a self-hosted Recurrsive deployment.
 
-## Overview
-
-The Recurrsive Dashboard is the visual interface for the Engineering Intelligence Platform. It provides real-time visibility into project health, analysis results, improvement opportunities, and system intelligence — all in a modern dark-themed UI with glassmorphism design elements.
-
-### Key Features
-
-| Feature | Description |
-|---------|-------------|
-| 📊 **Analytics** | Health scores, trend charts, maturity radar, and comparative dashboards |
-| 🔍 **Analysis Explorer** | Browse findings, filter by severity, drill into evidence |
-| 💡 **Opportunities** | Prioritized improvements with impact estimates and action plans |
-| 🗺️ **System Map** | Interactive knowledge graph visualization |
-| 🧠 **Intelligence** | AI-powered insights, forecasting, and what-if analysis |
-| ⚙️ **Settings** | Project configuration, notification preferences, API keys |
-| 🔔 **Notifications** | Real-time alerts for analysis events and policy violations |
-| 🛡️ **Policies** | Governance rule management and compliance tracking |
-| 📋 **Batch Analysis** | Multi-project batch runs with progress tracking |
-| 🧪 **Experiments** | Engineering experiment management and A/B test tracking |
-
-### Tech Stack
-
-- **Next.js 16** with App Router
-- **React 19** with Server Components
-- **TypeScript 5.7+**
-- **Tailwind CSS** with custom dark theme and glassmorphism utilities
-- **Real-time WebSocket** for live analysis progress and updates
-- **Recharts** for data visualization
-
-## Getting Started
+It provides project-scoped findings, opportunities, graph exploration, recorded health history, transparent linear projections, reports, policies, audit data, scheduling, notifications, administration, and live analysis progress. Browser sessions use an HttpOnly cookie through the dashboard API proxy; bearer tokens are not stored in browser JavaScript.
 
 ```bash
-# From the monorepo root
-pnpm install
-pnpm build
-
-# Start the dashboard in development mode
 pnpm --filter @recurrsive/dashboard dev
+pnpm --filter @recurrsive/dashboard test
+pnpm --filter @recurrsive/dashboard build
 ```
 
-Open [http://localhost:3100](http://localhost:3100) to view the dashboard.
+The development server listens on port 3100. Configure `INTERNAL_API_URL` for the server-side API destination and `NEXT_PUBLIC_WS_URL` for WebSocket runtime discovery.
 
-## Pages (40)
-
-The dashboard includes 46 pages organized across these sections:
-
-- **Dashboard** — Overview, health summary, recent activity
-- **Analysis** — Run history, findings, detail views
-- **Opportunities** — Prioritized list, detail, roadmap view
-- **System Map** — Knowledge graph explorer, entity detail
-- **Intelligence** — Insights, forecasting, evolution, what-if
-- **Analytics** — Trends, comparisons, benchmarks
-- **Batch** — Multi-project analysis runs, status, detail
-- **Experiments** — Experiment list, detail, results
-- **Policies** — Policy list, detail, compliance
-- **Notifications** — Channels, history, detail
-- **Settings** — General, appearance, API keys, integrations
-- **Reports** — Generated reports, scheduling, export
-
-## Design System
-
-- **Dark theme** with CSS custom properties for consistent theming
-- **Glassmorphism** — Frosted glass cards with `backdrop-filter: blur()` and subtle borders
-- **Consistent spacing** using Tailwind's spacing scale
-- **Accessible** — WCAG 2.1 AA contrast ratios maintained in dark mode
-
-## License
-
-[Apache-2.0](../../LICENSE)
+See the repository [deployment guide](../../docs/DEPLOYMENT.md) for production configuration.

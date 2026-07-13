@@ -1,13 +1,12 @@
 /**
  * @module @recurrsive/server/routes/cloud
  *
- * Recurrsive Cloud (SaaS) routes.
+ * Self-hosted deployment intelligence routes.
  *
  * Provides:
  * - Anonymized benchmarking (opt-in, aggregated)
- * - Cross-organization pattern learning (privacy-preserved)
- * - Managed optimization services
- * - Recurrsive Cloud (fully managed SaaS) management
+ * - Instance-local pattern aggregation
+ * - Self-hosted deployment and support information
  *
  * All data is managed via the API — no seed data.
  *
@@ -29,8 +28,8 @@ const PKG_VERSION: string = (require('../../package.json') as { version: string 
 
 interface BenchmarkEntry {
   id: string;
-  /** Anonymized tenant identifier. */
-  anonymizedTenantId: string;
+  /** Random identifier that is not tied to a user or project record. */
+  anonymousSubmissionId: string;
   /** Industry vertical. */
   industry: string;
   /** Team size bracket. */
@@ -90,25 +89,24 @@ interface LearnedPattern {
 // Types — Managed Services
 // ---------------------------------------------------------------------------
 
-interface ManagedService {
+interface DeploymentService {
   id: string;
   name: string;
   description: string;
   tier: string;
   features: string[];
   priceRange: string;
-  sla: string;
+  availability: string;
 }
 
 // ---------------------------------------------------------------------------
 // Read-only reference data — managed services catalog (static product info)
 // ---------------------------------------------------------------------------
 
-const managedServices: ManagedService[] = [
-  { id: 'ms-starter', name: 'Recurrsive Cloud Starter', description: 'Fully managed Recurrsive instance with automated analysis, dashboard, and email reports.', tier: 'starter', features: ['Hosted dashboard', 'Daily analysis runs', 'Email reports', '5 projects', '3 users'], priceRange: '$99/mo', sla: '99.5% uptime' },
-  { id: 'ms-professional', name: 'Recurrsive Cloud Professional', description: 'Professional tier with advanced features, priority support, and custom integrations.', tier: 'professional', features: ['Everything in Starter', 'Real-time analysis', 'Webhook integrations', '20 projects', '25 users', 'SSO', 'Priority support'], priceRange: '$499/mo', sla: '99.9% uptime' },
-  { id: 'ms-enterprise', name: 'Recurrsive Cloud Enterprise', description: 'Enterprise-grade deployment with dedicated infrastructure, SLAs, and managed optimization.', tier: 'enterprise', features: ['Everything in Professional', 'Dedicated infrastructure', 'Custom domains', 'Unlimited projects', 'Unlimited users', 'Managed optimization', '24/7 support', 'Custom SLA'], priceRange: 'Custom', sla: '99.99% uptime' },
-  { id: 'ms-oaas', name: 'Optimization-as-a-Service', description: 'Our expert team reviews your findings and implements improvements on your behalf.', tier: 'addon', features: ['Monthly review sessions', 'PR generation', 'Architecture recommendations', 'Dedicated success engineer'], priceRange: '$2,000/mo', sla: 'Included with Enterprise' },
+const deploymentServices: DeploymentService[] = [
+  { id: 'self-hosted', name: 'Open Source Self-Hosted', description: 'Run the complete Apache-2.0 platform in infrastructure you control.', tier: 'open-source', features: ['Docker and EasyPanel deployment', 'All product capabilities', 'Community support'], priceRange: 'Free', availability: 'Operated by the deploying organization' },
+  { id: 'production-support', name: 'Production Support', description: 'Deployment review, operational runbooks, upgrade planning, and named technical guidance.', tier: 'support', features: ['EasyPanel configuration review', 'Backup and restore review', 'Security configuration guidance'], priceRange: 'Custom', availability: 'Response terms are defined by agreement' },
+  { id: 'implementation', name: 'Implementation Services', description: 'Hands-on collector, identity, policy, and workflow integration.', tier: 'services', features: ['Custom integrations', 'Data migration planning', 'Acceptance criteria and handoff'], priceRange: 'Custom', availability: 'Scoped per engagement' },
 ];
 
 // No seed data — benchmarks and patterns are created via API or analysis.
@@ -126,12 +124,13 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     schema: {
       body: {
         type: 'object',
-        required: ['industry'],
+        required: ['industry', 'teamSize', 'scores', 'meta'],
         properties: {
           industry: { type: 'string', minLength: 1 },
           teamSize: { type: 'string', enum: ['small', 'medium', 'large', 'enterprise'] },
           scores: {
             type: 'object',
+            required: ['overall', 'architecture', 'security', 'performance', 'reliability', 'documentation'],
             properties: {
               overall: { type: 'number' },
               architecture: { type: 'number' },
@@ -143,6 +142,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
           },
           meta: {
             type: 'object',
+            required: ['codebaseSize', 'primaryLanguage', 'analyzersUsed', 'collectorsUsed'],
             properties: {
               codebaseSize: { type: 'string', enum: ['small', 'medium', 'large'] },
               primaryLanguage: { type: 'string' },
@@ -155,16 +155,15 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
       },
     },
   }, async (request, reply) => {
-    const body = request.body as Partial<BenchmarkEntry>;
-    if (!body.industry) return reply.status(400).send({ error: 'Bad Request', message: 'industry is required' });
+    const body = request.body as Omit<BenchmarkEntry, 'id' | 'anonymousSubmissionId' | 'submittedAt'>;
 
     const entry: BenchmarkEntry = {
       id: generateId(),
-      anonymizedTenantId: `anon-${generateId().slice(0, 8)}`,
+      anonymousSubmissionId: `anon-${generateId().slice(0, 8)}`,
       industry: body.industry,
-      teamSize: body.teamSize ?? 'medium',
-      scores: body.scores ?? { overall: 50, architecture: 50, security: 50, performance: 50, reliability: 50, documentation: 50 },
-      meta: body.meta ?? { codebaseSize: 'medium', primaryLanguage: 'TypeScript', analyzersUsed: 8, collectorsUsed: 5 },
+      teamSize: body.teamSize,
+      scores: body.scores,
+      meta: body.meta,
       submittedAt: nowISO(),
     };
     await store.set<BenchmarkEntry>('cloud_benchmarks', entry.id, entry);
@@ -211,7 +210,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({
       data: patterns.sort((a, b) => b.occurrences - a.occurrences),
       total: patterns.length,
-      privacyNote: 'All patterns are aggregated from anonymized data. No individual organization data is shared.',
+      privacyNote: 'Patterns are derived only from data submitted to this self-hosted instance.',
     });
   });
 
@@ -224,7 +223,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   // ── Managed Services ──────────────────────────────────────────────────────
 
   app.get('/api/v1/cloud/services', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    return reply.send({ data: managedServices, total: managedServices.length });
+    return reply.send({ data: deploymentServices, total: deploymentServices.length });
   });
 
   // ── Cloud Platform Info ───────────────────────────────────────────────────
@@ -233,72 +232,18 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     const benchmarkCount = await store.count('cloud_benchmarks');
     return reply.send({
       data: {
-        platform: 'Recurrsive Cloud',
+        platform: 'Recurrsive Self-Hosted',
         version: PKG_VERSION,
-        status: 'preview',
-        regions: ['us-east-1', 'eu-west-1', 'ap-southeast-1'],
+        status: 'self-hosted',
+        regions: [],
         features: {
           benchmarking: { status: 'active', participants: benchmarkCount },
-          patternLearning: { status: 'active', patterns: await store.count('cloud_patterns') },
-          managedServices: { status: 'active', tiers: managedServices.length },
-          partnerProgram: { status: 'active', note: 'See /api/v1/partners for partner data' },
+          patternLearning: { status: 'instance-local', patterns: await store.count('cloud_patterns') },
+          deploymentServices: { status: 'available', offerings: deploymentServices.length },
         },
-        upcomingFeatures: [
-          'Multi-region failover',
-          'Compliance dashboards',
-          'Automated remediation workflows',
-          'Custom model fine-tuning',
-        ],
+        managedCloud: false,
       },
     });
   });
 
-  // ── Partners ──────────────────────────────────────────────────────────────
-
-  /**
-   * GET /api/v1/cloud/partners
-   *
-   * Return cloud technology partners.
-   * Note: The primary partner data is at /api/v1/partners.
-   * This endpoint returns a cloud-specific view of partner integrations.
-   */
-  app.get('/api/v1/cloud/partners', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    // Cloud partners are a subset of ecosystem partnerships relevant to cloud services
-    const cloudPartners = [
-      {
-        id: 'cp-aws',
-        name: 'Amazon Web Services',
-        type: 'cloud_provider',
-        status: 'active',
-        integration_level: 'full',
-        supported_services: ['ECS', 'Lambda', 'S3', 'CloudWatch'],
-      },
-      {
-        id: 'cp-gcp',
-        name: 'Google Cloud Platform',
-        type: 'cloud_provider',
-        status: 'active',
-        integration_level: 'full',
-        supported_services: ['Cloud Run', 'Cloud Functions', 'GCS', 'Cloud Monitoring'],
-      },
-      {
-        id: 'cp-azure',
-        name: 'Microsoft Azure',
-        type: 'cloud_provider',
-        status: 'active',
-        integration_level: 'partial',
-        supported_services: ['Container Apps', 'Functions', 'Blob Storage'],
-      },
-      {
-        id: 'cp-datadog',
-        name: 'Datadog',
-        type: 'monitoring',
-        status: 'active',
-        integration_level: 'webhook',
-        supported_services: ['APM', 'Logging', 'Metrics'],
-      },
-    ];
-
-    return reply.send({ data: cloudPartners });
-  });
 }

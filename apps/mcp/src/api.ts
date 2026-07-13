@@ -30,7 +30,7 @@ function getBaseUrl(): string {
  * Make an HTTP request to the Recurrsive server API.
  *
  * @typeParam T - Expected shape of the response data.
- * @param path - API path (e.g. `/api/v1/plugins/installed`).
+ * @param path - API path (e.g. `/api/v1/projects`).
  * @param options - Optional fetch options (method, body, headers, etc.).
  * @returns The parsed response data.
  * @throws {ApiError} If the request fails or returns a non-OK status.
@@ -80,7 +80,7 @@ export async function apiRequest<T = unknown>(
  * extracts the inner `data` field automatically.
  *
  * @typeParam T - Expected shape of `data`.
- * @param path - API path (e.g. `/api/v1/tenants`).
+ * @param path - API path (e.g. `/api/v1/projects`).
  * @returns The unwrapped data.
  */
 export async function apiGet<T = unknown>(path: string): Promise<T> {
@@ -110,7 +110,7 @@ export class ApiError extends Error {
  * Format an API error into an MCP-friendly error content block.
  *
  * @param error - The caught error.
- * @param context - Human-readable context (e.g. "list plugins").
+ * @param context - Human-readable context (e.g. "list projects").
  * @returns MCP tool result with `isError: true`.
  */
 export function apiErrorResult(error: unknown, context: string): {

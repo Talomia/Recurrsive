@@ -74,7 +74,7 @@ export function registerGovernanceTools(server: McpServer): void {
         // Fetch all entities by type
         const allEntities: Entity[] = [];
         for (const type of Object.keys(graphStats.entityCountsByType)) {
-          const typed = await graph.getEntities(type as any);
+          const typed = await graph.getEntities(type as Entity['type']);
           allEntities.push(...typed);
         }
 

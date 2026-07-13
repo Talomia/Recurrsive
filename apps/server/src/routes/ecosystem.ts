@@ -3,8 +3,7 @@
  *
  * Ecosystem overview and integration management routes.
  *
- * Provides endpoints for inspecting the ecosystem of integrations,
- * plugins, and connected services.
+ * Provides endpoints for inspecting integrations and connected services.
  *
  * @packageDocumentation
  */
@@ -50,9 +49,9 @@ const builtInIntegrations: Integration[] = [
     name: 'GitHub',
     category: 'source_control',
     description: 'GitHub API integration for pull requests, issues, and CI status.',
-    status: 'inactive',
+    status: process.env['GITHUB_TOKEN'] ? 'active' : 'inactive',
     version: '1.0.0',
-    configured: false,
+    configured: !!process.env['GITHUB_TOKEN'],
     config_hint: 'Set GITHUB_TOKEN environment variable.',
   },
   {
@@ -89,9 +88,10 @@ const builtInIntegrations: Integration[] = [
     name: 'SSO / SAML',
     category: 'auth',
     description: 'Single sign-on via SAML 2.0 for enterprise authentication.',
-    status: process.env['ENABLE_ENTERPRISE'] !== 'false' ? 'active' : 'inactive',
+    status: 'inactive',
     version: '1.0.0',
-    configured: process.env['ENABLE_ENTERPRISE'] !== 'false',
+    configured: false,
+    config_hint: 'Create and validate an SSO provider in Administration → SSO.',
   },
   {
     id: 'int-postgres',
@@ -115,6 +115,16 @@ const builtInIntegrations: Integration[] = [
  * @param app - Fastify instance.
  */
 export async function registerEcosystemRoutes(app: FastifyInstance): Promise<void> {
+  const resolveIntegrations = async (): Promise<Integration[]> => {
+    const integrations = builtInIntegrations.map((integration) => ({ ...integration }));
+    const configuredSso = await store.count('sso_configs');
+    const sso = integrations.find((integration) => integration.id === 'int-sso');
+    if (sso && configuredSso > 0) {
+      sso.status = 'active';
+      sso.configured = true;
+    }
+    return integrations;
+  };
   /**
    * GET /api/v1/ecosystem/overview
    *
@@ -122,12 +132,9 @@ export async function registerEcosystemRoutes(app: FastifyInstance): Promise<voi
    * integration counts, health status, and feature availability.
    */
   app.get('/api/v1/ecosystem/overview', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const integrations = builtInIntegrations;
+    const integrations = await resolveIntegrations();
     const activeCount = integrations.filter(i => i.status === 'active').length;
     const totalCount = integrations.length;
-
-    // Count plugins from store
-    const pluginCount = await store.count('plugins');
 
     // Group by category
     const byCategory: Record<string, number> = {};
@@ -145,9 +152,6 @@ export async function registerEcosystemRoutes(app: FastifyInstance): Promise<voi
           active: activeCount,
           inactive: totalCount - activeCount,
           by_category: byCategory,
-        },
-        plugins: {
-          total: pluginCount,
         },
         features: {
           enterprise: process.env['ENABLE_ENTERPRISE'] !== 'false',
@@ -174,7 +178,7 @@ export async function registerEcosystemRoutes(app: FastifyInstance): Promise<voi
     '/api/v1/ecosystem/integrations',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      let integrations: Integration[] = [...builtInIntegrations];
+      let integrations = await resolveIntegrations();
 
       if (request.query.category) {
         integrations = integrations.filter(i => i.category === request.query.category);

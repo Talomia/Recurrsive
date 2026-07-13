@@ -38,7 +38,7 @@ const QUICK_START = [
   {
     icon: Code2,
     title: 'API Reference',
-    description: 'Complete REST API documentation with 160+ endpoints covering analysis, policies, and management.',
+    description: 'Authentication, analysis workflow, and the runtime-generated REST API inventory.',
     tag: 'Reference',
     tagColor: 'var(--cyan)',
     href: '/docs/api-reference',
@@ -46,18 +46,10 @@ const QUICK_START = [
   {
     icon: Terminal,
     title: 'CLI Reference',
-    description: 'Master the recurrsive command-line tool. Comprehensive documentation for all 28 CLI commands.',
+    description: 'Use the recurrsive command-line tool for analysis and server operations.',
     tag: 'CLI Tool',
     tagColor: 'var(--purple)',
     href: '/docs/cli-reference',
-  },
-  {
-    icon: Puzzle,
-    title: 'Plugin SDK',
-    description: 'Extend Recurrsive. Build custom analyzers, collectors, and integrations using our TypeScript SDK.',
-    tag: 'SDK Docs',
-    tagColor: 'var(--blue)',
-    href: '/docs/plugin-sdk',
   },
   {
     icon: Server,
@@ -93,7 +85,7 @@ const POPULAR_GUIDES = [
     color: 'var(--blue)',
     guides: [
       { title: 'Configuring Rules & Linters', duration: '8 min', href: '/docs/getting-started' },
-      { title: 'Creating Custom Policies', duration: '15 min', href: '/docs/plugin-sdk' },
+      { title: 'Configuring Policies', duration: '15 min', href: '/docs/api-reference' },
       { title: 'Interpreting Risk Scores', duration: '6 min', href: '/docs/api-reference' },
       { title: 'Building Executive Dashboards', duration: '12 min', href: '/docs/architecture' },
     ],
@@ -115,7 +107,7 @@ const POPULAR_GUIDES = [
       { title: 'Connecting to Claude Desktop', duration: '5 min', href: '/docs/api-reference' },
       { title: 'MCP Server Configuration', duration: '10 min', href: '/docs/api-reference' },
       { title: 'Using AI-Powered Queries', duration: '8 min', href: '/docs/cli-reference' },
-      { title: 'Custom MCP Prompt Templates', duration: '12 min', href: '/docs/plugin-sdk' },
+      { title: 'MCP Prompt Workflows', duration: '12 min', href: '/docs/api-reference' },
     ],
   },
 ];
@@ -468,7 +460,7 @@ export default function DocsPage() {
                     API <span className="text-gradient">Reference</span>
                   </h2>
                   <p style={{ color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto', fontSize: '1.05rem' }}>
-                    Explore 160+ REST API endpoints across categories. Full request/response examples included.
+                    Learn the authenticated project workflow and inspect the routes registered by the running server.
                   </p>
                 </div>
                 <div className="grid-4">

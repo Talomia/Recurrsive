@@ -13,6 +13,8 @@ import { store } from '../store.js';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
+import { releaseAnalysisWorker, tryAcquireAnalysisWorker } from '../analysis-coordinator.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,8 +28,9 @@ export type BatchStatus = 'pending' | 'running' | 'completed' | 'partial' | 'fai
 
 /** A single project entry within a batch. */
 export interface BatchProject {
-  /** Filesystem path to the project. */
-  path: string;
+  projectId: string;
+  name: string;
+  repository: string;
   /** Current analysis status. */
   status: ProjectStatus;
   /** ISO timestamp of when analysis started (null if pending). */
@@ -67,6 +70,12 @@ async function generateBatchId(): Promise<string> {
 
 const batchLogger = createLogger({ context: { component: 'server:routes:batch' } });
 
+interface RegisteredProject {
+  id: string;
+  name: string;
+  repository: string;
+}
+
 /**
  * Path traversal safety check — rejects paths outside allowed prefixes.
  */
@@ -90,14 +99,20 @@ function isSafePath(projectPath: string): boolean {
  */
 async function runBatchAnalysis(batchId: string): Promise<void> {
   const batch = await store.get<BatchRun>('batches', batchId);
-  if (!batch) return;
+  if (!batch) {
+    releaseAnalysisWorker(batchId);
+    return;
+  }
 
   batch.status = 'running';
   await store.set<BatchRun>('batches', batchId, batch);
 
   for (let i = 0; i < batch.projects.length; i++) {
     const currentBatch = await store.get<BatchRun>('batches', batchId);
-    if (!currentBatch) return;
+    if (!currentBatch) {
+      releaseAnalysisWorker(batchId);
+      return;
+    }
 
     const project = currentBatch.projects[i];
     if (!project) continue;
@@ -107,21 +122,30 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
     await store.set<BatchRun>('batches', batchId, currentBatch);
 
     try {
-      // Validate path safety
-      if (!isSafePath(project.path)) {
-        throw new Error(`Path "${project.path}" is not in the allowed directories.`);
+      let effectivePath = project.repository;
+      let clonedDir: string | null = null;
+      const isGitUrl = /^https?:\/\//i.test(project.repository);
+      if (isGitUrl) {
+        clonedDir = await state.cloneRepo(project.repository);
+        effectivePath = clonedDir;
+      } else if (!isSafePath(project.repository)) {
+        throw new Error(`Path "${project.repository}" is not in the allowed directories.`);
       }
 
-      // Initialize state for this project and run analysis
-      if (state.isInitialized()) {
-        await state.dispose();
+      try {
+        if (state.isInitialized()) await state.dispose();
+        await state.initialize(effectivePath, project.name, project.projectId);
+        await state.runAnalysis();
+      } finally {
+        if (clonedDir) await state.cleanupClone(clonedDir);
       }
-      await state.initialize(project.path);
-      await state.runAnalysis();
 
       // Mark success
       const afterBatch = await store.get<BatchRun>('batches', batchId);
-      if (!afterBatch) return;
+      if (!afterBatch) {
+        releaseAnalysisWorker(batchId);
+        return;
+      }
       const afterProject = afterBatch.projects[i];
       if (afterProject) {
         afterProject.status = 'completed';
@@ -129,13 +153,16 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
         await store.set<BatchRun>('batches', batchId, afterBatch);
       }
 
-      batchLogger.info(`Batch ${batchId}: project "${project.path}" completed`);
+      batchLogger.info(`Batch ${batchId}: project "${project.name}" completed`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      batchLogger.error(`Batch ${batchId}: project "${project.path}" failed: ${message}`);
+      batchLogger.error(`Batch ${batchId}: project "${project.name}" failed: ${message}`);
 
       const afterBatch = await store.get<BatchRun>('batches', batchId);
-      if (!afterBatch) return;
+      if (!afterBatch) {
+        releaseAnalysisWorker(batchId);
+        return;
+      }
       const afterProject = afterBatch.projects[i];
       if (afterProject) {
         afterProject.status = 'failed';
@@ -156,6 +183,7 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
     await store.set<BatchRun>('batches', batchId, finalBatch);
     batchLogger.info(`Batch ${batchId}: ${finalBatch.status} (${finalBatch.projects.length} projects)`);
   }
+  releaseAnalysisWorker(batchId);
 }
 
 // ---------------------------------------------------------------------------
@@ -174,22 +202,22 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
    * Submit a batch of project paths for sequential analysis.
    *
    * Body:
-   * - projects: string[] — non-empty array of filesystem paths (max 10)
+   * - projectIds: string[] — registered project IDs (max 10)
    * - options: Record<string, unknown> (optional)
    */
   app.post<{
     Body: {
-      projects: string[];
+      projectIds: string[];
       options?: Record<string, unknown>;
     };
   }>('/api/v1/batch/analyze', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
-        required: ['projects'],
+        required: ['projectIds'],
         properties: {
-          projects: {
+          projectIds: {
             type: 'array',
             items: { type: 'string', minLength: 1 },
             minItems: 1,
@@ -209,49 +237,63 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    const projects = body['projects'];
+    const projectIds = body['projectIds'];
     const options = (body['options'] as Record<string, unknown>) ?? {};
 
-    // Validate projects field
-    if (!Array.isArray(projects)) {
+    if (!Array.isArray(projectIds)) {
       return reply.status(400).send({
         error: 'Invalid request',
-        message: 'projects must be an array of file paths.',
+        message: 'projectIds must be an array of registered project IDs.',
       });
     }
 
-    if (projects.length === 0) {
+    if (projectIds.length === 0) {
       return reply.status(400).send({
         error: 'Invalid request',
-        message: 'projects array must not be empty.',
+        message: 'projectIds array must not be empty.',
       });
     }
 
-    if (projects.length > 10) {
+    if (projectIds.length > 10) {
       return reply.status(400).send({
         error: 'Invalid request',
-        message: `Too many projects: ${projects.length}. Maximum is 10.`,
+        message: `Too many projects: ${projectIds.length}. Maximum is 10.`,
       });
     }
 
     // Validate each project is a non-empty string
-    for (let i = 0; i < projects.length; i++) {
-      if (typeof projects[i] !== 'string' || (projects[i] as string).trim() === '') {
+    for (let i = 0; i < projectIds.length; i++) {
+      if (typeof projectIds[i] !== 'string' || (projectIds[i] as string).trim() === '') {
         return reply.status(400).send({
           error: 'Invalid request',
-          message: `projects[${i}] must be a non-empty string.`,
+          message: `projectIds[${i}] must be a non-empty string.`,
         });
       }
     }
 
     const batchId = await generateBatchId();
+    if (!tryAcquireAnalysisWorker(batchId)) {
+      return reply.status(409).send({ error: 'Conflict', message: 'Another analysis job is already running.' });
+    }
     const now = new Date().toISOString();
+
+    const registeredProjects: RegisteredProject[] = [];
+    for (const projectId of projectIds as string[]) {
+      const registered = await store.get<RegisteredProject>('projects', projectId);
+      if (!registered) {
+        releaseAnalysisWorker(batchId);
+        return reply.status(404).send({ error: 'Not Found', message: `Project "${projectId}" was not found.` });
+      }
+      registeredProjects.push(registered);
+    }
 
     const batchRun: BatchRun = {
       batch_id: batchId,
       status: 'pending',
-      projects: projects.map((path) => ({
-        path: path as string,
+      projects: registeredProjects.map((project) => ({
+        projectId: project.id,
+        name: project.name,
+        repository: project.repository,
         status: 'pending' as ProjectStatus,
         started_at: null,
         completed_at: null,
@@ -271,6 +313,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
     setImmediate(() => {
       runBatchAnalysis(batchId).catch((err) => {
         batchLogger.error(`Batch ${batchId} failed: ${err instanceof Error ? err.message : String(err)}`);
+        releaseAnalysisWorker(batchId);
       });
     });
 
@@ -279,7 +322,8 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       batch_id: batchId,
       status: 'pending',
       projects: batchRun.projects.map((p) => ({
-        path: p.path,
+        projectId: p.projectId,
+        name: p.name,
         status: p.status,
       })),
     });

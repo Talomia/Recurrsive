@@ -88,6 +88,12 @@ export async function registerSetupRoutes(app: FastifyInstance): Promise<void> {
         message: '"username", "email", and "password" are required for initial setup',
       });
     }
+    if (username.length < 3 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Username must be at least 3 characters, email must be valid, and password must be at least 12 characters.',
+      });
+    }
 
     try {
       const user = await createUser({

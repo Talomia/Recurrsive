@@ -183,7 +183,7 @@ export class GitCollector implements Collector {
       if (!stat.isDirectory()) {
         errors.push(`'${this.rootPath}' is not a directory`);
       }
-    } catch (err: unknown) {
+    } catch {
       errors.push(`Directory '${this.rootPath}' does not exist or is not accessible`);
     }
 
@@ -194,7 +194,7 @@ export class GitCollector implements Collector {
         if (!isRepo) {
           errors.push(`'${this.rootPath}' is not a git repository`);
         }
-      } catch (err: unknown) {
+      } catch {
         errors.push(`Unable to verify git repository at '${this.rootPath}'`);
       }
     }
@@ -306,7 +306,7 @@ export class GitCollector implements Collector {
       let entries: Dirent[];
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
-      } catch (err: unknown) {
+      } catch {
         // Permission denied or other access error — skip silently
         return;
       }
@@ -353,7 +353,7 @@ export class GitCollector implements Collector {
               extension: ext,
               sizeBytes: stat.size,
             });
-          } catch (err: unknown) {
+          } catch {
             // Stat failed — skip the file
           }
         }
@@ -380,7 +380,7 @@ export class GitCollector implements Collector {
     try {
       const content = await fs.readFile(gitignorePath, 'utf-8');
       ig.add(content);
-    } catch (err: unknown) {
+    } catch {
       // No .gitignore — that's fine
     }
 
@@ -400,7 +400,7 @@ export class GitCollector implements Collector {
     let logResult: LogResult<DefaultLogFields>;
     try {
       logResult = await this.git.log({ maxCount: MAX_GIT_LOG_ENTRIES });
-    } catch (err: unknown) {
+    } catch {
       // Not a git repo or git is not available
       return [];
     }
@@ -771,6 +771,27 @@ export class GitCollector implements Collector {
   private isConfigFile(filePath: string): boolean {
     const basename = filePath.split('/').pop() ?? filePath;
     const configFiles = new Set([
+      // Repository documentation and governance files are graph evidence used
+      // by documentation/security analyzers; omitting them creates false
+      // "missing README/SECURITY" findings.
+      'README',
+      'README.md',
+      'README.txt',
+      'README.rst',
+      'SECURITY.md',
+      'CONTRIBUTING.md',
+      'CODE_OF_CONDUCT.md',
+      'LICENSE',
+      'LICENSE.md',
+      // Dependency lockfiles are evidence for reproducible-build checks.
+      'package-lock.json',
+      'pnpm-lock.yaml',
+      'yarn.lock',
+      'bun.lock',
+      'bun.lockb',
+      'Gemfile.lock',
+      'poetry.lock',
+      'composer.lock',
       'package.json',
       'tsconfig.json',
       'tsconfig.base.json',

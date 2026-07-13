@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Command } from 'commander';
+import type * as ConfigModule from '../../config.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -14,7 +15,7 @@ const { mockApiRequest } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../config.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../config.js')>();
+  const actual = await importOriginal<typeof ConfigModule>();
   return { ...actual, apiRequest: mockApiRequest };
 });
 

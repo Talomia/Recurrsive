@@ -3,9 +3,8 @@
  *
  * MCP tool definitions for health forecasting and evolution analysis.
  *
- * Provides three tools:
+ * Provides two tools:
  * - `forecast_health` — Predict health trajectory over a given horizon
- * - `what_if_analysis` — What-if impact simulation for hypothetical actions
  * - `get_evolution` — Get evolution graph data over time
  *
  * @packageDocumentation
@@ -13,7 +12,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { apiGet, apiRequest, apiErrorResult } from '../api.js';
+import { apiGet, apiErrorResult } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Tool Registration
@@ -48,7 +47,7 @@ export function registerForecastTools(server: McpServer): void {
         if (horizon !== undefined) params.set('horizon', String(horizon));
         if (project_id) params.set('project_id', project_id);
         const qs = params.toString();
-        const path = `/api/v1/forecasting${qs ? `?${qs}` : ''}`;
+        const path = `/api/v1/forecasting/health${qs ? `?${qs}` : ''}`;
 
         const result = await apiGet<unknown>(path);
 
@@ -57,38 +56,6 @@ export function registerForecastTools(server: McpServer): void {
         };
       } catch (error) {
         return apiErrorResult(error, 'forecast health');
-      }
-    },
-  );
-
-  // ── what_if_analysis ───────────────────────────────────────────────────
-
-  server.tool(
-    'what_if_analysis',
-    'Run a what-if impact simulation for a set of hypothetical actions. ' +
-    'Estimates how each action would affect the project health score and ' +
-    'which dimensions are impacted.',
-    {
-      actions: z
-        .array(z.string())
-        .describe('List of hypothetical actions to simulate (e.g. "Migrate to TypeScript strict mode")'),
-      project_id: z
-        .string()
-        .optional()
-        .describe('Project ID to simulate against. Omit for the active project.'),
-    },
-    async ({ actions, project_id }) => {
-      try {
-        const result = await apiRequest<unknown>('/api/v1/forecasting/what-if', {
-          method: 'POST',
-          body: JSON.stringify({ actions, project_id }),
-        });
-
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (error) {
-        return apiErrorResult(error, 'run what-if analysis');
       }
     },
   );

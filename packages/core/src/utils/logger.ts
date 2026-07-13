@@ -142,6 +142,7 @@ export class Logger {
     } else if (level === 'warn') {
       console.warn(serialized);
     } else {
+      // eslint-disable-next-line no-console -- structured logs intentionally use stdout for non-error levels
       console.log(serialized);
     }
   }

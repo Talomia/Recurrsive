@@ -5,8 +5,7 @@ const FOOTER_LINKS = {
   Product: [
     { label: 'Features', href: '/product' },
     { label: 'Pricing', href: '/pricing' },
-    { label: 'Marketplace', href: '/marketplace' },
-    { label: 'Cloud', href: '/cloud' },
+    { label: 'Deploy', href: '/cloud' },
     { label: 'Changelog', href: '/changelog' },
   ],
   Resources: [
@@ -14,22 +13,18 @@ const FOOTER_LINKS = {
     { label: 'Getting Started', href: '/docs/getting-started' },
     { label: 'API Reference', href: '/docs/api-reference' },
     { label: 'CLI Reference', href: '/docs/cli-reference' },
-    { label: 'Plugin SDK', href: '/docs/plugin-sdk' },
     { label: 'Deployment', href: '/docs/deployment' },
     { label: 'Architecture', href: '/docs/architecture' },
     { label: 'Blog', href: '/blog' },
-  ],
-  Partners: [
-    { label: 'Partner Program', href: '/partners' },
-    { label: 'Partner Directory', href: '/partners/directory' },
-    { label: 'Certification', href: '/partners/certification' },
-    { label: 'Apply', href: '/partners/apply' },
   ],
   Company: [
     { label: 'About', href: '/about' },
     { label: 'Contact', href: '/contact' },
     { label: 'Careers', href: '/about' },
     { label: 'Apache 2.0 License', href: 'https://github.com/Talomia/Recurrsive/blob/main/LICENSE' },
+    { label: 'Privacy', href: '/privacy' },
+    { label: 'Terms', href: '/terms' },
+    { label: 'Security', href: '/security' },
   ],
 };
 

@@ -71,16 +71,6 @@ export interface UseWebSocketReturn {
  * In production with a reverse proxy (EasyPanel), derive the WS URL
  * from the API server's URL since WebSockets can't go through Next.js rewrites.
  */
-function getDefaultWsUrl(): string {
-  // Server-side or build-time: use env var
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
-  const wsUrl = apiUrl
-    .replace(/^https:/, 'wss:')
-    .replace(/^http:/, 'ws:');
-  return `${wsUrl.replace(/\/$/, '')}/ws`;
-}
-
-const DEFAULT_URL = getDefaultWsUrl();
 const MAX_EVENT_BUFFER = 100;
 const DEFAULT_MAX_RECONNECT = 10;
 const DEFAULT_RECONNECT_DELAY = 1000;
@@ -113,7 +103,7 @@ const DEFAULT_RECONNECT_DELAY = 1000;
  */
 export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
   const {
-    url = DEFAULT_URL,
+    url,
     eventTypes = [],
     autoConnect = true,
     maxReconnectAttempts = DEFAULT_MAX_RECONNECT,
@@ -126,6 +116,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const [clientCount, setClientCount] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const connectingRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
@@ -146,6 +137,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const disconnect = useCallback(() => {
     clearReconnectTimer();
     reconnectAttemptsRef.current = maxReconnectAttempts; // Prevent auto-reconnect
+    connectingRef.current = false;
     if (wsRef.current) {
       wsRef.current.close(1000, 'Client disconnect');
       wsRef.current = null;
@@ -165,31 +157,43 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   /** Connect to the WebSocket server. */
   const connect = useCallback(() => {
     // Don't connect if already connected or connecting
-    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
+    if (connectingRef.current || wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
 
     clearReconnectTimer();
-    reconnectAttemptsRef.current = 0;
+    connectingRef.current = true;
 
     if (mountedRef.current) {
       setStatus('connecting');
     }
 
-    try {
-      // Attach JWT token for server-side WebSocket authentication
-      let wsUrl = url;
-      if (typeof window !== 'undefined') {
-        const token = localStorage.getItem('recurrsive_token');
-        if (token) {
-          const separator = wsUrl.includes('?') ? '&' : '?';
-          wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(token)}`;
+    void (async () => {
+      try {
+        const ticketResponse = await fetch('/api/v1/auth/ws-ticket', {
+          method: 'POST',
+          cache: 'no-store',
+        });
+        if (!ticketResponse.ok) throw new Error('Unable to create WebSocket ticket');
+        const ticketBody = await ticketResponse.json() as { data?: { ticket?: string } };
+        const ticket = ticketBody.data?.ticket;
+        if (!ticket) throw new Error('WebSocket ticket was missing');
+
+        let websocketBaseUrl = url;
+        if (!websocketBaseUrl) {
+          const runtimeResponse = await fetch('/api/runtime-config', { cache: 'no-store' });
+          if (!runtimeResponse.ok) throw new Error('WebSocket runtime configuration is unavailable');
+          const runtimeConfig = await runtimeResponse.json() as { websocketUrl?: string };
+          websocketBaseUrl = runtimeConfig.websocketUrl;
         }
-      }
+        if (!websocketBaseUrl) throw new Error('WebSocket URL is not configured');
+        const separator = websocketBaseUrl.includes('?') ? '&' : '?';
+        const wsUrl = `${websocketBaseUrl}${separator}ticket=${encodeURIComponent(ticket)}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        connectingRef.current = false;
         if (mountedRef.current) {
           setStatus('connected');
           reconnectAttemptsRef.current = 0;
@@ -228,6 +232,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       };
 
       ws.onclose = (closeEvent: CloseEvent) => {
+        connectingRef.current = false;
         wsRef.current = null;
 
         if (!mountedRef.current) return;
@@ -257,11 +262,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       ws.onerror = () => {
         // onclose will fire after onerror, handle reconnect there
       };
-    } catch {
-      if (mountedRef.current) {
-        setStatus('disconnected');
+      } catch {
+        connectingRef.current = false;
+        if (!mountedRef.current) return;
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          setStatus('reconnecting');
+          const delay = reconnectBaseDelay * Math.pow(2, reconnectAttemptsRef.current);
+          reconnectAttemptsRef.current++;
+          reconnectTimerRef.current = setTimeout(connect, Math.min(delay, 30000));
+        } else {
+          setStatus('disconnected');
+        }
       }
-    }
+    })();
   }, [url, clearReconnectTimer, maxReconnectAttempts, reconnectBaseDelay]);
 
   // Auto-connect on mount
@@ -279,6 +292,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         wsRef.current.close(1000, 'Component unmount');
         wsRef.current = null;
       }
+      connectingRef.current = false;
     };
   }, [autoConnect, connect, clearReconnectTimer]);
 

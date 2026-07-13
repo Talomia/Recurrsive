@@ -63,7 +63,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
         total: policySets.length,
         builtin_count: BUILTIN_POLICIES.length,
       });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
     }
   });
@@ -104,7 +104,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
           })),
         },
       });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
     }
   });
@@ -180,7 +180,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
             },
           },
         });
-      } catch (err) {
+      } catch {
         return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
       }
     },
@@ -224,7 +224,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
           policy_sets_active: pe.getPolicies().filter((ps) => ps.enabled).length,
         },
       });
-    } catch (err) {
+    } catch {
       return reply.status(500).send({ error: 'Internal server error', message: 'Operation failed.' });
     }
   });

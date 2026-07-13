@@ -66,17 +66,16 @@ const CORE_PACKAGES = [
   { name: '@recurrsive/analyzers', desc: '13 domain analyzers with 89+ analysis rules' },
   { name: '@recurrsive/reasoning', desc: 'Multi-agent debate engine and specialist framework' },
   { name: '@recurrsive/types', desc: '43 entity types + 43 relationship types (shared schema)' },
-  { name: '@recurrsive/sdk', desc: 'Plugin SDK for custom collectors and analyzers' },
-  { name: '@recurrsive/cli', desc: 'Command-line interface (28 commands)' },
-  { name: '@recurrsive/mcp', desc: 'Model Context Protocol server (42 tools, 21 prompts)' },
+  { name: '@recurrsive/cli', desc: 'Command-line interface' },
+  { name: '@recurrsive/mcp', desc: 'Model Context Protocol server' },
 ];
 
 const APPS = [
-  { name: 'api', desc: 'REST API server (160+ endpoints, WebSocket)', icon: Globe },
+  { name: 'api', desc: 'REST API server with generated inventory and WebSocket events', icon: Globe },
   { name: 'dashboard', desc: 'Interactive web dashboard and graph explorer', icon: Monitor },
   { name: 'website', desc: 'Marketing and documentation website', icon: Server },
   { name: 'cli', desc: 'Standalone CLI binary distribution', icon: Terminal },
-  { name: 'worker', desc: 'Background job processor for async analysis', icon: Boxes },
+  { name: 'coordinator', desc: 'Serialized analysis job coordinator inside the API service', icon: Boxes },
 ];
 
 const SPECIALISTS = [
@@ -423,52 +422,6 @@ export default function ArchitecturePage() {
         </div>
       </section>
 
-      {/* Extension Model */}
-      <section className="section-sm" style={{ background: 'var(--bg-secondary)' }}>
-        <div className="container" style={{ maxWidth: 900 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 'var(--space-xl)' }}>
-            <Puzzle size={28} style={{ color: 'var(--purple)' }} />
-            <h2 style={{ fontSize: '1.5rem' }}>Extension Model</h2>
-          </div>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            Recurrsive is designed to be extended at every layer. The Plugin SDK provides three
-            extension points:
-          </p>
-          <div className="grid-3">
-            {[
-              {
-                title: 'Custom Collectors',
-                desc: 'Bring data from any source into the knowledge graph. Implement the Collector interface with initialize, validate, collect, and dispose hooks.',
-                color: 'var(--blue)',
-              },
-              {
-                title: 'Custom Analyzers',
-                desc: 'Apply domain-specific rules to the graph. Implement the Analyzer interface with initialize, analyze, and finalize hooks.',
-                color: 'var(--purple)',
-              },
-              {
-                title: 'Custom Specialists',
-                desc: 'Add new AI reasoning agents to the debate protocol. Implement the Specialist interface with present, challenge, and synthesize hooks.',
-                color: 'var(--cyan)',
-              },
-            ].map((ext) => (
-              <div key={ext.title} className="glass-card">
-                <div
-                  style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: ext.color, marginBottom: 'var(--space-md)',
-                  }}
-                />
-                <h4 style={{ fontSize: '0.95rem', marginBottom: 'var(--space-sm)' }}>{ext.title}</h4>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                  {ext.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA */}
       <section className="section" style={{ textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         <div className="glow-orb glow-purple" style={{ width: 400, height: 400, bottom: -150, left: '50%', transform: 'translateX(-50%)' }} />
@@ -477,12 +430,9 @@ export default function ArchitecturePage() {
             Dive <span className="text-gradient">Deeper</span>
           </h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: 500, margin: '0 auto var(--space-xl)', lineHeight: 1.7 }}>
-            Now that you understand the architecture, build a plugin or deploy your own instance.
+            Review the deployment guide and run the production stack in infrastructure you control.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-            <Link href="/docs/plugin-sdk" className="btn btn-primary btn-lg">
-              Plugin SDK <ArrowRight size={18} />
-            </Link>
             <Link href="/docs/deployment" className="btn btn-secondary btn-lg">
               Deployment Guide
             </Link>

@@ -31,33 +31,33 @@ describe('Pricing Page', () => {
     expect(freeMatches.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders the Enterprise tier', () => {
+  it('renders the Production Support tier', () => {
     render(<PricingPage />);
-    const matches = screen.getAllByText('Enterprise');
+    const matches = screen.getAllByText('Production Support');
     expect(matches.length).toBeGreaterThanOrEqual(1);
     const customMatches = screen.getAllByText('Custom');
     expect(customMatches.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders the Cloud tier', () => {
+  it('renders the Implementation Services tier', () => {
     render(<PricingPage />);
-    const matches = screen.getAllByText('Cloud');
+    const matches = screen.getAllByText('Implementation Services');
     expect(matches.length).toBeGreaterThanOrEqual(1);
-    const priceMatches = screen.getAllByText('$199');
+    const priceMatches = screen.getAllByText('Custom');
     expect(priceMatches.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders CTA buttons for each plan', () => {
     render(<PricingPage />);
     const getStarted = screen.getAllByText('Get Started Free');
-    const contactSales = screen.getAllByText('Contact Sales');
-    const startTrial = screen.getAllByText('Start Free Trial');
+    const discussSupport = screen.getAllByText('Discuss Support');
+    const planEngagement = screen.getAllByText('Plan an Engagement');
     expect(getStarted.length).toBeGreaterThanOrEqual(1);
-    expect(contactSales.length).toBeGreaterThanOrEqual(1);
-    expect(startTrial.length).toBeGreaterThanOrEqual(1);
+    expect(discussSupport.length).toBeGreaterThanOrEqual(1);
+    expect(planEngagement.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders the Most Popular badge on Enterprise', () => {
+  it('renders the Most Popular badge on Production Support', () => {
     render(<PricingPage />);
     const matches = screen.getAllByText('Most Popular');
     expect(matches.length).toBeGreaterThanOrEqual(1);
@@ -67,26 +67,22 @@ describe('Pricing Page', () => {
     render(<PricingPage />);
     const collectors = screen.getAllByText('14 data collectors');
     const analyzers = screen.getAllByText('13 built-in analyzers (89+ rules)');
-    const cli = screen.getAllByText('CLI with 28 commands');
+    const cli = screen.getAllByText('CLI for analysis and operations');
     expect(collectors.length).toBeGreaterThanOrEqual(1);
     expect(analyzers.length).toBeGreaterThanOrEqual(1);
     expect(cli.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders key Enterprise features', () => {
+  it('renders key Production Support features', () => {
     render(<PricingPage />);
-    const sso = screen.getAllByText('SSO / SAML integration');
-    const rbac = screen.getAllByText('Fine-grained RBAC');
-    expect(sso.length).toBeGreaterThanOrEqual(1);
-    expect(rbac.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Backup and restore runbooks').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Security configuration guidance').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders key Cloud features', () => {
+  it('renders key Implementation Services features', () => {
     render(<PricingPage />);
-    const managed = screen.getAllByText('Fully managed infrastructure');
-    const uptime = screen.getAllByText('99.9% uptime SLA');
-    expect(managed.length).toBeGreaterThanOrEqual(1);
-    expect(uptime.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Collector and analyzer integration').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Acceptance criteria and handoff').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders FAQ section', () => {

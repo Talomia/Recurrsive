@@ -14,6 +14,7 @@ import type { Entity, Relationship, EntityType } from '@recurrsive/core';
 import { nowISO, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { resolveAnalysisHistory } from '../project-analysis.js';
 
 const PKG_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')).version as string;
 
@@ -39,21 +40,6 @@ interface Snapshot {
 }
 
 /** Comparison result between two analysis runs. */
-interface ComparisonResult {
-  added_findings: number;
-  removed_findings: number;
-  changed_findings: number;
-  added_opportunities: number;
-  removed_opportunities: number;
-  severity_changes: Array<{
-    id: string;
-    title: string;
-    from: string;
-    to: string;
-  }>;
-  summary: string;
-}
-
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
@@ -194,113 +180,46 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
     }
   });
 
-  /**
-   * GET /api/v1/analysis/compare
-   *
-   * Compare the current analysis results against a baseline.
-   * Returns a diff of findings and opportunities. Uses analysis
-   * history entries if available.
-   *
-   * Query params:
-   * - baseline (optional) — Index in history to compare against (default: previous run)
-   */
-  app.get<{ Querystring: { baseline?: string } }>(
+  /** Compare two recorded analysis history entries by ID. */
+  app.get<{ Querystring: { run_a?: string; run_b?: string } }>(
     '/api/v1/analysis/compare',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
-      const cache = state.getAnalysisCache();
-      if (!cache) {
-        return reply.status(404).send({
-          error: 'No analysis results',
-          message: 'No cached analysis results available for comparison.',
-        });
-      }
-
-      const history = state.getAnalysisHistory();
-      if (history.length < 2) {
-        // No previous run to compare against — return current as "all new"
-        const currentFindings = cache.findings;
-        const currentOpportunities = cache.opportunities;
-
-        return reply.status(200).send({
-          data: {
-            comparison: {
-              added_findings: currentFindings.length,
-              removed_findings: 0,
-              changed_findings: 0,
-              added_opportunities: currentOpportunities.length,
-              removed_opportunities: 0,
-              severity_changes: [],
-              summary: `First analysis run: ${currentFindings.length} findings, ${currentOpportunities.length} opportunities.`,
-            } satisfies ComparisonResult,
-            is_first_run: true,
-            current: {
-              finding_count: currentFindings.length,
-              opportunity_count: currentOpportunities.length,
-              analyzed_at: cache.analyzedAt,
-            },
-          },
-        });
-      }
-
-      // Compare current vs previous run from history
-      const baselineIdx = request.query.baseline
-        ? parseInt(request.query.baseline, 10)
-        : history.length - 2;
-
-      const previous = history[baselineIdx];
-      const current = history[history.length - 1];
-
-      if (!previous || !current) {
+      if (!request.query.run_a || !request.query.run_b) {
         return reply.status(400).send({
-          error: 'Bad request',
-          message: 'Invalid baseline index.',
+          error: 'Bad Request',
+          message: 'run_a and run_b history IDs are required.',
         });
       }
-
-      const findingDelta = cache.findings.length - (previous?.findingCount ?? 0);
-      const opportunityDelta = cache.opportunities.length - (previous?.opportunityCount ?? 0);
-
-      const comparison: ComparisonResult = {
-        added_findings: Math.max(0, findingDelta),
-        removed_findings: Math.max(0, -findingDelta),
-        changed_findings: 0,
-        added_opportunities: Math.max(0, opportunityDelta),
-        removed_opportunities: Math.max(0, -opportunityDelta),
-        severity_changes: [],
-        summary: [
-          `Compared run #${history.length} against run #${baselineIdx + 1}.`,
-          findingDelta > 0 ? `${findingDelta} new finding(s).` : '',
-          findingDelta < 0 ? `${-findingDelta} finding(s) resolved.` : '',
-          opportunityDelta > 0 ? `${opportunityDelta} new opportunity(ies).` : '',
-          opportunityDelta < 0 ? `${-opportunityDelta} opportunity(ies) resolved.` : '',
-          findingDelta === 0 && opportunityDelta === 0 ? 'No changes detected.' : '',
-        ].filter(Boolean).join(' '),
-      };
+      const history = await resolveAnalysisHistory(request);
+      const runA = history.find((entry) => entry.id === request.query.run_a);
+      const runB = history.find((entry) => entry.id === request.query.run_b);
+      if (!runA || !runB) {
+        return reply.status(404).send({ error: 'Not Found', message: 'One or both analysis runs were not found.' });
+      }
+      const present = (entry: typeof runA) => ({
+        id: entry.id,
+        label: `Run ${new Date(entry.startedAt).toISOString()}`,
+        date: entry.startedAt,
+        health_score: entry.healthScore,
+        findings: entry.findingCount,
+        opportunities: entry.opportunityCount,
+        duration_ms: entry.durationMs,
+        status: entry.status,
+        categories: [],
+      });
+      const healthDelta = runA.healthScore === null || runB.healthScore === null
+        ? null
+        : Math.round((runB.healthScore - runA.healthScore) * 10) / 10;
 
       return reply.status(200).send({
         data: {
-          comparison,
-          is_first_run: false,
-          current: {
-            run: history.length,
-            finding_count: cache.findings.length,
-            opportunity_count: cache.opportunities.length,
-            analyzed_at: cache.analyzedAt,
-          },
-          baseline: {
-            run: baselineIdx + 1,
-            finding_count: previous.findingCount,
-            opportunity_count: previous.opportunityCount,
-            analyzed_at: previous.startedAt,
-          },
+          runA: present(runA),
+          runB: present(runB),
+          health_delta: healthDelta,
+          findings_delta: runB.findingCount - runA.findingCount,
+          opportunities_delta: runB.opportunityCount - runA.opportunityCount,
+          duration_delta_ms: runB.durationMs - runA.durationMs,
         },
       });
     },

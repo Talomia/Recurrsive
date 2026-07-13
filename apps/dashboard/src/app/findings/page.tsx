@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff, ArrowRight } from "lucide-react";
 import Header from "@/components/header";
@@ -28,6 +29,8 @@ const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low"]
 const STATUS_OPTIONS = ["All Statuses", "open", "resolved", "suppressed"] as const;
 
 export default function FindingsPage() {
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get("projectId");
   const [data, setData] = useState<FindingsPageData | null>(null);
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("All Severities");
@@ -70,7 +73,7 @@ export default function FindingsPage() {
   if (!data) {
     return (
       <div className="flex flex-col h-screen">
-        <Header title="Security Findings" subtitle="Loading findings data…" />
+        <Header title="Findings" subtitle="Loading analysis evidence…" />
         <div className="flex-1 flex items-center justify-center">
           <div className="h-8 w-8 rounded-full border-2 border-accent-blue border-t-transparent animate-spin" />
         </div>
@@ -89,8 +92,8 @@ export default function FindingsPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <Header
-        title="Security Findings"
-        subtitle={`${data.stats.total} findings across your codebase`}
+        title="Findings"
+        subtitle={`${data.stats.total} evidence-backed observations across the selected project`}
       />
 
       {/* Stats Row */}
@@ -182,10 +185,10 @@ export default function FindingsPage() {
                   className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.02] transition-colors cursor-pointer group"
                 >
                   <td className="px-5 py-3">
-                    <Link href={`/findings/${finding.id}`} className="text-xs font-mono text-text-muted group-hover:text-accent-blue transition-colors">{finding.id}</Link>
+                    <Link href={`/findings/${finding.id}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`} className="text-xs font-mono text-text-muted group-hover:text-accent-blue transition-colors" title={finding.id}>{finding.id.slice(0, 8)}</Link>
                   </td>
                   <td className="px-5 py-3">
-                    <Link href={`/findings/${finding.id}`} className="text-xs font-medium text-text-primary truncate max-w-xs block group-hover:text-accent-blue transition-colors">
+                    <Link href={`/findings/${finding.id}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`} className="text-xs font-medium text-text-primary truncate max-w-xs block group-hover:text-accent-blue transition-colors">
                       {finding.title}
                     </Link>
                   </td>

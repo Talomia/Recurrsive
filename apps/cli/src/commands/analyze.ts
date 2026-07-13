@@ -33,7 +33,7 @@ import {
   createDefaultAnalyzers,
   type AnalysisResult,
 } from '@recurrsive/analyzers';
-import { OpportunityManager } from '@recurrsive/opportunities';
+import { OpportunityManager, promoteFindings } from '@recurrsive/opportunities';
 import { loadConfig } from '../config/loader.js';
 import {
   banner,
@@ -218,6 +218,11 @@ export function registerAnalyzeCommand(program: Command): void {
         }
 
         try {
+          // Each run is a current-state analysis. Retaining prior generated
+          // entities duplicates evidence and can keep already-fixed findings
+          // alive across runs.
+          await graphClient.clearAll();
+
           // ── Step 3: Run git collector ───────────────────────────────
           step(3, totalSteps, 'Collecting repository data...');
           const spinner = new Spinner('Scanning files and git history...').start();
@@ -542,6 +547,7 @@ export function registerAnalyzeCommand(program: Command): void {
             info(
               `Converting ${bold(String(allFindings.length))} findings to opportunities...`,
             );
+            opportunities = promoteFindings(allFindings);
           }
 
           const manager = new OpportunityManager(opportunities);

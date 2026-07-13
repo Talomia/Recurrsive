@@ -3,9 +3,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink, Loader2 } from "lucide-react";
+import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, FileText, Shield, Zap, ExternalLink, Loader2 } from "lucide-react";
 import Header from "@/components/header";
-import ScoreGauge from "@/components/score-gauge";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
 import { getOpportunities, type Opportunity } from "@/lib/api";
 import clsx from "clsx";
@@ -18,32 +17,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "analysis", label: "Analysis" },
   { key: "implementation", label: "Implementation Plan" },
 ];
-
-function getMetricColor(label: string, value: number): string {
-  if (label === "Risk" || label === "Effort") {
-    if (value <= 30) return "text-green-400";
-    if (value <= 60) return "text-amber-400";
-    return "text-red-400";
-  }
-  if (value >= 80) return "text-green-400";
-  if (value >= 60) return "text-blue-400";
-  if (value >= 40) return "text-amber-400";
-  return "text-red-400";
-}
-
-function getMetricBarColor(label: string, value: number): string {
-  if (label === "Risk" || label === "Effort") {
-    if (value <= 30) return "bg-green-500";
-    if (value <= 60) return "bg-amber-500";
-    return "bg-red-500";
-  }
-  if (value >= 80) return "bg-green-500";
-  if (value >= 60) return "bg-blue-500";
-  if (value >= 40) return "bg-amber-500";
-  return "bg-red-500";
-}
-
-
 
 const CATEGORY_OPTIONS = ["All Categories", "Security", "Performance", "Cost", "DevOps", "Architecture", "Database", "Reliability", "Frontend"] as const;
 const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low"] as const;
@@ -112,7 +85,7 @@ export default function OpportunitiesPage() {
       <div className="flex flex-col h-screen">
         <Header
           title="Opportunities"
-          subtitle="AI-discovered improvement opportunities across your codebase"
+          subtitle="Evidence-backed improvement opportunities from recorded analysis"
         />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
@@ -126,7 +99,7 @@ export default function OpportunitiesPage() {
       <div className="flex flex-col h-screen">
         <Header
           title="Opportunities"
-          subtitle="AI-discovered improvement opportunities across your codebase"
+          subtitle="Evidence-backed improvement opportunities from recorded analysis"
         />
         <div className="flex-1 flex items-center justify-center flex-col gap-2">
           {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -136,19 +109,25 @@ export default function OpportunitiesPage() {
     );
   }
 
-  const metrics = [
-    { label: "Impact", value: selected.impact, icon: TrendingUp },
-    { label: "Confidence", value: selected.confidence, icon: Shield },
-    { label: "Effort", value: selected.effort, icon: Zap },
-    { label: "Risk", value: selected.risk, icon: AlertCircle },
-    { label: "ROI", value: selected.roi, icon: CheckCircle2 },
+  const facts = [
+    { label: "Confidence", value: `${selected.confidence}%`, icon: Shield },
+    {
+      label: "Effort",
+      value: selected.estimatedHours !== null
+        ? `${selected.estimatedHours}h`
+        : selected.effort === 'unknown' ? 'Not estimated' : selected.effort.toUpperCase(),
+      icon: Zap,
+    },
+    { label: "Implementation risk", value: selected.risk === 'unknown' ? 'Not assessed' : selected.risk, icon: AlertCircle },
+    { label: "Evidence", value: String(selected.evidence.length), icon: FileText },
+    { label: "Status", value: selected.status.replaceAll('_', ' '), icon: CheckCircle2 },
   ];
 
   return (
     <div className="flex flex-col h-screen">
       <Header
         title="Opportunities"
-        subtitle="AI-discovered improvement opportunities across your codebase"
+        subtitle="Evidence-backed improvement opportunities from recorded analysis"
       />
 
       <div className="flex flex-1 min-h-0">
@@ -247,33 +226,14 @@ export default function OpportunitiesPage() {
                         <span className="text-[10px] text-text-muted">{opp.id}</span>
                       </div>
                     </div>
-                    {/* Score */}
+                    {/* Recorded confidence */}
                     <div className="shrink-0 flex flex-col items-center gap-1">
-                      <span
-                        className={clsx(
-                          "text-xl font-bold tabular-nums",
-                          opp.score >= 90
-                            ? "text-red-400"
-                            : opp.score >= 75
-                              ? "text-orange-400"
-                              : opp.score >= 60
-                                ? "text-amber-400"
-                                : "text-blue-400"
-                        )}
-                      >
-                        {opp.score}
-                      </span>
+                      <span className="text-xl font-bold tabular-nums text-blue-400">{opp.confidence}%</span>
+                      <span className="text-[9px] uppercase tracking-wide text-text-muted">Confidence</span>
                       <div className="h-1 w-8 rounded-full bg-white/5 overflow-hidden">
                         <div
-                          className={clsx(
-                            "h-full rounded-full",
-                            opp.score >= 90
-                              ? "bg-red-500"
-                              : opp.score >= 75
-                                ? "bg-orange-500"
-                                : "bg-amber-500"
-                          )}
-                          style={{ width: `${opp.score}%` }}
+                          className="h-full rounded-full bg-blue-500"
+                          style={{ width: `${opp.confidence}%` }}
                         />
                       </div>
                     </div>
@@ -311,41 +271,22 @@ export default function OpportunitiesPage() {
             </p>
           </div>
 
-          {/* Score + Metrics */}
-          <div className="flex items-start gap-8 flex-wrap">
-            <div className="flex flex-col items-center">
-              <ScoreGauge value={selected.score} size={110} label="Score" />
-            </div>
-            <div className="flex-1 grid grid-cols-5 gap-4 min-w-[300px]">
-              {metrics.map(({ label, value, icon: Icon }) => (
+          {/* Recorded facts */}
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+              {facts.map(({ label, value, icon: Icon }) => (
                 <div
                   key={label}
                   className="flex flex-col items-center gap-2 rounded-xl bg-white/[0.03] border border-white/5 p-3"
                 >
                   <Icon className="h-4 w-4 text-text-muted" />
-                  <span
-                    className={clsx(
-                      "text-lg font-bold tabular-nums",
-                      getMetricColor(label, value)
-                    )}
-                  >
+                  <span className="text-sm font-bold text-text-primary capitalize text-center">
                     {value}
                   </span>
                   <span className="text-[10px] text-text-muted font-medium">
                     {label}
                   </span>
-                  <div className="h-1 w-full rounded-full bg-white/5 overflow-hidden">
-                    <div
-                      className={clsx(
-                        "h-full rounded-full transition-all",
-                        getMetricBarColor(label, value)
-                      )}
-                      style={{ width: `${value}%` }}
-                    />
-                  </div>
                 </div>
               ))}
-            </div>
           </div>
 
           {/* Tabs */}
@@ -372,13 +313,13 @@ export default function OpportunitiesPage() {
           <div className="animate-fade-in-up">
             {activeTab === "overview" && (
               <div className="space-y-6">
-                {/* Root Causes */}
+                {/* Assumptions */}
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary mb-3">
-                    Root Causes
+                    Assumptions
                   </h4>
                   <div className="space-y-2">
-                    {selected.rootCauses.map((cause, i) => (
+                    {selected.assumptions.length > 0 ? selected.assumptions.map((assumption, i) => (
                       <div
                         key={i}
                         className="flex items-start gap-3 rounded-lg bg-white/[0.02] border border-white/5 p-3"
@@ -386,9 +327,9 @@ export default function OpportunitiesPage() {
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-[10px] font-bold text-red-400">
                           {i + 1}
                         </span>
-                        <p className="text-sm text-text-secondary">{cause}</p>
+                        <p className="text-sm text-text-secondary">{assumption}</p>
                       </div>
-                    ))}
+                    )) : <p className="text-sm text-text-muted">No assumptions were recorded.</p>}
                   </div>
                 </div>
 
@@ -442,8 +383,11 @@ export default function OpportunitiesPage() {
                     Impact Analysis
                   </h4>
                   <p className="text-sm text-text-secondary leading-relaxed">
-                    {selected.description}
+                    {selected.impactSummary}
                   </p>
+                  {selected.businessValue && (
+                    <p className="mt-3 text-sm text-text-secondary leading-relaxed">{selected.businessValue}</p>
+                  )}
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div className="rounded-lg bg-white/[0.03] p-3">
                       <p className="text-xs text-text-muted mb-1">

@@ -4,7 +4,7 @@
  * Policies, webhooks, notifications, and audit trail.
  */
 
-import { apiFetch } from './client';
+import { ApiError, apiFetch } from './client';
 
 // ─── Policy Types ────────────────────────────────────────────────────────────
 
@@ -145,45 +145,30 @@ export interface AuditEvent {
 // ─── Policies API ────────────────────────────────────────────────────────────
 
 export async function getPolicies(): Promise<PolicySet[]> {
-  try {
-    return await apiFetch<PolicySet[]>("/api/v1/policies");
-  } catch {
-    return [];
-  }
+  return apiFetch<PolicySet[]>("/api/v1/policies");
 }
 
 export async function getComplianceReport(): Promise<ComplianceReport> {
-  try {
-    return await apiFetch<ComplianceReport>("/api/v1/policies/compliance");
-  } catch {
-    return { total_opportunities: 0, compliant: 0, blocked: 0, compliance_rate: 0, policy_sets_active: 0 };
-  }
+  return apiFetch<ComplianceReport>("/api/v1/policies/compliance");
 }
 
 export async function getPolicy(id: string): Promise<PolicyDetail | null> {
   try {
     return await apiFetch<PolicyDetail>(`/api/v1/policies/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (caught) {
+    if (caught instanceof ApiError && caught.status === 404) return null;
+    throw caught;
   }
 }
 
 // ─── Webhooks API ────────────────────────────────────────────────────────────
 
 export async function getWebhooks(): Promise<WebhookRegistration[]> {
-  try {
-    return await apiFetch<WebhookRegistration[]>("/api/v1/webhooks");
-  } catch {
-    return [];
-  }
+  return apiFetch<WebhookRegistration[]>("/api/v1/webhooks");
 }
 
 export async function getWebhookEvents(): Promise<WebhookEvent[]> {
-  try {
-    return await apiFetch<WebhookEvent[]>("/api/v1/webhooks/events");
-  } catch {
-    return [];
-  }
+  return apiFetch<WebhookEvent[]>("/api/v1/webhooks/events");
 }
 
 export async function createWebhook(data: { url: string; events: string[]; secret?: string }): Promise<WebhookRegistration> {
@@ -209,26 +194,19 @@ export async function testWebhook(id: string): Promise<{ delivered: boolean; web
 // ─── Notifications API ───────────────────────────────────────────────────────
 
 export async function getNotificationChannels(): Promise<NotificationChannel[]> {
-  try {
-    return await apiFetch<NotificationChannel[]>("/api/v1/notifications/channels");
-  } catch {
-    return [];
-  }
+  return apiFetch<NotificationChannel[]>("/api/v1/notifications/channels");
 }
 
 export async function getNotificationHistory(): Promise<NotificationEntry[]> {
-  try {
-    return await apiFetch<NotificationEntry[]>("/api/v1/notifications/history");
-  } catch {
-    return [];
-  }
+  return apiFetch<NotificationEntry[]>("/api/v1/notifications/history");
 }
 
 export async function getNotification(id: string): Promise<NotificationDetail | null> {
   try {
     return await apiFetch<NotificationDetail>(`/api/v1/notifications/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (caught) {
+    if (caught instanceof ApiError && caught.status === 404) return null;
+    throw caught;
   }
 }
 
@@ -279,8 +257,7 @@ const ACTION_TO_DASHBOARD: Record<string, AuditAction> = {
 };
 
 export async function getAuditLog(type?: AuditEventType): Promise<AuditEvent[]> {
-  try {
-    const query = new URLSearchParams();
+  const query = new URLSearchParams();
     query.set("limit", "50");
     // Server uses 'action' filter, not 'type'.
     // Map dashboard AuditEventType → server action values.
@@ -302,7 +279,7 @@ export async function getAuditLog(type?: AuditEventType): Promise<AuditEvent[]> 
       { unwrap: false },
     );
     const events = res.data ?? [];
-    return events.map((e) => ({
+  return events.map((e) => ({
       id: e.id,
       type: (ACTION_TO_TYPE[e.action] ?? 'config') as AuditEventType,
       action: (ACTION_TO_DASHBOARD[e.action] ?? 'executed') as AuditAction,
@@ -313,8 +290,5 @@ export async function getAuditLog(type?: AuditEventType): Promise<AuditEvent[]> 
       details: `${e.method} ${e.url} → ${e.statusCode} (${e.duration_ms}ms)`,
       timestamp: e.timestamp,
       ip: e.ip,
-    }));
-  } catch {
-    return [];
-  }
+  }));
 }

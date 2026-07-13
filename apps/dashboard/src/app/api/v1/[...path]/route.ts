@@ -35,6 +35,24 @@ async function handler(
   const upstream = getUpstreamUrl();
   const targetPath = `/api/v1/${path.join('/')}`;
   const targetUrl = new URL(targetPath, upstream);
+  const secureCookie = request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+    const origin = request.headers.get('origin');
+    const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+    const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+    const host = forwardedHost || request.headers.get('host');
+    const expectedOrigin = host
+      ? `${forwardedProtocol || request.nextUrl.protocol.replace(':', '')}://${host}`
+      : request.nextUrl.origin;
+    if (origin && origin !== expectedOrigin && origin !== request.nextUrl.origin) {
+      return NextResponse.json({ error: 'Forbidden', message: 'Cross-origin request rejected.' }, { status: 403 });
+    }
+  }
+  if (request.method === 'POST' && path.join('/') === 'auth/logout') {
+    const response = NextResponse.json({ message: 'Signed out' });
+    response.cookies.set('recurrsive_token', '', { httpOnly: true, secure: secureCookie, sameSite: 'lax', path: '/', maxAge: 0 });
+    return response;
+  }
 
   // Forward query parameters
   request.nextUrl.searchParams.forEach((value, key) => {
@@ -48,6 +66,9 @@ async function handler(
     'connection',
     'transfer-encoding',
     'keep-alive',
+    'cookie',
+    'authorization',
+    'content-length',
   ]);
 
   request.headers.forEach((value, key) => {
@@ -55,6 +76,10 @@ async function handler(
       headers.set(key, value);
     }
   });
+  const sessionToken = request.cookies.get('recurrsive_token')?.value;
+  if (sessionToken) {
+    headers.set('authorization', `Bearer ${sessionToken}`);
+  }
 
   try {
     const response = await fetch(targetUrl.toString(), {
@@ -76,16 +101,41 @@ async function handler(
 
     const body = await response.arrayBuffer();
 
-    return new NextResponse(body, {
+    let result = new NextResponse(body, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
     });
+    const contentType = response.headers.get('content-type') ?? '';
+    if (response.ok && contentType.includes('application/json')) {
+      try {
+        const json = JSON.parse(new TextDecoder().decode(body)) as { data?: { token?: string }; token?: string };
+        const issuedToken = json.data?.token ?? json.token;
+        if (issuedToken) {
+          if (json.data) delete json.data.token;
+          delete json.token;
+          result = NextResponse.json(json, { status: response.status, headers: responseHeaders });
+          result.cookies.set('recurrsive_token', issuedToken, {
+            httpOnly: true,
+            secure: secureCookie,
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 60 * 60,
+          });
+        }
+      } catch {
+        // Preserve the upstream response if its content-type is incorrect.
+      }
+    }
+    if (response.status === 401) {
+      result.cookies.set('recurrsive_token', '', { httpOnly: true, secure: secureCookie, sameSite: 'lax', path: '/', maxAge: 0 });
+    }
+    return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[API Proxy] Failed to proxy ${request.method} ${targetPath}: ${message}`);
     return NextResponse.json(
-      { error: 'API proxy error', message: `Upstream server unavailable: ${message}` },
+      { error: 'API proxy error', message: 'Upstream server unavailable.' },
       { status: 502 },
     );
   }

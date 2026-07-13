@@ -1,12 +1,10 @@
 import Link from "next/link";
 import {
   ArrowLeft,
-  TrendingUp,
   Shield,
   Zap,
   AlertCircle,
   CheckCircle2,
-  XCircle,
   FileText,
   Target,
   Layers,
@@ -15,32 +13,8 @@ import {
 import { getOpportunity } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
-// Metric helpers
+// Display helpers
 // ---------------------------------------------------------------------------
-
-function getMetricColor(label: string, value: number): string {
-  if (label === "Risk" || label === "Effort") {
-    if (value <= 30) return "text-green-400";
-    if (value <= 60) return "text-amber-400";
-    return "text-red-400";
-  }
-  if (value >= 80) return "text-green-400";
-  if (value >= 60) return "text-blue-400";
-  if (value >= 40) return "text-amber-400";
-  return "text-red-400";
-}
-
-function getMetricBarColor(label: string, value: number): string {
-  if (label === "Risk" || label === "Effort") {
-    if (value <= 30) return "bg-green-500";
-    if (value <= 60) return "bg-amber-500";
-    return "bg-red-500";
-  }
-  if (value >= 80) return "bg-green-500";
-  if (value >= 60) return "bg-blue-500";
-  if (value >= 40) return "bg-amber-500";
-  return "bg-red-500";
-}
 
 function getSeverityStyle(severity: string) {
   const styles: Record<string, { bg: string; text: string; dot: string }> = {
@@ -50,19 +24,6 @@ function getSeverityStyle(severity: string) {
     low: { bg: "bg-green-500/10", text: "text-green-400", dot: "bg-green-400" },
   };
   return styles[severity] ?? styles.medium!;
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 90) return "text-red-400";
-  if (score >= 75) return "text-orange-400";
-  if (score >= 60) return "text-amber-400";
-  return "text-blue-400";
-}
-
-function getScoreBarColor(score: number): string {
-  if (score >= 90) return "bg-red-500";
-  if (score >= 75) return "bg-orange-500";
-  return "bg-amber-500";
 }
 
 // ---------------------------------------------------------------------------
@@ -101,12 +62,18 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
     );
   }
 
-  const metrics = [
-    { label: "Impact", value: opportunity.impact, icon: TrendingUp },
-    { label: "Confidence", value: opportunity.confidence, icon: Shield },
-    { label: "Effort", value: opportunity.effort, icon: Zap },
-    { label: "Risk", value: opportunity.risk, icon: AlertCircle },
-    { label: "ROI", value: opportunity.roi, icon: CheckCircle2 },
+  const facts = [
+    { label: "Confidence", value: `${opportunity.confidence}%`, icon: Shield },
+    {
+      label: "Effort",
+      value: opportunity.estimatedHours !== null
+        ? `${opportunity.estimatedHours}h`
+        : opportunity.effort === 'unknown' ? 'Not estimated' : opportunity.effort.toUpperCase(),
+      icon: Zap,
+    },
+    { label: "Implementation risk", value: opportunity.risk === 'unknown' ? 'Not assessed' : opportunity.risk, icon: AlertCircle },
+    { label: "Evidence", value: String(opportunity.evidence.length), icon: FileText },
+    { label: "Status", value: opportunity.status.replaceAll('_', ' '), icon: CheckCircle2 },
   ];
 
   const sev = getSeverityStyle(opportunity.severity);
@@ -154,18 +121,18 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
             </p>
           </div>
 
-          {/* Overall Score */}
-          <div className="shrink-0 flex flex-col items-center gap-1 rounded-2xl bg-white/[0.03] border border-white/5 p-4 min-w-[100px]">
+          {/* Recorded confidence */}
+          <div className="shrink-0 flex flex-col items-center gap-1 rounded-2xl bg-white/[0.03] border border-white/5 p-4 min-w-[120px]">
             <span className="text-xs text-text-muted font-medium uppercase tracking-wider">
-              Score
+              Confidence
             </span>
-            <span className={`text-3xl font-bold tabular-nums ${getScoreColor(opportunity.score)}`}>
-              {opportunity.score}
+            <span className="text-3xl font-bold tabular-nums text-blue-400">
+              {opportunity.confidence}%
             </span>
             <div className="h-1.5 w-16 rounded-full bg-white/5 overflow-hidden">
               <div
-                className={`h-full rounded-full ${getScoreBarColor(opportunity.score)}`}
-                style={{ width: `${opportunity.score}%` }}
+                className="h-full rounded-full bg-blue-500"
+                style={{ width: `${opportunity.confidence}%` }}
               />
             </div>
           </div>
@@ -185,43 +152,35 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
         </div>
       </div>
 
-      {/* ── Metrics Grid ────────────────────────────────── */}
-      <div className="grid grid-cols-5 gap-3">
-        {metrics.map(({ label, value, icon: Icon }) => (
+      {/* ── Recorded facts ───────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {facts.map(({ label, value, icon: Icon }) => (
           <div
             key={label}
             className="flex flex-col items-center gap-2 rounded-xl bg-white/[0.03] border border-white/5 p-4 hover:bg-white/[0.05] transition-colors"
           >
             <Icon className="h-4 w-4 text-text-muted" />
-            <span
-              className={`text-xl font-bold tabular-nums ${getMetricColor(label, value)}`}
-            >
+            <span className="text-sm font-bold text-text-primary capitalize text-center">
               {value}
             </span>
             <span className="text-[10px] text-text-muted font-medium uppercase tracking-wider">
               {label}
             </span>
-            <div className="h-1 w-full rounded-full bg-white/5 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${getMetricBarColor(label, value)}`}
-                style={{ width: `${value}%` }}
-              />
-            </div>
           </div>
         ))}
       </div>
 
-      {/* ── Two-column layout: Root Causes + Evidence ── */}
+      {/* ── Two-column layout: assumptions + evidence ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Root Causes */}
+        {/* Assumptions */}
         <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-5">
           <div className="flex items-center gap-2 mb-4">
             <Target className="h-4 w-4 text-red-400" />
-            <h2 className="text-sm font-semibold text-text-primary">Root Causes</h2>
+            <h2 className="text-sm font-semibold text-text-primary">Assumptions</h2>
           </div>
           <div className="space-y-2">
-            {opportunity.rootCauses.length > 0 ? (
-              opportunity.rootCauses.map((cause, i) => (
+            {opportunity.assumptions.length > 0 ? (
+              opportunity.assumptions.map((assumption, i) => (
                 <div
                   key={i}
                   className="flex items-start gap-3 rounded-lg bg-white/[0.02] border border-white/5 p-3"
@@ -229,11 +188,11 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-[10px] font-bold text-red-400">
                     {i + 1}
                   </span>
-                  <p className="text-sm text-text-secondary">{cause}</p>
+                  <p className="text-sm text-text-secondary">{assumption}</p>
                 </div>
               ))
             ) : (
-              <p className="text-xs text-text-muted italic">No root causes identified yet.</p>
+              <p className="text-xs text-text-muted italic">No assumptions were recorded.</p>
             )}
           </div>
         </div>
@@ -327,26 +286,6 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
         </div>
       )}
 
-      {/* ── Action Buttons ───────────────────────────── */}
-      <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] border border-white/5 p-5">
-        <div className="text-sm text-text-muted">
-          Review this opportunity and take action
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
-          >
-            <XCircle className="h-4 w-4" />
-            Dismiss
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-2 text-sm font-medium text-green-400 hover:bg-green-500/20 transition-colors"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            Accept
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

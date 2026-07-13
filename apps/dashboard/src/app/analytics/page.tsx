@@ -38,7 +38,7 @@ import {
 // Shared tab constants
 // ---------------------------------------------------------------------------
 
-const TABS = ['Analytics', 'AI Insights'] as const;
+const TABS = ['Analytics', 'Finding Insights'] as const;
 type Tab = typeof TABS[number];
 
 // ---------------------------------------------------------------------------
@@ -155,7 +155,6 @@ interface Insight {
   bg: string;
   title: string;
   description: string;
-  confidence: number;
   trend: string;
 }
 
@@ -186,7 +185,6 @@ function generateInsights(summary: {
       bg: "bg-red-500/10",
       title: `${critical} Critical Finding${critical > 1 ? "s" : ""} Require Attention`,
       description: `Your codebase has ${critical} critical-severity finding${critical > 1 ? "s" : ""} that should be addressed immediately. Critical findings represent active risks to security, reliability, or data integrity.`,
-      confidence: 99,
       trend: `${critical}`,
     });
   }
@@ -198,7 +196,6 @@ function generateInsights(summary: {
       bg: "bg-amber-500/10",
       title: `${high} High-Priority Findings Identified`,
       description: `${high} findings are rated high severity across your analysis. Addressing these alongside critical items will significantly improve overall system health.`,
-      confidence: 95,
       trend: `${high}`,
     });
   }
@@ -225,7 +222,6 @@ function generateInsights(summary: {
       bg: meta.bg,
       title: `${category.charAt(0).toUpperCase() + category.slice(1)}: ${count} Findings (${pct}%)`,
       description: descriptions[category] ?? `${count} findings categorized under ${category}, representing ${pct}% of your total analysis results.`,
-      confidence: Math.min(98, 80 + count),
       trend: `${pct}%`,
     });
   }
@@ -239,7 +235,6 @@ function generateInsights(summary: {
       bg: healthPct > 60 ? "bg-green-500/10" : "bg-amber-500/10",
       title: `${healthPct}% of Findings are Low/Medium Severity`,
       description: `${lowMedium} of ${total} findings are low or medium severity, indicating ${healthPct > 60 ? "a healthy codebase with room for improvement" : "significant attention needed on high-priority items"}.`,
-      confidence: 100,
       trend: `${healthPct}%`,
     });
   }
@@ -285,7 +280,7 @@ export default function AnalyticsPage() {
 
   // Fetch insights data lazily
   useEffect(() => {
-    if (activeTab !== 'AI Insights' || insightsData) return;
+    if (activeTab !== 'Finding Insights' || insightsData) return;
     setInsightsLoading(true);
     Promise.all([getFindingsSummary(), getFindings({ limit: 10 })])
       .then(([fSummary, fData]) => {
@@ -405,7 +400,7 @@ export default function AnalyticsPage() {
               <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="h-4 w-4 text-blue-400" />
                 <h2 className="text-sm font-semibold text-text-primary">
-                  12-Week Trend
+                  Recorded Analysis Trend
                 </h2>
               </div>
 
@@ -419,10 +414,6 @@ export default function AnalyticsPage() {
                       <linearGradient id="findingsGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="resolvedGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="healthGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.2} />
@@ -475,15 +466,6 @@ export default function AnalyticsPage() {
                     />
                     <Area
                       type="monotone"
-                      dataKey="resolved"
-                      stroke="#34d399"
-                      fill="url(#resolvedGrad)"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4, fill: "#34d399" }}
-                    />
-                    <Area
-                      type="monotone"
                       dataKey="health"
                       stroke="#60a5fa"
                       fill="url(#healthGrad)"
@@ -520,8 +502,8 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {activeTab === 'AI Insights' && (
-        <div role="tabpanel" aria-label="AI Insights" className="space-y-6">
+      {activeTab === 'Finding Insights' && (
+        <div role="tabpanel" aria-label="Finding Insights" className="space-y-6">
           {insightsLoading && (
             <div className="flex items-center justify-center py-20">
               <div className="h-8 w-8 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
@@ -583,15 +565,6 @@ export default function AnalyticsPage() {
                               <span className={`text-xs font-bold tabular-nums ${insight.color}`}>{insight.trend}</span>
                             </div>
                             <p className="mt-2 text-sm text-text-secondary leading-relaxed">{insight.description}</p>
-                            <div className="mt-3 flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-text-muted">Confidence</span>
-                                <div className="h-1.5 w-16 rounded-full bg-white/5 overflow-hidden">
-                                  <div className="h-full rounded-full bg-accent-blue" style={{ width: `${insight.confidence}%` }} />
-                                </div>
-                                <span className="text-[10px] font-semibold text-text-secondary tabular-nums">{insight.confidence}%</span>
-                              </div>
-                            </div>
                           </div>
                         </div>
                       </div>

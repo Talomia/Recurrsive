@@ -115,9 +115,6 @@ function MetricRow({
 // ---------------------------------------------------------------------------
 
 function ActiveExperimentCard({ experiment }: { experiment: DashboardExperiment }) {
-  // Calculate simulated progress for running experiments
-  const progress = experiment.status === "running" ? ((experiment as unknown as { progress?: number }).progress ?? 50) : experiment.status === "completed" ? 100 : 0;
-
   return (
     <div className="glass-card p-5 border-l-2 border-blue-400">
       <div className="flex items-start justify-between mb-4">
@@ -133,24 +130,6 @@ function ActiveExperimentCard({ experiment }: { experiment: DashboardExperiment 
           </p>
         </div>
         <StatusBadge status={experiment.status} />
-      </div>
-
-      {/* Progress bar */}
-      <div className="mt-3">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] text-text-muted font-medium uppercase tracking-wider">
-            Progress
-          </span>
-          <span className="text-xs text-text-primary font-semibold tabular-nums">
-            {progress}%
-          </span>
-        </div>
-        <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-1000 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
       </div>
 
       {/* Variants */}

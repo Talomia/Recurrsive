@@ -5,8 +5,6 @@ interface LoadingSkeletonProps {
   variant?: 'card' | 'table' | 'chart' | 'list' | 'page';
   /** Number of skeleton items to show */
   count?: number;
-  /** Optional page title to display while loading */
-  title?: string;
 }
 
 /**
@@ -16,7 +14,6 @@ interface LoadingSkeletonProps {
 export default function LoadingSkeleton({
   variant = 'page',
   count = 4,
-  title,
 }: LoadingSkeletonProps) {
   if (variant === 'page') {
     return (

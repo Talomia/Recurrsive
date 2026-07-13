@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { X, Send, Sparkles, Bot, Loader2, User } from "lucide-react";
+import { apiFetch } from "@/lib/api/client";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -30,25 +31,9 @@ const INITIAL_MESSAGE: ChatMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Hi! I'm Recurrsive AI. I can help you understand your codebase analysis, explain findings, and suggest improvements. What would you like to know?",
+    "I search the selected project's real findings and opportunities. Ask about a severity, category, risk, or exact finding title.",
   timestamp: new Date(),
 };
-
-const MOCK_RESPONSES = [
-  "I'm currently in development mode, but I'd love to help! Once fully enabled, I'll be able to analyze your codebase findings, explain complex patterns, suggest improvements, and help you navigate insights across your projects.",
-  "Great question! This feature is still being built out. Soon I'll be able to drill into specific findings, compare analysis results, and provide actionable recommendations based on your codebase data.",
-  "I appreciate your interest! While I'm not yet connected to the full analysis engine, I'm designed to help you understand technical debt, security findings, and architectural patterns once the integration is complete.",
-  "That's an excellent topic to explore. In my full version, I'll cross-reference findings with best practices databases to give you context-aware suggestions tailored to your specific tech stack.",
-  "Thanks for asking! Right now I'm running in preview mode. The full release will include the ability to generate reports, explain complex dependency chains, and suggest refactoring strategies.",
-];
-
-let responseIndex = 0;
-
-function getNextMockResponse(): string {
-  const response = MOCK_RESPONSES[responseIndex % MOCK_RESPONSES.length];
-  responseIndex++;
-  return response;
-}
 
 // ── Component ────────────────────────────────────────────
 
@@ -105,15 +90,21 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
         inputRef.current.style.height = "auto";
       }
 
-      // Simulate AI response delay
-      await new Promise((resolve) =>
-        setTimeout(resolve, 800 + Math.random() * 1200)
-      );
+      let answer: string;
+      try {
+        const response = await apiFetch<{ answer: string }>("/api/v1/assistant/query", {
+          method: "POST",
+          body: JSON.stringify({ question: content.trim() }),
+        });
+        answer = response.answer;
+      } catch {
+        answer = "I couldn't query the selected project's analysis. Check the API connection or run an analysis, then try again.";
+      }
 
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: "assistant",
-        content: getNextMockResponse(),
+        content: answer,
         timestamp: new Date(),
       };
 
@@ -166,7 +157,7 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="AI Assistant"
+        aria-label="Analysis Search"
         className={`fixed right-0 top-0 z-[95] flex h-full w-full max-w-[400px] flex-col transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
@@ -188,18 +179,18 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-text-primary">
-                Recurrsive AI
+                Analysis Assistant
               </h2>
               <p className="text-[10px] text-text-muted flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-400 inline-block" />
-                Online · Preview Mode
+                Live analysis evidence
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-xl hover:bg-white/5 transition-colors"
-            aria-label="Close AI assistant"
+            aria-label="Close analysis search"
           >
             <X className="h-4 w-4 text-text-muted" aria-hidden="true" />
           </button>
@@ -309,7 +300,7 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
             </button>
           </form>
           <p className="text-[9px] text-text-tertiary mt-2 text-center select-none">
-            Recurrsive AI · Preview mode · Responses are simulated
+            Deterministic search over the selected project&apos;s recorded evidence
           </p>
         </div>
       </aside>

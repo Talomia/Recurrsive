@@ -1,9 +1,9 @@
 'use client';
 import { useState, useCallback, useId, useEffect } from 'react';
 import Header from "@/components/header";
-import { Globe, Bell, Shield, Palette, Loader2 } from "lucide-react";
+import { Globe, Shield, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { getSettingsSections } from '@/lib/api';
+import { getSettingsSections, getSettingsValues } from '@/lib/api';
 import type { SettingsSection, SettingsField } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
 
@@ -11,14 +11,14 @@ import { apiFetch } from '@/lib/api/client';
 // Icon map — resolve icon name strings from the API to Lucide components
 // ---------------------------------------------------------------------------
 
-const ICON_MAP: Record<string, LucideIcon> = { Globe, Bell, Shield, Palette };
+const ICON_MAP: Record<string, LucideIcon> = { Globe, Shield };
 
 // ---------------------------------------------------------------------------
 // Defaults map
 // ---------------------------------------------------------------------------
 
-function buildDefaults(sections: SettingsSection[]): Record<string, string | boolean> {
-  const defaults: Record<string, string | boolean> = {};
+function buildDefaults(sections: SettingsSection[]): Record<string, string | boolean | number> {
+  const defaults: Record<string, string | boolean | number> = {};
   for (const section of sections) {
     for (const setting of section.settings) {
       defaults[setting.key] = setting.defaultValue;
@@ -69,35 +69,22 @@ function Toggle({
 export default function SettingsPage() {
   const baseId = useId();
   const [sections, setSections] = useState<SettingsSection[]>([]);
-  const [values, setValues] = useState<Record<string, string | boolean>>({});
+  const [values, setValues] = useState<Record<string, string | boolean | number>>({});
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load settings sections from API (pure mock fallback) and hydrate from localStorage
   useEffect(() => {
-    getSettingsSections()
-      .then((s) => {
+    Promise.all([getSettingsSections(), getSettingsValues()])
+      .then(([s, persisted]) => {
         setSections(s);
-        const defaults = buildDefaults(s);
-        try {
-          const stored = localStorage.getItem('recurrsive-settings');
-          if (stored) {
-            const parsed = JSON.parse(stored) as Record<string, string | boolean>;
-            setValues({ ...defaults, ...parsed });
-          } else {
-            setValues(defaults);
-          }
-        } catch {
-          // localStorage unavailable or corrupt — use defaults
-          setValues(defaults);
-        }
+        setValues({ ...buildDefaults(s), ...persisted });
       })
       .catch(() => setError('Failed to load settings.'))
       .finally(() => setLoading(false));
   }, []);
 
-  const handleChange = useCallback((key: string, value: string | boolean) => {
+  const handleChange = useCallback((key: string, value: string | boolean | number) => {
     setValues((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
   }, []);
@@ -111,30 +98,16 @@ export default function SettingsPage() {
         body: JSON.stringify(values),
         unwrap: false,
       });
-      // Also persist to localStorage as fallback
-      localStorage.setItem('recurrsive-settings', JSON.stringify(values));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      // Fall back to localStorage-only persistence
-      try {
-        localStorage.setItem('recurrsive-settings', JSON.stringify(values));
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      } catch {
-        // localStorage unavailable — no-op
-      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save settings.');
     }
   }, [values]);
 
   const handleReset = useCallback(() => {
     setValues(buildDefaults(sections));
     setSaved(false);
-    try {
-      localStorage.removeItem('recurrsive-settings');
-    } catch {
-      // no-op
-    }
   }, [sections]);
 
   if (loading) {
@@ -195,8 +168,8 @@ export default function SettingsPage() {
                         <input
                           id={inputId}
                           type={setting.type}
-                          value={values[setting.key] as string}
-                          onChange={(e) => handleChange(setting.key, e.target.value)}
+                          value={String(values[setting.key] ?? '')}
+                          onChange={(e) => handleChange(setting.key, setting.type === 'number' ? Number(e.target.value) : e.target.value)}
                           className="rounded-lg bg-white/5 border border-white/5 px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent-blue/40 transition-colors w-64 text-right"
                         />
                       )}

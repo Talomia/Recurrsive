@@ -14,7 +14,12 @@ import type {
   AnalysisContext,
   Finding,
 } from '@recurrsive/core';
-import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
+import {
+  createFinding,
+  createEvidence,
+  locationFromEntity,
+  isTestOrFixtureEntity,
+} from '../base/helpers.js';
 
 /** Regex patterns matching hardcoded model name strings. */
 const MODEL_NAME_PATTERNS = [
@@ -516,7 +521,9 @@ export class AIAnalyzer implements Analyzer {
    */
   private async detectAgentLoopRisk(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const agents = await ctx.graph.getEntities('agent');
+    const agents = (await ctx.graph.getEntities('agent')).filter(
+      (agent) => !isTestOrFixtureEntity(agent),
+    );
 
     for (const agent of agents) {
       const hasMaxIterations =
@@ -628,8 +635,12 @@ export class AIAnalyzer implements Analyzer {
    */
   private async detectMissingEvaluations(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const agents = await ctx.graph.getEntities('agent');
-    const workflows = await ctx.graph.getEntities('workflow');
+    const agents = (await ctx.graph.getEntities('agent')).filter(
+      (agent) => !isTestOrFixtureEntity(agent),
+    );
+    const workflows = (await ctx.graph.getEntities('workflow')).filter(
+      (workflow) => !isTestOrFixtureEntity(workflow),
+    );
     const evaluations = await ctx.graph.getEntities('evaluation');
 
     const evaluatedEntityIds = new Set<string>();
@@ -752,7 +763,9 @@ export class AIAnalyzer implements Analyzer {
    */
   private async detectMissingSystemPrompt(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const agents = await ctx.graph.getEntities('agent');
+    const agents = (await ctx.graph.getEntities('agent')).filter(
+      (agent) => !isTestOrFixtureEntity(agent),
+    );
 
     for (const agent of agents) {
       const hasSystemPrompt =

@@ -4,7 +4,7 @@
  * Knowledge graph queries and entity operations.
  */
 
-import { apiFetch } from './client';
+import { ApiError, apiFetch } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,16 +38,7 @@ export interface SystemNode {
  * Get graph statistics from `GET /api/v1/graph/stats`.
  */
 export async function getGraphStats(): Promise<GraphStats> {
-  try {
-    return await apiFetch<GraphStats>("/api/v1/graph/stats");
-  } catch {
-    return {
-      total_entities: 0,
-      total_relationships: 0,
-      entities_by_type: {},
-      relationships_by_type: {},
-    };
-  }
+  return apiFetch<GraphStats>("/api/v1/graph/stats");
 }
 
 /**
@@ -59,13 +50,7 @@ export async function getGraphEntities(type?: string, search?: string, limit = 5
   if (search) query.set("search", search);
   query.set("limit", String(limit));
 
-  try {
-    return await apiFetch<GraphEntity[]>(
-      `/api/v1/graph/entities?${query.toString()}`,
-    );
-  } catch {
-    return [];
-  }
+  return apiFetch<GraphEntity[]>(`/api/v1/graph/entities?${query.toString()}`);
 }
 
 /**
@@ -83,13 +68,7 @@ export async function searchGraphEntities(
   if (type) query.set("type", type);
   query.set("limit", String(limit));
 
-  try {
-    return await apiFetch<GraphEntity[]>(
-      `/api/v1/graph/search?${query.toString()}`,
-    );
-  } catch {
-    return [];
-  }
+  return apiFetch<GraphEntity[]>(`/api/v1/graph/search?${query.toString()}`);
 }
 
 /**
@@ -104,7 +83,8 @@ export async function getEntityWithRelationships(id: string): Promise<{
       entity: GraphEntity;
       relationships: Array<{ type: string; source_id: string; target_id: string }>;
     }>(`/api/v1/graph/entities/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
 }

@@ -315,7 +315,7 @@ export default function ProjectsPage() {
   const analyzeProject = useCallback(async (project: Project) => {
     setAnalyzingIds(prev => new Set(prev).add(project.id));
     try {
-      await triggerAnalysis(project.repository);
+      await triggerAnalysis(project.id);
       setToast({ message: `Analysis started for "${project.name}". Check the Overview page for progress.`, type: 'success' });
     } catch {
       setToast({ message: `Failed to start analysis for "${project.name}".`, type: 'error' });
@@ -329,11 +329,11 @@ export default function ProjectsPage() {
   }, []);
 
   const analyzeAll = useCallback(async () => {
-    const repos = projects.map(p => p.repository);
-    if (repos.length === 0) return;
+    const projectIds = projects.map(p => p.id);
+    if (projectIds.length === 0) return;
     try {
-      await createBatchRun({ projects: repos });
-      setToast({ message: `Batch analysis started for ${repos.length} project${repos.length !== 1 ? 's' : ''}. Check the Batch page for progress.`, type: 'success' });
+      await createBatchRun({ projectIds });
+      setToast({ message: `Batch analysis started for ${projectIds.length} project${projectIds.length !== 1 ? 's' : ''}. Check the Batch page for progress.`, type: 'success' });
     } catch {
       setToast({ message: 'Failed to start batch analysis.', type: 'error' });
     }

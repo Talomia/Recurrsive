@@ -16,7 +16,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type {
-  Opportunity,
+  Finding,
   MaturityDimension,
 } from '@recurrsive/core';
 import { state } from '../state.js';
@@ -27,11 +27,7 @@ import { computeHealthScore } from '../health.js';
 // ---------------------------------------------------------------------------
 
 /**
- * Safely compute a health score. Returns 0 if the server is not initialized.
- *
- * @param opportunities - Current opportunities.
- * @param stats - Graph statistics.
- * @returns A health score between 0 and 100.
+ * Health is computed by the shared finding-based formula.
  */
 // computeHealthScore is imported from ../health.js
 
@@ -66,9 +62,19 @@ export function registerReportResources(server: McpServer): void {
         };
       }
 
+      const cache = state.getAnalysisCache();
+      if (!cache) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: 'No analysis results cached. Use the "analyze_project" tool first.',
+          }],
+        };
+      }
       const opportunities = state.getOpportunities().list();
       const stats = await state.getGraph().getStats();
-      const health = computeHealthScore(opportunities, stats);
+      const health = computeHealthScore(cache.findings);
 
       const dimensions: MaturityDimension[] = [
         'architecture', 'ai', 'security', 'operational', 'product',
@@ -93,29 +99,26 @@ export function registerReportResources(server: McpServer): void {
         `**Total Relationships:** ${stats.totalRelationships}`,
         `**Open Opportunities:** ${opportunities.length}`,
         '',
-        '## Maturity by Dimension',
+        '## Findings by Dimension',
         '',
         '| Dimension | Issues | Severity Breakdown |',
         '| --- | --- | --- |',
       ];
 
       for (const dim of dimensions) {
-        const dimOpps = opportunities.filter((o: Opportunity) => categoryToDimension[o.category] === dim);
+        const dimensionFindings = cache.findings.filter((finding: Finding) => categoryToDimension[finding.category] === dim);
         const severityBreakdown = ['critical', 'high', 'medium', 'low', 'info']
           .map((s) => {
-            const count = dimOpps.filter((o: Opportunity) => o.severity === s).length;
+            const count = dimensionFindings.filter((finding: Finding) => finding.severity === s).length;
             return count > 0 ? `${s}: ${count}` : null;
           })
           .filter(Boolean)
           .join(', ');
-        lines.push(`| ${dim} | ${dimOpps.length} | ${severityBreakdown || '—'} |`);
+        lines.push(`| ${dim} | ${dimensionFindings.length} | ${severityBreakdown || '—'} |`);
       }
 
-      const cache = state.getAnalysisCache();
-      if (cache) {
-        lines.push('', `**Last analyzed:** ${cache.analyzedAt}`);
-        lines.push(`**Analysis duration:** ${(cache.durationMs / 1000).toFixed(1)}s`);
-      }
+      lines.push('', `**Last analyzed:** ${cache.analyzedAt}`);
+      lines.push(`**Analysis duration:** ${(cache.durationMs / 1000).toFixed(1)}s`);
 
       return {
         contents: [{
@@ -283,9 +286,17 @@ export function registerReportResources(server: McpServer): void {
       }
 
       const cache = state.getAnalysisCache();
-      const opportunities = state.getOpportunities().list();
+      if (!cache) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: 'No analysis results cached. Use the "analyze_project" tool first.',
+          }],
+        };
+      }
       const stats = await state.getGraph().getStats();
-      const health = computeHealthScore(opportunities, stats);
+      const health = computeHealthScore(cache.findings);
 
       const lines = [
         `# Intelligence Snapshot`,
@@ -295,14 +306,13 @@ export function registerReportResources(server: McpServer): void {
         '',
       ];
 
-      if (cache) {
-        lines.push(
+      lines.push(
           `**Analyzed At:** ${cache.analyzedAt}`,
           `**Duration:** ${(cache.durationMs / 1000).toFixed(1)}s`,
           `**Findings:** ${cache.findings.length}`,
           `**Opportunities:** ${cache.opportunities.length}`,
           '',
-        );
+      );
 
         // Category breakdown
         const bySeverity = new Map<string, number>();
@@ -336,13 +346,6 @@ export function registerReportResources(server: McpServer): void {
           }
           lines.push('');
         }
-      } else {
-        lines.push(
-          '> No analysis results cached. Run `analyze_project` to generate a snapshot.',
-          '',
-        );
-      }
-
       lines.push(
         '## Graph Size',
         '',

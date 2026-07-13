@@ -14,16 +14,25 @@ vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({
     user: { id: '1', username: 'admin', role: 'admin' },
     loading: false,
-    token: 'mock-token',
     error: null,
     login: vi.fn(),
     logout: vi.fn(),
   }),
 }));
 
+vi.mock('@/components/active-project-context', () => ({
+  ActiveProjectProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock('@/components/auth-guard', () => ({
   AuthGuard: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="auth-guard">{children}</div>
+  ),
+}));
+
+vi.mock('@/components/realtime-context', () => ({
+  RealtimeProvider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="realtime-provider">{children}</div>
   ),
 }));
 

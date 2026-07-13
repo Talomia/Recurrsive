@@ -34,7 +34,6 @@ describe('Navbar', () => {
     const hrefs = Array.from(links).map((l) => l.getAttribute('href'));
     expect(hrefs).toContain('/product');
     expect(hrefs).toContain('/pricing');
-    expect(hrefs).toContain('/partners');
     expect(hrefs).toContain('/docs');
     expect(hrefs).toContain('/blog'); // Community -> /blog
   });

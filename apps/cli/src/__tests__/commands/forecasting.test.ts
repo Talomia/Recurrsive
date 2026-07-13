@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Command } from 'commander';
+import type * as ConfigModule from '../../config.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -14,7 +15,7 @@ const { mockApiRequest } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../config.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../config.js')>();
+  const actual = await importOriginal<typeof ConfigModule>();
   return { ...actual, apiRequest: mockApiRequest };
 });
 
@@ -56,14 +57,15 @@ describe('forecast command', () => {
     vi.clearAllMocks();
     process.exitCode = undefined;
     mockApiRequest.mockResolvedValue({
-      currentHealth: 74,
-      predictedHealth: 79,
-      trend: 'improving',
-      confidenceLow: 72,
-      confidenceHigh: 86,
-      margin: 7,
-      factors: ['Reduced complexity'],
-      weekly: [{ week: 'Week 1', predicted: 76, confidence: '72-80', trend: 'improving' }],
+      data: {
+        currentScore: 74,
+        trend: 'improving',
+        confidence: 0.82,
+        history: [{ date: '2026-07-01', score: 70 }, { date: '2026-07-08', score: 74 }],
+        forecast: [{ date: '2026-07-14', predicted: 75, lowerBound: 74, upperBound: 76 }],
+        regression: { slope: 0.5, intercept: 70, r2: 0.82 },
+      },
+      generatedAt: '2026-07-13T00:00:00.000Z',
     });
   });
 
@@ -77,13 +79,6 @@ describe('forecast command', () => {
     const program = createCLI();
     const forecast = program.commands.find((c) => c.name() === 'forecast')!;
     const sub = forecast.commands.find((c) => c.name() === 'health');
-    expect(sub).toBeDefined();
-  });
-
-  it('has a "what-if" subcommand', () => {
-    const program = createCLI();
-    const forecast = program.commands.find((c) => c.name() === 'forecast')!;
-    const sub = forecast.commands.find((c) => c.name() === 'what-if');
     expect(sub).toBeDefined();
   });
 
@@ -103,14 +98,11 @@ describe('forecast command', () => {
     expect(opt).toBeDefined();
   });
 
-  it('what-if subcommand supports --json option', async () => {
-    mockApiRequest.mockResolvedValue([
-      { id: 'a1', name: 'Fix critical bugs', impact: 5, effort: 'M', confidence: 85, category: 'Quality' },
-    ]);
+  it('calls the implemented health endpoint with the requested horizon', async () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const program = createCLI();
-    await program.parseAsync(['node', 'test', 'forecast', 'what-if', '--json']);
-    expect(spy).toHaveBeenCalled();
+    await program.parseAsync(['node', 'test', 'forecast', 'health', '--days', '14', '--json']);
+    expect(mockApiRequest).toHaveBeenCalledWith('/api/v1/forecasting/health?horizon=14');
     spy.mockRestore();
   });
 });

@@ -7,7 +7,7 @@
  * - `list_findings` — List analysis findings with optional severity filter
  * - `get_entity` — Get full entity details by ID from the knowledge graph
  * - `trace_dependency` — Trace dependency chain between entities
- * - `explain_entity` — LLM-powered entity explanation (requires reasoning config)
+ * - `explain_entity` — Evidence-only entity and graph-context explanation
  * - `analyze_impact` — Analyze potential impact of changing an entity
  *
  * @packageDocumentation
@@ -421,10 +421,8 @@ export function registerInspectTools(server: McpServer): void {
 
   server.tool(
     'explain_entity',
-    'Use the LLM to explain what an entity does based on its knowledge ' +
-    'graph context. Builds a context prompt from the entity\'s properties, ' +
-    'neighbors, and relationships, then calls the reasoning engine. ' +
-    'NOTE: Requires RECURRSIVE_LLM_API_KEY environment variable to be set.',
+    'Explain an entity from recorded metadata, properties, neighbors, and ' +
+    'relationships. The output is deterministic and does not invent analysis evidence.',
     {
       entity_id: z.string().describe('UUID of the entity to explain'),
     },
@@ -456,122 +454,6 @@ export function registerInspectTools(server: McpServer): void {
         const neighbors = await graph.getNeighbors(entity_id, 1);
         const relatedEntities = neighbors.entities.filter((e) => e.id !== entity_id);
 
-        // Build context for LLM explanation
-        const contextLines = [
-          `Entity: ${entity.name}`,
-          `Type: ${entity.type}`,
-          `Qualified Name: ${entity.qualified_name}`,
-        ];
-
-        if (entity.description) {
-          contextLines.push(`Description: ${entity.description}`);
-        }
-
-        if (entity.source_location?.file) {
-          contextLines.push(`Location: ${entity.source_location.file}`);
-        }
-
-        if (entity.properties && Object.keys(entity.properties).length > 0) {
-          contextLines.push(`Properties: ${JSON.stringify(entity.properties)}`);
-        }
-
-        if (relatedEntities.length > 0) {
-          contextLines.push('', 'Related Entities:');
-          for (const related of relatedEntities) {
-            contextLines.push(`- ${related.name} (${related.type})`);
-          }
-        }
-
-        if (neighbors.relationships.length > 0) {
-          contextLines.push('', 'Relationships:');
-          for (const rel of neighbors.relationships) {
-            const direction = rel.source_id === entity_id ? 'outgoing' : 'incoming';
-            const otherId = rel.source_id === entity_id ? rel.target_id : rel.source_id;
-            const otherEntity = relatedEntities.find((e) => e.id === otherId);
-            const otherName = otherEntity?.name ?? otherId;
-            contextLines.push(`- [${direction}] ${rel.type} → ${otherName}`);
-          }
-        }
-
-        // Check for LLM API key
-        const apiKey = process.env['RECURRSIVE_LLM_API_KEY'];
-        if (!apiKey) {
-          // Return a structured context summary instead of LLM explanation
-          const output = [
-            `# Entity Explanation: ${entity.name}`,
-            '',
-            '> **Note:** LLM explanation unavailable — RECURRSIVE_LLM_API_KEY ' +
-            'is not set. Providing structured context instead.',
-            '',
-            formatEntityDetail(entity),
-            '',
-          ];
-
-          if (relatedEntities.length > 0) {
-            output.push('## Graph Context', '');
-            output.push(`This ${entity.type} entity has ${relatedEntities.length} ` +
-              `direct connections in the knowledge graph:`, '');
-            for (const rel of neighbors.relationships) {
-              const direction = rel.source_id === entity_id ? 'outgoing' : 'incoming';
-              const otherId = rel.source_id === entity_id ? rel.target_id : rel.source_id;
-              const otherEntity2 = relatedEntities.find((e) => e.id === otherId);
-              const otherName = otherEntity2?.name ?? otherId;
-              output.push(`- **${direction}** \`${rel.type}\` → ${otherName}`);
-            }
-            output.push('');
-          }
-
-          return {
-            content: [{ type: 'text' as const, text: output.join('\n') }],
-          };
-        }
-
-        // Use the reasoning engine to generate an explanation
-        const { ReasoningEngine } = await import('@recurrsive/reasoning');
-
-        const reasoningConfig = {
-          llm_provider: process.env['RECURRSIVE_LLM_PROVIDER'] ?? 'openai',
-          llm_model: process.env['RECURRSIVE_LLM_MODEL'] ?? 'gpt-4.1-mini',
-          llm_api_key: apiKey,
-          max_debate_rounds: 1,
-          min_consensus_score: 0.5,
-          specialists: ['architecture_engineer' as const],
-          temperature: 0.3,
-        };
-
-        const engine = new ReasoningEngine(reasoningConfig);
-
-        // Create a synthetic finding to drive the explanation
-        const locations: { file: string; start_line?: number; end_line?: number }[] = [];
-        if (entity.source_location?.file) {
-          locations.push({
-            file: entity.source_location.file,
-            start_line: entity.source_location.start_line,
-            end_line: entity.source_location.end_line,
-          });
-        }
-
-        const syntheticFinding: Finding = {
-          id: crypto.randomUUID(),
-          analyzer_id: 'mcp:explain_entity',
-          title: `Explain: ${entity.name}`,
-          description: [
-            `Explain what this ${entity.type} entity does and its role in the system.`,
-            '',
-            'Context:',
-            ...contextLines,
-          ].join('\n'),
-          severity: 'info',
-          category: 'architecture',
-          evidence: [],
-          locations,
-          confidence: 1.0,
-          tags: ['explanation'],
-          created_at: new Date().toISOString(),
-        };
-
-        const consensus = await engine.process([syntheticFinding], graph);
-
         const output = [
           `# Entity Explanation: ${entity.name}`,
           '',
@@ -579,21 +461,18 @@ export function registerInspectTools(server: McpServer): void {
           '',
         ];
 
-        if (consensus.opportunities.length > 0) {
-          output.push('## LLM Explanation', '');
-          for (const opp of consensus.opportunities) {
-            output.push(opp.problem);
-            if (opp.recommendation) {
-              output.push('', `**Recommendation:** ${opp.recommendation}`);
-            }
-          }
-        } else {
-          output.push(
-            '## Context Summary',
-            '',
-            `This is a \`${entity.type}\` entity with ${relatedEntities.length} ` +
-            `direct connections in the knowledge graph.`,
-          );
+        output.push(
+          '## Graph Context',
+          '',
+          `This \`${entity.type}\` entity has ${relatedEntities.length} direct ` +
+          `connection${relatedEntities.length === 1 ? '' : 's'} in the recorded knowledge graph.`,
+          '',
+        );
+        for (const rel of neighbors.relationships) {
+          const direction = rel.source_id === entity_id ? 'outgoing' : 'incoming';
+          const otherId = rel.source_id === entity_id ? rel.target_id : rel.source_id;
+          const otherEntity = relatedEntities.find((candidate) => candidate.id === otherId);
+          output.push(`- **${direction}** \`${rel.type}\` → ${otherEntity?.name ?? otherId}`);
         }
 
         return {
@@ -613,9 +492,8 @@ export function registerInspectTools(server: McpServer): void {
 
   server.tool(
     'analyze_impact',
-    'Analyze the potential impact of changing an entity by examining its ' +
-    'reverse dependency tree (dependents). Estimates the blast radius and ' +
-    'categorizes affected entities by type and severity.',
+    'Analyze the recorded reverse dependency impact for an entity. Reports ' +
+    'the measured graph reach and affected entity types without predicting change risk.',
     {
       entity_id: z.string().describe('UUID of the entity to analyze impact for'),
     },
@@ -691,15 +569,6 @@ ORDER BY rt.depth;`.trim();
           byType.set(dep.type, count + 1);
         }
 
-        // Determine risk level
-        let riskLevel: string;
-        const ratio = dependents.length / totalEntities;
-        if (ratio >= 0.3) riskLevel = '🔴 Critical';
-        else if (ratio >= 0.15) riskLevel = '🟠 High';
-        else if (ratio >= 0.05) riskLevel = '🟡 Medium';
-        else if (dependents.length > 0) riskLevel = '🟢 Low';
-        else riskLevel = '⚪ None';
-
         const output = [
           `# Impact Analysis: ${entity.name}`,
           '',
@@ -710,7 +579,6 @@ ORDER BY rt.depth;`.trim();
           '',
           `- **Affected entities:** ${dependents.length}`,
           `- **Blast radius:** ${blastRadius}% of graph`,
-          `- **Risk level:** ${riskLevel}`,
           '',
         ];
 
@@ -744,25 +612,16 @@ ORDER BY rt.depth;`.trim();
           output.push('');
         }
 
-        // Recommendations based on blast radius
-        output.push('## Recommendations', '');
-        if (ratio >= 0.15) {
-          output.push(
-            '- ⚠️ **High coupling detected.** Changes to this entity have a wide blast radius.',
-            '- Consider introducing an abstraction layer or interface to reduce direct coupling.',
-            '- Use feature flags or staged rollouts when modifying this entity.',
-            '- Ensure comprehensive test coverage of all dependents before making changes.',
-          );
-        } else if (dependents.length > 0) {
+        output.push('## Change Review Guidance', '');
+        if (dependents.length > 0) {
           output.push(
             '- Review the listed dependents to understand change propagation.',
             '- Add regression tests for dependent entities before modifying.',
-            '- Consider notifying owners of dependent components.',
           );
         } else {
           output.push(
-            '- This entity has no detected dependents — changes are low risk.',
-            '- Consider if this entity might be dead code (no consumers).',
+            '- No dependents are recorded in the current graph.',
+            '- Confirm dynamic, generated, or external usages before changing the entity.',
           );
         }
         output.push('');
@@ -827,7 +686,7 @@ ORDER BY rt.depth;`.trim();
         } else {
           // Fallback: LIKE-based search
           if (type) {
-            const typed = await graph.getEntities(type as any);
+            const typed = await graph.getEntities(type as Entity['type']);
             const q = query.toLowerCase();
             results = typed
               .filter(

@@ -17,7 +17,7 @@ import {
 export const metadata: Metadata = {
   title: 'CLI Reference — Recurrsive Docs',
   description:
-    'Complete command-line interface reference for Recurrsive. 28 commands across 7 groups for analysis, reporting, and automation.',
+    'Command-line interface guide for Recurrsive analysis, reporting, and operations.',
 };
 
 const COMMAND_GROUPS = [
@@ -60,8 +60,7 @@ const COMMAND_GROUPS = [
     color: 'var(--cyan)',
     commands: [
       { cmd: 'experiments', desc: 'Manage analysis experiments', example: 'recurrsive experiments' },
-      { cmd: 'simulation', desc: 'Run and view simulations', example: 'recurrsive simulation' },
-      { cmd: 'forecast', desc: 'View trend forecasts', example: 'recurrsive forecast' },
+      { cmd: 'forecast health', desc: 'View a history-based health trend projection', example: 'recurrsive forecast health' },
     ],
   },
   {
@@ -83,9 +82,7 @@ const COMMAND_GROUPS = [
       { cmd: 'config', desc: 'View, validate, and inspect Recurrsive configuration', example: 'recurrsive config' },
       { cmd: 'webhooks', desc: 'Manage webhook integrations', example: 'recurrsive webhooks' },
       { cmd: 'notifications', desc: 'Manage notification channels (Slack, HTTP, console)', example: 'recurrsive notifications' },
-      { cmd: 'plugins', desc: 'Manage and discover plugins', example: 'recurrsive plugins' },
       { cmd: 'projects', desc: 'Manage and compare projects', example: 'recurrsive projects' },
-      { cmd: 'cloud', desc: 'Cloud platform insights and status', example: 'recurrsive cloud' },
     ],
   },
   {
@@ -93,7 +90,7 @@ const COMMAND_GROUPS = [
     icon: Shield,
     color: 'var(--green)',
     commands: [
-      { cmd: 'login', desc: 'Authenticate with Recurrsive Cloud', example: 'recurrsive login' },
+      { cmd: 'login', desc: 'Authenticate with a Recurrsive server', example: 'recurrsive login' },
       { cmd: 'logout', desc: 'Log out and clear stored credentials', example: 'recurrsive logout' },
       { cmd: 'whoami', desc: 'Display the currently authenticated user', example: 'recurrsive whoami' },
     ],
@@ -121,7 +118,7 @@ export default function CliReferencePage() {
         <div className="glow-orb glow-cyan" style={{ width: 500, height: 500, top: -200, left: '50%' }} />
         <div className="container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
           <div className="badge badge-accent" style={{ marginBottom: 'var(--space-lg)' }}>
-            <Terminal size={14} /> 28 commands
+            <Terminal size={14} /> CLI reference
           </div>
           <h1 style={{ marginBottom: 'var(--space-md)' }}>
             <span className="text-gradient">CLI Reference</span>

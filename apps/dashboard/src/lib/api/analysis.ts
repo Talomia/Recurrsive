@@ -4,7 +4,7 @@
  * Analysis runs, findings, and findings summary.
  */
 
-import { apiFetch } from './client';
+import { ApiError, apiFetch } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -96,7 +96,6 @@ export interface AnalyticsCategory {
 export interface AnalyticsTrendPoint {
   date: string;
   findings: number;
-  resolved: number;
   health: number;
 }
 
@@ -122,36 +121,21 @@ export async function getAnalysisStatus(): Promise<{
   completedAt: string | null;
   error: string | null;
 }> {
-  try {
-    return await apiFetch<{
+  return apiFetch<{
       phase: string;
       progress: number;
       message: string;
       startedAt: string | null;
       completedAt: string | null;
       error: string | null;
-    }>("/api/v1/analysis/status");
-  } catch {
-    return {
-      phase: "idle",
-      progress: 0,
-      message: "No analysis running",
-      startedAt: null,
-      completedAt: null,
-      error: null,
-    };
-  }
+  }>("/api/v1/analysis/status");
 }
 
 /**
  * Get findings summary from `GET /api/v1/findings/summary`.
  */
 export async function getFindingsSummary(): Promise<FindingsSummary> {
-  try {
-    return await apiFetch<FindingsSummary>("/api/v1/findings/summary");
-  } catch {
-    return { total: 0, by_severity: {}, by_category: {}, by_analyzer: {} };
-  }
+  return apiFetch<FindingsSummary>("/api/v1/findings/summary");
 }
 
 /**
@@ -172,12 +156,8 @@ export async function getFindings(params?: {
   const qs = query.toString();
   const path = `/api/v1/findings${qs ? `?${qs}` : ""}`;
 
-  try {
-    const res = await apiFetch<{ data: Finding[]; total: number }>(path, { unwrap: false });
-    return { findings: res.data ?? [], total: res.total ?? 0 };
-  } catch {
-    return { findings: [], total: 0 };
-  }
+  const res = await apiFetch<{ data: Finding[]; total: number }>(path, { unwrap: false });
+  return { findings: res.data ?? [], total: res.total ?? 0 };
 }
 
 /**
@@ -188,8 +168,9 @@ export async function getFinding(id: string): Promise<Finding | null> {
     return await apiFetch<Finding>(
       `/api/v1/findings/${encodeURIComponent(id)}`,
     );
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
   }
 }
 
@@ -197,43 +178,21 @@ export async function getFinding(id: string): Promise<Finding | null> {
  * Get findings page data with stats and filterable list.
  */
 export async function getFindingsPage(): Promise<FindingsPageData> {
-  try {
-    return await apiFetch<FindingsPageData>("/api/v1/findings/page");
-  } catch {
-    return {
-      findings: [],
-      stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
-    };
-  }
+  return apiFetch<FindingsPageData>("/api/v1/findings/page");
 }
 
 /**
  * Get analytics summary from `GET /api/v1/analytics/summary`.
  */
 export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
-  try {
-    return await apiFetch<AnalyticsSummary>("/api/v1/analytics/summary");
-  } catch {
-    return {
-      analysis_runs: 0,
-      total_findings: 0,
-      findings_resolved: 0,
-      resolution_rate: 0,
-      avg_health_score: 0,
-      trends: [],
-    };
-  }
+  return apiFetch<AnalyticsSummary>("/api/v1/analytics/summary");
 }
 
 /**
  * Get analytics categories from `GET /api/v1/analytics/top-categories`.
  */
 export async function getAnalyticsCategories(): Promise<AnalyticsCategory[]> {
-  try {
-    return await apiFetch<AnalyticsCategory[]>("/api/v1/analytics/top-categories");
-  } catch {
-    return [];
-  }
+  return apiFetch<AnalyticsCategory[]>("/api/v1/analytics/top-categories");
 }
 
 // ─── Analysis Triggers ──────────────────────────────────────────────────────
@@ -249,12 +208,11 @@ export interface AnalysisResult {
  *
  * @param gitUrl - The repository URL to analyze.
  */
-export async function triggerAnalysis(gitUrl: string): Promise<AnalysisResult> {
+export async function triggerAnalysis(projectId: string): Promise<AnalysisResult> {
   return await apiFetch<AnalysisResult>('/api/v1/analyze', {
     method: 'POST',
-    body: JSON.stringify({ gitUrl }),
+    body: JSON.stringify({ projectId }),
     headers: { 'Content-Type': 'application/json' },
     unwrap: false,
   });
 }
-

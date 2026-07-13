@@ -727,6 +727,22 @@ export class AIPatternDetector {
       const re = new RegExp(p.re.source, p.re.flags);
       let match: RegExpExecArray | null;
       while ((match = re.exec(source)) !== null) {
+        const lineStart = source.lastIndexOf('\n', match.index) + 1;
+        const prefix = source.slice(lineStart, match.index);
+        const trimmedPrefix = prefix.trimStart();
+
+        // Do not detect the detector's own pattern declarations or examples
+        // written in comments as live AI infrastructure. This preserves source
+        // offsets while removing a major class of self-referential findings.
+        if (
+          /\bre\s*:\s*\/[^/]*$/.test(prefix) ||
+          trimmedPrefix.startsWith('//') ||
+          trimmedPrefix.startsWith('*') ||
+          trimmedPrefix.startsWith('#')
+        ) {
+          continue;
+        }
+
         const location = loc(source, match, filePath);
         results.push(builder(match, p, location));
       }

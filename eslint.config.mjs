@@ -54,4 +54,12 @@ export default [
       'no-console': 'off',
     },
   },
+  {
+    // A command-line application intentionally writes its rendered output to
+    // stdout. Treating every output line as a warning hides actionable lint.
+    files: ['apps/cli/src/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ];

@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from '../../lib/auth-context';
 
 // Test consumer component
 function AuthConsumer() {
-  const { user, loading, error, token } = useAuth();
+  const { user, loading, error } = useAuth();
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
   if (!user) return <div>Not authenticated</div>;
@@ -16,7 +16,6 @@ function AuthConsumer() {
     <div>
       <span data-testid="user">{user.username}</span>
       <span data-testid="role">{user.role}</span>
-      <span data-testid="token">{token}</span>
     </div>
   );
 }
@@ -24,7 +23,6 @@ function AuthConsumer() {
 describe('AuthProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.clear();
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       json: () => Promise.resolve({ error: 'Unauthorized' }),
@@ -41,7 +39,7 @@ describe('AuthProvider', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument();
   });
 
-  it('starts with no user when no token stored', async () => {
+  it('starts with no user when no server session exists', async () => {
     render(
       <AuthProvider>
         <AuthConsumer />
@@ -53,12 +51,13 @@ describe('AuthProvider', () => {
     });
   });
 
-  it('resolves to not authenticated when token refresh fails', async () => {
-    localStorage.setItem('recurrsive_token', 'fake-token');
+  it('hydrates the authenticated user from the server session', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: false,
-      json: () => Promise.resolve({ error: 'Unauthorized' }),
-      status: 401,
+      ok: true,
+      json: () => Promise.resolve({
+        data: { id: 'user-1', username: 'admin', role: 'admin' },
+      }),
+      status: 200,
     });
 
     render(
@@ -68,8 +67,10 @@ describe('AuthProvider', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Not authenticated')).toBeInTheDocument();
+      expect(screen.getByTestId('user')).toHaveTextContent('admin');
+      expect(screen.getByTestId('role')).toHaveTextContent('admin');
     });
+    expect(global.fetch).toHaveBeenCalledWith('/api/v1/auth/me', { cache: 'no-store' });
   });
 
   it('exports useAuth hook', () => {

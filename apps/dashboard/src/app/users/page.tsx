@@ -622,8 +622,9 @@ export default function UsersPage() {
                   onChange={(e) => setAddForm((f) => ({ ...f, password: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2"
                   style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}
-                  placeholder="Min. 8 characters"
+                  placeholder="Min. 12 characters"
                   required
+                  minLength={12}
                 />
               </div>
               <div>

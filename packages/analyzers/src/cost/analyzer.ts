@@ -14,7 +14,10 @@ import type {
   Finding,
   Entity,
 } from '@recurrsive/core';
-import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
+import { createFinding, createEvidence, locationFromEntity, isTestOrFixtureEntity } from '../base/helpers.js';
+
+const productionOnly = <T extends Entity>(entities: T[]): T[] =>
+  entities.filter((entity) => !isTestOrFixtureEntity(entity));
 
 /** Model names considered "expensive" (GPT-4 class). */
 const EXPENSIVE_MODEL_PATTERNS = [
@@ -26,7 +29,6 @@ const EXPENSIVE_MODEL_PATTERNS = [
 ];
 
 /** Model names considered "cheap" alternatives. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const CHEAP_MODEL_PATTERNS = [
   /gpt-3\.5/i,
   /gpt-4o-mini/i,
@@ -97,8 +99,8 @@ export class CostAnalyzer implements Analyzer {
 
     // ── Cross-cutting: multiple models without cost tracking ─────
     const [models, costMetrics] = await Promise.all([
-      ctx.graph.getEntities('model'),
-      ctx.graph.getEntities('cost_metric'),
+      ctx.graph.getEntities('model').then(productionOnly),
+      ctx.graph.getEntities('cost_metric').then(productionOnly),
     ]);
 
     if (models.length > 2 && costMetrics.length === 0) {
@@ -147,8 +149,8 @@ export class CostAnalyzer implements Analyzer {
    */
   private async detectExpensiveModelOveruse(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const models = await ctx.graph.getEntities('model');
-    const functions = await ctx.graph.getEntities('function');
+    const models = productionOnly(await ctx.graph.getEntities('model'));
+    const functions = productionOnly(await ctx.graph.getEntities('function'));
 
     for (const model of models) {
       const modelName = model.name.toLowerCase();
@@ -216,7 +218,7 @@ export class CostAnalyzer implements Analyzer {
    */
   private async detectNoTokenTracking(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
+    const functions = productionOnly(await ctx.graph.getEntities('function'));
 
     const aiCallers: Entity[] = [];
     for (const fn of functions) {
@@ -229,7 +231,7 @@ export class CostAnalyzer implements Analyzer {
     if (aiCallers.length === 0) return findings;
 
     // Check for any token tracking infrastructure
-    const costMetrics = await ctx.graph.getEntities('cost_metric');
+    const costMetrics = productionOnly(await ctx.graph.getEntities('cost_metric'));
     const hasGlobalTracking = costMetrics.some(
       (m) =>
         m.tags.includes('token-usage') ||
@@ -276,7 +278,7 @@ export class CostAnalyzer implements Analyzer {
    */
   private async detectMissingSemanticCaching(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const prompts = await ctx.graph.getEntities('prompt');
+    const prompts = productionOnly(await ctx.graph.getEntities('prompt'));
 
     if (prompts.length < 2) return findings;
 
@@ -338,7 +340,7 @@ export class CostAnalyzer implements Analyzer {
    */
   private async detectUnusedModelConfigurations(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const models = await ctx.graph.getEntities('model');
+    const models = productionOnly(await ctx.graph.getEntities('model'));
 
     for (const model of models) {
       const inRels = await ctx.graph.getRelationships(model.id, 'in');
@@ -387,7 +389,7 @@ export class CostAnalyzer implements Analyzer {
    */
   private async detectMissingBatchProcessing(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
+    const functions = productionOnly(await ctx.graph.getEntities('function'));
 
     for (const fn of functions) {
       const hasLoop = fn.properties['has_loop'] === true || fn.tags.includes('loop');
@@ -451,9 +453,9 @@ export class CostAnalyzer implements Analyzer {
    */
   private async detectNoCostAlerts(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const alerts = await ctx.graph.getEntities('alert');
-    const costMetrics = await ctx.graph.getEntities('cost_metric');
-    const models = await ctx.graph.getEntities('model');
+    const alerts = productionOnly(await ctx.graph.getEntities('alert'));
+    const costMetrics = productionOnly(await ctx.graph.getEntities('cost_metric'));
+    const models = productionOnly(await ctx.graph.getEntities('model'));
 
     // Only flag if there are AI models in use
     if (models.length === 0) return findings;

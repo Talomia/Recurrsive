@@ -121,6 +121,15 @@ export function toPublicUser(user: User): PublicUser {
  * @returns The created user as a {@link PublicUser}.
  */
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
+  if (!/^[A-Za-z0-9._-]{3,64}$/.test(input.username)) {
+    throw new Error('Username must be 3-64 characters using letters, numbers, dot, underscore, or hyphen');
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
+    throw new Error('Email address is invalid');
+  }
+  if (input.password.length < 12) {
+    throw new Error('Password must be at least 12 characters');
+  }
   // Check for duplicate username via index (O(1) lookup)
   const existingId = await store.get<string>(USERNAME_INDEX_TABLE, input.username);
   if (existingId) {

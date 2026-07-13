@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import type { EntityType } from '@recurrsive/core';
 
 const logger = createLogger({ context: { component: 'server:routes:search' } });
 
@@ -76,7 +77,7 @@ async function getSearchableItems(): Promise<SearchItem[]> {
       const stats = await graph.getStats();
       for (const entityType of Object.keys(stats.entityCountsByType)) {
         try {
-          const entities = await graph.getEntities(entityType as import('@recurrsive/core').EntityType);
+          const entities = await graph.getEntities(entityType as EntityType);
           for (const entity of entities.slice(0, 50)) {
             items.push({
               type: 'entity',

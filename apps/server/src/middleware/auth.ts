@@ -26,18 +26,39 @@ const logger = createLogger({ context: { component: 'server:middleware:auth' } }
 // Configuration
 // ---------------------------------------------------------------------------
 
-/** Secret used for HMAC-SHA256 signing. Never rotated in dev mode. */
+/** Secret used for HMAC-SHA256 signing. */
 const JWT_SECRET = process.env['JWT_SECRET'] ?? 'recurrsive-dev-secret';
 
-if (JWT_SECRET === 'recurrsive-dev-secret') {
-  if (process.env['NODE_ENV'] === 'production') {
-    logger.error(
-      'CRITICAL: JWT_SECRET is using the default insecure value in production. ' +
-      'Set a strong JWT_SECRET environment variable before deploying.',
+const INSECURE_JWT_SECRETS = new Set([
+  '',
+  'recurrsive-dev-secret',
+  'change-me-in-production',
+  'SET_IN_EASYPANEL_SECRET_MINIMUM_32_CHARACTERS',
+  'changeme',
+  'secret',
+]);
+
+/**
+ * Reject unsafe authentication configuration before a production server starts.
+ * Keeping this as an explicit assertion makes the invariant testable and avoids
+ * terminating the process while modules are being imported.
+ */
+export function assertProductionAuthConfig(): void {
+  if (process.env['NODE_ENV'] !== 'production') {
+    if (INSECURE_JWT_SECRETS.has(JWT_SECRET)) {
+      logger.warn('JWT_SECRET is using a development-only value.');
+    }
+    return;
+  }
+
+  if (INSECURE_JWT_SECRETS.has(JWT_SECRET) || JWT_SECRET.length < 32) {
+    throw new Error(
+      'Refusing to start in production: JWT_SECRET must be a unique random value of at least 32 characters.',
     );
-    process.exit(1);
-  } else {
-    logger.warn('JWT_SECRET is using the default dev-only value. Set JWT_SECRET in production.');
+  }
+
+  if (process.env['ALLOW_DEMO_USERS'] === 'true') {
+    throw new Error('Refusing to start in production: demo users cannot be enabled.');
   }
 }
 
@@ -256,10 +277,10 @@ async function authenticateRequest(request: FastifyRequest): Promise<AuthUser | 
  * app.get('/api/v1/me', { preHandler: authMiddleware }, handler);
  * ```
  */
-export const authMiddleware: preHandlerHookHandler = async (
+async function requireAuthentication(
   request: FastifyRequest,
   reply: FastifyReply,
-) => {
+): Promise<void> {
   const user = await authenticateRequest(request);
 
   if (!user) {
@@ -273,6 +294,53 @@ export const authMiddleware: preHandlerHookHandler = async (
 
   // Decorate the request
   (request as FastifyRequest & { user: AuthUser }).user = user;
+}
+
+export const authMiddleware: preHandlerHookHandler = requireAuthentication;
+
+/**
+ * Public endpoints are intentionally enumerated. Every other HTTP route is
+ * authenticated by default, including routes added in the future.
+ */
+export function isPublicRoute(method: string, pathname: string): boolean {
+  if (method === 'OPTIONS') return true;
+  const exact = `${method} ${pathname}`;
+  if (
+    exact === 'GET /health' ||
+    exact === 'GET /api/v1/setup/status' ||
+    exact === 'POST /api/v1/setup' ||
+    exact === 'POST /api/v1/auth/login' ||
+    exact === 'POST /api/v1/contact' ||
+    exact === 'GET /api/v1/openapi.json' ||
+    exact === 'GET /api/docs' ||
+    exact === 'GET /ws'
+  ) {
+    return true;
+  }
+
+  // SSO initiation and the identity-provider callback must be reachable before
+  // a Recurrsive session exists. Invite recipients likewise need to validate
+  // and accept their one-time token before they have a session. Provider and
+  // invite administration remain protected.
+  return (
+    method === 'GET' && /^\/api\/v1\/sso\/login\/[^/]+$/.test(pathname)
+  ) || (
+    method === 'POST' && /^\/api\/v1\/sso\/callback\/[^/]+$/.test(pathname)
+  ) || (
+    method === 'GET' && /^\/api\/v1\/invites\/[^/]+\/validate$/.test(pathname)
+  ) || (
+    method === 'POST' && /^\/api\/v1\/invites\/[^/]+\/accept$/.test(pathname)
+  );
+}
+
+export function isPublicRequest(request: FastifyRequest): boolean {
+  return isPublicRoute(request.method, request.url.split('?')[0] ?? request.url);
+}
+
+/** Global default-deny authentication hook. */
+export const defaultAuthMiddleware: preHandlerHookHandler = async (request, reply) => {
+  if (isPublicRequest(request)) return;
+  await requireAuthentication(request, reply);
 };
 
 /**

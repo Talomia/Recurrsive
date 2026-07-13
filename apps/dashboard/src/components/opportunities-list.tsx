@@ -7,20 +7,6 @@ interface OpportunitiesListProps {
   opportunities: Opportunity[];
 }
 
-function getScoreColor(score: number): string {
-  if (score >= 90) return "text-red-400";
-  if (score >= 75) return "text-orange-400";
-  if (score >= 60) return "text-amber-400";
-  return "text-blue-400";
-}
-
-function getScoreBarColor(score: number): string {
-  if (score >= 90) return "bg-red-500";
-  if (score >= 75) return "bg-orange-500";
-  if (score >= 60) return "bg-amber-500";
-  return "bg-blue-500";
-}
-
 export default function OpportunitiesList({
   opportunities,
 }: OpportunitiesListProps) {
@@ -57,17 +43,14 @@ export default function OpportunitiesList({
             className="flex items-start gap-4 rounded-xl bg-white/[0.02] border border-white/5 p-4 hover:bg-white/[0.04] hover:border-white/8 transition-all duration-200 animate-fade-in-up"
             style={{ animationDelay: `${i * 0.07}s` }}
           >
-            {/* Score */}
+            {/* Recorded confidence */}
             <div className="shrink-0 flex flex-col items-center gap-1 pt-0.5">
-              <span
-                className={`text-lg font-bold tabular-nums ${getScoreColor(opp.score)}`}
-              >
-                {opp.score}
-              </span>
+              <span className="text-lg font-bold tabular-nums text-blue-400">{opp.confidence}%</span>
+              <span className="text-[8px] uppercase tracking-wide text-text-muted">Confidence</span>
               <div className="h-1 w-8 rounded-full bg-white/5 overflow-hidden" aria-hidden="true">
                 <div
-                  className={`h-full rounded-full ${getScoreBarColor(opp.score)}`}
-                  style={{ width: `${opp.score}%` }}
+                  className="h-full rounded-full bg-blue-500"
+                  style={{ width: `${opp.confidence}%` }}
                 />
               </div>
             </div>

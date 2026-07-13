@@ -41,27 +41,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const typeFilter = params.type ?? "";
 
   // Fetch stats for entity type counts
-  let stats: Awaited<ReturnType<typeof getGraphStats>> = { total_entities: 0, total_relationships: 0, entities_by_type: {}, relationships_by_type: {} };
-  try {
-    stats = await getGraphStats();
-  } catch {
-    // Will use fallback
-  }
+  const stats = await getGraphStats();
   const entityTypes = Object.entries(stats.entities_by_type)
     .sort(([, a], [, b]) => b - a);
 
   // Perform search if query provided
   let results: GraphEntity[] = [];
   if (query.trim()) {
-    try {
-      results = await searchGraphEntities(
-        query.trim(),
-        typeFilter || undefined,
-        50,
-      );
-    } catch {
-      // Will use fallback empty results
-    }
+    results = await searchGraphEntities(query.trim(), typeFilter || undefined, 50);
   }
 
   return (

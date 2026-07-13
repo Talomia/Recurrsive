@@ -123,6 +123,12 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
         message: '"username", "email", and "password" are required',
       });
     }
+    if (!/^[A-Za-z0-9._-]{3,64}$/.test(username) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Username, email, or password does not meet validation requirements.',
+      });
+    }
 
     try {
       const input: CreateUserInput = { username, email, password, role, displayName };
@@ -162,7 +168,7 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
         properties: {
           username: { type: 'string' },
           email: { type: 'string', format: 'email' },
-          password: { type: 'string', minLength: 8 },
+          password: { type: 'string', minLength: 12 },
           role: { type: 'string', enum: ['admin', 'analyst', 'viewer'] },
           displayName: { type: 'string' },
           status: { type: 'string', enum: ['active', 'disabled', 'pending'] },
@@ -236,10 +242,10 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params;
     const { password } = request.body ?? {};
 
-    if (!password || typeof password !== 'string' || password.length < 8) {
+    if (!password || typeof password !== 'string' || password.length < 12) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: 'Password must be at least 8 characters',
+        message: 'Password must be at least 12 characters',
       });
     }
 
@@ -278,7 +284,6 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
           'audit:read',
           'api-keys:read', 'api-keys:write',
           'export:read', 'export:write',
-          'plugins:read', 'plugins:write',
         ],
       },
       {
@@ -289,7 +294,6 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
           'config:read',
           'audit:read',
           'export:read', 'export:write',
-          'plugins:read',
         ],
       },
       {

@@ -10,8 +10,7 @@
 'use client';
 
 import { useState, useEffect, type FormEvent } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useParams } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api/client';
 
 interface InviteInfo {
@@ -22,8 +21,6 @@ interface InviteInfo {
 
 export default function AcceptInvitePage() {
   const params = useParams();
-  const router = useRouter();
-  const { login } = useAuth();
   const token = params.token as string;
 
   const [invite, setInvite] = useState<InviteInfo | null>(null);
@@ -65,8 +62,8 @@ export default function AcceptInvitePage() {
       setSubmitError('Passwords do not match');
       return;
     }
-    if (password.length < 6) {
-      setSubmitError('Password must be at least 6 characters');
+    if (password.length < 12) {
+      setSubmitError('Password must be at least 12 characters');
       return;
     }
     if (username.length < 3) {
@@ -76,23 +73,14 @@ export default function AcceptInvitePage() {
 
     setSubmitting(true);
     try {
-      const body = await apiFetch<{ data?: { token?: string }; token?: string }>(`/api/v1/invites/${encodeURIComponent(token)}/accept`, {
+      const body = await apiFetch<{ data?: { user?: unknown } }>(`/api/v1/invites/${encodeURIComponent(token)}/accept`, {
         method: 'POST',
         unwrap: false,
         body: JSON.stringify({ username, password, displayName: displayName || username }),
       });
 
-      const newToken = body.data?.token ?? body.token;
-
-      if (newToken) {
-        // Store token and redirect
-        localStorage.setItem('recurrsive_token', newToken);
-        document.cookie = `recurrsive_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''}`;
-        router.push('/');
-      } else {
-        // Fallback: redirect to login
-        router.push('/login');
-      }
+      // The dashboard proxy stores the returned JWT in an HttpOnly cookie.
+      window.location.assign(body.data?.user ? '/' : '/login');
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Network error');
     } finally {
@@ -142,7 +130,7 @@ export default function AcceptInvitePage() {
               <h2 className="text-lg font-semibold text-text-primary mb-2">Invalid Invite</h2>
               <p className="text-text-secondary text-sm mb-4">{error}</p>
               <button
-                onClick={() => router.push('/login')}
+                onClick={() => window.location.assign('/login')}
                 className="text-sm font-medium transition-colors"
                 style={{ color: 'var(--color-accent)' }}
               >
@@ -196,7 +184,7 @@ export default function AcceptInvitePage() {
                     style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}
                     placeholder="Create a password"
                     required
-                    minLength={6}
+                    minLength={12}
                   />
                 </div>
 

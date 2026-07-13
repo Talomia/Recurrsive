@@ -11,8 +11,14 @@ import os from 'node:os';
 import { VERSION, createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { calculateHealthScore } from '../analysis-metrics.js';
+import { resolveAnalysis, resolveAnalysisHistory } from '../project-analysis.js';
 
 const logger = createLogger({ context: { component: 'server:routes:health' } });
+
+interface ProjectHealthQuery {
+  projectId?: string;
+}
 
 /**
  * Register health check routes.
@@ -99,15 +105,8 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
    * Returns the computed project health score and per-dimension maturity
    * breakdown. Requires that at least one analysis has been run.
    */
-  app.get('/api/v1/health-score', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    if (!state.isInitialized()) {
-      return reply.status(503).send({
-        error: 'Server not initialized',
-        message: 'Run POST /api/v1/analyze with a project path first.',
-      });
-    }
-
-    const cache = state.getAnalysisCache();
+  app.get<{ Querystring: ProjectHealthQuery }>('/api/v1/health-score', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { cache } = await resolveAnalysis(request);
     if (!cache) {
       return reply.status(200).send({
         data: {
@@ -116,7 +115,6 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
           overall_health: 0,
           dimensions: {},
           health_trend: 0,
-          tech_debt: 0,
           snapshot: null,
           finding_count: 0,
           opportunity_count: 0,
@@ -125,19 +123,18 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       });
     }
 
-    const { overall, dimensions } = state.getHealthScore();
-    const timeline = state.getEvolutionTimeline();
-    const latestSnapshot = timeline.snapshots[timeline.snapshots.length - 1];
+    const { overall, dimensions } = calculateHealthScore(cache);
+    const latestSnapshot = null;
 
     // Compute trends from analysis history
-    const history = state.getAnalysisHistory();
+    const history = await resolveAnalysisHistory(request);
     let healthTrend = 0;
     if (history.length >= 2) {
-      const prev = history[history.length - 2]!;
-      const current = history[history.length - 1]!;
-      healthTrend = current.findingCount < prev.findingCount
-        ? Math.round((1 - current.findingCount / Math.max(1, prev.findingCount)) * 100) / 10
-        : -Math.round((current.findingCount / Math.max(1, prev.findingCount) - 1) * 100) / 10;
+      const previousScore = history[history.length - 2]!.healthScore;
+      const currentScore = history[history.length - 1]!.healthScore;
+      if (previousScore !== null && currentScore !== null) {
+        healthTrend = Math.round((currentScore - previousScore) * 10) / 10;
+      }
     }
 
     // Compute dimension-specific scores
@@ -146,12 +143,6 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       dimScores[d.dimension] = d.score;
     }
 
-    // Estimate tech debt: ~3K per finding, weighted by severity
-    const techDebt = cache.findings.reduce((sum, f) => {
-      const cost: Record<string, number> = { critical: 12000, high: 6000, medium: 3000, low: 1000, info: 0 };
-      return sum + (cost[f.severity] ?? 3000);
-    }, 0);
-
     return reply.status(200).send({
       data: {
         overall: overall,
@@ -159,7 +150,6 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
         overall_health: overall,
         dimensions: dimScores,
         health_trend: healthTrend,
-        tech_debt: techDebt,
         snapshot: latestSnapshot ?? null,
         finding_count: cache.findings.length,
         opportunity_count: cache.opportunities.length,
@@ -177,8 +167,8 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
    * - Issue density (findings per 1K entities)
    * - Graph coverage (relationship-to-entity ratio)
    */
-  app.get('/api/v1/metrics/performance', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const cache = state.getAnalysisCache();
+  app.get<{ Querystring: ProjectHealthQuery }>('/api/v1/metrics/performance', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { cache } = await resolveAnalysis(request);
     if (!cache) {
       return reply.status(404).send({
         error: 'No analysis data',
@@ -248,7 +238,8 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   // Dashboard health page — returns system health overview with
   // process metrics and service statuses.
 
-  app.get('/api/v1/health/dashboard', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: ProjectHealthQuery }>('/api/v1/health/dashboard', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const requestStartedAt = performance.now();
     // Process metrics (always available)
     const memUsage = process.memoryUsage();
     const totalMem = os.totalmem();
@@ -256,47 +247,41 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
     const uptimeDays = Math.round((process.uptime() / 86400) * 10) / 10;
 
     // Health score (requires analysis)
-    let overallScore = 0;
-    if (state.isInitialized() && state.getAnalysisCache()) {
-      try {
-        const health = state.getHealthScore();
-        overallScore = health.overall;
-      } catch {
-        overallScore = 0;
-      }
-    }
+    const { cache } = await resolveAnalysis(request);
+    const overallScore = calculateHealthScore(cache).overall;
 
     // Service statuses
     const now = new Date().toISOString();
     const services = [
       {
         name: 'Analysis Engine',
-        status: state.isInitialized() ? ('healthy' as const) : ('idle' as const),
-        uptime_percent: state.isInitialized() ? 99.9 : 0,
+        status: cache ? ('healthy' as const) : ('idle' as const),
         last_check: now,
       },
       {
         name: 'Knowledge Graph',
         status: state.isInitialized() ? ('healthy' as const) : ('idle' as const),
-        latency_ms: state.isInitialized() ? Math.round(process.uptime() > 60 ? 3 : 8) : 0,
-        uptime_percent: state.isInitialized() ? 99.9 : 0,
         last_check: now,
       },
       {
         name: 'API Server',
         status: 'healthy' as const,
-        latency_ms: Math.round(Number(process.hrtime.bigint() % 10n)),
-        uptime_percent: 99.99,
+        latency_ms: Math.max(1, Math.round(performance.now() - requestStartedAt)),
         last_check: now,
       },
     ];
 
+    const cpuUsagePercent = Math.min(
+      100,
+      Math.round((os.loadavg()[0]! / Math.max(1, os.cpus().length)) * 100),
+    );
+
     return reply.send({
       data: {
         overall_score: overallScore,
-        api_latency_ms: Math.round(Number(process.hrtime.bigint() % 10n)),
+        api_latency_ms: Math.max(1, Math.round(performance.now() - requestStartedAt)),
         memory_usage_percent: memPercent,
-        cpu_usage_percent: 0, // CPU usage requires sampling over time
+        cpu_usage_percent: cpuUsagePercent,
         uptime_days: uptimeDays,
         services,
       },
@@ -306,23 +291,14 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   /**
    * GET /api/v1/health-score/history
    *
-   * Return historical health scores derived from analysis history.
-   * Each entry maps to a score based on finding count and a letter grade.
+   * Return health scores recorded by completed analysis runs.
    */
-  app.get('/api/v1/health-score/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    if (!state.isInitialized()) {
-      return reply.status(503).send({
-        error: 'Server not initialized',
-        message: 'Run POST /api/v1/analyze with a project path first.',
-      });
-    }
-
-    const history = state.getAnalysisHistory();
-    const successfulRuns = history.filter(h => h.status === 'success');
+  app.get<{ Querystring: ProjectHealthQuery }>('/api/v1/health-score/history', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const history = await resolveAnalysisHistory(request);
+    const successfulRuns = history.filter(h => h.status === 'success' && h.healthScore !== null);
 
     const scoreHistory = successfulRuns.map(entry => {
-      // Derive health score: base 100, subtract 2 per finding, cap at 0
-      const score = Math.max(0, Math.min(100, 100 - entry.findingCount * 2));
+      const score = entry.healthScore!;
 
       // Assign letter grade
       const grade = score >= 90 ? 'A' :

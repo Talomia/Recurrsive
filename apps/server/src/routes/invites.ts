@@ -11,7 +11,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createLogger, generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware, createToken } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
@@ -30,7 +30,7 @@ interface Invite {
   email: string;
   role: 'admin' | 'analyst' | 'viewer';
   invitedBy: string;
-  token: string;
+  tokenHash: string;
   status: 'pending' | 'accepted' | 'expired';
   createdAt: string;
   expiresAt: string;
@@ -42,6 +42,23 @@ const INVITES_TABLE = 'invites';
 
 /** Invite expiration period: 7 days in milliseconds. */
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function hashInviteToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function publicInvite(invite: Invite): Omit<Invite, 'tokenHash'> {
+  return {
+    id: invite.id,
+    email: invite.email,
+    role: invite.role,
+    invitedBy: invite.invitedBy,
+    status: invite.status,
+    createdAt: invite.createdAt,
+    expiresAt: invite.expiresAt,
+    ...(invite.acceptedAt ? { acceptedAt: invite.acceptedAt } : {}),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Request body types
@@ -123,12 +140,13 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     }
 
     const now = nowISO();
+    const rawToken = randomBytes(32).toString('hex');
     const invite: Invite = {
       id: generateId(),
       email,
       role,
       invitedBy: user.id,
-      token: randomBytes(32).toString('hex'),
+      tokenHash: hashInviteToken(rawToken),
       status: 'pending',
       createdAt: now,
       expiresAt: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
@@ -137,7 +155,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     await store.set<Invite>(INVITES_TABLE, invite.id, invite);
 
     logger.info(`Admin '${user.id}' created invite for '${email}' with role '${role}'`);
-    return reply.status(201).send({ data: invite });
+    return reply.status(201).send({ data: { ...publicInvite(invite), token: rawToken } });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -152,7 +170,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
   }, async (_request, reply) => {
     const invites = await store.all<Invite>(INVITES_TABLE);
     return reply.status(200).send({
-      data: invites,
+      data: invites.map(publicInvite),
       total: invites.length,
     });
   });
@@ -206,7 +224,8 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
     const { token } = request.params;
 
     const allInvites = await store.all<Invite>(INVITES_TABLE);
-    const invite = allInvites.find((i) => i.token === token);
+    const tokenHash = hashInviteToken(token);
+    const invite = allInvites.find((i) => i.tokenHash === tokenHash);
 
     if (!invite) {
       return reply.status(404).send({
@@ -262,16 +281,23 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
       });
     }
 
-    if (password.length < 6) {
+    if (password.length < 12) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: 'Password must be at least 6 characters',
+        message: 'Password must be at least 12 characters',
+      });
+    }
+    if (!/^[A-Za-z0-9._-]{3,64}$/.test(username)) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Username must be 3-64 characters using letters, numbers, dot, underscore, or hyphen',
       });
     }
 
     // Find the invite by token
     const allInvites = await store.all<Invite>(INVITES_TABLE);
-    const invite = allInvites.find((i) => i.token === token);
+    const tokenHash = hashInviteToken(token);
+    const invite = allInvites.find((i) => i.tokenHash === tokenHash);
 
     if (!invite) {
       return reply.status(404).send({
@@ -319,6 +345,7 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
       // Mark invite as accepted
       invite.status = 'accepted';
       invite.acceptedAt = nowISO();
+      invite.tokenHash = '';
       await store.set<Invite>(INVITES_TABLE, invite.id, invite);
 
       // Generate a JWT token for the new user

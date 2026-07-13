@@ -4,7 +4,6 @@ import { getBatchHistory } from "@/lib/api";
 import type { BatchRun, BatchProject } from "@/lib/api";
 import {
   Layers,
-  Play,
   CheckCircle2,
   XCircle,
   Clock,
@@ -71,7 +70,6 @@ function formatDuration(startIso: string, endIso?: string): string {
 function ProjectRow({ project }: { project: BatchProject }) {
   const sc = getStatusColor(project.status);
   const StatusIcon = STATUS_ICONS[project.status] ?? Clock;
-  const basename = project.path.split("/").pop() ?? project.path;
 
   return (
     <div className="flex items-center gap-4 px-5 py-3 border-b border-white/5 last:border-b-0 hover:bg-white/[0.02] transition-colors">
@@ -85,9 +83,9 @@ function ProjectRow({ project }: { project: BatchProject }) {
       {/* Project path */}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium text-text-primary truncate">
-          {basename}
+          {project.name}
         </p>
-        <p className="text-[10px] text-text-muted truncate">{project.path}</p>
+        <p className="text-[10px] text-text-muted truncate">{project.repository}</p>
       </div>
 
       {/* Status badge */}

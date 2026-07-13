@@ -10,8 +10,8 @@ import {
   TrendingUp,
   AlertTriangle,
   Search,
-  CheckCircle2,
-  XCircle,
+  Lightbulb,
+  Clock,
   BarChart3,
 } from "lucide-react";
 import { getAnalysisRuns, getComparisonData } from "@/lib/api";
@@ -359,43 +359,23 @@ export default function ComparisonsPage() {
               runBValue={comparison.runB.findings}
             />
             <ComparisonCard
-              label="Resolution Rate"
-              icon={CheckCircle2}
+              label="Opportunities"
+              icon={Lightbulb}
               iconColor="text-blue-400"
-              delta={comparison.resolution_rate_delta}
-              suffix="%"
-              runAValue={`${comparison.resolution_rate_a}%`}
-              runBValue={`${comparison.resolution_rate_b}%`}
+              delta={comparison.opportunities_delta}
+              runAValue={comparison.runA.opportunities}
+              runBValue={comparison.runB.opportunities}
             />
-            <div className="glass-card p-5 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <GitCompare className="h-4 w-4 text-purple-400" />
-                <span className="text-xs text-text-muted font-semibold uppercase tracking-wider">
-                  Findings Flow
-                </span>
-              </div>
-              <div className="flex items-center gap-4 mt-1">
-                <div className="flex items-center gap-1.5">
-                  <XCircle className="h-4 w-4 text-red-400" />
-                  <div>
-                    <span className="text-lg font-bold text-red-400 tabular-nums">
-                      {comparison.new_findings}
-                    </span>
-                    <p className="text-[10px] text-text-muted">New</p>
-                  </div>
-                </div>
-                <div className="h-8 w-px bg-white/10" />
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-green-400" />
-                  <div>
-                    <span className="text-lg font-bold text-green-400 tabular-nums">
-                      {comparison.findings_resolved}
-                    </span>
-                    <p className="text-[10px] text-text-muted">Resolved</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ComparisonCard
+              label="Analysis Duration"
+              icon={Clock}
+              iconColor="text-purple-400"
+              delta={comparison.duration_delta_ms}
+              invertColor
+              suffix="ms"
+              runAValue={`${comparison.runA.duration_ms}ms`}
+              runBValue={`${comparison.runB.duration_ms}ms`}
+            />
           </div>
 
           {/* ── Category Breakdown ─────────────────────────── */}
@@ -437,6 +417,9 @@ export default function ComparisonsPage() {
                   );
                 });
               })()}
+              {comparison.runA.categories.length === 0 && comparison.runB.categories.length === 0 && (
+                <p className="text-sm text-text-muted">Per-category history was not recorded for these runs.</p>
+              )}
             </div>
           </div>
 
@@ -461,7 +444,7 @@ export default function ComparisonsPage() {
                     })}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-4 gap-3">
                   <div className="text-center">
                     <p className="text-lg font-bold text-text-primary tabular-nums">
                       {run.health_score}
@@ -476,9 +459,15 @@ export default function ComparisonsPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-lg font-bold text-text-primary tabular-nums">
-                      {run.resolved}
+                      {run.opportunities}
                     </p>
-                    <p className="text-[10px] text-text-muted">Resolved</p>
+                    <p className="text-[10px] text-text-muted">Opportunities</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-text-primary tabular-nums">
+                      {Math.round(run.duration_ms / 1000)}s
+                    </p>
+                    <p className="text-[10px] text-text-muted">Duration</p>
                   </div>
                 </div>
               </div>

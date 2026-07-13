@@ -18,7 +18,6 @@ import { registerSnapshotTools } from './snapshots.js';
 import { registerExportTools } from './export.js';
 import { registerProjectTools } from './projects.js';
 import { registerForecastTools } from './forecasting.js';
-import { registerIntelligenceTools } from './intelligence.js';
 import { registerPlatformTools } from './platform.js';
 
 /**
@@ -38,6 +37,5 @@ export function registerTools(server: McpServer): void {
   registerExportTools(server);
   registerProjectTools(server);
   registerForecastTools(server);
-  registerIntelligenceTools(server);
   registerPlatformTools(server);
 }

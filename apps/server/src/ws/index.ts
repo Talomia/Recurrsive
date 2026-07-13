@@ -7,7 +7,7 @@
  * route for real-time analysis progress streaming.
  *
  * Authentication is enforced on WebSocket upgrade: clients must
- * provide a JWT token via the `?token=` query parameter.
+ * obtain a short-lived, single-use ticket over the authenticated HTTP API.
  *
  * @packageDocumentation
  */
@@ -16,8 +16,10 @@ import type { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import { registerClient, createBroadcast } from './events.js';
 import { state } from '../state.js';
-import { verifyToken } from '../middleware/auth.js';
 import { createLogger } from '@recurrsive/core';
+import { createHash, randomBytes } from 'node:crypto';
+import { store } from '../store.js';
+import type { AuthUser } from '../middleware/auth.js';
 
 const logger = createLogger({ context: { component: 'server:ws' } });
 
@@ -48,26 +50,40 @@ export async function registerWebSocket(app: FastifyInstance): Promise<void> {
   // Wire up the broadcast function so ServerState events reach WS clients
   state.setWSBroadcast(createBroadcast());
 
+  app.post('/api/v1/auth/ws-ticket', async (request, reply) => {
+    const user = (request as typeof request & { user: AuthUser }).user;
+    const ticket = randomBytes(32).toString('base64url');
+    const ticketHash = createHash('sha256').update(ticket).digest('hex');
+    const expiresAt = Date.now() + 60_000;
+    await store.set('websocket_tickets', ticketHash, {
+      userId: user.id,
+      role: user.role,
+      expiresAt,
+    });
+    return reply.status(201).send({ data: { ticket, expiresAt } });
+  });
+
   // Register the WebSocket route with auth verification
-  app.get('/ws', { websocket: true }, (socket, request) => {
-    // Extract token from query parameter
+  app.get('/ws', { websocket: true }, async (socket, request) => {
     const url = new URL(request.url, `http://${request.hostname}`);
-    const token = url.searchParams.get('token');
+    const ticket = url.searchParams.get('ticket');
 
-    if (!token) {
-      logger.warn('WebSocket connection rejected: no token provided');
-      socket.close(4001, 'Authentication required — provide ?token=JWT');
+    if (!ticket) {
+      logger.warn('WebSocket connection rejected: no ticket provided');
+      socket.close(4001, 'Authentication ticket required');
       return;
     }
 
-    const payload = verifyToken(token);
-    if (!payload) {
-      logger.warn('WebSocket connection rejected: invalid token');
-      socket.close(4001, 'Authentication failed — invalid or expired token');
+    const ticketHash = createHash('sha256').update(ticket).digest('hex');
+    const record = await store.get<{ userId: string; role: string; expiresAt: number }>('websocket_tickets', ticketHash);
+    await store.delete('websocket_tickets', ticketHash);
+    if (!record || record.expiresAt <= Date.now()) {
+      logger.warn('WebSocket connection rejected: invalid or expired ticket');
+      socket.close(4001, 'Authentication failed');
       return;
     }
 
-    logger.info(`WebSocket client authenticated: ${payload.sub} (${payload.role})`);
+    logger.info(`WebSocket client authenticated: ${record.userId} (${record.role})`);
     registerClient(socket);
   });
 

@@ -17,8 +17,11 @@ import { registerWebSocket } from './ws/index.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
 import { registerAuditMiddleware } from './middleware/audit.js';
-import { optionalAuth } from './middleware/auth.js';
+import { assertProductionAuthConfig, defaultAuthMiddleware } from './middleware/auth.js';
+import { defaultAuthorizationMiddleware } from './middleware/rbac.js';
 import { store } from './store.js';
+import { assertProductionPersistenceConfig } from './production-config.js';
+import { registerRouteInventory } from './route-inventory.js';
 
 // ---------------------------------------------------------------------------
 // Server options
@@ -60,10 +63,20 @@ export interface ServerOptions {
  * ```
  */
 export async function createServer(options?: ServerOptions): Promise<FastifyInstance> {
+  assertProductionAuthConfig();
+  assertProductionPersistenceConfig();
+
+  if (process.env['NODE_ENV'] === 'production' && !options?.corsOrigin && !process.env['CORS_ORIGIN']) {
+    throw new Error('Refusing to start in production: CORS_ORIGIN must be explicitly configured.');
+  }
+
   const app = Fastify({
     logger: options?.logger ?? true,
-    trustProxy: true, // Behind EasyPanel reverse proxy — trust X-Forwarded-* headers
+    // EasyPanel deployments opt in with TRUST_PROXY=true. Never trust forwarded
+    // client addresses when the API is reachable directly.
+    trustProxy: process.env['TRUST_PROXY'] === 'true',
   });
+  registerRouteInventory(app);
 
   // Initialize the store backend (creates PostgreSQL tables if needed)
   await store.initialize();
@@ -94,8 +107,10 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
   // Register audit logging (before routes, to capture all requests)
   registerAuditMiddleware(app);
 
-  // Register optional auth (populates request.user if token present, never rejects)
-  app.addHook('preHandler', optionalAuth);
+  // Default-deny authentication. Public endpoints are explicitly allow-listed
+  // by the middleware; route-level RBAC handlers still enforce permissions.
+  app.addHook('preHandler', defaultAuthMiddleware);
+  app.addHook('preHandler', defaultAuthorizationMiddleware);
 
   // Register all REST routes
   await registerRoutes(app);

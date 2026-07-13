@@ -3,9 +3,8 @@
  *
  * Enhanced audit trail routes for querying audit log events and statistics.
  *
- * Replaces the original stub with endpoints backed by the audit middleware's
- * in-memory circular buffer. Both routes require authentication with at least
- * `analyst` role.
+ * Endpoints are backed by the audit middleware's durable application store.
+ * Both routes require authentication with at least `analyst` role.
  *
  * @packageDocumentation
  */

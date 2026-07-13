@@ -34,7 +34,6 @@ describe('Footer', () => {
     const headingTexts = headings.map((h) => h.textContent);
     expect(headingTexts).toContain('Product');
     expect(headingTexts).toContain('Resources');
-    expect(headingTexts).toContain('Partners');
     expect(headingTexts).toContain('Company');
   });
 
@@ -45,7 +44,6 @@ describe('Footer', () => {
     const hrefs = Array.from(links).map((l) => l.getAttribute('href'));
     expect(hrefs).toContain('/product');
     expect(hrefs).toContain('/pricing');
-    expect(hrefs).toContain('/marketplace');
     expect(hrefs).toContain('/cloud');
     expect(hrefs).toContain('/changelog');
   });
@@ -59,17 +57,6 @@ describe('Footer', () => {
     expect(hrefs).toContain('/docs/getting-started');
     expect(hrefs).toContain('/docs/api-reference');
     expect(hrefs).toContain('/docs/cli-reference');
-    expect(hrefs).toContain('/docs/plugin-sdk');
-  });
-
-  it('renders partner links', () => {
-    const { container } = render(<Footer />);
-    const footer = container.querySelector('footer')!;
-    const links = footer.querySelectorAll('a');
-    const hrefs = Array.from(links).map((l) => l.getAttribute('href'));
-    expect(hrefs).toContain('/partners');
-    expect(hrefs).toContain('/partners/directory');
-    expect(hrefs).toContain('/partners/certification');
   });
 
   it('renders company links', () => {

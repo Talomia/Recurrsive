@@ -62,7 +62,6 @@ describe('Sidebar', () => {
     expect(screen.getByText('Reports')).toBeInTheDocument();
     expect(screen.getByText('Search')).toBeInTheDocument();
     expect(screen.getByText('Experiments')).toBeInTheDocument();
-    expect(screen.getByText('Simulation')).toBeInTheDocument();
     expect(screen.getByText('Snapshots')).toBeInTheDocument();
 
     // Expand Administration
@@ -77,10 +76,7 @@ describe('Sidebar', () => {
     expect(screen.getByText('Data Masking')).toBeInTheDocument();
     expect(screen.getByText('Webhooks')).toBeInTheDocument();
     expect(screen.getByText('Notifications')).toBeInTheDocument();
-    expect(screen.getByText('Marketplace')).toBeInTheDocument();
-    expect(screen.getByText('Plugins')).toBeInTheDocument();
     expect(screen.getByText('SSO')).toBeInTheDocument();
-    expect(screen.getByText('Tenants')).toBeInTheDocument();
   });
 
   it('renders navigation links as anchor elements', () => {
@@ -100,9 +96,8 @@ describe('Sidebar', () => {
     fireEvent.click(adminButton);
 
     const links = screen.getAllByRole('link');
-    // 5 (Intelligence) + 5 (Analysis) + 7 (Operations) + 12 (Administration) = 29 items
-    expect(links.length).toBe(29);
+    // Current production navigation across all expanded sections.
+    expect(links.length).toBe(25);
   });
 });
-
 

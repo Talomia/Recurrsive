@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ExternalLink,
   Sparkles,
-  Store,
   Cloud,
   Users,
   BookOpen,
@@ -18,7 +17,6 @@ import {
   Terminal,
   Code,
   Shield,
-  Award,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -27,28 +25,17 @@ const NAV_ITEMS = [
     href: '/product',
     items: [
       { label: 'Features', href: '/product', icon: Sparkles, desc: 'Full-system engineering intelligence' },
-      { label: 'Marketplace', href: '/marketplace', icon: Store, desc: 'Analyzers, collectors & more' },
-      { label: 'Cloud', href: '/cloud', icon: Cloud, desc: 'Managed SaaS deployment' },
+      { label: 'Deploy', href: '/cloud', icon: Cloud, desc: 'Self-hosted production deployment' },
     ],
   },
   { label: 'Pricing', href: '/pricing' },
-  {
-    label: 'Partners',
-    href: '/partners',
-    items: [
-      { label: 'Partner Program', href: '/partners', icon: Users, desc: 'Join our partner ecosystem' },
-      { label: 'Directory', href: '/partners/directory', icon: Shield, desc: 'Find a certified partner' },
-      { label: 'Certification', href: '/partners/certification', icon: Award, desc: 'Get certified on Recurrsive' },
-    ],
-  },
   {
     label: 'Docs',
     href: '/docs',
     items: [
       { label: 'Getting Started', href: '/docs/getting-started', icon: Rocket, desc: '5-minute quickstart guide' },
-      { label: 'API Reference', href: '/docs/api-reference', icon: Code, desc: '160+ REST endpoints' },
-      { label: 'CLI Reference', href: '/docs/cli-reference', icon: Terminal, desc: '28 CLI commands' },
-      { label: 'Plugin SDK', href: '/docs/plugin-sdk', icon: Store, desc: 'Build custom extensions' },
+      { label: 'API Reference', href: '/docs/api-reference', icon: Code, desc: 'Live API workflow and authentication' },
+      { label: 'CLI Reference', href: '/docs/cli-reference', icon: Terminal, desc: 'Analysis and operations commands' },
       { label: 'All Documentation', href: '/docs', icon: BookOpen, desc: 'Guides, API & architecture' },
     ],
   },

@@ -15,7 +15,6 @@ import {
   Lightbulb,
   Settings,
   BarChart3,
-  AlertTriangle,
   CheckCircle2,
   AlertCircle,
   EyeOff,
@@ -62,8 +61,8 @@ interface Opportunity {
   title: string;
   severity: string;
   confidence: number;
-  effort: number;
-  description?: string;
+  effort: { t_shirt: string; estimated_hours?: number };
+  problem?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +90,7 @@ const STATUS_ICONS: Record<string, typeof CheckCircle2> = {
 // ---------------------------------------------------------------------------
 
 interface AnalysisStatus {
+  projectId: string | null;
   phase: 'idle' | 'collecting' | 'parsing' | 'analyzing' | 'reasoning' | 'complete' | 'error';
   progress: number;
   message: string;
@@ -125,8 +125,8 @@ export default function ProjectDetailPage() {
     try {
       const data = await apiFetch<Finding[]>(`/api/v1/projects/${id}/findings`);
       setFindings(data);
-    } catch {
-      // empty state fallback
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load project findings');
     }
   }, [id]);
 
@@ -134,8 +134,8 @@ export default function ProjectDetailPage() {
     try {
       const data = await apiFetch<Opportunity[]>(`/api/v1/projects/${id}/opportunities`);
       setOpportunities(data);
-    } catch {
-      // empty state fallback
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load project opportunities');
     }
   }, [id]);
 
@@ -146,7 +146,7 @@ export default function ProjectDetailPage() {
     setAnalyzing(true);
     const interval = setInterval(async () => {
       try {
-        const data = await apiFetch<AnalysisStatus>('/api/v1/analysis/status');
+        const data = await apiFetch<AnalysisStatus>(`/api/v1/analysis/status?projectId=${encodeURIComponent(id)}`);
         setStatus(data);
 
         if (data.phase === 'complete') {
@@ -169,7 +169,7 @@ export default function ProjectDetailPage() {
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [isPolling, fetchProject, fetchFindings, fetchOpportunities]);
+  }, [isPolling, fetchProject, fetchFindings, fetchOpportunities, id]);
 
   // Initial project load
   useEffect(() => {
@@ -180,7 +180,7 @@ export default function ProjectDetailPage() {
   // Check initial analysis status on mount and resume polling if active
   useEffect(() => {
     let active = true;
-    apiFetch<AnalysisStatus>('/api/v1/analysis/status')
+    apiFetch<AnalysisStatus>(`/api/v1/analysis/status?projectId=${encodeURIComponent(id)}`)
       .then((data) => {
         if (!active) return;
         setStatus(data);
@@ -188,9 +188,11 @@ export default function ProjectDetailPage() {
           setIsPolling(true);
         }
       })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        if (active) setError(err instanceof Error ? err.message : 'Failed to load analysis status');
+      });
     return () => { active = false; };
-  }, []);
+  }, [id]);
 
   // Fetch findings/opportunities when their tabs are activated or reset
   useEffect(() => {
@@ -207,14 +209,9 @@ export default function ProjectDetailPage() {
     setAnalyzing(true);
     setError(null);
     try {
-      const isGitUrl = project.repository.includes('github.com') || project.repository.startsWith('git@') || project.repository.startsWith('http');
-      const body = isGitUrl
-        ? { gitUrl: project.repository, include_reasoning: true }
-        : { path: project.repository, include_reasoning: true };
-
       await apiFetch('/api/v1/analyze', {
         method: 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify({ projectId: project.id, include_reasoning: true }),
       });
 
       // Clear existing client lists to show fresh tracking
@@ -565,12 +562,16 @@ export default function ProjectDetailPage() {
                     <span className={`h-2.5 w-2.5 rounded-full shrink-0 mt-1.5 ${s.dot}`} />
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-semibold text-text-primary">{opp.title}</h4>
-                      {opp.description && (
-                        <p className="text-xs text-text-secondary mt-1 line-clamp-2">{opp.description}</p>
+                      {opp.problem && (
+                        <p className="text-xs text-text-secondary mt-1 line-clamp-2">{opp.problem}</p>
                       )}
                       <div className="flex items-center gap-4 mt-2 text-[10px] text-text-muted">
                         <span>Confidence: {Math.round(opp.confidence * 100)}%</span>
-                        <span>Effort: {opp.effort}h</span>
+                        <span>
+                          Effort: {opp.effort.estimated_hours !== undefined
+                            ? `${opp.effort.estimated_hours}h`
+                            : opp.effort.t_shirt === 'unknown' ? 'not estimated' : opp.effort.t_shirt.toUpperCase()}
+                        </span>
                       </div>
                     </div>
                   </div>

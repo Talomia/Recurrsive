@@ -43,8 +43,8 @@ export default function SetupPage() {
           router.replace('/login');
           return;
         }
-      } catch {
-        // If the endpoint errors, assume setup is needed (fresh install)
+      } catch (caught) {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : 'Unable to check setup status');
       }
       if (!cancelled) setChecking(false);
     }
@@ -62,7 +62,7 @@ export default function SetupPage() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email address';
 
     if (!password) errors.password = 'Password is required';
-    else if (password.length < 8) errors.password = 'Password must be at least 8 characters';
+    else if (password.length < 12) errors.password = 'Password must be at least 12 characters';
 
     if (password !== confirmPassword) errors.confirmPassword = 'Passwords do not match';
 
@@ -78,7 +78,7 @@ export default function SetupPage() {
 
     setSubmitting(true);
     try {
-      const body = await apiFetch<{ data?: { token?: string }; token?: string }>('/api/v1/setup', {
+      const body = await apiFetch<{ data?: { user?: unknown } }>('/api/v1/setup', {
         method: 'POST',
         unwrap: false,
         body: JSON.stringify({
@@ -89,16 +89,8 @@ export default function SetupPage() {
         }),
       });
 
-      const token = (body.data?.token ?? body.token) as string | undefined;
-
-      if (token) {
-        // Auto-login: store token and redirect
-        localStorage.setItem('recurrsive_token', token);
-        document.cookie = `recurrsive_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''}`;
-      }
-
-      // Redirect to home (or login if no token)
-      router.push(token ? '/' : '/login');
+      // The dashboard proxy stores the returned JWT in an HttpOnly cookie.
+      window.location.assign(body.data?.user ? '/' : '/login');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
       setSubmitting(false);
@@ -254,7 +246,7 @@ export default function SetupPage() {
                   background: 'var(--color-base)',
                   border: fieldErrors.password ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--color-border)',
                 }}
-                placeholder="Min. 8 characters"
+                placeholder="Min. 12 characters"
                 required
                 autoComplete="new-password"
               />

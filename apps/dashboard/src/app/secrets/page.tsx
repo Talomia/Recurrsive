@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Key, Lock, RefreshCcw, Shield, AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
+import { Lock, RefreshCcw, Shield, AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
 import Header from '@/components/header';
 import type { DashboardSecret, DashboardAuditEntry } from '@/lib/api';
 import { getSecrets, getSecretAuditLog, createSecret, deleteSecret, rotateSecret } from '@/lib/api';

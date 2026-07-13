@@ -60,12 +60,7 @@ function formatDate(iso: string): string {
 }
 
 export default async function ReportsPage() {
-  let history: Awaited<ReturnType<typeof getReportsAnalysisHistory>> = [];
-  try {
-    history = await getReportsAnalysisHistory();
-  } catch {
-    // Will use fallback
-  }
+  const history = await getReportsAnalysisHistory();
 
   return (
     <div className="flex flex-col min-h-screen">

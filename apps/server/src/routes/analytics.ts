@@ -11,8 +11,8 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { resolveAnalysis, resolveAnalysisHistory, resolveFindingStates } from '../project-analysis.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,7 +22,6 @@ import { authMiddleware } from '../middleware/auth.js';
 export interface TrendPoint {
   date: string;
   findings: number;
-  resolved: number;
   health: number;
 }
 
@@ -65,27 +64,30 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
    * Uses live analysis data when available, returns zeros when no analysis
    * has been run yet.
    */
-  app.get('/api/v1/analytics/summary', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const cache = state.isInitialized() ? state.getAnalysisCache() : null;
-    const healthScore = state.isInitialized() ? state.getHealthScore() : null;
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/analytics/summary', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const resolvedAnalysis = await resolveAnalysis(request);
+    const { cache } = resolvedAnalysis;
 
     if (cache?.findings?.length) {
       const totalFindings = cache.findings.length;
-      const totalResolved = cache.opportunities?.length ?? 0;
+      const findingStates = await resolveFindingStates(resolvedAnalysis);
+      const totalResolved = Object.values(findingStates).filter((finding) => finding.status === 'resolved').length;
       const resolutionRate =
         totalFindings > 0
           ? Math.round((totalResolved / totalFindings) * 1000) / 10
           : 0;
 
-      const history = state.getAnalysisHistory();
+      const history = await resolveAnalysisHistory(request);
       const trends: TrendPoint[] = history
-        .filter(h => h.status === 'success')
+        .filter(h => h.status === 'success' && h.healthScore !== null)
         .map(h => ({
           date: h.startedAt.split('T')[0]!,
           findings: h.findingCount,
-          resolved: h.opportunityCount,
-          health: healthScore?.overall ?? 0,
+          health: h.healthScore!,
         }));
+      const avgHealth = trends.length > 0
+        ? Math.round((trends.reduce((sum, point) => sum + point.health, 0) / trends.length) * 10) / 10
+        : 0;
 
       return reply.status(200).send({
         data: {
@@ -93,7 +95,7 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
           total_findings: totalFindings,
           findings_resolved: totalResolved,
           resolution_rate: resolutionRate,
-          avg_health_score: healthScore?.overall ?? 0,
+          avg_health_score: avgHealth,
           trends,
         },
       });
@@ -119,8 +121,8 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
    * Uses live analysis data when available, returns empty array when
    * no analysis has been run yet.
    */
-  app.get('/api/v1/analytics/top-categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/analytics/top-categories', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { cache } = await resolveAnalysis(request);
 
     if (cache?.findings?.length) {
       const counts: Record<string, number> = {};

@@ -3,9 +3,8 @@
  *
  * Secret management integration routes.
  *
- * Provides a unified API for managing secrets with backend support
- * for HashiCorp Vault, AWS Secrets Manager, and Azure Key Vault.
- * All secrets are stored encrypted in the SQLite store.
+ * Provides a local encrypted secret store backed by the configured durable
+ * server database. Secret values are never returned through the API.
  *
  * @packageDocumentation
  */
@@ -13,6 +12,8 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
+import type { AuthUser } from '../middleware/auth.js';
 import { store } from '../store.js';
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
 
@@ -26,8 +27,11 @@ const AUTH_TAG_LENGTH = 16;
 
 /** Derive a 32-byte key from the configured secret. */
 function getEncryptionKey(): Buffer {
-  const raw = process.env['SECRETS_ENCRYPTION_KEY'] ?? 'recurrsive-default-encryption-key-32b';
-  return createHash('sha256').update(raw).digest();
+  const raw = process.env['SECRETS_ENCRYPTION_KEY'];
+  if (!raw && process.env['NODE_ENV'] === 'production') {
+    throw new Error('SECRETS_ENCRYPTION_KEY is required in production.');
+  }
+  return createHash('sha256').update(raw ?? 'recurrsive-development-only-encryption-key').digest();
 }
 
 /** Encrypt a plaintext value using AES-256-GCM. Returns base64(iv + ciphertext + authTag). */
@@ -57,7 +61,7 @@ export function decryptSecret(encoded: string): string {
 // Types
 // ---------------------------------------------------------------------------
 
-type SecretBackend = 'vault' | 'aws-secrets-manager' | 'azure-key-vault' | 'local';
+type SecretBackend = 'local';
 
 interface SecretEntry {
   id: string;
@@ -100,13 +104,13 @@ interface SecretAuditEntry {
 
 export async function registerSecretRoutes(app: FastifyInstance): Promise<void> {
   // List secrets (never returns values)
-  app.get('/api/v1/secrets', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get('/api/v1/secrets', { preHandler: [authMiddleware, requireRole('analyst')] }, async (_request, reply) => {
     const list = (await store.all<SecretEntry>('secrets')).sort((a, b) => a.key.localeCompare(b.key));
     return reply.send({ data: list, total: list.length });
   });
 
   // Get secret metadata
-  app.get<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware, requireRole('analyst')] }, async (request, reply) => {
     const secret = await store.get<SecretEntry>('secrets', request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
@@ -116,7 +120,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
       secretId: secret.id,
       secretKey: secret.key,
       action: 'read',
-      actor: 'api-user',
+      actor: (request as typeof request & { user: AuthUser }).user.id,
       timestamp: nowISO(),
       metadata: { method: 'metadata-only' },
     });
@@ -126,7 +130,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
 
   // Create secret
   app.post('/api/v1/secrets', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
@@ -135,7 +139,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
           key: { type: 'string', minLength: 1 },
           value: { type: 'string', minLength: 1 },
           description: { type: 'string' },
-          backend: { type: 'string', enum: ['local', 'vault', 'aws', 'azure', 'gcp'] },
+          backend: { type: 'string', enum: ['local'] },
           tags: { type: 'array', items: { type: 'string' } },
           rotationIntervalDays: { type: 'integer', minimum: 0 },
         },
@@ -148,6 +152,11 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
       return reply.status(400).send({ error: 'Bad Request', message: 'key and value are required' });
     }
 
+    const duplicate = (await store.all<SecretEntry>('secrets')).find((secret) => secret.key === body.key);
+    if (duplicate) {
+      return reply.status(409).send({ error: 'Conflict', message: `Secret key "${body.key}" already exists` });
+    }
+
     const id = generateId();
     const now = nowISO();
     const entry: SecretEntry = {
@@ -157,7 +166,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
       backend: body.backend ?? 'local',
       version: 1,
       tags: body.tags ?? [],
-      createdBy: 'api-user',
+      createdBy: (request as typeof request & { user: AuthUser }).user.id,
       lastRotated: null,
       rotationIntervalDays: body.rotationIntervalDays ?? 0,
       expiresAt: null,
@@ -170,7 +179,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
 
     await store.append<SecretAuditEntry>('secret_audit', {
       id: generateId(), secretId: id, secretKey: entry.key,
-      action: 'created', actor: 'api-user', timestamp: now, metadata: {},
+      action: 'created', actor: entry.createdBy, timestamp: now, metadata: {},
     });
 
     return reply.status(201).send({ data: entry });
@@ -178,13 +187,12 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
 
   // Rotate secret
   app.post<{ Params: { id: string } }>('/api/v1/secrets/:id/rotate', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
-        properties: {
-          newValue: { type: 'string' },
-        },
+        required: ['newValue'],
+        properties: { newValue: { type: 'string', minLength: 1 } },
         additionalProperties: false,
       },
     },
@@ -192,7 +200,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
     const secret = await store.get<SecretEntry>('secrets', request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
-    const body = request.body as { newValue?: string };
+    const body = request.body as { newValue: string };
     const now = nowISO();
 
     secret.version += 1;
@@ -200,13 +208,11 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
     secret.updatedAt = now;
     await store.set('secrets', secret.id, secret);
 
-    if (body.newValue) {
-      await store.set('secret_values', secret.id, encryptSecret(body.newValue));
-    }
+    await store.set('secret_values', secret.id, encryptSecret(body.newValue));
 
     await store.append<SecretAuditEntry>('secret_audit', {
       id: generateId(), secretId: secret.id, secretKey: secret.key,
-      action: 'rotated', actor: 'api-user', timestamp: now,
+      action: 'rotated', actor: (request as typeof request & { user: AuthUser }).user.id, timestamp: now,
       metadata: { newVersion: String(secret.version) },
     });
 
@@ -214,13 +220,13 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Delete secret
-  app.delete<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     const secret = await store.get<SecretEntry>('secrets', request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 
     await store.append<SecretAuditEntry>('secret_audit', {
       id: generateId(), secretId: secret.id, secretKey: secret.key,
-      action: 'deleted', actor: 'api-user', timestamp: nowISO(), metadata: {},
+      action: 'deleted', actor: (request as typeof request & { user: AuthUser }).user.id, timestamp: nowISO(), metadata: {},
     });
 
     await store.delete('secrets', request.params.id);
@@ -229,14 +235,14 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Get audit log for secrets
-  app.get('/api/v1/secrets/audit/log', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get('/api/v1/secrets/audit/log', { preHandler: [authMiddleware, requireRole('admin')] }, async (_request, reply) => {
     const recentEntries = await store.recent<SecretAuditEntry>('secret_audit', 100);
     const total = await store.count('secret_audit');
     return reply.send({ data: recentEntries, total });
   });
 
   // Check rotation status
-  app.get('/api/v1/secrets/health/rotation', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get('/api/v1/secrets/health/rotation', { preHandler: [authMiddleware, requireRole('analyst')] }, async (_request, reply) => {
     const now = Date.now();
     const allSecrets = await store.all<SecretEntry>('secrets');
     const needsRotation: Array<{ id: string; key: string; daysSinceRotation: number; intervalDays: number }> = [];

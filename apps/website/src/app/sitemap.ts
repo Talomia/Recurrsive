@@ -49,16 +49,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.7,
     },
-
-    // ── Marketplace ────────────────────────────────────────────────────────
     {
-      url: `${BASE_URL}/marketplace`,
+      url: `${BASE_URL}/privacy`,
       lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.8,
+      changeFrequency: 'yearly',
+      priority: 0.4,
     },
     {
-      url: `${BASE_URL}/marketplace/submit`,
+      url: `${BASE_URL}/terms`,
+      lastModified: now,
+      changeFrequency: 'yearly',
+      priority: 0.4,
+    },
+    {
+      url: `${BASE_URL}/security`,
       lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.5,
@@ -70,44 +74,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: 'weekly',
       priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/cloud/dashboard`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.5,
-    },
-    {
-      url: `${BASE_URL}/cloud/billing`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.5,
-    },
-
-    // ── Partners ───────────────────────────────────────────────────────────
-    {
-      url: `${BASE_URL}/partners`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/partners/directory`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.6,
-    },
-    {
-      url: `${BASE_URL}/partners/apply`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.5,
-    },
-    {
-      url: `${BASE_URL}/partners/certification`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.5,
     },
 
     // ── Documentation ──────────────────────────────────────────────────────
@@ -131,12 +97,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${BASE_URL}/docs/cli-reference`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/docs/plugin-sdk`,
       lastModified: now,
       changeFrequency: 'weekly',
       priority: 0.7,

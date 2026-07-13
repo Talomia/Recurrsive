@@ -24,19 +24,18 @@ const SAMPLE_OPPORTUNITIES: Opportunity[] = [
     description: 'Move common helpers to a shared module',
     categories: ['refactoring'],
     severity: 'high',
-    score: 85,
-    impact: 80,
     confidence: 90,
-    effort: 30,
-    risk: 20,
-    roi: 70,
-    rootCauses: ['Code duplication'],
+    effort: 'unknown',
+    estimatedHours: null,
+    risk: 'unknown',
+    impactSummary: 'Resolve the recorded finding.',
+    businessValue: null,
+    recommendation: 'Extract the shared utilities.',
+    assumptions: [],
     evidence: [],
     affectedComponents: ['utils.ts'],
     solution: [],
     status: 'open',
-    source: 'analysis',
-    location: { file: 'utils.ts', line: 10 },
     createdAt: '2024-01-01',
   },
   {
@@ -45,19 +44,18 @@ const SAMPLE_OPPORTUNITIES: Opportunity[] = [
     description: 'Components lack error boundaries',
     categories: ['reliability'],
     severity: 'medium',
-    score: 65,
-    impact: 60,
     confidence: 85,
-    effort: 20,
-    risk: 10,
-    roi: 50,
-    rootCauses: ['Missing error handling'],
+    effort: 'unknown',
+    estimatedHours: null,
+    risk: 'unknown',
+    impactSummary: 'Resolve the recorded finding.',
+    businessValue: null,
+    recommendation: 'Add error boundaries.',
+    assumptions: [],
     evidence: [],
     affectedComponents: ['App.tsx'],
     solution: [],
     status: 'open',
-    source: 'analysis',
-    location: { file: 'App.tsx', line: 5 },
     createdAt: '2024-01-02',
   },
   {
@@ -66,19 +64,18 @@ const SAMPLE_OPPORTUNITIES: Opportunity[] = [
     description: 'Unnecessary re-renders in list components',
     categories: ['performance'],
     severity: 'low',
-    score: 45,
-    impact: 40,
     confidence: 75,
-    effort: 15,
-    risk: 5,
-    roi: 30,
-    rootCauses: ['Missing memoization'],
+    effort: 'unknown',
+    estimatedHours: null,
+    risk: 'unknown',
+    impactSummary: 'Resolve the recorded finding.',
+    businessValue: null,
+    recommendation: 'Review re-render causes.',
+    assumptions: [],
     evidence: [],
     affectedComponents: ['List.tsx'],
     solution: [],
     status: 'open',
-    source: 'analysis',
-    location: { file: 'List.tsx', line: 20 },
     createdAt: '2024-01-03',
   },
 ];
@@ -96,11 +93,11 @@ describe('OpportunitiesList', () => {
     expect(screen.getByText('Optimize re-renders')).toBeInTheDocument();
   });
 
-  it('renders scores', () => {
+  it('renders recorded confidence', () => {
     render(<OpportunitiesList opportunities={SAMPLE_OPPORTUNITIES} />);
-    expect(screen.getByText('85')).toBeInTheDocument();
-    expect(screen.getByText('65')).toBeInTheDocument();
-    expect(screen.getByText('45')).toBeInTheDocument();
+    expect(screen.getByText('90%')).toBeInTheDocument();
+    expect(screen.getByText('85%')).toBeInTheDocument();
+    expect(screen.getByText('75%')).toBeInTheDocument();
   });
 
   it('renders category badges', () => {

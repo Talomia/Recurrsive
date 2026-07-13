@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Sparkles, LogOut, User, Settings } from "lucide-react";
-import { useWebSocket } from "../hooks/useWebSocket";
+import { Search, Bell, Sparkles, LogOut, Settings } from "lucide-react";
+import { useRealtime } from "./realtime-context";
 import { LiveIndicator } from "./LiveIndicator";
 import { useAuth } from "@/lib/auth-context";
 import { useActiveProject } from "./active-project-context";
@@ -67,7 +67,7 @@ export default function Header({ title, subtitle }: HeaderProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showUserMenu, showAiChat, showCommandPalette]);
 
-  const { status, clientCount } = useWebSocket({ autoConnect: true });
+  const { status, clientCount } = useRealtime();
   const { user, logout } = useAuth();
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -76,10 +76,10 @@ export default function Header({ title, subtitle }: HeaderProps) {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setShowUserMenu(false);
-    logout();
-    router.push('/login');
+    await logout();
+    router.replace('/login');
   };
 
   // Handle keyboard navigation in user dropdown menu
@@ -160,10 +160,10 @@ export default function Header({ title, subtitle }: HeaderProps) {
           <button
             onClick={() => setShowAiChat(true)}
             className="hidden sm:flex items-center gap-1.5 rounded-xl bg-accent-purple/10 px-3 py-2 text-xs font-medium text-purple-400 border border-purple-500/20 hover:bg-accent-purple/20 transition-colors"
-            aria-label="Open AI assistant"
+            aria-label="Open analysis search"
           >
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            AI Assist
+            Analysis Search
           </button>
 
           {/* Notifications Panel */}
@@ -254,8 +254,8 @@ export default function Header({ title, subtitle }: HeaderProps) {
 import {
   LayoutDashboard, Brain, HeartPulse, Clock, GitCompare,
   FolderGit2, ShieldAlert, Lightbulb, Network, BarChart3,
-  Layers, Calendar, FileText, FlaskConical, Bot, Camera,
-  Users, Shield, History, Key, Eye, Webhook, Package, KeyRound, Building2, Zap
+  Layers, Calendar, FileText, FlaskConical, Camera,
+  Users, Shield, History, Key, Eye, Webhook, KeyRound
 } from 'lucide-react';
 
 interface CommandItem {
@@ -283,7 +283,6 @@ const COMMAND_ITEMS: CommandItem[] = [
   { label: 'Scheduling', href: '/scheduling', icon: Calendar, group: 'Pages' },
   { label: 'Reports', href: '/reports', icon: FileText, group: 'Pages' },
   { label: 'Experiments', href: '/experiments', icon: FlaskConical, group: 'Pages' },
-  { label: 'Simulation', href: '/simulation', icon: Bot, group: 'Pages' },
   { label: 'Snapshots', href: '/snapshots', icon: Camera, group: 'Pages' },
   // Administration
   { label: 'Users', href: '/users', icon: Users, group: 'Pages' },
@@ -294,10 +293,7 @@ const COMMAND_ITEMS: CommandItem[] = [
   { label: 'Data Masking', href: '/data-masking', icon: Eye, group: 'Pages' },
   { label: 'Webhooks', href: '/webhooks', icon: Webhook, group: 'Pages' },
   { label: 'Notifications', href: '/notifications', icon: Bell, group: 'Pages' },
-  { label: 'Marketplace', href: '/marketplace', icon: Zap, group: 'Pages' },
-  { label: 'Plugins', href: '/plugins', icon: Package, group: 'Pages' },
   { label: 'SSO', href: '/sso', icon: KeyRound, group: 'Pages' },
-  { label: 'Tenants', href: '/tenants', icon: Building2, group: 'Pages' },
   // Actions
   { label: 'Run Analysis', href: '/projects', icon: FolderGit2, group: 'Actions' },
   { label: 'Create Project', href: '/projects', icon: FolderGit2, group: 'Actions' },

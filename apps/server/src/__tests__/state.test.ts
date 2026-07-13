@@ -266,9 +266,9 @@ describe('ServerState', () => {
   // ── Health Score ─────────────────────────────────────────────────────
 
   describe('health score', () => {
-    it('returns default health score without analysis cache', async () => {
+    it('returns zero health score without analysis evidence', async () => {
       const score = state.getHealthScore();
-      expect(score.overall).toBe(50);
+      expect(score.overall).toBe(0);
       expect(score.dimensions).toEqual([]);
     });
   });
@@ -368,4 +368,3 @@ describe('ServerState', () => {
     });
   });
 });
-

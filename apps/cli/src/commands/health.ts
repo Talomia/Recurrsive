@@ -13,7 +13,7 @@ import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
-import type { EvolutionSnapshot, Opportunity } from '@recurrsive/core';
+import { calculateFindingHealth, type EvolutionSnapshot, type Finding, type Opportunity } from '@recurrsive/core';
 import { OpportunityManager } from '@recurrsive/opportunities';
 import { createGraphClient } from '@recurrsive/graph';
 import { loadConfig } from '../config/loader.js';
@@ -74,41 +74,6 @@ async function loadLatestSnapshot(
 }
 
 /**
- * Compute a health score from graph stats and opportunities when no
- * snapshot is available (first-run scenario).
- *
- * @param stats - Graph statistics.
- * @param opportunities - Loaded opportunities.
- * @returns An estimated overall health score (0–100).
- */
-function estimateHealthScore(
-  entityCount: number,
-  opportunities: Opportunity[],
-): number {
-  // Base score starts at 50, modified by findings
-  let score = 70;
-
-  const criticalCount = opportunities.filter(
-    (o) => o.severity === 'critical',
-  ).length;
-  const highCount = opportunities.filter(
-    (o) => o.severity === 'high',
-  ).length;
-  const mediumCount = opportunities.filter(
-    (o) => o.severity === 'medium',
-  ).length;
-
-  score -= criticalCount * 10;
-  score -= highCount * 5;
-  score -= mediumCount * 2;
-
-  // Bonus for having entities in the graph (project is scanned)
-  if (entityCount > 0) score += 5;
-
-  return Math.max(0, Math.min(100, score));
-}
-
-/**
  * Format a trend direction with colour.
  *
  * @param trend - The trend direction.
@@ -161,6 +126,14 @@ export function registerHealthCommand(program: Command): void {
         }
       }
 
+      const findingsPath = join(projectRoot, outputDir, 'findings.json');
+      let findings: Finding[] | null = null;
+      if (!snapshot && existsSync(findingsPath)) {
+        const raw = JSON.parse(await readFile(findingsPath, 'utf-8')) as unknown;
+        if (!Array.isArray(raw)) throw new Error('findings.json must contain an array');
+        findings = raw as Finding[];
+      }
+
       // Get graph stats for additional context
       let entityCount = 0;
       try {
@@ -187,9 +160,7 @@ export function registerHealthCommand(program: Command): void {
       }
 
       // Compute health score
-      const healthScore = snapshot
-        ? snapshot.overall_health
-        : estimateHealthScore(entityCount, opportunities);
+      const healthScore = snapshot?.overall_health ?? (findings ? calculateFindingHealth(findings) : null);
 
       // ── JSON output ────────────────────────────────────────
       if (opts.json) {
@@ -211,6 +182,11 @@ export function registerHealthCommand(program: Command): void {
       banner();
 
       header('Project Health');
+
+      if (healthScore === null) {
+        info(yellow('No recorded analysis results found. Run `recurrsive analyze .` first.'));
+        return;
+      }
 
       // Big health score
       console.log(`  ${bold('Overall Health Score:')}`);

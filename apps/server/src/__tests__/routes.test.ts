@@ -164,6 +164,7 @@ let app: FastifyInstance;
 // Shared auth token for tests — routes now require auth middleware
 const adminToken = createToken('test-admin', 'admin');
 const authHeaders = { authorization: `Bearer ${adminToken}` };
+const viewerHeaders = { authorization: `Bearer ${createToken('test-viewer', 'viewer')}` };
 
 beforeAll (async () => {
   app = await createServer({ logger: false, rateLimitMax: 200 });
@@ -172,6 +173,90 @@ beforeAll (async () => {
 
 afterAll (async () => {
   await app.close();
+});
+
+// ---------------------------------------------------------------------------
+// Default-deny security boundary
+// ---------------------------------------------------------------------------
+
+describe('Default-deny authentication', () => {
+  it.each([
+    ['GET', '/api/v1/config/features'],
+    ['GET', '/api/v1/settings/sections'],
+    ['GET', '/api/v1/export/history'],
+    ['POST', '/api/v1/export'],
+    ['GET', '/api/v1/projects'],
+    ['POST', '/api/v1/graphql'],
+  ])('rejects unauthenticated %s %s', async (method, url) => {
+    const res = await app.inject({
+      method: method as 'GET' | 'POST',
+      url,
+      payload: method === 'POST' ? {} : undefined,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it.each([
+    ['GET', '/health'],
+    ['GET', '/api/v1/setup/status'],
+    ['GET', '/api/v1/openapi.json'],
+    ['GET', '/api/v1/invites/example-token/validate'],
+  ])('keeps intentional public endpoint %s %s reachable', async (method, url) => {
+    const res = await app.inject({ method: method as 'GET', url });
+    expect(res.statusCode).not.toBe(401);
+  });
+
+  it('allows invite acceptance to reach token validation without a session', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/invites/example-token/accept',
+      payload: { username: 'invitee', password: 'strong-password-123' },
+    });
+    expect(res.statusCode).not.toBe(401);
+  });
+
+  it.each([
+    '/api/v1/tenants',
+    '/api/v1/simulations',
+    '/api/v1/pull-requests',
+    '/api/v1/plugins/installed',
+    '/api/v1/intelligence-packs',
+  ]) (
+    'does not expose removed synthetic or non-isolated surface %s',
+    async (url) => {
+      const res = await app.inject({ headers: authHeaders, method: 'GET', url });
+      expect(res.statusCode).toBe(404);
+    },
+  );
+});
+
+describe('Public submissions', () => {
+  it('persists a valid contact message without requiring an account', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/contact',
+      payload: {
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        company: 'Analytical Engines',
+        subject: 'Technical Support',
+        message: 'Please help us evaluate a production deployment.',
+        website: '',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(JSON.parse(res.payload).data.id).toBeTruthy();
+  });
+
+  it('validates public contact input', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/contact',
+      payload: { name: '', email: 'invalid', message: 'short' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
 });
 
 // ---------------------------------------------------------------------------
@@ -190,11 +275,12 @@ describe ('Health endpoints', () => {
     expect(body).toHaveProperty('initialized');
   });
 
-  it ('GET /api/v1/health-score returns 503 before initialization', async () => {
+  it ('GET /api/v1/health-score returns an empty score before analysis', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/health-score' });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.error).toBe('Server not initialized');
+    expect(body.data.overall).toBe(0);
+    expect(body.data.finding_count).toBe(0);
   });
 });
 
@@ -318,15 +404,15 @@ describe ('Pre-initialization endpoint behavior', () => {
     expect(body.error).toBe('Server not initialized');
   });
 
-  it ('GET /api/v1/analysis/compare returns 503 before init', async () => {
+  it ('GET /api/v1/analysis/compare requires explicit run IDs', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'GET',
       url: '/api/v1/analysis/compare',
     });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.payload);
-    expect(body.error).toBe('Server not initialized');
+    expect(body.error).toBe('Bad Request');
   });
 });
 
@@ -678,16 +764,15 @@ describe ('Snapshot endpoints', () => {
     expect(body.message).toContain('entities');
   });
 
-  it ('GET /api/v1/analysis/compare returns 404 without analysis cache', async () => {
-    // state is initialized but no analysis has been run, so no cache
+  it ('GET /api/v1/analysis/compare returns 404 for unknown run IDs', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'GET',
-      url: '/api/v1/analysis/compare',
+      url: '/api/v1/analysis/compare?run_a=missing-a&run_b=missing-b',
     });
     expect(res.statusCode).toBe(404);
     const body = JSON.parse(res.payload);
-    expect(body.error).toBe('No analysis results');
+    expect(body.error).toBe('Not Found');
   });
 });
 
@@ -707,7 +792,6 @@ describe ('Webhook endpoints', () => {
 
   it ('POST /api/v1/webhooks creates a webhook with valid data', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
@@ -729,7 +813,6 @@ describe ('Webhook endpoints', () => {
   it ('POST /api/v1/webhooks returns 400 for missing url', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -745,7 +828,6 @@ describe ('Webhook endpoints', () => {
   it ('POST /api/v1/webhooks returns 400 for missing events', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -760,7 +842,6 @@ describe ('Webhook endpoints', () => {
 
   it ('POST /api/v1/webhooks returns 400 for invalid event types', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
@@ -796,7 +877,6 @@ describe ('Webhook endpoints', () => {
   it ('DELETE /api/v1/webhooks/:id returns 404 for unknown ID', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'DELETE',
       url: '/api/v1/webhooks/wh_nonexistent',
     });
@@ -807,7 +887,6 @@ describe ('Webhook endpoints', () => {
 
   it ('POST /api/v1/webhooks/:id/test returns 404 for unknown ID', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks/wh_nonexistent/test',
@@ -820,7 +899,6 @@ describe ('Webhook endpoints', () => {
   it ('PATCH /api/v1/webhooks/:id returns 404 for unknown ID', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/webhooks/wh_nonexistent',
       payload: { active: false },
@@ -832,7 +910,6 @@ describe ('Webhook endpoints', () => {
 
   it ('GET /api/v1/webhooks/:id/deliveries returns 404 for unknown ID', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'GET',
       url: '/api/v1/webhooks/wh_nonexistent/deliveries',
@@ -898,7 +975,6 @@ describe ('Config endpoints', () => {
   it ('PATCH /api/v1/config returns 200 with valid overrides', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { severityThreshold: 'high' },
@@ -914,7 +990,6 @@ describe ('Config endpoints', () => {
   it ('PATCH /api/v1/config returns 400 for invalid severityThreshold value', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { severityThreshold: 'extreme' },
@@ -926,7 +1001,6 @@ describe ('Config endpoints', () => {
 
   it ('PATCH /api/v1/config returns 400 for invalid reportFormat value', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
@@ -940,7 +1014,6 @@ describe ('Config endpoints', () => {
   it ('PATCH /api/v1/config returns 400 for invalid analyzer IDs', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { enabledAnalyzers: ['nonexistent.analyzer'] },
@@ -953,7 +1026,6 @@ describe ('Config endpoints', () => {
 
   it ('PATCH /api/v1/config accepts graphProvider as any string', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
@@ -998,7 +1070,6 @@ describe ('Notification endpoints', () => {
   it ('POST /api/v1/notifications/test sends a test notification', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: { channel: 'console' },
@@ -1013,7 +1084,6 @@ describe ('Notification endpoints', () => {
   it ('POST /api/v1/notifications/test returns 400 for missing channel', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: {},
@@ -1026,7 +1096,6 @@ describe ('Notification endpoints', () => {
 
   it ('POST /api/v1/notifications/test returns 400 for invalid channel', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
@@ -1084,8 +1153,52 @@ describe ('CORS', () => {
   });
 });
 
+describe('global authorization baseline', () => {
+  it('allows viewers to read authenticated resources', async () => {
+    const res = await app.inject({ headers: viewerHeaders, method: 'GET', url: '/api/v1/projects' });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('prevents viewers from mutating project data', async () => {
+    const res = await app.inject({
+      headers: viewerHeaders,
+      method: 'POST',
+      url: '/api/v1/projects',
+      payload: { name: 'unauthorized', repository: '/app/unauthorized' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('requires administrators for security configuration mutations', async () => {
+    const analystHeaders = { authorization: `Bearer ${createToken('test-analyst', 'analyst')}` };
+    const res = await app.inject({
+      headers: analystHeaders,
+      method: 'PATCH',
+      url: '/api/v1/config',
+      payload: { severityThreshold: 'high' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('WebSocket authentication tickets', () => {
+  it('requires authentication to issue a ticket', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/v1/auth/ws-ticket' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('issues a short-lived opaque ticket without returning the JWT', async () => {
+    const res = await app.inject({ headers: authHeaders, method: 'POST', url: '/api/v1/auth/ws-ticket' });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.data.ticket).toMatch(/^[A-Za-z0-9_-]{40,}$/);
+    expect(body.data.ticket).not.toContain(adminToken);
+    expect(body.data.expiresAt).toBeGreaterThan(Date.now());
+  });
+});
+
 describe ('Batch endpoints', () => {
-  it('POST /api/v1/batch/analyze returns 400 without projects', async () => {
+  it('POST /api/v1/batch/analyze returns 400 without projectIds', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
@@ -1097,33 +1210,43 @@ describe ('Batch endpoints', () => {
     expect(body.error).toBeDefined();
   });
 
-  it ('POST /api/v1/batch/analyze returns 400 with empty projects', async () => {
+  it ('POST /api/v1/batch/analyze returns 400 with empty projectIds', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/batch/analyze',
-      payload: { projects: [] },
+      payload: { projectIds: [] },
     });
     expect(res.statusCode).toBe(400);
   });
 
   it('POST /api/v1/batch/analyze returns 400 with >10 projects', async () => {
-    const projects = Array.from({ length: 11 }, (_, i) => `/project-${i}`);
+    const projectIds = Array.from({ length: 11 }, (_, i) => `project-${i}`);
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/batch/analyze',
-      payload: { projects },
+      payload: { projectIds },
     });
     expect(res.statusCode).toBe(400);
   });
 
   it ('POST /api/v1/batch/analyze returns 202 with valid projects', async () => {
+    const ids: string[] = [];
+    for (const name of ['batch-a', 'batch-b']) {
+      const created = await app.inject({
+        headers: authHeaders,
+        method: 'POST',
+        url: '/api/v1/projects',
+        payload: { name, repository: `/app/${name}` },
+      });
+      ids.push(created.json().data.id);
+    }
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/batch/analyze',
-      payload: { projects: ['/project-a', '/project-b'] },
+      payload: { projectIds: ids },
     });
     expect(res.statusCode).toBe(202);
     const body = res.json();
@@ -1170,7 +1293,6 @@ describe ('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit',
       headers: { Authorization: `Bearer ${token}` },
@@ -1187,7 +1309,6 @@ describe ('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit?limit=3',
       headers: { Authorization: `Bearer ${token}` },
@@ -1202,7 +1323,6 @@ describe ('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit/stats',
       headers: { Authorization: `Bearer ${token}` },
@@ -1298,7 +1418,6 @@ describe ('Experiment Routes', () => {
   it ('POST /api/v1/experiments creates a new experiment', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: {
@@ -1326,7 +1445,6 @@ describe ('Experiment Routes', () => {
 
   it ('POST /api/v1/experiments validates required fields', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
@@ -1365,7 +1483,6 @@ describe ('Experiment Routes', () => {
     // Create an experiment first
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: { name: 'Status Update Test', hypothesis: 'Testing status updates' },
@@ -1373,7 +1490,6 @@ describe ('Experiment Routes', () => {
     const expId = JSON.parse(createRes.payload).data.id;
 
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${expId}/status`,
@@ -1391,7 +1507,6 @@ describe ('Experiment Routes', () => {
     // Create an experiment first
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: { name: 'Validate Status Test', hypothesis: 'Testing validation' },
@@ -1399,7 +1514,6 @@ describe ('Experiment Routes', () => {
     const expId = JSON.parse(createRes.payload).data.id;
 
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${expId}/status`,

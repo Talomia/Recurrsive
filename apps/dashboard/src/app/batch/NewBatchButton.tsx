@@ -1,30 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Play, Plus, X } from "lucide-react";
 import { createBatchRun } from "@/lib/api";
+import { getProjects, type Project } from "@/lib/api";
 
 /**
  * Client component wrapping the "New Batch" button + form for the server-rendered batch page.
  */
 export default function NewBatchButton() {
   const [showForm, setShowForm] = useState(false);
-  const [projectPaths, setProjectPaths] = useState("");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const handleSubmit = async () => {
-    const paths = projectPaths
-      .split("\n")
-      .map((p) => p.trim())
-      .filter(Boolean);
+  useEffect(() => {
+    if (showForm) getProjects().then(setProjects);
+  }, [showForm]);
 
-    if (paths.length === 0) {
-      setError("Enter at least one project path.");
+  const handleSubmit = async () => {
+    if (selectedIds.length === 0) {
+      setError("Select at least one registered project.");
       return;
     }
-    if (paths.length > 10) {
+    if (selectedIds.length > 10) {
       setError("Maximum 10 projects per batch.");
       return;
     }
@@ -34,9 +35,9 @@ export default function NewBatchButton() {
     setSuccess(null);
 
     try {
-      const result = await createBatchRun({ projects: paths });
+      const result = await createBatchRun({ projectIds: selectedIds });
       setSuccess(`Batch ${result.batch_id} created (${result.status})`);
-      setProjectPaths("");
+      setSelectedIds([]);
       // Reload the page to refetch server data
       setTimeout(() => {
         window.location.reload();
@@ -77,16 +78,24 @@ export default function NewBatchButton() {
         </div>
 
         <div>
-          <label className="block text-xs text-text-muted font-medium mb-1">
-            Project Paths (one per line, max 10)
-          </label>
-          <textarea
-            value={projectPaths}
-            onChange={(e) => setProjectPaths(e.target.value)}
-            placeholder={"/path/to/project-a\n/path/to/project-b"}
-            rows={5}
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-          />
+          <p className="block text-xs text-text-muted font-medium mb-2">Registered projects (max 10)</p>
+          <div className="max-h-56 overflow-y-auto space-y-2">
+            {projects.length === 0 ? (
+              <p className="text-xs text-text-muted">Create a project before starting a batch.</p>
+            ) : projects.map((project) => (
+              <label key={project.id} className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(project.id)}
+                  onChange={(event) => setSelectedIds((current) => event.target.checked
+                    ? [...current, project.id].slice(0, 10)
+                    : current.filter((id) => id !== project.id))}
+                  className="mt-1"
+                />
+                <span className="min-w-0"><span className="block text-sm text-text-primary">{project.name}</span><span className="block truncate text-[10px] text-text-muted">{project.repository}</span></span>
+              </label>
+            ))}
+          </div>
         </div>
 
         {error && (
@@ -109,7 +118,7 @@ export default function NewBatchButton() {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !projectPaths.trim()}
+            disabled={submitting || selectedIds.length === 0}
             className="flex-1 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-blue-600 transition-colors"
           >
             {submitting ? "Submitting…" : "Start Batch"}

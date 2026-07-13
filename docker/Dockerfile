@@ -6,7 +6,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install pnpm globally
 RUN corepack enable && corepack prepare pnpm@9.14.4 --activate
@@ -42,7 +42,7 @@ COPY apps/server/ apps/server/
 RUN pnpm exec turbo build --filter=@recurrsive/server...
 
 # ── Stage 2: Prune dependencies ───────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 
 RUN corepack enable && corepack prepare pnpm@9.14.4 --activate
 RUN apk add --no-cache python3 make g++
@@ -65,10 +65,10 @@ COPY --from=builder /app/apps/server/package.json apps/server/package.json
 RUN pnpm install --frozen-lockfile --prod
 
 # ── Stage 3: Production ──────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 # Native module runtime dependencies + git for remote repo analysis
-RUN apk add --no-cache libstdc++ git
+RUN apk add --no-cache libstdc++ git dumb-init
 
 # Install pnpm for workspace resolution at runtime
 RUN corepack enable && corepack prepare pnpm@9.14.4 --activate
@@ -149,4 +149,5 @@ ENV HOST=0.0.0.0
 USER recurrsive
 
 # Start the API server
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "apps/server/dist/bin.js"]

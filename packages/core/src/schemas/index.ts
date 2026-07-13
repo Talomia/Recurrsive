@@ -28,7 +28,6 @@ export {
   RollbackPlanSchema,
   AgentProvenanceSchema,
   SourceLocationSchema,
-  SimulationResultSchema,
   OpportunitySchema,
 } from '../types/opportunities.js';
 

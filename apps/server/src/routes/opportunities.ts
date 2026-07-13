@@ -6,12 +6,12 @@
  * @packageDocumentation
  */
 
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { OpportunityCategory, OpportunityStatus, Severity } from '@recurrsive/core';
-import type { ExportFormat } from '@recurrsive/opportunities';
+import { OpportunityManager, type ExportFormat } from '@recurrsive/opportunities';
 import { createLogger } from '@recurrsive/core';
-import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { persistResolvedAnalysis, resolveAnalysis } from '../project-analysis.js';
 
 const logger = createLogger({ context: { component: 'server:routes:opportunities' } });
 
@@ -20,6 +20,7 @@ const logger = createLogger({ context: { component: 'server:routes:opportunities
 // ---------------------------------------------------------------------------
 
 interface ListOpportunitiesQuery {
+  projectId?: string;
   category?: OpportunityCategory;
   status?: OpportunityStatus;
   severity?: Severity;
@@ -38,6 +39,14 @@ interface UpdateStatusBody {
 
 interface ExportParams {
   format: string;
+}
+
+async function managerForRequest(request: FastifyRequest) {
+  const resolved = await resolveAnalysis(request);
+  return {
+    resolved,
+    manager: new OpportunityManager(resolved.cache?.opportunities ?? []),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +71,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
     async (request, reply) => {
       const { category, status, severity, limit: limitStr, offset: offsetStr } = request.query;
 
-      const manager = state.getOpportunities();
+      const { manager } = await managerForRequest(request);
       let results = manager.list({
         category,
         status,
@@ -90,12 +99,12 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    *
    * Retrieve a single opportunity by its UUID.
    */
-  app.get<{ Params: OpportunityParams }>(
+  app.get<{ Params: OpportunityParams; Querystring: ListOpportunitiesQuery }>(
     '/api/v1/opportunities/:id',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
-      const manager = state.getOpportunities();
+      const { manager } = await managerForRequest(request);
       const opportunity = manager.get(id);
 
       if (!opportunity) {
@@ -119,7 +128,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    *
    * Update the lifecycle status of an opportunity (accept, reject, etc.).
    */
-  app.patch<{ Params: OpportunityParams; Body: UpdateStatusBody }>(
+  app.patch<{ Params: OpportunityParams; Querystring: ListOpportunitiesQuery; Body: UpdateStatusBody }>(
     '/api/v1/opportunities/:id',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
@@ -145,9 +154,15 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
       }
 
 
-      const manager = state.getOpportunities();
+      const { manager, resolved } = await managerForRequest(request);
       try {
         const updated = manager.updateStatus(id, status, reason);
+        if (resolved.cache) {
+          await persistResolvedAnalysis(resolved, {
+            ...resolved.cache,
+            opportunities: manager.list({}),
+          });
+        }
         return reply.status(200).send({ data: updated });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -165,7 +180,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    *
    * Export all opportunities in the specified format (json, markdown, sarif).
    */
-  app.get<{ Params: ExportParams }>(
+  app.get<{ Params: ExportParams; Querystring: ListOpportunitiesQuery }>(
     '/api/v1/opportunities/export/:format',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
@@ -180,7 +195,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
       }
 
 
-      const manager = state.getOpportunities();
+      const { manager } = await managerForRequest(request);
 
       try {
         const exported = manager.export(format as ExportFormat);
@@ -224,9 +239,9 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    *
    * Return opportunity categories with counts.
    */
-  app.get('/api/v1/opportunities/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: ListOpportunitiesQuery }>('/api/v1/opportunities/categories', { preHandler: [authMiddleware] }, async (request, reply) => {
 
-    const manager = state.getOpportunities();
+    const { manager } = await managerForRequest(request);
     const all = manager.list({});
 
     // Group by category

@@ -9,7 +9,7 @@
           "type": "image",
           "image": "apache/age:release_PG16_1.5.0"
         },
-        "env": "POSTGRES_USER=postgres\nPOSTGRES_PASSWORD=recurrsive\nPOSTGRES_DB=postgres",
+        "env": "POSTGRES_USER=postgres\nPOSTGRES_PASSWORD=SET_IN_EASYPANEL_SECRET\nPOSTGRES_DB=postgres",
         "deploy": {
           "command": null,
           "replicas": 1,
@@ -41,7 +41,7 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile"
         },
-        "env": "DATABASE_URL=postgresql://postgres:recurrsive@recurrsive_postgres:5432/postgres\nGRAPH_PROVIDER=postgresql_age\nPORT=3000\nHOST=0.0.0.0\nNODE_ENV=production\nJWT_SECRET=change-me-in-production\nCORS_ORIGIN=https://recurrsive-dashboard.easypanel.host\nALLOW_DEMO_USERS=true\nENABLE_ENTERPRISE=true\nENABLE_ECOSYSTEM=true\nRECURRSIVE_LLM_PROVIDER=openai\nRECURRSIVE_LLM_MODEL=gpt-4.1-mini\nRECURRSIVE_LLM_API_KEY=\nRECURRSIVE_WEBHOOK_SECRET=\nRECURRSIVE_WEBHOOK_TIMEOUT_MS=5000\nRECURRSIVE_WEBHOOK_MAX_RETRIES=3",
+        "env": "DATABASE_URL=postgresql://postgres:SET_IN_EASYPANEL_SECRET@recurrsive_postgres:5432/postgres\nGRAPH_PROVIDER=postgresql_age\nPORT=3000\nHOST=0.0.0.0\nNODE_ENV=production\nJWT_SECRET=SET_IN_EASYPANEL_SECRET_MINIMUM_32_CHARACTERS\nSECRETS_ENCRYPTION_KEY=SET_IN_EASYPANEL_DIFFERENT_SECRET_MINIMUM_32_CHARACTERS\nCORS_ORIGIN=https://recurrsive-dashboard.easypanel.host,https://recurrsive-website.easypanel.host\nALLOW_DEMO_USERS=false\nTRUST_PROXY=true\nRECURRSIVE_ALLOWED_GIT_HOSTS=github.com,gitlab.com,bitbucket.org\nENABLE_ENTERPRISE=true\nENABLE_ECOSYSTEM=true\nRECURRSIVE_LLM_PROVIDER=openai\nRECURRSIVE_LLM_MODEL=gpt-4.1-mini\nRECURRSIVE_LLM_API_KEY=\nRECURRSIVE_WEBHOOK_SECRET=\nRECURRSIVE_WEBHOOK_TIMEOUT_MS=5000\nRECURRSIVE_WEBHOOK_MAX_RETRIES=3",
         "deploy": {
           "command": null,
           "replicas": 1,
@@ -85,7 +85,7 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile.dashboard"
         },
-        "env": "NEXT_PUBLIC_API_URL=https://recurrsive-server.easypanel.host\nINTERNAL_API_URL=http://recurrsive_server:3000\nPORT=3100\nNODE_ENV=production",
+        "env": "NEXT_PUBLIC_API_URL=https://recurrsive-server.easypanel.host\nINTERNAL_API_URL=http://recurrsive_server:3000\nPUBLIC_API_URL=https://recurrsive-server.easypanel.host\nPORT=3100\nNODE_ENV=production",
         "deploy": {
           "command": null,
           "replicas": 1,
@@ -122,7 +122,7 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile.website"
         },
-        "env": "PORT=3200\nNODE_ENV=production",
+        "env": "INTERNAL_API_URL=http://recurrsive_server:3000\nPORT=3200\nNODE_ENV=production",
         "deploy": {
           "command": null,
           "replicas": 1,

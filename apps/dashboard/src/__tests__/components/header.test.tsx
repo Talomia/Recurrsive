@@ -6,12 +6,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Header from '../../components/header';
 
-// Mock useWebSocket
-vi.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: () => ({
+// Mock the shared realtime connection
+vi.mock('../../components/realtime-context', () => ({
+  useRealtime: () => ({
     status: 'connected' as const,
     clientCount: 3,
     lastMessage: null,
+    lastEvent: null,
+    events: [],
     send: vi.fn(),
     connect: vi.fn(),
     disconnect: vi.fn(),
@@ -29,7 +31,6 @@ vi.mock('../../components/LiveIndicator', () => ({
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({
     user: { userId: 'user-abc123', username: 'admin', role: 'admin' },
-    token: 'mock-token',
     loading: false,
     error: null,
     login: vi.fn(),
@@ -86,7 +87,7 @@ describe('Header', () => {
 
   it('renders AI assist button', () => {
     render(<Header title="Test" />);
-    expect(screen.getByLabelText('Open AI assistant')).toBeInTheDocument();
+    expect(screen.getByLabelText('Open analysis search')).toBeInTheDocument();
   });
 
   it('toggles user menu on click', () => {

@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
-  Check, X, ArrowRight, Sparkles, Shield, Cloud,
+  Check, X, ArrowRight, Sparkles,
   HelpCircle, Minus,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: 'Simple, transparent pricing. No per-seat or per-repo charges. Free open-source tier, enterprise, and managed cloud.',
+  description: 'Apache-2.0 software with optional production and implementation support. No per-seat or per-repository charges.',
 };
 
 const PLANS = [
@@ -25,59 +25,53 @@ const PLANS = [
       '13 built-in analyzers (89+ rules)',
       '19-specialist multi-agent reasoning',
       'Knowledge graph (SQLite + AGE)',
-      'CLI with 28 commands',
-      'MCP Server (42 tools)',
+      'CLI for analysis and operations',
+      'MCP Server integration',
       'REST + WebSocket API',
-      'Plugin SDK for custom extensions',
       'SARIF export & reports',
       'Policy engine',
       'Community support',
     ],
   },
   {
-    name: 'Enterprise',
+    name: 'Production Support',
     price: 'Custom',
     period: 'per org / year',
-    desc: 'Governance, compliance, and security for large organizations.',
-    cta: 'Contact Sales',
+    desc: 'Operational guidance for teams running Recurrsive in their own infrastructure.',
+    cta: 'Discuss Support',
     ctaHref: '/contact',
     ctaStyle: 'btn-primary',
     badge: 'Most Popular',
     features: [
-      'Everything in Open Source, plus:',
-      'SSO / SAML integration',
-      'Fine-grained RBAC',
-      'Audit logging & compliance reports',
-      'Data masking & PII controls',
-      'Multi-tenant deployments',
-      'Secret management integration',
-      'Air-gapped deployment support',
-      'Custom specialist agents',
-      'Priority support & SLA',
-      'Dedicated success manager',
+      'Everything in Open Source',
+      'EasyPanel deployment review',
+      'Production configuration review',
+      'Backup and restore runbooks',
+      'Upgrade planning',
+      'Security configuration guidance',
+      'Architecture and scaling reviews',
+      'Response terms defined in your agreement',
+      'Named technical contact',
     ],
   },
   {
-    name: 'Cloud',
-    price: '$199',
-    period: 'per org / month',
-    desc: 'Managed infrastructure with zero maintenance overhead.',
-    cta: 'Start Free Trial',
-    ctaHref: '/cloud',
-    ctaStyle: 'btn-primary',
-    badge: 'New',
+    name: 'Implementation Services',
+    price: 'Custom',
+    period: 'per engagement',
+    desc: 'Hands-on integration and product adoption for complex engineering environments.',
+    cta: 'Plan an Engagement',
+    ctaHref: '/contact',
+    ctaStyle: 'btn-secondary',
+    badge: null,
     features: [
-      'Everything in Enterprise, plus:',
-      'Fully managed infrastructure',
-      'Continuous synchronization',
-      'Automatic upgrades & patching',
-      'Secure cloud storage',
-      'GPU-backed reasoning',
-      'Executive intelligence dashboards',
-      'Collaboration features',
-      'Multi-region deployment',
-      '99.9% uptime SLA',
-      'Premium support',
+      'Everything in Production Support',
+      'Collector and analyzer integration',
+      'SSO and identity integration',
+      'Custom policies and workflows',
+      'CI/CD and webhook integration',
+      'Data migration planning',
+      'Internal enablement sessions',
+      'Acceptance criteria and handoff',
     ],
   },
 ];
@@ -86,21 +80,18 @@ const COMPARISON = [
   { feature: 'Collectors', oss: '14', enterprise: '14', cloud: '14' },
   { feature: 'Analyzers', oss: '13', enterprise: '13 + custom', cloud: '13 + custom' },
   { feature: 'Multi-agent reasoning', oss: true, enterprise: true, cloud: true },
-  { feature: 'Knowledge graph', oss: 'SQLite', enterprise: 'AGE + SQLite', cloud: 'Managed AGE' },
-  { feature: 'REST API (160+ endpoints)', oss: true, enterprise: true, cloud: true },
-  { feature: 'CLI (28 commands)', oss: true, enterprise: true, cloud: true },
+  { feature: 'Knowledge graph', oss: 'SQLite + AGE', enterprise: 'SQLite + AGE', cloud: 'SQLite + AGE' },
+  { feature: 'REST + WebSocket API', oss: true, enterprise: true, cloud: true },
+  { feature: 'CLI', oss: true, enterprise: true, cloud: true },
   { feature: 'MCP Server', oss: true, enterprise: true, cloud: true },
-  { feature: 'Plugin SDK', oss: true, enterprise: true, cloud: true },
-  { feature: 'SSO / SAML', oss: false, enterprise: true, cloud: true },
-  { feature: 'RBAC', oss: 'Basic', enterprise: 'Fine-grained', cloud: 'Fine-grained' },
-  { feature: 'Audit logging', oss: false, enterprise: true, cloud: true },
-  { feature: 'Data masking', oss: false, enterprise: true, cloud: true },
-  { feature: 'Multi-tenant', oss: false, enterprise: true, cloud: true },
-  { feature: 'Air-gapped', oss: false, enterprise: true, cloud: false },
-  { feature: 'GPU reasoning', oss: false, enterprise: false, cloud: true },
-  { feature: 'Managed infrastructure', oss: false, enterprise: false, cloud: true },
-  { feature: 'Auto upgrades', oss: false, enterprise: false, cloud: true },
-  { feature: 'Support', oss: 'Community', enterprise: 'Priority SLA', cloud: 'Premium' },
+  { feature: 'SSO / SAML', oss: true, enterprise: true, cloud: true },
+  { feature: 'RBAC', oss: true, enterprise: true, cloud: true },
+  { feature: 'Audit logging', oss: true, enterprise: true, cloud: true },
+  { feature: 'Data masking', oss: true, enterprise: true, cloud: true },
+  { feature: 'Air-gapped deployment', oss: true, enterprise: true, cloud: true },
+  { feature: 'Deployment review', oss: false, enterprise: true, cloud: true },
+  { feature: 'Custom integration delivery', oss: false, enterprise: false, cloud: true },
+  { feature: 'Support', oss: 'Community', enterprise: 'Agreement-based', cloud: 'Engagement-based' },
 ];
 
 const FAQS = [
@@ -114,19 +105,19 @@ const FAQS = [
   },
   {
     q: 'What\'s included in the free tier?',
-    a: 'Everything you need: 14 collectors, 13 analyzers, multi-agent reasoning, CLI, MCP server, REST API, Plugin SDK, and full policy engine. Apache 2.0 licensed, free forever.',
+    a: 'The repository includes collectors, analyzers, reasoning, CLI, MCP server, REST API, and the policy engine under Apache 2.0.',
   },
   {
-    q: 'Can I try Enterprise features?',
-    a: 'Yes! Contact us for a 30-day enterprise trial. We\'ll help you set up SSO, RBAC, audit logging, and multi-tenant deployments in your environment.',
+    q: 'Are product features paywalled?',
+    a: 'No. The repository is Apache-2.0 licensed. Paid offerings cover production support and hands-on implementation work, not artificial feature gates.',
   },
   {
-    q: 'How does Cloud pricing scale?',
-    a: 'Pricing is based on Decision Scope: organizational scale, history depth, and reasoning depth. The $199/mo starter covers small to mid-sized teams. Contact us for Growth and Enterprise cloud tiers.',
+    q: 'Do you operate a managed Recurrsive cloud?',
+    a: 'Not currently. Production deployments run in infrastructure controlled by the deploying organization, including EasyPanel and Docker environments.',
   },
   {
-    q: 'Do you offer discounts for startups?',
-    a: 'Yes! Early-stage startups (under $5M funding, under 50 employees) qualify for our Startup Program: 50% off Cloud for the first year.',
+    q: 'What determines support pricing?',
+    a: 'Support is scoped to deployment complexity, response expectations, integrations, and the level of hands-on engineering assistance required.',
   },
 ];
 
@@ -243,8 +234,8 @@ export default function PricingPage() {
                 <tr>
                   <th style={{ textAlign: 'left', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600 }}>Feature</th>
                   <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600 }}>Open Source</th>
-                  <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600, color: 'var(--text-accent)' }}>Enterprise</th>
-                  <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600 }}>Cloud</th>
+                  <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600, color: 'var(--text-accent)' }}>Production Support</th>
+                  <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600 }}>Implementation</th>
                 </tr>
               </thead>
               <tbody>

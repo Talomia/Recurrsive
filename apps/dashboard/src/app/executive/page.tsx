@@ -128,16 +128,17 @@ function RiskIndicator({ level, label }: { level: 'low' | 'medium' | 'high' | 'c
 function StrategicRecommendation({
   title,
   description,
-  impact,
+  severity,
   effort,
 }: {
   title: string;
   description: string;
-  impact: 'high' | 'medium' | 'low';
-  effort: 'high' | 'medium' | 'low';
+  severity: Opportunity['severity'];
+  effort: Opportunity['effort'];
 }) {
-  const impactColors = { high: '#22c55e', medium: '#eab308', low: '#6b7280' };
-  const effortColors = { high: '#ef4444', medium: '#eab308', low: '#22c55e' };
+  const severityColors: Record<Opportunity['severity'], string> = {
+    critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e', info: '#6b7280',
+  };
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
@@ -145,12 +146,12 @@ function StrategicRecommendation({
       <p className="text-xs text-text-secondary mb-3">{description}</p>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-text-tertiary">Impact</span>
-          <span className="text-[10px] font-bold uppercase" style={{ color: impactColors[impact] }}>{impact}</span>
+          <span className="text-[10px] text-text-tertiary">Severity</span>
+          <span className="text-[10px] font-bold uppercase" style={{ color: severityColors[severity] }}>{severity}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-text-tertiary">Effort</span>
-          <span className="text-[10px] font-bold uppercase" style={{ color: effortColors[effort] }}>{effort}</span>
+          <span className="text-[10px] font-bold uppercase text-text-secondary">{effort === 'unknown' ? 'Not estimated' : effort}</span>
         </div>
       </div>
     </div>
@@ -225,24 +226,21 @@ export default function ExecutivePage() {
                 gradient="linear-gradient(135deg, #22c55e, #16a34a)"
               />
               <KPICard
-                title="Code Quality"
-                value={data.health ? pct(data.health.qualityScore) : '—'}
-                trend={data.health?.qualityTrend}
+                title="Documentation"
+                value={data.health ? pct(data.health.documentationScore) : '—'}
                 icon="⚡"
                 gradient="linear-gradient(135deg, #3b82f6, #2563eb)"
               />
               <KPICard
-                title="AI Quality"
-                value={data.health ? pct(data.health.aiQualityScore) : '—'}
-                trend={data.health?.aiQualityTrend}
-                icon="🤖"
+                title="Security"
+                value={data.health ? pct(data.health.securityScore) : '—'}
+                icon="🛡️"
                 gradient="linear-gradient(135deg, #8b5cf6, #7c3aed)"
               />
               <KPICard
-                title="Tech Debt"
-                value={data.health ? `${data.health.techDebt}h` : '—'}
-                trend={data.health?.techDebtTrend}
-                icon="🏗️"
+                title="Open Findings"
+                value={data.health ? String(data.health.findingCount) : '—'}
+                icon="🔎"
                 gradient="linear-gradient(135deg, #f97316, #ea580c)"
               />
             </div>
@@ -264,8 +262,8 @@ export default function ExecutivePage() {
                     label={`Reliability (${highCount} high findings)`}
                   />
                   <RiskIndicator
-                    level={data.health && data.health.techDebt > 40 ? 'high' : 'medium'}
-                    label={`Tech Debt (${data.health?.techDebt ?? 0}h estimated)`}
+                    level={data.health && data.health.findingCount > 40 ? 'high' : data.health && data.health.findingCount > 0 ? 'medium' : 'low'}
+                    label={`Open Findings (${data.health?.findingCount ?? 0})`}
                   />
                 </div>
 
@@ -295,8 +293,8 @@ export default function ExecutivePage() {
                         key={opp.id}
                         title={opp.title}
                         description={(opp.description ?? 'No description').slice(0, 120) + '...'}
-                      impact={opp.severity === 'critical' || opp.severity === 'high' ? 'high' : opp.severity === 'medium' ? 'medium' : 'low'}
-                        effort={opp.effort > 60 ? 'high' : opp.effort > 30 ? 'medium' : 'low'}
+                        severity={opp.severity}
+                        effort={opp.effort}
                       />
                     ))
                   ) : (

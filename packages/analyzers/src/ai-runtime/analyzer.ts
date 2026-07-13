@@ -14,8 +14,12 @@ import type {
   Analyzer,
   AnalysisContext,
   Finding,
+  Entity,
 } from '@recurrsive/core';
-import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
+import { createFinding, createEvidence, locationFromEntity, isTestOrFixtureEntity } from '../base/helpers.js';
+
+const productionOnly = <T extends Entity>(entities: T[]): T[] =>
+  entities.filter((entity) => !isTestOrFixtureEntity(entity));
 
 /** Approximate characters per token for estimation. */
 const CHARS_PER_TOKEN = 4;
@@ -155,9 +159,9 @@ export class AIRuntimeAnalyzer implements Analyzer {
   private async checkExcessiveTokenUsage(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
     const [functions, modules, prompts] = await Promise.all([
-      ctx.graph.getEntities('function'),
-      ctx.graph.getEntities('module'),
-      ctx.graph.getEntities('prompt'),
+      ctx.graph.getEntities('function').then(productionOnly),
+      ctx.graph.getEntities('module').then(productionOnly),
+      ctx.graph.getEntities('prompt').then(productionOnly),
     ]);
 
     const entities = [...functions, ...modules, ...prompts];
@@ -218,7 +222,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
    */
   private async checkMissingRateLimiting(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
+    const functions = productionOnly(await ctx.graph.getEntities('function'));
 
     for (const fn of functions) {
       const outRels = await ctx.graph.getRelationships(fn.id, 'out');
@@ -283,7 +287,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
    */
   private async checkMissingGuardrails(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
+    const functions = productionOnly(await ctx.graph.getEntities('function'));
 
     for (const fn of functions) {
       const outRels = await ctx.graph.getRelationships(fn.id, 'out');
@@ -348,7 +352,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
    */
   private async checkSingleModelDependency(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const models = await ctx.graph.getEntities('model');
+    const models = productionOnly(await ctx.graph.getEntities('model'));
 
     if (models.length < 2) return findings;
 
@@ -407,7 +411,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
    */
   private async checkMissingStreaming(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
+    const functions = productionOnly(await ctx.graph.getEntities('function'));
 
     for (const fn of functions) {
       const outRels = await ctx.graph.getRelationships(fn.id, 'out');
@@ -479,7 +483,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
    */
   private async checkContextWindowOverflow(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const prompts = await ctx.graph.getEntities('prompt');
+    const prompts = productionOnly(await ctx.graph.getEntities('prompt'));
 
     for (const prompt of prompts) {
       const content =
@@ -550,7 +554,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
    */
   private async checkMissingCostTracking(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
+    const functions = productionOnly(await ctx.graph.getEntities('function'));
 
     for (const fn of functions) {
       const outRels = await ctx.graph.getRelationships(fn.id, 'out');
@@ -617,9 +621,9 @@ export class AIRuntimeAnalyzer implements Analyzer {
   private async checkStaleEmbeddings(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
     const [functions, modules, configs] = await Promise.all([
-      ctx.graph.getEntities('function'),
-      ctx.graph.getEntities('module'),
-      ctx.graph.getEntities('config'),
+      ctx.graph.getEntities('function').then(productionOnly),
+      ctx.graph.getEntities('module').then(productionOnly),
+      ctx.graph.getEntities('config').then(productionOnly),
     ]);
 
     const entities = [...functions, ...modules, ...configs];

@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Command } from 'commander';
+import type * as ConfigModule from '../../config.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -14,7 +15,7 @@ const { mockApiRequest } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../config.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../config.js')>();
+  const actual = await importOriginal<typeof ConfigModule>();
   return { ...actual, apiRequest: mockApiRequest };
 });
 
@@ -55,28 +56,30 @@ describe('batch command', () => {
   });
 
   describe('run', () => {
-    it('sends projects to the batch API', async () => {
+    it('sends registered project IDs to the batch API', async () => {
       mockApiRequest.mockResolvedValueOnce({
         batch_id: 'batch_001',
         status: 'pending',
-        projects: [{ path: '/p1', status: 'pending' }],
+        projects: [{ projectId: 'p1', name: 'Project 1', repository: '/app/p1', status: 'pending' }],
         created_at: new Date().toISOString(),
       });
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'batch', 'run', '/p1']);
+      await program.parseAsync(['node', 'test', 'batch', 'run', 'p1']);
 
       expect(mockApiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/batch/analyze'),
         expect.objectContaining({ method: 'POST' }),
       );
+      const options = mockApiRequest.mock.calls[0]?.[1] as RequestInit;
+      expect(JSON.parse(options.body as string)).toEqual({ projectIds: ['p1'] });
     });
 
     it('exits with error on server failure', async () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'batch', 'run', '/p1', '/p2']);
+      await program.parseAsync(['node', 'test', 'batch', 'run', 'p1', 'p2']);
 
       expect(process.exitCode).toBe(1);
     });
@@ -94,13 +97,13 @@ describe('batch command', () => {
       mockApiRequest.mockResolvedValueOnce({
         batch_id: 'batch_002',
         status: 'pending',
-        projects: [{ path: '/p1', status: 'pending' }],
+        projects: [{ projectId: 'p1', name: 'Project 1', repository: '/app/p1', status: 'pending' }],
         created_at: new Date().toISOString(),
       });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'batch', 'run', '/p1', '--json']);
+      await program.parseAsync(['node', 'test', 'batch', 'run', 'p1', '--json']);
 
       expect(spy).toHaveBeenCalledWith(expect.stringContaining('batch_'));
       spy.mockRestore();
@@ -109,12 +112,12 @@ describe('batch command', () => {
 
   describe('status', () => {
     it('fetches batch status from server', async () => {
-      mockApiRequest.mockResolvedValueOnce({
+      mockApiRequest.mockResolvedValueOnce({ data: {
         batch_id: 'batch_001',
-        status: 'complete',
-        projects: [{ path: '/p1', status: 'complete', findings_count: 5, opportunities_count: 2 }],
+        status: 'completed',
+        projects: [{ projectId: 'p1', name: 'Project 1', repository: '/app/p1', status: 'completed', findings_count: 5, opportunities_count: 2 }],
         created_at: new Date().toISOString(),
-      });
+      } });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'batch', 'status', 'batch_001']);
@@ -137,10 +140,10 @@ describe('batch command', () => {
   describe('history', () => {
     it('fetches batch history from server', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        batches: [
+        data: [
           {
             batch_id: 'batch_001',
-            status: 'complete',
+            status: 'completed',
             projects: [],
             created_at: new Date().toISOString(),
           },
@@ -166,10 +169,10 @@ describe('batch command', () => {
 
     it('outputs JSON with --json flag', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        batches: [
+        data: [
           {
             batch_id: 'batch_003',
-            status: 'complete',
+            status: 'completed',
             projects: [],
             created_at: new Date().toISOString(),
           },

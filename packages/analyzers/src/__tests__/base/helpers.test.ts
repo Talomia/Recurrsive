@@ -11,6 +11,7 @@ import {
   createFinding,
   createEvidence,
   locationFromEntity,
+  isTestOrFixtureEntity,
 } from '../../base/helpers.js';
 import type { Entity } from '@recurrsive/core';
 
@@ -341,5 +342,34 @@ describe('locationFromEntity', () => {
     expect(loc!.end_column).toBeUndefined();
     expect(loc!.repository).toBeUndefined();
     expect(loc!.commit).toBeUndefined();
+  });
+});
+
+describe('isTestOrFixtureEntity', () => {
+  const makeEntity = (file: string): Entity => ({
+    id: '00000000-0000-4000-8000-000000000001',
+    type: 'agent',
+    name: 'Agent',
+    qualified_name: `repo:${file}:Agent`,
+    source: 'parser',
+    source_location: { file },
+    properties: {},
+    tags: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    last_seen_at: new Date().toISOString(),
+  });
+
+  it.each([
+    'src/__tests__/agent.test.ts',
+    'tests/test_agent.py',
+    'src/fixtures/unsafe-agent.ts',
+    'pkg/agent_test.go',
+  ])('classifies %s as non-production evidence', (file) => {
+    expect(isTestOrFixtureEntity(makeEntity(file))).toBe(true);
+  });
+
+  it('keeps production source in runtime analysis', () => {
+    expect(isTestOrFixtureEntity(makeEntity('src/agents/reviewer.ts'))).toBe(false);
   });
 });

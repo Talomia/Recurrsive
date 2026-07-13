@@ -258,7 +258,7 @@ export default function ProductPage() {
                 debate protocol. Evidence is fused, conflicts are resolved, and confidence is calibrated.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-                {['Structured debate with presentation, challenge, and synthesis', 'Cross-domain evidence fusion from all 14 collectors', 'Confidence calibration tracking prediction accuracy', 'Custom specialist SDK for domain-specific reasoning'].map((item) => (
+                {['Structured debate with presentation, challenge, and synthesis', 'Cross-domain evidence fusion from configured collectors', 'Recorded reasoning provenance and confidence', 'Evidence-linked recommendations and dissent traces'].map((item) => (
                   <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <CheckCircle2 size={16} style={{ color: 'var(--green)', flexShrink: 0 }} />
                     <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{item}</span>
@@ -296,11 +296,10 @@ export default function ProductPage() {
           </div>
           <div className="grid-3">
             {[
-              { icon: Globe, title: 'REST API', stat: '160+ endpoints', desc: 'Full CRUD, WebSocket streaming, JWT + API key auth, RBAC' },
-              { icon: Terminal, title: 'CLI', stat: '28 commands', desc: 'Analyze, graph, report, batch, export, simulate, and more' },
-              { icon: Puzzle, title: 'MCP Server', stat: '42 tools · 21 prompts', desc: 'Model Context Protocol for AI assistant integration' },
+              { icon: Globe, title: 'REST API', stat: 'Generated inventory', desc: 'Project analysis, WebSocket streaming, JWT + API key auth, and RBAC' },
+              { icon: Terminal, title: 'CLI', stat: 'Operational client', desc: 'Analyze, graph, report, batch, export, and administer deployments' },
+              { icon: Puzzle, title: 'MCP Server', stat: 'Live API-backed tools', desc: 'Model Context Protocol for AI assistant integration' },
               { icon: MessageSquare, title: 'GraphQL', stat: 'Full schema', desc: 'Query your knowledge graph with rich relationship traversal' },
-              { icon: Wrench, title: 'Plugin SDK', stat: 'Extensible', desc: 'Build custom collectors and analyzers with a documented API' },
               { icon: Lock, title: 'Enterprise', stat: 'SSO · RBAC · Audit', desc: 'JWT auth, API keys, role-based access, audit logging' },
             ].map((item) => (
               <div key={item.title} className="glass-card" style={{ textAlign: 'center' }}>

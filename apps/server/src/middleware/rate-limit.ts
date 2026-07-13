@@ -136,12 +136,10 @@ export async function registerRateLimit(
 /**
  * Default key generator — uses client IP address.
  *
- * Respects `X-Forwarded-For` for reverse proxy setups.
+ * Fastify's request IP already respects `X-Forwarded-For` when (and only when)
+ * the server was configured with a trusted proxy. Reading the raw header here
+ * would let direct clients spoof rate-limit identities.
  */
 function defaultKeyGenerator(request: FastifyRequest): string {
-  const forwarded = request.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0]!.trim();
-  }
   return request.ip;
 }
