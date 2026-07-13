@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   FileCode2,
   Target,
+  RotateCcw,
 } from 'lucide-react';
 import Header from '@/components/header';
 import ErrorBanner from '@/components/error-banner';
@@ -105,7 +106,7 @@ export default function FindingDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<Finding>('/api/v1/findings/' + id);
+      const data = await apiFetch<Finding>('/api/v1/findings/' + encodeURIComponent(id));
       setFinding(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load finding');
@@ -123,7 +124,7 @@ export default function FindingDetailPage() {
   const handleResolve = async () => {
     setActionLoading('resolve');
     try {
-      await apiFetch(`/api/v1/findings/${id}`, {
+      await apiFetch(`/api/v1/findings/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'resolved' }),
       });
@@ -135,10 +136,25 @@ export default function FindingDetailPage() {
     }
   };
 
+  const handleReopen = async () => {
+    setActionLoading('reopen');
+    try {
+      await apiFetch(`/api/v1/findings/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'open' }),
+      });
+      setFinding((prev) => prev ? { ...prev, status: 'open' } : prev);
+    } catch {
+      setError('Failed to reopen finding.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSuppress = async () => {
     setActionLoading('suppress');
     try {
-      await apiFetch(`/api/v1/findings/${id}`, {
+      await apiFetch(`/api/v1/findings/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'suppressed' }),
       });
@@ -154,7 +170,7 @@ export default function FindingDetailPage() {
     if (!assignInput.trim()) return;
     setActionLoading('assign');
     try {
-      await apiFetch(`/api/v1/findings/${id}`, {
+      await apiFetch(`/api/v1/findings/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         body: JSON.stringify({ assignee: assignInput.trim() }),
       });
@@ -386,6 +402,20 @@ export default function FindingDetailPage() {
       <div className="glass-card p-5">
         <h3 className="text-sm font-semibold text-text-primary mb-3">Actions</h3>
         <div className="flex flex-wrap items-center gap-3">
+          {finding.status !== 'open' && (
+            <button
+              onClick={handleReopen}
+              disabled={actionLoading === 'reopen'}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/20 px-4 py-2.5 text-sm font-medium text-blue-400 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+            >
+              {actionLoading === 'reopen' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              Reopen
+            </button>
+          )}
           {finding.status !== 'resolved' && (
             <button
               onClick={handleResolve}

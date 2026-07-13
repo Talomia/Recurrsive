@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   FolderGit2,
   Plus,
@@ -28,7 +29,7 @@ import {
 } from 'lucide-react';
 import { getProjects, createBatchRun, triggerAnalysis } from '@/lib/api';
 import type { Project } from '@/lib/api';
-import { apiFetch } from '@/lib/api/client';
+import { apiFetch, ApiError } from '@/lib/api/client';
 import Header from '@/components/header';
 import { useAuth } from '@/lib/auth-context';
 
@@ -262,6 +263,7 @@ function ProjectQuickLinks({ project }: { project: Project }) {
 // ---------------------------------------------------------------------------
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const canAnalyze = user?.role === 'admin' || user?.role === 'analyst';
   const canDelete = user?.role === 'admin';
@@ -322,8 +324,13 @@ export default function ProjectsPage() {
     setAnalyzingIds(prev => new Set(prev).add(project.id));
     try {
       await triggerAnalysis(project.id);
-      setToast({ message: `Analysis started for "${project.name}". Check the Overview page for progress.`, type: 'success' });
-    } catch {
+      setToast({ message: `Analysis started for "${project.name}". Opening live progress…`, type: 'success' });
+      router.push(`/projects/${encodeURIComponent(project.id)}?projectId=${encodeURIComponent(project.id)}`);
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 409) {
+        router.push(`/projects/${encodeURIComponent(project.id)}?projectId=${encodeURIComponent(project.id)}`);
+        return;
+      }
       setToast({ message: `Failed to start analysis for "${project.name}".`, type: 'error' });
     } finally {
       setAnalyzingIds(prev => {
@@ -332,7 +339,7 @@ export default function ProjectsPage() {
         return next;
       });
     }
-  }, []);
+  }, [router]);
 
   const analyzeAll = useCallback(async () => {
     const projectIds = projects.map(p => p.id);
@@ -548,7 +555,7 @@ export default function ProjectsPage() {
                     >
                       <ExternalLink className="w-4 h-4 text-text-tertiary" />
                     </a>}
-                  <Link href={`/projects/${encodeURIComponent(project.id)}`} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }} title="Project details and settings">
+                  <Link href={`/projects/${encodeURIComponent(project.id)}?projectId=${encodeURIComponent(project.id)}`} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }} title="Project details and settings">
                     <Settings className="w-4 h-4 text-text-tertiary" />
                   </Link>
                   {canDelete && <button

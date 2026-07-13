@@ -40,7 +40,7 @@ const capabilities = [
   {
     icon: Brain,
     title: 'Specialist reasoning',
-    detail: 'Nineteen built-in specialist roles can challenge and synthesize findings while retaining evidence and dissent.',
+    detail: 'When an LLM provider is configured, nineteen specialist roles can challenge and synthesize findings while retaining evidence and dissent. Deterministic promotion is the fallback.',
   },
   {
     icon: Shield,

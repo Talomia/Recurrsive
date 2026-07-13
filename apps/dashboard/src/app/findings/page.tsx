@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff, ArrowRight } from "lucide-react";
 import Header from "@/components/header";
-import { getFindingsPage, type FindingsPageData } from "@/lib/api";
+import ErrorBanner from "@/components/error-banner";
+import { getApiErrorMessage, getFindingsPage, type FindingsPageData } from "@/lib/api";
 import clsx from "clsx";
 
 // ---------------------------------------------------------------------------
@@ -35,17 +36,23 @@ export default function FindingsPage() {
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("All Severities");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadFindings = useCallback(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     getFindingsPage()
       .then((data) => { if (!cancelled) setData(data); })
-      .catch(() => {
-        /* API unavailable – render empty state */
-        if (!cancelled) setData({ stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 }, findings: [] as FindingsPageData['findings'] } satisfies FindingsPageData);
-      });
+      .catch((caught) => {
+        if (!cancelled) setError(getApiErrorMessage(caught, 'Failed to load findings.'));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => loadFindings(), [loadFindings]);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -70,12 +77,23 @@ export default function FindingsPage() {
     return result;
   }, [data, search, severityFilter, statusFilter]);
 
-  if (!data) {
+  if (loading) {
     return (
       <div className="flex flex-col h-screen">
         <Header title="Findings" subtitle="Loading analysis evidence…" />
         <div className="flex-1 flex items-center justify-center">
           <div className="h-8 w-8 rounded-full border-2 border-accent-blue border-t-transparent animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header title="Findings" subtitle="Evidence-backed observations across the selected project" />
+        <div className="p-6">
+          <ErrorBanner message={error ?? 'Findings data is unavailable.'} onRetry={() => loadFindings()} />
         </div>
       </div>
     );
@@ -220,17 +238,26 @@ export default function FindingsPage() {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10 mb-5">
               <ShieldAlert className="h-7 w-7 text-text-muted" />
             </div>
-            <h3 className="text-lg font-semibold text-text-primary mb-2">No findings yet</h3>
+            <h3 className="text-lg font-semibold text-text-primary mb-2">
+              {data.analyzed ? 'No findings detected' : 'No analysis yet'}
+            </h3>
             <p className="text-sm text-text-secondary max-w-md mb-6">
-              Run an analysis on your project to discover security findings, code quality issues, and improvement opportunities.
+              {data.analyzed
+                ? 'The latest completed analysis did not produce any findings.'
+                : 'Run an analysis on your project to discover security findings, code quality issues, and improvement opportunities.'}
             </p>
-            <Link
+            {!data.analyzed && <Link
               href="/projects"
               className="inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/20 px-4 py-2.5 text-sm font-medium text-blue-400 hover:bg-accent-blue/20 transition-colors"
             >
               Go to Projects
               <ArrowRight className="h-4 w-4" />
-            </Link>
+            </Link>}
+          </div>
+        )}
+        {filtered.length === 0 && data.stats.total > 0 && (
+          <div className="py-12 text-center text-sm text-text-secondary">
+            No findings match the current search and filters.
           </div>
         )}
         {filtered.length === 0 && data.stats.total > 0 && (

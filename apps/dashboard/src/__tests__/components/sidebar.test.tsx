@@ -73,6 +73,8 @@ describe('Sidebar', () => {
     expect(screen.getByText('Opportunities')).toBeInTheDocument();
     expect(screen.getByText('System Map')).toBeInTheDocument();
     expect(screen.getByText('Analytics')).toBeInTheDocument();
+    expect(screen.getByText('Search')).toBeInTheDocument();
+    expect(screen.getByText('Comparisons')).toBeInTheDocument();
   });
 
   it('loads the active project opportunity total from the raw API envelope', async () => {
@@ -98,17 +100,24 @@ describe('Sidebar', () => {
     expect(screen.getByText('Scheduling')).toBeInTheDocument();
     expect(screen.getByText('Reports')).toBeInTheDocument();
     expect(screen.getByText('Experiments')).toBeInTheDocument();
+    expect(screen.getByText('Timeline')).toBeInTheDocument();
+    expect(screen.getByText('Snapshots')).toBeInTheDocument();
 
     const governanceButton = screen.getByRole('button', { name: /Governance/i });
     fireEvent.click(governanceButton);
     expect(screen.getByText('Policies')).toBeInTheDocument();
+    expect(screen.getByText('Notifications')).toBeInTheDocument();
+    expect(screen.getByText('Webhooks')).toBeInTheDocument();
 
     // Expand Administration
     const adminButton = screen.getByRole('button', { name: /Administration/i });
     fireEvent.click(adminButton);
 
     expect(screen.getByText('Users')).toBeInTheDocument();
+    expect(screen.getByText('Invites')).toBeInTheDocument();
     expect(screen.getByText('Audit Trail')).toBeInTheDocument();
+    expect(screen.getByText('Data Masking')).toBeInTheDocument();
+    expect(screen.getByText('Secrets')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('SSO')).toBeInTheDocument();
   });
@@ -117,7 +126,7 @@ describe('Sidebar', () => {
     render(<Sidebar />);
     // By default, only Intelligence and Analysis are expanded.
     const links = screen.getAllByRole('link');
-    expect(links.length).toBe(6);
+    expect(links.length).toBe(12);
   });
 
   it('renders all links when all sections are expanded', () => {
@@ -133,6 +142,6 @@ describe('Sidebar', () => {
 
     const links = screen.getAllByRole('link');
     // Current production navigation across all expanded sections.
-    expect(links.length).toBe(15);
+    expect(links.length).toBe(28);
   });
 });

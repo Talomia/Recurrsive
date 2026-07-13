@@ -17,6 +17,7 @@ export interface AuthContextValue {
   readonly error: string | null;
   login(username: string, password: string): Promise<boolean>;
   logout(): Promise<void>;
+  refreshSession(): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,19 +37,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    fetch('/api/v1/auth/me', { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        const body = await response.json() as { data?: { id: string; username?: string; role: Role; sessionExpiresAt?: number } };
-        return body.data ? mapUser(body.data) : null;
-      })
-      .then((resolvedUser) => { if (active) setUser(resolvedUser); })
-      .catch(() => { if (active) setUser(null); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+  const refreshSession = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/v1/auth/me', { cache: 'no-store' });
+      if (response.status === 401) {
+        setUser(null);
+        return;
+      }
+      const body = await response.json().catch(() => ({})) as {
+        message?: string;
+        error?: string;
+        data?: { id: string; username?: string; role: Role; sessionExpiresAt?: number };
+      };
+      if (!response.ok) {
+        throw new Error(body.message ?? body.error ?? `Session check failed (${response.status})`);
+      }
+      if (!body.data) throw new Error('Session response did not include a user.');
+      setUser(mapUser(body.data));
+    } catch (caught) {
+      // A timeout, 429, or upstream failure is not proof that the session is
+      // invalid. Preserve the current user and show a recoverable error.
+      setError(caught instanceof Error ? caught.message : 'Unable to verify the current session.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshSession();
+  }, [refreshSession]);
 
   useEffect(() => {
     if (!user?.sessionExpiresAt) return;
@@ -59,13 +78,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const body = await response.json().catch(() => ({})) as {
           data?: { user?: { id: string; username?: string; role: Role; sessionExpiresAt?: number } };
         };
-        if (!response.ok || !body.data?.user) {
+        if (response.status === 401) {
           setUser(null);
           return;
         }
+        if (!response.ok || !body.data?.user) {
+          setError('Session refresh failed. Your current session has been preserved.');
+          return;
+        }
+        setError(null);
         setUser(mapUser(body.data.user));
       } catch {
-        setUser(null);
+        setError('Session refresh failed. Your current session has been preserved.');
       }
     }, refreshInMs);
     return () => window.clearTimeout(timer);
@@ -108,6 +132,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({ user, loading, error, login, logout }), [user, loading, error, login, logout]);
+  const value = useMemo<AuthContextValue>(
+    () => ({ user, loading, error, login, logout, refreshSession }),
+    [user, loading, error, login, logout, refreshSession],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

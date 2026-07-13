@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Send, Monitor, MessageSquare, Globe } from 'lucide-react';
 import { testNotificationChannel } from '@/lib/api';
 import type { NotificationChannel } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 
 const CHANNEL_ICONS: Record<string, typeof Monitor> = {
   console: Monitor,
@@ -12,6 +13,8 @@ const CHANNEL_ICONS: Record<string, typeof Monitor> = {
 };
 
 export function ChannelCard({ channel }: { channel: NotificationChannel }) {
+  const { user } = useAuth();
+  const canTest = user?.role === 'admin';
   const Icon = CHANNEL_ICONS[channel.type] ?? Globe;
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -67,15 +70,19 @@ export function ChannelCard({ channel }: { channel: NotificationChannel }) {
         </div>
 
         {/* Test button */}
-        <button
-          onClick={handleTest}
-          disabled={testing}
-          className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors w-full disabled:opacity-40"
-          title={`Send test notification via ${channel.name}`}
-        >
-          <Send className="h-3.5 w-3.5" />
-          {testing ? 'Sending…' : 'Test'}
-        </button>
+        {canTest ? (
+          <button
+            onClick={handleTest}
+            disabled={testing}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors w-full disabled:opacity-40"
+            title={`Send test notification via ${channel.name}`}
+          >
+            <Send className="h-3.5 w-3.5" />
+            {testing ? 'Sending…' : 'Test'}
+          </button>
+        ) : (
+          <p className="text-[11px] text-text-muted text-center">Administrator access is required to send tests.</p>
+        )}
 
         {/* Result feedback */}
         {result && (

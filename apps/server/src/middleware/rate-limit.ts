@@ -10,6 +10,7 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { createHash } from 'node:crypto';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -134,12 +135,23 @@ export async function registerRateLimit(
 }
 
 /**
- * Default key generator — uses client IP address.
+ * Default key generator.
  *
- * Fastify's request IP already respects `X-Forwarded-For` when (and only when)
- * the server was configured with a trusted proxy. Reading the raw header here
- * would let direct clients spoof rate-limit identities.
+ * Authenticated clients receive an independent bucket per opaque credential so
+ * users behind one office/NAT address cannot throttle one another. Anonymous
+ * traffic remains IP-scoped. Only a short SHA-256 fingerprint is retained in
+ * memory; raw credentials are never used as map keys or logs.
  */
 function defaultKeyGenerator(request: FastifyRequest): string {
+  const authorization = request.headers.authorization;
+  const apiKey = request.headers['x-api-key'];
+  const credential = authorization ?? (typeof apiKey === 'string' ? apiKey : undefined);
+  if (credential) {
+    const digest = createHash('sha256').update(credential).digest('hex').slice(0, 24);
+    return `credential:${digest}`;
+  }
+
+  // Fastify's request IP respects forwarded addresses only when the server was
+  // explicitly configured with a trusted proxy.
   return request.ip;
 }

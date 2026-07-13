@@ -283,6 +283,37 @@ describe('Project isolation boundary', () => {
     });
     expect(missingScope.statusCode).toBe(404);
   });
+
+  it('adds project-scoped workflow state to project finding rows', async () => {
+    const projectId = 'workflow-project';
+    const findingId = '5144a953-a9b2-4dd7-8cd4-fa1c4e7bc36a';
+    await seedTestProject(projectId);
+    await store.set<AnalysisCache>('analysis_cache', projectId, {
+      findings: [{
+        id: findingId,
+        title: 'Workflow finding',
+        severity: 'high',
+        category: 'security',
+        analyzer_id: 'security.vulnerabilities',
+      }] as AnalysisCache['findings'],
+      opportunities: [],
+      consensus: null,
+      analyzedAt: '2024-06-15T00:00:00.000Z',
+      durationMs: 10,
+    });
+    await store.set('finding_states', projectId, {
+      [findingId]: { status: 'resolved', assignee: 'alice', updatedAt: '2024-06-15T00:00:00.000Z' },
+    });
+
+    const response = await app.inject({
+      headers: authHeaders,
+      method: 'GET',
+      url: `/api/v1/projects/${projectId}/findings`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data[0]).toMatchObject({ id: findingId, status: 'resolved', assignee: 'alice' });
+  });
 });
 
 describe('Public submissions', () => {
@@ -873,6 +904,19 @@ describe ('Webhook endpoints', () => {
     expect(body.message).toContain('url');
   });
 
+  it('POST /api/v1/webhooks rejects private and alternate loopback destinations', async () => {
+    for (const target of ['http://localhost/hook', 'http://169.254.169.254/hook', 'http://2130706433/hook']) {
+      const res = await app.inject({
+        headers: authHeaders,
+        method: 'POST',
+        url: '/api/v1/webhooks',
+        payload: { url: target, events: ['analysis.complete'] },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().message).toMatch(/private|reserved|internal/i);
+    }
+  });
+
   it ('POST /api/v1/webhooks returns 400 for missing events', async () => {
     const res = await app.inject({
       headers: authHeaders,
@@ -1123,6 +1167,17 @@ describe ('Notification endpoints', () => {
     expect(body.message).toContain('channel');
   });
 
+  it('POST /api/v1/notifications/test rejects private HTTP destinations', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/notifications/test',
+      payload: { channel: 'http', config: { url: 'http://127.0.0.1/admin' } },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toMatch(/private|reserved|internal/i);
+  });
+
   it ('POST /api/v1/notifications/test returns 400 for invalid channel', async () => {
     const res = await app.inject({
       headers: authHeaders,
@@ -1206,6 +1261,15 @@ describe('global authorization baseline', () => {
       url: '/api/v1/config',
       payload: { enable_reasoning: true },
     });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it.each([
+    ['/api/v1/webhooks', { url: 'https://example.com/hook', events: ['analysis.complete'] }],
+    ['/api/v1/notifications/test', { channel: 'console' }],
+  ])('requires administrators for governance mutation %s', async (url, payload) => {
+    const analystHeaders = { authorization: `Bearer ${createToken('test-analyst', 'analyst')}` };
+    const res = await app.inject({ headers: analystHeaders, method: 'POST', url, payload });
     expect(res.statusCode).toBe(403);
   });
 });

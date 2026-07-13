@@ -52,18 +52,44 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
     }
   }, [messages, isTyping]);
 
-  // Focus input when panel opens
+  // Focus the drawer, lock background scrolling, and restore focus on close.
   useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 200);
-    }
+    if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 0);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
   }, [open]);
 
-  // Close on Escape
+  // Close on Escape and keep keyboard focus inside the modal drawer.
   useEffect(() => {
     if (!open) return;
     function handleKey(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusable = Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), a[href]',
+        ) ?? [],
+      ).filter((element) => element.tabIndex !== -1);
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -139,15 +165,15 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
   const formatTime = (date: Date) =>
     date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+  // A translated off-canvas dialog is still exposed to screen readers and
+  // keyboard navigation. Do not mount it until the user opens the assistant.
+  if (!open) return null;
+
   return (
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
-          open
-            ? "opacity-100"
-            : "opacity-0 pointer-events-none"
-        }`}
+        className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -158,17 +184,13 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Analysis Search"
-        className={`fixed right-0 top-0 z-[95] flex h-full w-full max-w-[400px] flex-col transition-transform duration-300 ease-out ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
+        className="fixed right-0 top-0 z-[95] flex h-full w-full max-w-[400px] flex-col"
         style={{
           background: "rgba(10, 10, 20, 0.97)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
           borderLeft: "1px solid rgba(255, 255, 255, 0.08)",
-          boxShadow: open
-            ? "-20px 0 60px rgba(0, 0, 0, 0.4), 0 0 40px rgba(139, 92, 246, 0.06)"
-            : "none",
+          boxShadow: "-20px 0 60px rgba(0, 0, 0, 0.4), 0 0 40px rgba(139, 92, 246, 0.06)",
         }}
       >
         {/* Header */}

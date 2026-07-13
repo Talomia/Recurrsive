@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import Header from "@/components/header";
 import { getWebhooks, getWebhookEvents, createWebhook, deleteWebhook, testWebhook } from "@/lib/api";
 import type { WebhookRegistration, WebhookEvent } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import {
   Webhook,
   Activity,
@@ -44,7 +45,7 @@ function getEventColor(event: string) {
 // Webhook Card
 // ---------------------------------------------------------------------------
 
-function WebhookCard({ webhook, onTest, onDelete }: { webhook: WebhookRegistration; onTest: (id: string) => void; onDelete: (id: string) => void }) {
+function WebhookCard({ webhook, canManage, onTest, onDelete }: { webhook: WebhookRegistration; canManage: boolean; onTest: (id: string) => void; onDelete: (id: string) => void }) {
 
   const createdDate = new Date(webhook.created_at).toLocaleDateString("en-US", {
     month: "short",
@@ -130,7 +131,7 @@ function WebhookCard({ webhook, onTest, onDelete }: { webhook: WebhookRegistrati
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 flex-none">
+        {canManage && <div className="flex items-center gap-2 flex-none">
           <button
             onClick={() => onTest(webhook.id)}
             className="flex items-center gap-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors"
@@ -146,7 +147,7 @@ function WebhookCard({ webhook, onTest, onDelete }: { webhook: WebhookRegistrati
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   );
@@ -171,6 +172,8 @@ const ALL_EVENTS = [
 // ---------------------------------------------------------------------------
 
 export default function WebhooksPage() {
+  const { user } = useAuth();
+  const canManage = user?.role === 'admin';
   const [webhooks, setWebhooks] = useState<WebhookRegistration[]>([]);
   const [events, setEvents] = useState<WebhookEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -312,10 +315,14 @@ export default function WebhooksPage() {
               {webhooks.length}
             </span>
           </div>
-          <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-1.5 rounded-xl bg-accent-blue/15 border border-accent-blue/25 px-4 py-2 text-xs font-semibold text-blue-400 hover:bg-accent-blue/25 transition-colors">
-            <Plus className="h-3.5 w-3.5" />
-            Add Webhook
-          </button>
+          {canManage ? (
+            <button onClick={() => setShowCreate(!showCreate)} className="flex items-center gap-1.5 rounded-xl bg-accent-blue/15 border border-accent-blue/25 px-4 py-2 text-xs font-semibold text-blue-400 hover:bg-accent-blue/25 transition-colors">
+              <Plus className="h-3.5 w-3.5" />
+              Add Webhook
+            </button>
+          ) : (
+            <span className="text-xs text-text-muted">Administrator access is required to manage webhooks.</span>
+          )}
         </div>
 
         {/* Create Webhook Form */}
@@ -372,7 +379,7 @@ export default function WebhooksPage() {
         ) : (
           <div className="space-y-3 stagger-children">
             {webhooks.map((wh) => (
-              <WebhookCard key={wh.id} webhook={wh} onTest={handleTest} onDelete={handleDelete} />
+              <WebhookCard key={wh.id} webhook={wh} canManage={canManage} onTest={handleTest} onDelete={handleDelete} />
             ))}
           </div>
         )}

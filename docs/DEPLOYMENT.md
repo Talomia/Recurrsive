@@ -12,11 +12,16 @@ Configure these in the deployment platform's secret manager:
 | `JWT_SECRET` | server | unique random value, at least 32 characters |
 | `SECRETS_ENCRYPTION_KEY` | server | distinct unique random value, at least 32 characters |
 | `CORS_ORIGIN` | server | exact dashboard origin, no wildcard |
+| `DASHBOARD_ORIGIN` | dashboard | exact public dashboard origin used for mutation-origin checks |
 | `PUBLIC_API_URL` | dashboard | browser-reachable HTTPS API origin |
 | `INTERNAL_API_URL` | dashboard | internal API service URL |
 | `TRUST_PROXY` | server | `true` only behind the trusted EasyPanel proxy |
+| `RATE_LIMIT_MAX` | server | authenticated requests per credential per minute; default `300` |
+| `AUTH_RATE_LIMIT_MAX` | server | login attempts per source IP per minute; default `10` |
+| `RECURRSIVE_ALLOW_PRIVATE_OUTBOUND` | server | opt in to private-network webhook and notification targets; default `false` for SSRF protection |
 
 Production startup rejects known placeholders, weak database credentials, missing CORS, SQLite, and unavailable PostgreSQL/AGE.
+General traffic is bucketed by authenticated credential so one busy user does not consume another user's allowance; unauthenticated traffic and login attempts remain IP-limited.
 
 ## Docker Compose
 
@@ -37,7 +42,7 @@ The database is internal-only. Containers run as non-root users and have health 
 2. Create or update the project from `easypanel.json`.
 3. Set fresh database, JWT, and encryption secrets in EasyPanel. Do not leave schema placeholders in place.
 4. Assign HTTPS domains to the API, dashboard, and optional website.
-5. Set `CORS_ORIGIN` to the dashboard origin, `PUBLIC_API_URL` to the public API origin, and `INTERNAL_API_URL` to the EasyPanel API service address.
+5. Set `CORS_ORIGIN` and `DASHBOARD_ORIGIN` to the dashboard origin, `PUBLIC_API_URL` to the public API origin, and `INTERNAL_API_URL` to the EasyPanel API service address.
 6. Deploy PostgreSQL first, then the API, then dashboard and website.
 7. Confirm `/health`, `/api/v1/setup/status`, dashboard setup/login, API session hydration, analysis, and WebSocket events.
 

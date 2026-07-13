@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, FileText, Shield, Zap, ExternalLink, Loader2 } from "lucide-react";
 import Header from "@/components/header";
+import ErrorBanner from "@/components/error-banner";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
-import { getOpportunities, type Opportunity } from "@/lib/api";
+import { getApiErrorMessage, getHealthMetrics, getOpportunities, type Opportunity } from "@/lib/api";
 import clsx from "clsx";
 
 type TabKey = "overview" | "evidence" | "analysis" | "implementation";
@@ -32,25 +33,31 @@ export default function OpportunitiesPage() {
   const [severityFilter, setSeverityFilter] = useState<string>("All Severities");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [analyzed, setAnalyzed] = useState(false);
 
-  // Fetch opportunities from API on mount
-  useEffect(() => {
+  const loadOpportunities = useCallback(() => {
     let cancelled = false;
-    getOpportunities()
-      .then((data) => {
+    setLoading(true);
+    setError(null);
+    Promise.all([getOpportunities(), getHealthMetrics()])
+      .then(([data, health]) => {
         if (!cancelled) {
           setOpportunities(data);
+          setAnalyzed(Boolean(health.analyzedAt));
           if (data.length > 0) setSelectedId(data[0]!.id);
         }
       })
-      .catch(() => {
-        if (!cancelled) setError('Failed to load opportunities.');
+      .catch((caught) => {
+        if (!cancelled) setError(getApiErrorMessage(caught, 'Failed to load opportunities.'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
   }, []);
+
+  // Fetch opportunities from API on mount
+  useEffect(() => loadOpportunities(), [loadOpportunities]);
 
   const filtered = useMemo(() => {
     let result = opportunities;
@@ -102,9 +109,28 @@ export default function OpportunitiesPage() {
           title="Opportunities"
           subtitle="Evidence-backed improvement opportunities from recorded analysis"
         />
-        <div className="flex-1 flex items-center justify-center flex-col gap-2">
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <p className="text-text-muted text-lg">No opportunities found</p>
+        <div className="flex-1 p-6 flex items-center justify-center flex-col gap-3">
+          {error ? (
+            <div className="w-full max-w-2xl">
+              <ErrorBanner message={error} onRetry={() => loadOpportunities()} />
+            </div>
+          ) : (
+            <>
+              <p className="text-text-primary text-lg font-semibold">
+                {analyzed ? 'No opportunities detected' : 'No analysis yet'}
+              </p>
+              <p className="text-text-muted text-sm text-center max-w-md">
+                {analyzed
+                  ? 'The latest completed analysis did not produce any improvement opportunities.'
+                  : 'Analyze a project to generate evidence-backed improvement opportunities.'}
+              </p>
+              {!analyzed && (
+                <Link href="/projects" className="mt-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-400">
+                  Go to projects
+                </Link>
+              )}
+            </>
+          )}
         </div>
       </div>
     );

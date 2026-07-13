@@ -7,6 +7,7 @@ import { useActiveProject } from "./active-project-context";
 import { useAuth, type Role } from "@/lib/auth-context";
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
+import { isPublicDashboardPath, withProjectScope } from "@/lib/project-scope";
 import {
   LayoutDashboard,
   Lightbulb,
@@ -31,6 +32,8 @@ import {
   KeyRound,
   Calendar,
   Users,
+  Activity,
+  Bell,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -56,6 +59,10 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Intelligence",
     items: [
       { href: "/", label: "Overview", icon: LayoutDashboard },
+      { href: "/executive", label: "Executive", icon: FileText },
+      { href: "/insights", label: "Insights", icon: Bot },
+      { href: "/health", label: "Health", icon: Activity },
+      { href: "/forecasting", label: "Projection", icon: BarChart3 },
     ],
   },
   {
@@ -67,6 +74,8 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
       { href: "/system-map", label: "System Map", icon: Network },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/search", label: "Search", icon: Search },
+      { href: "/comparisons", label: "Comparisons", icon: Layers },
     ],
   },
   {
@@ -77,6 +86,8 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/scheduling", label: "Scheduling", icon: Calendar },
       { href: "/reports", label: "Reports", icon: FileText },
       { href: "/experiments", label: "Experiments", icon: FlaskConical },
+      { href: "/timeline", label: "Timeline", icon: History },
+      { href: "/snapshots", label: "Snapshots", icon: FileText },
     ],
   },
   {
@@ -84,6 +95,8 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Governance",
     items: [
       { href: "/policies", label: "Policies", icon: Shield },
+      { href: "/notifications", label: "Notifications", icon: Bell },
+      { href: "/webhooks", label: "Webhooks", icon: Zap },
     ],
   },
   {
@@ -92,7 +105,10 @@ const NAV_SECTIONS: NavSection[] = [
     roles: ["admin"],
     items: [
       { href: "/users", label: "Users", icon: Users },
+      { href: "/invites", label: "Invites", icon: Users },
       { href: "/audit", label: "Audit Trail", icon: History },
+      { href: "/data-masking", label: "Data Masking", icon: ShieldAlert },
+      { href: "/secrets", label: "Secrets", icon: KeyRound },
       { href: "/settings", label: "Settings", icon: Settings },
       { href: "/sso", label: "SSO", icon: KeyRound },
     ],
@@ -134,9 +150,7 @@ function saveExpanded(state: Record<string, boolean>) {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const isPublicRoute = ["/login", "/setup", "/invite"].some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`),
-  );
+  const isPublicRoute = isPublicDashboardPath(pathname);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [opportunityCount, setOpportunityCount] = useState(0);
@@ -206,8 +220,7 @@ export default function Sidebar() {
 
   // Fetch opportunity count (skip on public pages to avoid 401 trigger redirect loops)
   useEffect(() => {
-    const isPublic = ["/login", "/setup", "/invite"].some((p) => pathname === p || pathname.startsWith(p + "/"));
-    if (isPublic) return;
+    if (isPublicRoute) return;
     if (!activeProjectId) {
       setOpportunityCount(0);
       return;
@@ -225,7 +238,7 @@ export default function Sidebar() {
           }
         });
     });
-  }, [pathname, activeProjectId]);
+  }, [isPublicRoute, activeProjectId]);
 
   const toggleSection = useCallback((key: string) => {
     setExpanded((prev) => {
@@ -300,6 +313,7 @@ export default function Sidebar() {
                 onClick={() => setCollapsed(false)}
                 className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-accent-purple"
                 title={`Active: ${activeProject?.name ?? "None"}`}
+                aria-label={`Expand project selector. Active project: ${activeProject?.name ?? "none"}`}
               >
                 <FolderGit2 className="h-4 w-4" />
               </button>
@@ -431,10 +445,7 @@ export default function Sidebar() {
                   {section.items.map(({ href, label, icon: Icon }) => {
                     const active =
                       href === "/" ? pathname === "/" : pathname.startsWith(href);
-                    const activeProjectId = activeProject?.id;
-                    const finalHref = activeProjectId && href !== "/projects"
-                      ? `${href}?projectId=${encodeURIComponent(activeProjectId)}`
-                      : href;
+                    const finalHref = withProjectScope(href, activeProject?.id);
                     return (
                       <Link
                         key={href}
@@ -447,6 +458,8 @@ export default function Sidebar() {
                             : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
                         )}
                         aria-current={active ? "page" : undefined}
+                        aria-label={collapsed ? label : undefined}
+                        title={collapsed ? label : undefined}
                       >
                         {active && <span className="nav-active-indicator" aria-hidden="true" />}
                         <Icon

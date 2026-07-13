@@ -73,6 +73,24 @@ describe('AuthProvider', () => {
     expect(global.fetch).toHaveBeenCalledWith('/api/v1/auth/me', { cache: 'no-store' });
   });
 
+  it('reports a transient session failure without treating it as logout', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({ message: 'Rate limit exceeded. Try again shortly.' }),
+      status: 429,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Rate limit exceeded/)).toBeInTheDocument();
+    });
+  });
+
   it('exports useAuth hook', () => {
     // useAuth should throw when used outside provider
     expect(() => {

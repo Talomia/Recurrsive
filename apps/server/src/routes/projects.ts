@@ -20,6 +20,7 @@ import { state } from '../state.js';
 import { deleteProjectGraph } from '../project-graph.js';
 import { requireRole } from '../middleware/rbac.js';
 import { isScheduleRunActive } from './scheduling.js';
+import type { FindingWorkflowStates } from '../project-analysis.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -169,9 +170,14 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
       }
 
       const cache = await store.get<AnalysisCache>('analysis_cache', project.id);
+      const states = (await store.get<FindingWorkflowStates>('finding_states', project.id)) ?? {};
 
       return reply.status(200).send({
-        data: cache?.findings ?? [],
+        data: (cache?.findings ?? []).map((finding) => ({
+          ...finding,
+          status: states[finding.id]?.status ?? 'open',
+          assignee: states[finding.id]?.assignee ?? '',
+        })),
         total: cache?.findings?.length ?? 0,
       });
     } catch {

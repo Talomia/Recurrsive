@@ -157,8 +157,10 @@ const ADMIN_MUTATION_PREFIXES = [
   '/api/v1/auth/users',
   '/api/v1/config',
   '/api/v1/data-masking',
+  '/api/v1/notifications',
   '/api/v1/secrets',
   '/api/v1/sso',
+  '/api/v1/webhooks',
 ] as const;
 
 /**

@@ -17,7 +17,7 @@ const PIPELINE_STEPS = [
   {
     icon: Boxes,
     title: 'Collect',
-    desc: '14 collectors ingest evidence from Git, GitHub, GitLab, OpenTelemetry, cloud cost APIs, error tracking, APM, AI providers (Langfuse, Arize, Helicone), databases, CI/CD, and more.',
+    desc: 'Five collectors are wired into project analysis today: Git, documentation, environment configuration, CI/CD configuration, and database schema. Additional adapter packages are not presented as integrated runtime sources.',
     color: '#7c3aed',
   },
   {
@@ -29,7 +29,7 @@ const PIPELINE_STEPS = [
   {
     icon: Brain,
     title: 'Reason',
-    desc: 'Nineteen specialist roles can challenge and synthesize findings. Evidence and dissent remain attached to the resulting opportunities.',
+    desc: 'When an LLM provider is configured, nineteen specialist roles can challenge and synthesize findings. Deterministic evidence-preserving promotion remains the fallback.',
     color: '#06b6d4',
   },
   {
@@ -255,7 +255,7 @@ export default function ProductPage() {
               <p className="text-secondary" style={{ fontSize: '1rem', lineHeight: 1.8, marginBottom: 'var(--space-lg)' }}>
                 Not a single model guessing. Specialized AI agents for architecture, performance,
                 security, cost, AI quality, and more — each bringing domain expertise to a structured
-                debate protocol. Evidence is fused, conflicts are recorded, and unsupported impact remains unknown.
+                optional debate protocol when an LLM provider is configured. Without one, findings are promoted deterministically and unsupported impact remains unknown.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                 {['Structured debate with presentation, challenge, and synthesis', 'Cross-domain evidence fusion from configured collectors', 'Recorded reasoning provenance and confidence', 'Evidence-linked opportunities and dissent traces'].map((item) => (

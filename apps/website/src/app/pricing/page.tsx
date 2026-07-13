@@ -21,9 +21,9 @@ const PLANS = [
     ctaStyle: 'btn-secondary',
     badge: null,
     features: [
-      '14 data collectors',
+      '5 integrated repository collectors',
       '13 built-in analyzers',
-      '19-specialist multi-agent reasoning',
+      'Optional 19-specialist LLM reasoning',
       'Knowledge graph (SQLite + AGE)',
       'CLI for analysis and operations',
       'MCP Server integration',
@@ -41,7 +41,7 @@ const PLANS = [
     cta: 'Discuss Support',
     ctaHref: '/contact',
     ctaStyle: 'btn-primary',
-    badge: 'Most Popular',
+    badge: null,
     features: [
       'Everything in Open Source',
       'EasyPanel deployment review',
@@ -77,9 +77,9 @@ const PLANS = [
 ];
 
 const COMPARISON = [
-  { feature: 'Collectors', oss: '14', enterprise: '14', cloud: '14' },
+  { feature: 'Integrated collectors', oss: '5', enterprise: '5', cloud: '5 + custom integration' },
   { feature: 'Analyzers', oss: '13', enterprise: '13 + custom', cloud: '13 + custom' },
-  { feature: 'Multi-agent reasoning', oss: true, enterprise: true, cloud: true },
+  { feature: 'Optional LLM reasoning', oss: 'When configured', enterprise: 'When configured', cloud: 'Integration available' },
   { feature: 'Knowledge graph', oss: 'SQLite dev / PostgreSQL+AGE prod', enterprise: 'SQLite dev / PostgreSQL+AGE prod', cloud: 'SQLite dev / PostgreSQL+AGE prod' },
   { feature: 'REST + WebSocket API', oss: true, enterprise: true, cloud: true },
   { feature: 'CLI', oss: true, enterprise: true, cloud: true },
@@ -104,8 +104,8 @@ const FAQS = [
     a: 'The more systems you connect, the better the cross-cutting insights. Per-repo pricing discourages connecting your full landscape, which defeats the purpose of holistic intelligence.',
   },
   {
-    q: 'What\'s included in the free tier?',
-    a: 'The repository includes collectors, analyzers, reasoning, CLI, MCP server, REST API, and the policy engine under Apache 2.0.',
+    q: 'What\'s included in the open-source software?',
+    a: 'The repository includes the five collectors integrated with project analysis, thirteen analyzers, optional LLM reasoning, CLI, MCP server, REST API, and the policy engine under Apache 2.0.',
   },
   {
     q: 'Are product features paywalled?',
@@ -141,8 +141,7 @@ export default function PricingPage() {
             Simple, <span className="text-gradient">Transparent</span> Pricing
           </h1>
           <p className="text-secondary animate-fade-in stagger-2" style={{ fontSize: '1.15rem', maxWidth: 600, margin: '0 auto' }}>
-            Pay by Decision Scope, not by seat or repository.
-            More users and more systems connected means better intelligence for everyone.
+            The software is Apache-2.0 licensed. Support and implementation work are scoped by agreement, never by seat or repository.
           </p>
         </div>
       </section>
@@ -159,8 +158,8 @@ export default function PricingPage() {
                   display: 'flex',
                   flexDirection: 'column',
                   position: 'relative',
-                  border: plan.badge === 'Most Popular' ? '1px solid var(--border-accent)' : undefined,
-                  boxShadow: plan.badge === 'Most Popular' ? 'var(--shadow-glow)' : undefined,
+                  border: plan.badge ? '1px solid var(--border-accent)' : undefined,
+                  boxShadow: plan.badge ? 'var(--shadow-glow)' : undefined,
                 }}
               >
                 {plan.badge && (

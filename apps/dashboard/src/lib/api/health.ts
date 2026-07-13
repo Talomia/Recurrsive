@@ -15,6 +15,7 @@ export interface HealthMetrics {
   securityScore: number;
   opportunities: number;
   findingCount: number;
+  analyzedAt: string | null;
 }
 
 export interface PerformanceMetric {
@@ -57,6 +58,7 @@ export async function getHealthMetrics(projectId?: string): Promise<HealthMetric
     health_trend: number;
     finding_count: number;
     opportunity_count: number;
+    analyzed_at: string | null;
   }>("/api/v1/health-score", { projectId });
 
   return {
@@ -66,6 +68,7 @@ export async function getHealthMetrics(projectId?: string): Promise<HealthMetric
     securityScore: raw.dimensions?.security ?? 0,
     opportunities: raw.opportunity_count,
     findingCount: raw.finding_count,
+    analyzedAt: raw.analyzed_at ?? null,
   };
 }
 

@@ -173,9 +173,12 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
       const resolved = await resolveAnalysis(request);
       const { cache } = resolved;
       if (!cache) {
-        return reply.status(503).send({
-          error: 'Not ready',
-          message: 'No analysis has been run yet. Use POST /api/v1/analyze first.',
+        return reply.status(200).send({
+          data: {
+            analyzed: false,
+            findings: [],
+            stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+          },
         });
       }
 
@@ -200,7 +203,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
         low: findings.filter((f) => f.severity === 'low').length,
       };
 
-      return reply.status(200).send({ data: { findings: items, stats } });
+      return reply.status(200).send({ data: { analyzed: true, findings: items, stats } });
     } catch (err) {
       rethrowProjectScopeError(err);
       logger.error('Failed to generate findings page', { error: err });

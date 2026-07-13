@@ -59,6 +59,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Convert transport failures into concise, actionable UI copy. */
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    if (error.status === 429) return 'Too many requests. Wait a moment, then try again.';
+    if (error.status >= 500) return 'The Recurrsive API is temporarily unavailable. Try again shortly.';
+    if (error.status === 403) return 'You do not have permission to view this data.';
+    return error.statusText || fallback;
+  }
+  if (error instanceof TypeError) return 'Unable to reach the Recurrsive API. Check the server connection and try again.';
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 /**
  * Fetch JSON from the API, unwrapping the `{ data }` envelope.
  *

@@ -8,7 +8,7 @@
  * with KPIs, risk assessment, and strategic recommendations.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useActiveProject } from '@/components/active-project-context';
 import Link from 'next/link';
 import {
@@ -35,13 +35,15 @@ import ScoreGauge from '@/components/score-gauge';
 import TrendChart from '@/components/trend-chart';
 import HealthChart from '@/components/health-chart';
 import OpportunitiesList from '@/components/opportunities-list';
+import ErrorBanner from '@/components/error-banner';
 import {
   getHealthMetrics,
   getTimeline,
   getOpportunities,
   getPerformanceMetrics,
-  getProjects,
   getFindingsSummary,
+  ApiError,
+  getApiErrorMessage,
   type HealthMetrics,
   type TimelinePoint,
   type Opportunity,
@@ -78,9 +80,9 @@ function WelcomeState({ projectCount }: { projectCount: number }) {
             >
               <Rocket className="h-10 w-10 text-blue-400" />
             </div>
-            <h1 className="text-3xl font-bold text-text-primary mb-3">
+            <h2 className="text-3xl font-bold text-text-primary mb-3">
               Welcome to Recurrsive
-            </h1>
+            </h2>
             <p className="text-base text-text-secondary max-w-lg mx-auto">
               Your engineering intelligence platform. {hasProjects
                 ? 'Run your first analysis to populate the dashboard with insights.'
@@ -309,14 +311,15 @@ function StrategicRecommendation({
 // ---------------------------------------------------------------------------
 
 export default function OverviewPage() {
-  const { activeProject } = useActiveProject();
+  const { activeProject, projects } = useActiveProject();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [loading, setLoading] = useState(true);
   const [hasData, setHasData] = useState(false);
   const [projectCount, setProjectCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   // Overview data
-  const [health, setHealth] = useState<HealthMetrics>({ healthScore: 0, healthTrend: 0, documentationScore: 0, securityScore: 0, opportunities: 0, findingCount: 0 });
+  const [health, setHealth] = useState<HealthMetrics>({ healthScore: 0, healthTrend: 0, documentationScore: 0, securityScore: 0, opportunities: 0, findingCount: 0, analyzedAt: null });
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [perfMetrics, setPerfMetrics] = useState<Awaited<ReturnType<typeof getPerformanceMetrics>>>([]);
@@ -326,30 +329,40 @@ export default function OverviewPage() {
   const [execLoaded, setExecLoaded] = useState(false);
   const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
 
+  const loadOverview = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [h, t, o] = await Promise.all([
+        getHealthMetrics(),
+        getTimeline(),
+        getOpportunities(),
+      ]);
+      let p: Awaited<ReturnType<typeof getPerformanceMetrics>> = [];
+      if (h.analyzedAt) {
+        try {
+          p = await getPerformanceMetrics();
+        } catch (caught) {
+          if (!(caught instanceof ApiError && caught.status === 404)) throw caught;
+        }
+      }
+      setHealth(h);
+      setTimeline(t);
+      setOpportunities(o);
+      setPerfMetrics(p);
+      setProjectCount(projects.length);
+      setHasData(Boolean(h.analyzedAt));
+    } catch (caught) {
+      setError(getApiErrorMessage(caught, 'Failed to load the intelligence overview.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [projects.length]);
+
   // Load overview data
   useEffect(() => {
-    (async () => {
-      try {
-        const [h, t, o, p, projects] = await Promise.all([
-          getHealthMetrics().catch(() => ({ healthScore: 0, healthTrend: 0, documentationScore: 0, securityScore: 0, opportunities: 0, findingCount: 0 })),
-          getTimeline().catch(() => []),
-          getOpportunities().catch(() => []),
-          getPerformanceMetrics().catch(() => []),
-          getProjects().catch(() => []),
-        ]);
-        setHealth(h);
-        setTimeline(t);
-        setOpportunities(o);
-        setPerfMetrics(p);
-        setProjectCount(projects.length);
-        setHasData(h.findingCount > 0 || t.length > 0 || o.length > 0);
-      } catch {
-        // Will show welcome state
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+    void loadOverview();
+  }, [loadOverview]);
 
   // Lazy load executive data
   useEffect(() => {
@@ -370,6 +383,20 @@ export default function OverviewPage() {
         />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header
+          title="Intelligence Overview"
+          subtitle="Evidence-backed system health, recommendations, and engineering intelligence"
+        />
+        <div className="flex-1 p-6">
+          <ErrorBanner message={error} onRetry={() => void loadOverview()} />
         </div>
       </div>
     );

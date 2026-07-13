@@ -39,7 +39,7 @@ export interface ServerOptions {
   logger?: boolean;
   /** CORS allowed origins (default: true = allow all). */
   corsOrigin?: boolean | string | string[];
-  /** Max requests per minute per client (default: 100). Set 0 to disable. */
+  /** Max requests per minute per authenticated client (default: 300). Set 0 to disable. */
   rateLimitMax?: number;
 }
 
@@ -126,9 +126,22 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
   });
 
   // Register rate limiting (skip if explicitly disabled)
-  const rateLimitMax = options?.rateLimitMax ?? 100;
+  const configuredRateLimit = Number.parseInt(process.env['RATE_LIMIT_MAX'] ?? '', 10);
+  const rateLimitMax = options?.rateLimitMax
+    ?? (Number.isFinite(configuredRateLimit) ? configuredRateLimit : 300);
   if (rateLimitMax > 0) {
     await registerRateLimit(app, { max: rateLimitMax });
+    const configuredLoginLimit = Number.parseInt(process.env['AUTH_RATE_LIMIT_MAX'] ?? '', 10);
+    const loginLimit = Number.isFinite(configuredLoginLimit) ? configuredLoginLimit : 10;
+    if (loginLimit > 0) {
+      await registerRateLimit(app, {
+        max: loginLimit,
+        keyGenerator: (request) => request.ip,
+        skip: (request) => !(
+          request.method === 'POST' && request.url.split('?')[0] === '/api/v1/auth/login'
+        ),
+      });
+    }
   }
 
   // Register audit logging (before routes, to capture all requests)

@@ -77,6 +77,7 @@ export interface FindingsPageItem {
 }
 
 export interface FindingsPageData {
+  analyzed: boolean;
   findings: FindingsPageItem[];
   stats: {
     total: number;

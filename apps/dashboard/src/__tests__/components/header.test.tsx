@@ -88,6 +88,15 @@ describe('Header', () => {
   it('renders AI assist button', () => {
     render(<Header title="Test" />);
     expect(screen.getByLabelText('Open analysis search')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Analysis Search' })).not.toBeInTheDocument();
+  });
+
+  it('mounts the analysis dialog only while it is open', () => {
+    render(<Header title="Test" />);
+    fireEvent.click(screen.getByLabelText('Open analysis search'));
+    expect(screen.getByRole('dialog', { name: 'Analysis Search' })).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Close analysis search'));
+    expect(screen.queryByRole('dialog', { name: 'Analysis Search' })).not.toBeInTheDocument();
   });
 
   it('toggles user menu on click', () => {

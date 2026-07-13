@@ -85,7 +85,7 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile.dashboard"
         },
-        "env": "NEXT_PUBLIC_API_URL=https://recurrsive-server.easypanel.host\nINTERNAL_API_URL=http://recurrsive_server:3000\nPUBLIC_API_URL=https://recurrsive-server.easypanel.host\nPORT=3100\nNODE_ENV=production",
+        "env": "NEXT_PUBLIC_API_URL=https://recurrsive-server.easypanel.host\nINTERNAL_API_URL=http://recurrsive_server:3000\nPUBLIC_API_URL=https://recurrsive-server.easypanel.host\nDASHBOARD_ORIGIN=https://recurrsive-dashboard.easypanel.host\nPORT=3100\nNODE_ENV=production",
         "deploy": {
           "command": null,
           "replicas": 1,

@@ -4,7 +4,7 @@
  * Re-exports all domain modules so consumers can import from a single path.
  */
 
-export { apiFetch, ApiError, BASE_URL } from './client';
+export { apiFetch, ApiError, BASE_URL, getApiErrorMessage } from './client';
 export * from './health';
 export * from './analysis';
 export * from './opportunities';

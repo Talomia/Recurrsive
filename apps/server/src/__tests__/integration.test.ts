@@ -298,7 +298,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
-        url: 'https://integration-test.example.com/webhook',
+        url: 'https://93.184.216.34/webhook',
         events: ['analysis.complete', 'opportunity.created'],
       },
     });
@@ -306,7 +306,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
     const body = res.json();
     expect(body).toHaveProperty('data');
     expect(body.data).toHaveProperty('id');
-    expect(body.data.url).toBe('https://integration-test.example.com/webhook');
+    expect(body.data.url).toBe('https://93.184.216.34/webhook');
     expect(body.data.events).toEqual(['analysis.complete', 'opportunity.created']);
     expect(body.data.active).toBe(true);
     expect(body.data.delivery_count).toBe(0);
@@ -321,7 +321,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
     expect(Array.isArray(body.data)).toBe(true);
     const found = body.data.find((w: { id: string }) => w.id === webhookId);
     expect(found).toBeDefined();
-    expect(found.url).toBe('https://integration-test.example.com/webhook');
+    expect(found.url).toBe('https://93.184.216.34/webhook');
   });
 
   it('9. POST /api/v1/webhooks/:id/test triggers a test delivery', async () => {
@@ -346,7 +346,7 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
       // Verify the actual fetch was called with the webhook URL
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://integration-test.example.com/webhook',
+        'https://93.184.216.34/webhook',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({ 'Content-Type': 'application/json' }),

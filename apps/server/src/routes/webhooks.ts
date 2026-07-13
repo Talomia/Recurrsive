@@ -14,6 +14,7 @@
 import type { FastifyInstance } from 'fastify';
 import { createHmac, randomBytes } from 'node:crypto';
 import { authMiddleware } from '../middleware/auth.js';
+import { assertSafeOutboundUrl, validateOutboundUrl } from '../security/outbound-url.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -144,11 +145,13 @@ export async function deliverWebhook(
   const start = performance.now();
 
   try {
+    await assertSafeOutboundUrl(url);
     const response = await fetch(url, {
       method: 'POST',
       headers,
       body,
       signal: controller.signal,
+      redirect: 'manual',
     });
 
     const duration_ms = Math.round(performance.now() - start);
@@ -281,43 +284,14 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       });
     }
 
-    // Validate URL format and prevent SSRF
-    let parsed: URL;
+    // Validate URL format and block literal/private destinations. DNS is
+    // checked again immediately before every delivery.
     try {
-      parsed = new URL(url);
-    } catch {
+      validateOutboundUrl(url);
+    } catch (error) {
       return reply.status(400).send({
         error: 'Invalid request',
-        message: 'url must be a valid URL.',
-      });
-    }
-
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return reply.status(400).send({
-        error: 'Invalid request',
-        message: 'url must use http or https protocol.',
-      });
-    }
-
-    // Block requests to private/internal networks (SSRF prevention)
-    const hostname = parsed.hostname.toLowerCase();
-    const blockedPatterns = [
-      /^127\./,              // Loopback
-      /^10\./,               // Private class A
-      /^172\.(1[6-9]|2\d|3[01])\./, // Private class B
-      /^192\.168\./,         // Private class C
-      /^169\.254\./,         // Link-local / cloud metadata
-      /^0\./,                // Current network
-      /^fc00:/i,             // IPv6 unique local
-      /^fe80:/i,             // IPv6 link-local
-      /^::1$/,               // IPv6 loopback
-    ];
-    const blockedHosts = ['localhost', 'metadata.google.internal', 'metadata.internal'];
-
-    if (blockedHosts.includes(hostname) || blockedPatterns.some((p) => p.test(hostname))) {
-      return reply.status(400).send({
-        error: 'Invalid request',
-        message: 'url must not point to a private or internal network address.',
+        message: error instanceof Error ? error.message : 'url is not a safe outbound destination.',
       });
     }
 
@@ -428,6 +402,17 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
           error: 'Invalid events',
           message: `Unknown event types: ${invalidEvents.join(', ')}`,
           valid_events: validEvents,
+        });
+      }
+    }
+
+    if (url !== undefined) {
+      try {
+        validateOutboundUrl(url);
+      } catch (error) {
+        return reply.status(400).send({
+          error: 'Invalid request',
+          message: error instanceof Error ? error.message : 'url is not a safe outbound destination.',
         });
       }
     }

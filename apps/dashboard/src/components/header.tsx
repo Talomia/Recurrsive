@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Sparkles, LogOut, Settings } from "lucide-react";
+import { Search, Sparkles, LogOut, Settings } from "lucide-react";
 import { useRealtime } from "./realtime-context";
 import { LiveIndicator } from "./LiveIndicator";
 import { useAuth, type Role } from "@/lib/auth-context";
 import { useActiveProject } from "./active-project-context";
 import NotificationsPanel from "./notifications-panel";
 import AiChatPanel from "./ai-chat-panel";
+import { withProjectScope } from "@/lib/project-scope";
 
 interface HeaderProps {
   title: string;
@@ -321,9 +322,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
 
   const handleSelect = useCallback((item: CommandItem) => {
     onClose();
-    const scopedHref = activeProject && !['/projects', '/batch', '/users', '/audit', '/settings', '/sso'].includes(item.href)
-      ? `${item.href}?projectId=${encodeURIComponent(activeProject.id)}`
-      : item.href;
+    const scopedHref = withProjectScope(item.href, activeProject?.id);
     router.push(scopedHref);
   }, [activeProject, onClose, router]);
 

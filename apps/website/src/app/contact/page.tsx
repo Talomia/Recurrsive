@@ -17,6 +17,7 @@ const contactCards = [
     icon: Mail,
     title: 'Email Us',
     value: 'hello@recurrsive.dev',
+    href: 'mailto:hello@recurrsive.dev',
     description: 'For general inquiries and partnerships',
     color: 'var(--purple)',
   },
@@ -24,6 +25,7 @@ const contactCards = [
     icon: Github,
     title: 'GitHub',
     value: 'github.com/Talomia/Recurrsive',
+    href: 'https://github.com/Talomia/Recurrsive',
     description: 'Star the repo, open issues, contribute',
     color: 'var(--blue)',
   },
@@ -31,6 +33,7 @@ const contactCards = [
     icon: MessageCircle,
     title: 'Security Reports',
     value: 'security@recurrsive.dev',
+    href: 'mailto:security@recurrsive.dev',
     description: 'Private vulnerability disclosure',
     color: 'var(--cyan)',
   },
@@ -38,6 +41,7 @@ const contactCards = [
     icon: MapPin,
     title: 'Deployment',
     value: 'Self-hosted',
+    href: null,
     description: 'Your infrastructure and data boundary',
     color: 'var(--green)',
   },
@@ -85,8 +89,17 @@ export default function ContactPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.message) {
-      alert('Please fill out all required fields (Name, Email, Message)');
+    const normalized = {
+      ...formData,
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      message: formData.message.trim(),
+    };
+    const missingField = (['name', 'email', 'message'] as const)
+      .find((field) => !normalized[field]);
+    if (missingField) {
+      setSubmitError('Please complete your name, email, and message.');
+      document.getElementById(missingField)?.focus();
       return;
     }
     setSubmitError(null);
@@ -95,7 +108,7 @@ export default function ContactPage() {
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, website: '' }),
+        body: JSON.stringify({ ...normalized, website: '' }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? 'Unable to send your message.');
@@ -227,10 +240,11 @@ export default function ContactPage() {
                 <h3 style={{ marginBottom: 'var(--space-lg)' }}>Send a Message</h3>
                 <form
                   onSubmit={handleSubmit}
+                  aria-busy={submitting}
                   style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
                 >
                   {submitError && (
-                    <div role="alert" style={{ color: 'var(--red)', fontSize: '0.88rem' }}>
+                    <div id="contact-form-error" role="alert" style={{ color: 'var(--red)', fontSize: '0.88rem' }}>
                       {submitError}
                     </div>
                   )}
@@ -252,6 +266,7 @@ export default function ContactPage() {
                       id="name"
                       type="text"
                       required
+                      aria-describedby={submitError ? 'contact-form-error' : undefined}
                       placeholder="Your name"
                       style={inputStyle}
                       value={formData.name}
@@ -277,6 +292,7 @@ export default function ContactPage() {
                       id="email"
                       type="email"
                       required
+                      aria-describedby={submitError ? 'contact-form-error' : undefined}
                       placeholder="you@company.com"
                       style={inputStyle}
                       value={formData.email}
@@ -357,6 +373,7 @@ export default function ContactPage() {
                       id="message"
                       rows={5}
                       required
+                      aria-describedby={submitError ? 'contact-form-error' : undefined}
                       placeholder="Tell us about your project…"
                       style={{ ...inputStyle, resize: 'vertical' }}
                       value={formData.message}
@@ -428,18 +445,22 @@ export default function ContactPage() {
                     >
                       <Icon size={22} style={{ color: card.color }} />
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <h4 style={{ fontSize: '1rem', marginBottom: 2 }}>{card.title}</h4>
-                      <p
-                        style={{
-                          color: 'var(--text-accent)',
-                          fontSize: '0.92rem',
-                          fontWeight: 600,
-                          marginBottom: 2,
-                        }}
-                      >
-                        {card.value}
-                      </p>
+                      {card.href ? (
+                        <a
+                          href={card.href}
+                          target={card.href.startsWith('https://') ? '_blank' : undefined}
+                          rel={card.href.startsWith('https://') ? 'noopener noreferrer' : undefined}
+                          style={{ color: 'var(--text-accent)', fontSize: '0.92rem', fontWeight: 600, display: 'block', marginBottom: 2, overflowWrap: 'anywhere' }}
+                        >
+                          {card.value}
+                        </a>
+                      ) : (
+                        <p style={{ color: 'var(--text-accent)', fontSize: '0.92rem', fontWeight: 600, marginBottom: 2 }}>
+                          {card.value}
+                        </p>
+                      )}
                       <p style={{ color: 'var(--text-tertiary)', fontSize: '0.82rem' }}>
                         {card.description}
                       </p>
@@ -465,42 +486,52 @@ export default function ContactPage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-            {faqs.map((faq, i) => (
-              <div
-                key={i}
-                className="glass-card"
-                style={{ cursor: 'pointer', padding: 'var(--space-lg) var(--space-xl)' }}
-                onClick={() => setOpenFaq(openFaq === i ? null : i)}
-              >
-                <div
+            {faqs.map((faq, i) => {
+              const isOpen = openFaq === i;
+              const answerId = `contact-faq-answer-${i}`;
+              return (
+              <div key={faq.question} className="glass-card" style={{ padding: 0 }}>
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  aria-controls={answerId}
+                  onClick={() => setOpenFaq(isOpen ? null : i)}
                   style={{
+                    width: '100%',
+                    padding: 'var(--space-lg) var(--space-xl)',
+                    border: 0,
+                    background: 'transparent',
+                    color: 'inherit',
+                    cursor: 'pointer',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     gap: 'var(--space-md)',
+                    textAlign: 'left',
                   }}
                 >
-                  <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>{faq.question}</h4>
-                  {openFaq === i ? (
+                  <span style={{ fontSize: '1rem', fontWeight: 600 }}>{faq.question}</span>
+                  {isOpen ? (
                     <ChevronUp size={20} style={{ color: 'var(--text-tertiary)', minWidth: 20 }} />
                   ) : (
                     <ChevronDown size={20} style={{ color: 'var(--text-tertiary)', minWidth: 20 }} />
                   )}
-                </div>
-                {openFaq === i && (
+                </button>
+                {isOpen && (
                   <p
+                    id={answerId}
                     style={{
                       color: 'var(--text-secondary)',
                       fontSize: '0.95rem',
                       lineHeight: 1.7,
-                      marginTop: 'var(--space-md)',
+                      padding: '0 var(--space-xl) var(--space-lg)',
                     }}
                   >
                     {faq.answer}
                   </p>
                 )}
               </div>
-            ))}
+            )})}
           </div>
         </div>
       </section>

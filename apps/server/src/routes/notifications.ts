@@ -9,6 +9,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth.js';
+import { assertSafeOutboundUrl, validateOutboundUrl } from '../security/outbound-url.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -103,6 +104,7 @@ async function deliverNotification(
   const timeout = setTimeout(() => controller.abort(), 5_000);
 
   try {
+    await assertSafeOutboundUrl(url);
     const isSlack = channel === 'slack';
     const body = isSlack
       ? JSON.stringify({ text: message })
@@ -113,6 +115,7 @@ async function deliverNotification(
       headers: { 'Content-Type': 'application/json' },
       body,
       signal: controller.signal,
+      redirect: 'manual',
     });
 
     return {
@@ -247,6 +250,17 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
         process.env['SLACK_WEBHOOK_URL'];
     } else if (channel === 'http') {
       deliveryUrl = config?.['url'] as string | undefined;
+    }
+
+    if (deliveryUrl) {
+      try {
+        validateOutboundUrl(deliveryUrl);
+      } catch (error) {
+        return reply.status(400).send({
+          error: 'Invalid request',
+          message: error instanceof Error ? error.message : 'URL is not a safe outbound destination.',
+        });
+      }
     }
 
     // Attempt delivery

@@ -23,14 +23,14 @@ import {
 export const metadata: Metadata = {
   title: 'Architecture — Recurrsive Docs',
   description:
-    'Deep-dive into Recurrsive internals: analysis pipeline, knowledge graph, multi-agent reasoning, and extension model.',
+    'Deep-dive into Recurrsive internals: analysis pipeline, knowledge graph, optional LLM reasoning, and extension model.',
 };
 
 const PIPELINE = [
   {
     icon: Boxes,
     title: 'Collect',
-    desc: '14 collectors ingest evidence from Git, GitHub, GitLab, OpenTelemetry, cloud cost APIs, APM, AI platforms, databases, CI/CD, and documentation.',
+    desc: 'The project workflow runs five integrated collectors for Git, documentation, environment configuration, CI/CD configuration, and database schema. Other collector packages remain extension code until explicitly integrated.',
     color: '#7c3aed',
   },
   {
@@ -48,7 +48,7 @@ const PIPELINE = [
   {
     icon: Brain,
     title: 'Reason',
-    desc: 'Nineteen specialist roles use a structured protocol. Evidence is fused, conflicts are recorded, and unsupported impact stays unknown.',
+    desc: 'With an LLM provider configured, nineteen specialist roles use a structured protocol. Otherwise findings are promoted deterministically with their evidence intact.',
     color: '#f59e0b',
   },
   {
@@ -62,7 +62,7 @@ const PIPELINE = [
 const CORE_PACKAGES = [
   { name: '@recurrsive/core', desc: 'Analysis pipeline orchestration and lifecycle management' },
   { name: '@recurrsive/graph', desc: 'Knowledge graph abstraction (AGE + SQLite backends)' },
-  { name: '@recurrsive/collectors', desc: '14 built-in data collectors (Git, GitHub, OTEL, etc.)' },
+  { name: '@recurrsive/collectors', desc: 'Collector package library; five collectors are integrated into project analysis' },
   { name: '@recurrsive/analyzers', desc: '13 domain analyzers' },
   { name: '@recurrsive/reasoning', desc: 'Multi-agent debate engine and specialist framework' },
   { name: '@recurrsive/types', desc: '43 entity types + 43 relationship types (shared schema)' },
@@ -111,7 +111,7 @@ export default function ArchitecturePage() {
               lineHeight: 1.7,
             }}
           >
-            How Recurrsive works under the hood — from data collection to AI-powered recommendations.
+            How Recurrsive works under the hood — from repository evidence to reviewable recommendations.
           </p>
         </div>
       </section>
@@ -408,7 +408,7 @@ export default function ArchitecturePage() {
               { label: '2. Structural Parsing', desc: 'Tree-sitter extracts AST-level structure from source code.' },
               { label: '3. Graph Enrichment', desc: 'Entities and relationships are upserted into the knowledge graph.' },
               { label: '4. Rule Evaluation', desc: 'Thirteen analyzers evaluate collected evidence and produce findings.' },
-              { label: '5. Multi-Agent Debate', desc: '19 specialists reason over findings, fuse evidence, and rank opportunities.' },
+              { label: '5. Optional LLM Reasoning', desc: 'When configured, 19 specialists reason over findings; deterministic promotion is the fallback.' },
               { label: '6. Presentation', desc: 'Prioritized recommendations are delivered via dashboard, API, or CI/CD checks.' },
             ].map((step) => (
               <div key={step.label} className="glass-card" style={{ display: 'flex', gap: '16px', padding: 'var(--space-md) var(--space-lg)' }}>

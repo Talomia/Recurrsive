@@ -112,6 +112,8 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [findingsLoaded, setFindingsLoaded] = useState(false);
+  const [opportunitiesLoaded, setOpportunitiesLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
@@ -123,7 +125,7 @@ export default function ProjectDetailPage() {
   const fetchProject = useCallback(async () => {
     setError(null);
     try {
-      const data = await apiFetch<Project>('/api/v1/projects/' + id);
+      const data = await apiFetch<Project>('/api/v1/projects/' + encodeURIComponent(id));
       setProject(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project');
@@ -132,19 +134,23 @@ export default function ProjectDetailPage() {
 
   const fetchFindings = useCallback(async () => {
     try {
-      const data = await apiFetch<Finding[]>(`/api/v1/projects/${id}/findings`);
+      const data = await apiFetch<Finding[]>(`/api/v1/projects/${encodeURIComponent(id)}/findings`);
       setFindings(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project findings');
+    } finally {
+      setFindingsLoaded(true);
     }
   }, [id]);
 
   const fetchOpportunities = useCallback(async () => {
     try {
-      const data = await apiFetch<Opportunity[]>(`/api/v1/projects/${id}/opportunities`);
+      const data = await apiFetch<Opportunity[]>(`/api/v1/projects/${encodeURIComponent(id)}/opportunities`);
       setOpportunities(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project opportunities');
+    } finally {
+      setOpportunitiesLoaded(true);
     }
   }, [id]);
 
@@ -180,11 +186,13 @@ export default function ProjectDetailPage() {
     return () => clearInterval(interval);
   }, [isPolling, fetchProject, fetchFindings, fetchOpportunities, id]);
 
-  // Initial project load
+  // Initial project load, including the overview counts. Loading these only
+  // after opening a tab made completed analyses look empty on the overview.
   useEffect(() => {
     setLoading(true);
-    fetchProject().finally(() => setLoading(false));
-  }, [fetchProject]);
+    Promise.all([fetchProject(), fetchFindings(), fetchOpportunities()])
+      .finally(() => setLoading(false));
+  }, [fetchProject, fetchFindings, fetchOpportunities]);
 
   // Check initial analysis status on mount and resume polling if active
   useEffect(() => {
@@ -205,13 +213,13 @@ export default function ProjectDetailPage() {
 
   // Fetch findings/opportunities when their tabs are activated or reset
   useEffect(() => {
-    if (activeTab === 'Findings' && findings.length === 0) {
+    if (activeTab === 'Findings' && !findingsLoaded) {
       fetchFindings();
     }
-    if (activeTab === 'Opportunities' && opportunities.length === 0) {
+    if (activeTab === 'Opportunities' && !opportunitiesLoaded) {
       fetchOpportunities();
     }
-  }, [activeTab, fetchFindings, fetchOpportunities, findings.length, opportunities.length]);
+  }, [activeTab, fetchFindings, fetchOpportunities, findingsLoaded, opportunitiesLoaded]);
 
   const handleAnalyze = async () => {
     if (!project) return;
@@ -370,7 +378,7 @@ export default function ProjectDetailPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-                <h3 className="text-xs font-bold text-text-primary tracking-wide uppercase">AI Agents Analysis in Progress</h3>
+                <h3 className="text-xs font-bold text-text-primary tracking-wide uppercase">Repository Analysis in Progress</h3>
               </div>
               <span className="text-xs font-mono font-semibold text-blue-400 tabular-nums">{status.progress}%</span>
             </div>
@@ -392,8 +400,8 @@ export default function ProjectDetailPage() {
               <p className="text-xs text-text-muted">
                 {status.phase === 'collecting' && 'Fetching files, commit history, and environment configurations...'}
                 {status.phase === 'parsing' && 'Scanning source code, constructing ASTs, and resolving internal references...'}
-                {status.phase === 'analyzing' && 'Running specialist collectors for architecture, AI integrations, security, cost, and resilience...'}
-                {status.phase === 'reasoning' && 'Multi-agent consensus protocol active. Specialist AI agents are currently debating hypotheses to synthesize findings...'}
+                {status.phase === 'analyzing' && 'Running the enabled analyzers across architecture, security, reliability, data, cost, performance, and documentation evidence...'}
+                {status.phase === 'reasoning' && 'Promoting supported findings into evidence-linked recommendations...'}
               </p>
             </div>
 
@@ -481,12 +489,12 @@ export default function ProjectDetailPage() {
               </div>
               <div className="glass-card p-4 text-center">
                 <ShieldAlert className="h-5 w-5 mx-auto text-amber-400 mb-2" />
-                <p className="text-2xl font-bold text-text-primary tabular-nums">{findings.length || '—'}</p>
+                <p className="text-2xl font-bold text-text-primary tabular-nums">{findingsLoaded ? findings.length : '—'}</p>
                 <p className="text-[10px] text-text-muted">Findings</p>
               </div>
               <div className="glass-card p-4 text-center">
                 <Lightbulb className="h-5 w-5 mx-auto text-purple-400 mb-2" />
-                <p className="text-2xl font-bold text-text-primary tabular-nums">{opportunities.length || '—'}</p>
+                <p className="text-2xl font-bold text-text-primary tabular-nums">{opportunitiesLoaded ? opportunities.length : '—'}</p>
                 <p className="text-[10px] text-text-muted">Opportunities</p>
               </div>
               <div className="glass-card p-4 text-center">

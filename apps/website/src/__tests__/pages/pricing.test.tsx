@@ -57,15 +57,14 @@ describe('Pricing Page', () => {
     expect(planEngagement.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders the Most Popular badge on Production Support', () => {
+  it('does not make an unsubstantiated popularity claim', () => {
     render(<PricingPage />);
-    const matches = screen.getAllByText('Most Popular');
-    expect(matches.length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Most Popular')).not.toBeInTheDocument();
   });
 
   it('renders key Open Source features', () => {
     render(<PricingPage />);
-    const collectors = screen.getAllByText('14 data collectors');
+    const collectors = screen.getAllByText('5 integrated repository collectors');
     const analyzers = screen.getAllByText('13 built-in analyzers');
     const cli = screen.getAllByText('CLI for analysis and operations');
     expect(collectors.length).toBeGreaterThanOrEqual(1);

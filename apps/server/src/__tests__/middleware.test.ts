@@ -77,6 +77,36 @@ describe('registerRateLimit', () => {
   });
 });
 
+describe('credential-aware rate limiting', () => {
+  it('does not share an authenticated request bucket between sessions on one IP', async () => {
+    const app = Fastify({ logger: false });
+    await registerRateLimit(app, { max: 1, windowMs: 10_000 });
+    app.get('/test', async () => ({ ok: true }));
+    await app.ready();
+
+    const first = await app.inject({
+      method: 'GET',
+      url: '/test',
+      headers: { authorization: 'Bearer session-a' },
+    });
+    const second = await app.inject({
+      method: 'GET',
+      url: '/test',
+      headers: { authorization: 'Bearer session-b' },
+    });
+    const repeated = await app.inject({
+      method: 'GET',
+      url: '/test',
+      headers: { authorization: 'Bearer session-a' },
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(repeated.statusCode).toBe(429);
+    await app.close();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Error Handler Tests
 // ---------------------------------------------------------------------------

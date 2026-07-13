@@ -13,6 +13,7 @@
  */
 
 import { type NextRequest, NextResponse } from 'next/server';
+import { isTrustedMutationOrigin } from '@/lib/request-origin';
 
 /** Upstream API server URL, resolved at runtime. */
 function getUpstreamUrl(): string {
@@ -38,13 +39,7 @@ async function handler(
   const secureCookie = request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
     const origin = request.headers.get('origin');
-    const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
-    const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
-    const host = forwardedHost || request.headers.get('host');
-    const expectedOrigin = host
-      ? `${forwardedProtocol || request.nextUrl.protocol.replace(':', '')}://${host}`
-      : request.nextUrl.origin;
-    if (origin && origin !== expectedOrigin && origin !== request.nextUrl.origin) {
+    if (!isTrustedMutationOrigin(origin, request.nextUrl.origin, process.env.DASHBOARD_ORIGIN)) {
       return NextResponse.json({ error: 'Forbidden', message: 'Cross-origin request rejected.' }, { status: 403 });
     }
   }
@@ -63,6 +58,8 @@ async function handler(
     'cookie',
     'authorization',
     'content-length',
+    'x-forwarded-host',
+    'x-forwarded-proto',
   ]);
 
   request.headers.forEach((value, key) => {
@@ -70,8 +67,8 @@ async function handler(
       headers.set(key, value);
     }
   });
-  if (!headers.has('x-forwarded-host')) headers.set('x-forwarded-host', request.headers.get('host') ?? request.nextUrl.host);
-  if (!headers.has('x-forwarded-proto')) headers.set('x-forwarded-proto', request.nextUrl.protocol.replace(':', ''));
+  headers.set('x-forwarded-host', request.nextUrl.host);
+  headers.set('x-forwarded-proto', request.nextUrl.protocol.replace(':', ''));
   const sessionToken = request.cookies.get('recurrsive_token')?.value;
   if (sessionToken) {
     headers.set('authorization', `Bearer ${sessionToken}`);

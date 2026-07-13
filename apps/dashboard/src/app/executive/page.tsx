@@ -11,12 +11,15 @@
 'use client';
 
 import Header from '@/components/header';
-import { useEffect, useState } from 'react';
+import ErrorBanner from '@/components/error-banner';
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
 import {
   getHealthMetrics,
   getTimeline,
   getOpportunities,
   getFindingsSummary,
+  getApiErrorMessage,
   type HealthMetrics,
   type TimelinePoint,
   type Opportunity,
@@ -168,20 +171,29 @@ export default function ExecutivePage() {
     findingsSummary: null,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const [health, timeline, opportunities, findingsSummary] = await Promise.all([
-        getHealthMetrics().catch(() => null),
-        getTimeline().catch(() => []),
-        getOpportunities().catch(() => []),
-        getFindingsSummary().catch(() => null),
+        getHealthMetrics(),
+        getTimeline(),
+        getOpportunities(),
+        getFindingsSummary(),
       ]);
       setData({ health, timeline, opportunities, findingsSummary });
+    } catch (caught) {
+      setError(getApiErrorMessage(caught, 'Failed to load executive intelligence.'));
+    } finally {
       setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // Derived metrics
   const topOpportunities = [...data.opportunities]
@@ -214,7 +226,21 @@ export default function ExecutivePage() {
           </div>
         )}
 
-        {!loading && (
+        {!loading && error && (
+          <ErrorBanner message={error} onRetry={() => void load()} />
+        )}
+
+        {!loading && !error && !data.health?.analyzedAt && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-16 text-center">
+            <h2 className="text-lg font-semibold text-text-primary">No completed analysis yet</h2>
+            <p className="mt-2 text-sm text-text-secondary">Analyze a project before using the executive intelligence view.</p>
+            <Link href="/projects" className="mt-5 inline-flex rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-400">
+              Go to projects
+            </Link>
+          </div>
+        )}
+
+        {!loading && !error && data.health?.analyzedAt && (
           <>
             {/* KPI Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
