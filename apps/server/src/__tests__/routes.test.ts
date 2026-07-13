@@ -1218,6 +1218,30 @@ describe ('Notification endpoints', () => {
       expect(entry).toHaveProperty('status');
     }
   });
+
+  it('GET and PATCH /api/v1/notifications/:id support the detail workflow', async () => {
+    const history = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/notifications/history' });
+    const id = history.json().data[0]?.id as string;
+    expect(id).toMatch(/^notif_/);
+
+    const detail = await app.inject({ headers: authHeaders, method: 'GET', url: `/api/v1/notifications/${id}` });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().data).toMatchObject({ id, read: false, dismissed: false });
+
+    const updated = await app.inject({
+      headers: authHeaders,
+      method: 'PATCH',
+      url: `/api/v1/notifications/${id}`,
+      payload: { read: true, dismissed: true },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().data).toMatchObject({ id, read: true, dismissed: true });
+  });
+
+  it('GET /api/v1/notifications/:id returns 404 for an unknown notification', async () => {
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/notifications/not-found' });
+    expect(res.statusCode).toBe(404);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import Header from "@/components/header";
+import ProjectScopeRequired from "@/components/project-scope-required";
 import { Search, ArrowRight } from "lucide-react";
 import { searchGraphEntities, getGraphStats } from "@/lib/api";
 import type { GraphEntity } from "@/lib/api";
@@ -40,7 +41,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const query = params.q ?? "";
   const typeFilter = params.type ?? "";
   const projectId = params.projectId;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="Knowledge-graph search" />;
 
   // Fetch stats for entity type counts
   const stats = await getGraphStats(projectId);

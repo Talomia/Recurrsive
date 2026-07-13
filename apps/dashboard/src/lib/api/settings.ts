@@ -28,25 +28,22 @@ export interface DashboardMaskingPolicy {
   id: string;
   fieldPattern: string;
   piiType: string;
-  strategy: 'redact' | 'hash' | 'tokenize' | 'mask' | 'encrypt';
-  status: 'active' | 'disabled' | 'testing';
-  matchCount: number;
-  lastTriggered: string;
+  strategy: 'redact' | 'hash' | 'partial' | 'tokenize' | 'generalize' | 'suppress';
+  enabled: boolean;
+  reason: string;
+  createdAt: string;
 }
 
 export interface DashboardPiiDistribution {
-  type: string;
+  category: string;
   count: number;
   percentage: number;
-  color: string;
 }
 
 export interface DashboardMaskingStrategy {
+  id: DashboardMaskingPolicy['strategy'];
   name: string;
   description: string;
-  reversible: boolean;
-  performanceImpact: 'low' | 'medium' | 'high';
-  example: { input: string; output: string };
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -69,4 +66,30 @@ export async function getPiiDistribution(): Promise<DashboardPiiDistribution[]> 
 
 export async function getMaskingStrategies(): Promise<DashboardMaskingStrategy[]> {
   return apiFetch<DashboardMaskingStrategy[]>('/api/v1/data-masking/strategies');
+}
+
+export async function createMaskingPolicy(
+  policy: Omit<DashboardMaskingPolicy, 'id' | 'createdAt'>,
+): Promise<DashboardMaskingPolicy> {
+  return apiFetch<DashboardMaskingPolicy>('/api/v1/data-masking/policies', {
+    method: 'POST',
+    body: JSON.stringify(policy),
+  });
+}
+
+export async function updateMaskingPolicy(
+  id: string,
+  updates: Partial<Omit<DashboardMaskingPolicy, 'id' | 'createdAt'>>,
+): Promise<DashboardMaskingPolicy> {
+  return apiFetch<DashboardMaskingPolicy>(`/api/v1/data-masking/policies/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteMaskingPolicy(id: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/data-masking/policies/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    unwrap: false,
+  });
 }

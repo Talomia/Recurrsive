@@ -21,20 +21,22 @@ export interface CloudServiceTier {
 export interface DashboardSecret {
   id: string;
   key: string;
-  backend: 'vault' | 'aws' | 'azure' | 'local';
+  description: string;
+  backend: 'local';
   version: number;
+  tags: string[];
+  createdBy: string;
+  lastRotated: string | null;
+  rotationIntervalDays: number;
+  expiresAt: string | null;
   createdAt: string;
-  lastRotated: string;
-  rotationDays: number;
-  maxAgeDays: number;
-  status: 'current' | 'expiring' | 'needs_rotation';
-  usedBy: string[];
+  updatedAt: string;
 }
 
 export interface DashboardAuditEntry {
   id: string;
   secretKey: string;
-  action: 'rotated' | 'created' | 'accessed' | 'deleted';
+  action: 'rotated' | 'created' | 'read' | 'updated' | 'deleted';
   actor: string;
   timestamp: string;
 }
@@ -137,7 +139,7 @@ export async function revokeSsoSession(id: string): Promise<void> {
 
 // ─── Secrets Mutations ───────────────────────────────────────────────────────
 
-export async function createSecret(data: { key: string; value: string; description?: string; tags?: string[] }): Promise<DashboardSecret> {
+export async function createSecret(data: { key: string; value: string; description?: string; tags?: string[]; rotationIntervalDays?: number }): Promise<DashboardSecret> {
   return await apiFetch<DashboardSecret>('/api/v1/secrets', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -151,9 +153,9 @@ export async function deleteSecret(id: string): Promise<void> {
   });
 }
 
-export async function rotateSecret(id: string): Promise<DashboardSecret> {
+export async function rotateSecret(id: string, newValue: string): Promise<DashboardSecret> {
   return await apiFetch<DashboardSecret>(`/api/v1/secrets/${encodeURIComponent(id)}/rotate`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify({ newValue }),
   });
 }

@@ -185,7 +185,7 @@ export default function InvitesPage() {
   const pendingCount = invites.filter(i => i.status === 'pending').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 pb-6 pt-20 sm:px-6 lg:p-6">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

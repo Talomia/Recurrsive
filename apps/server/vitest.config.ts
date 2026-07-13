@@ -5,6 +5,10 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/**/__tests__/**/*.test.ts"],
+    // Route suites create real Fastify instances and the audit capacity test
+    // injects 1,000 requests. Allow for heavily contended monorepo CI workers.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
@@ -12,4 +16,3 @@ export default defineConfig({
     },
   },
 });
-

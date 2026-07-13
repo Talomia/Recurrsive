@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Header from "@/components/header";
 import { getNotificationChannels, getNotificationHistory } from "@/lib/api";
 import type { NotificationChannel, NotificationEntry } from "@/lib/api";
@@ -216,9 +217,9 @@ export default async function NotificationsPage() {
 
                       {/* Title */}
                       <td className="px-5 py-3">
-                        <p className="text-xs font-medium text-text-primary truncate max-w-xs">
+                        <Link href={`/notifications/${encodeURIComponent(entry.id)}`} className="block max-w-xs truncate text-xs font-medium text-text-primary hover:text-blue-300">
                           {entry.title}
-                        </p>
+                        </Link>
                       </td>
 
                       {/* Channel badge */}

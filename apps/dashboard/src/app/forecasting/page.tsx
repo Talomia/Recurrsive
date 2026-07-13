@@ -37,14 +37,14 @@ export default function ForecastingPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
+      <div className="flex h-64 items-center justify-center pt-16 lg:pt-0">
         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-accent-blue" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 pb-6 pt-20 sm:px-6 lg:p-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-text-primary">
           <Brain className="h-6 w-6 text-accent-blue" />

@@ -19,7 +19,7 @@ export default function DeploymentPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 pb-6 sm:px-6 lg:p-6">
       <Header title="Self-Hosted Deployment" subtitle="Operate Recurrsive in infrastructure controlled by your organization" />
 
       <div className="glass-card rounded-2xl p-5 flex items-start gap-4">

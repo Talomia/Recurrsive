@@ -70,7 +70,7 @@ export function ChannelCard({ channel }: { channel: NotificationChannel }) {
         </div>
 
         {/* Test button */}
-        {canTest ? (
+        {canTest && channel.enabled ? (
           <button
             onClick={handleTest}
             disabled={testing}
@@ -81,7 +81,9 @@ export function ChannelCard({ channel }: { channel: NotificationChannel }) {
             {testing ? 'Sending…' : 'Test'}
           </button>
         ) : (
-          <p className="text-[11px] text-text-muted text-center">Administrator access is required to send tests.</p>
+          <p className="text-[11px] text-text-muted text-center">
+            {canTest ? 'Configure this channel before testing.' : 'Administrator access is required to send tests.'}
+          </p>
         )}
 
         {/* Result feedback */}

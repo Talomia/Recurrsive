@@ -113,6 +113,41 @@ export interface NotificationDetail {
   related_items: NotificationRelatedItem[];
 }
 
+interface ServerNotificationChannel {
+  channel: string;
+  description: string;
+  configured: boolean;
+  config_hint: string;
+}
+
+interface ServerNotificationRecord {
+  id: string;
+  channel: string;
+  title?: string;
+  message: string;
+  sent_at: string;
+  status: "sent" | "failed";
+  severity?: "info" | "error";
+  read?: boolean;
+  dismissed?: boolean;
+}
+
+function mapNotification(record: ServerNotificationRecord): NotificationDetail {
+  const failed = record.status === 'failed';
+  return {
+    id: record.id,
+    title: record.title ?? `${record.channel} notification`,
+    type: failed ? 'error' : 'success',
+    severity: record.severity ?? (failed ? 'error' : 'info'),
+    source: record.channel,
+    timestamp: record.sent_at,
+    message: record.message,
+    read: record.read ?? false,
+    dismissed: record.dismissed ?? false,
+    related_items: [],
+  };
+}
+
 // ─── Audit Trail Types ───────────────────────────────────────────────────────
 
 export type AuditEventType =
@@ -168,7 +203,8 @@ export async function getWebhooks(): Promise<WebhookRegistration[]> {
 }
 
 export async function getWebhookEvents(): Promise<WebhookEvent[]> {
-  return apiFetch<WebhookEvent[]>("/api/v1/webhooks/events");
+  const events = await apiFetch<Array<{ event: string; description: string }>>("/api/v1/webhooks/events");
+  return events.map((event) => ({ type: event.event, description: event.description }));
 }
 
 export async function createWebhook(data: { url: string; events: string[]; secret?: string }): Promise<WebhookRegistration> {
@@ -194,20 +230,46 @@ export async function testWebhook(id: string): Promise<{ delivered: boolean; web
 // ─── Notifications API ───────────────────────────────────────────────────────
 
 export async function getNotificationChannels(): Promise<NotificationChannel[]> {
-  return apiFetch<NotificationChannel[]>("/api/v1/notifications/channels");
+  const channels = await apiFetch<ServerNotificationChannel[]>("/api/v1/notifications/channels");
+  return channels.map((channel) => ({
+    type: channel.channel,
+    name: channel.channel === 'http' ? 'HTTP' : `${channel.channel.charAt(0).toUpperCase()}${channel.channel.slice(1)}`,
+    enabled: channel.configured,
+    description: channel.description,
+  }));
 }
 
 export async function getNotificationHistory(): Promise<NotificationEntry[]> {
-  return apiFetch<NotificationEntry[]>("/api/v1/notifications/history");
+  const records = await apiFetch<ServerNotificationRecord[]>("/api/v1/notifications/history");
+  return records.filter((record) => !record.dismissed).map((record) => ({
+    id: record.id,
+    channel: record.channel,
+    title: record.title ?? record.message,
+    severity: record.severity ?? (record.status === 'failed' ? 'error' : 'info'),
+    sent_at: record.sent_at,
+    status: record.status === 'sent' ? 'delivered' : 'failed',
+  }));
 }
 
 export async function getNotification(id: string): Promise<NotificationDetail | null> {
   try {
-    return await apiFetch<NotificationDetail>(`/api/v1/notifications/${encodeURIComponent(id)}`);
+    const record = await apiFetch<ServerNotificationRecord>(`/api/v1/notifications/${encodeURIComponent(id)}`);
+    return mapNotification(record);
   } catch (caught) {
     if (caught instanceof ApiError && caught.status === 404) return null;
     throw caught;
   }
+}
+
+export async function updateNotification(
+  id: string,
+  updates: { read?: boolean; dismissed?: boolean },
+): Promise<NotificationDetail> {
+  const record = await apiFetch<ServerNotificationRecord>(`/api/v1/notifications/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+  return mapNotification(record);
 }
 
 export async function testNotificationChannel(channel: string): Promise<{ status: string; channel: string; message: string }> {

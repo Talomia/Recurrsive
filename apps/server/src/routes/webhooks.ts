@@ -31,6 +31,18 @@ export type WebhookEvent =
   | 'health.degraded'
   | 'snapshot.created';
 
+const SUPPORTED_WEBHOOK_EVENTS: WebhookEvent[] = [
+  'analysis.complete',
+  'analysis.failed',
+  'opportunity.created',
+  'opportunity.updated',
+  'policy.violation',
+  'health.degraded',
+  'snapshot.created',
+];
+
+const WEBHOOK_EVENT_SCHEMA = { type: 'string', maxLength: 100 } as const;
+
 /** A registered webhook configuration. */
 export interface WebhookRegistration {
   /** Unique webhook ID. */
@@ -274,7 +286,24 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       events: WebhookEvent[];
       secret?: string;
     };
-  }>('/api/v1/webhooks', { preHandler: [authMiddleware] }, async (request, reply) => {
+  }>('/api/v1/webhooks', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          url: { type: 'string', minLength: 1, maxLength: 2048 },
+          events: {
+            type: 'array',
+            uniqueItems: true,
+            items: WEBHOOK_EVENT_SCHEMA,
+          },
+          secret: { type: 'string', minLength: 1, maxLength: 512 },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const { url, events, secret } = request.body ?? {};
 
     if (!url || typeof url !== 'string') {
@@ -302,22 +331,12 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       });
     }
 
-    const validEvents: WebhookEvent[] = [
-      'analysis.complete',
-      'analysis.failed',
-      'opportunity.created',
-      'opportunity.updated',
-      'policy.violation',
-      'health.degraded',
-      'snapshot.created',
-    ];
-
-    const invalidEvents = events.filter((e) => !validEvents.includes(e));
+    const invalidEvents = events.filter((event) => !SUPPORTED_WEBHOOK_EVENTS.includes(event));
     if (invalidEvents.length > 0) {
       return reply.status(400).send({
         error: 'Invalid events',
         message: `Unknown event types: ${invalidEvents.join(', ')}`,
-        valid_events: validEvents,
+        valid_events: SUPPORTED_WEBHOOK_EVENTS,
       });
     }
 
@@ -381,7 +400,26 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       events?: WebhookEvent[];
       url?: string;
     };
-  }>('/api/v1/webhooks/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  }>('/api/v1/webhooks/:id', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        minProperties: 1,
+        additionalProperties: false,
+        properties: {
+          active: { type: 'boolean' },
+          events: {
+            type: 'array',
+            minItems: 1,
+            uniqueItems: true,
+            items: WEBHOOK_EVENT_SCHEMA,
+          },
+          url: { type: 'string', minLength: 1, maxLength: 2048 },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params;
     const hook = await store.get<WebhookRegistration>('webhooks', id);
 
@@ -395,13 +433,12 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     const { active, events, url } = request.body ?? {};
 
     if (events) {
-      const validEvents: WebhookEvent[] = ['analysis.complete', 'analysis.failed', 'opportunity.created', 'opportunity.updated', 'policy.violation', 'health.degraded', 'snapshot.created'];
-      const invalidEvents = events.filter((e: string) => !validEvents.includes(e as WebhookEvent));
+      const invalidEvents = events.filter((event) => !SUPPORTED_WEBHOOK_EVENTS.includes(event));
       if (invalidEvents.length > 0) {
         return reply.status(400).send({
           error: 'Invalid events',
           message: `Unknown event types: ${invalidEvents.join(', ')}`,
-          valid_events: validEvents,
+          valid_events: SUPPORTED_WEBHOOK_EVENTS,
         });
       }
     }

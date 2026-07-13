@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Header from "@/components/header";
+import ProjectScopeRequired from "@/components/project-scope-required";
 import { Network, Box, ArrowRight, Layers, FolderGit2 } from "lucide-react";
 import { getGraphStats } from "@/lib/api";
 
@@ -77,7 +78,7 @@ function healthColor(count: number, maxCount: number) {
 
 export default async function SystemMapPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="The system map" />;
   try {
     const stats = await getGraphStats(projectId);
 

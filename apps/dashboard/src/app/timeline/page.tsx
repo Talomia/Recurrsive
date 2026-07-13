@@ -1,4 +1,5 @@
 import Header from "@/components/header";
+import ProjectScopeRequired from "@/components/project-scope-required";
 import {
   Clock,
   TrendingUp,
@@ -133,7 +134,7 @@ function TrendSparkline({
 
 export default async function TimelinePage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="The analysis timeline" />;
   const [history, snapshots, trends] = await Promise.all([
     getTimelineHistory(projectId),
     getTimelineSnapshots(projectId),

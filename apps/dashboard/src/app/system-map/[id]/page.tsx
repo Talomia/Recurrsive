@@ -10,6 +10,7 @@ import {
   GitBranch,
 } from "lucide-react";
 import { getEntityWithRelationships } from "@/lib/api";
+import ProjectScopeRequired from "@/components/project-scope-required";
 
 // ---------------------------------------------------------------------------
 // Type styling (matches search page)
@@ -66,7 +67,7 @@ interface EntityDetailPageProps {
 export default async function EntityDetailPage({ params, searchParams }: EntityDetailPageProps) {
   const { id } = await params;
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="Entity details" />;
   const result = await getEntityWithRelationships(id, projectId);
 
   if (!result) {
@@ -108,7 +109,7 @@ export default async function EntityDetailPage({ params, searchParams }: EntityD
     : [];
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto animate-fade-in-up">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 pb-6 pt-20 animate-fade-in-up sm:px-6 lg:p-6">
       {/* ── Breadcrumb ─────────────────────────────────── */}
       <nav className="flex items-center gap-2 text-sm text-text-muted">
         <Link

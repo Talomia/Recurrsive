@@ -1,18 +1,19 @@
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, FlaskConical } from 'lucide-react';
 import { getExperiment } from '@/lib/api';
+import ProjectScopeRequired from '@/components/project-scope-required';
 
 function date(value: string | null): string { return value ? new Date(value).toLocaleString() : '—'; }
 
 export default async function ExperimentDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ projectId?: string }> }) {
   const { id } = await params;
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="Experiment details" />;
   const experiment = await getExperiment(id, projectId);
   if (!experiment) return <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3"><AlertCircle className="h-9 w-9 text-text-muted" /><h1 className="font-semibold">Experiment not found</h1><Link href={`/experiments?projectId=${encodeURIComponent(projectId)}`} className="text-sm text-blue-400">Back to experiments</Link></div>;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 pb-6 pt-20 sm:px-6 lg:p-6">
       <Link href={`/experiments?projectId=${encodeURIComponent(projectId)}`} className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-text-primary"><ArrowLeft className="h-4 w-4" />Experiments</Link>
       <header className="glass-card rounded-2xl p-6"><div className="flex items-center gap-2"><FlaskConical className="h-5 w-5 text-purple-400" /><h1 className="text-xl font-bold">{experiment.name}</h1><span className="ml-auto rounded-full bg-white/5 px-3 py-1 text-xs text-text-secondary">{experiment.status}</span></div><p className="mt-2 text-sm text-text-secondary">{experiment.description || experiment.hypothesis}</p>{experiment.error && <p className="mt-3 text-sm text-red-400">{experiment.error}</p>}</header>
 

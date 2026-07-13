@@ -790,6 +790,82 @@ describe ('Secrets endpoints', () => {
   });
 });
 
+describe('Data masking endpoints', () => {
+  let policyId = '';
+
+  it('creates a validated masking policy using the public response contract', async () => {
+    const response = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/data-masking/policies',
+      payload: {
+        fieldPattern: '*.email',
+        piiType: 'email',
+        strategy: 'partial',
+        enabled: true,
+        reason: 'Protect user contact details',
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    const policy = response.json().data;
+    policyId = policy.id;
+    expect(policy).toMatchObject({ fieldPattern: '*.email', piiType: 'email', strategy: 'partial', enabled: true });
+    expect(policy.createdAt).toBeTruthy();
+  });
+
+  it('returns policy-based PII distribution and the implemented strategy catalog', async () => {
+    const [distributionResponse, strategyResponse] = await Promise.all([
+      app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/data-masking/pii-distribution' }),
+      app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/data-masking/strategies' }),
+    ]);
+    expect(distributionResponse.statusCode).toBe(200);
+    expect(distributionResponse.json().data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ category: 'email', count: expect.any(Number), percentage: expect.any(Number) }),
+    ]));
+    expect(strategyResponse.json().data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'redact', name: 'Redact' }),
+      expect.objectContaining({ id: 'partial', name: 'Partial Mask' }),
+    ]));
+  });
+
+  it('updates policy state and applies masking to detected PII', async () => {
+    const updateResponse = await app.inject({
+      headers: authHeaders,
+      method: 'PUT',
+      url: `/api/v1/data-masking/policies/${policyId}`,
+      payload: { enabled: false },
+    });
+    expect(updateResponse.statusCode).toBe(200);
+    expect(updateResponse.json().data.enabled).toBe(false);
+
+    const maskResponse = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/data-masking/mask',
+      payload: { text: 'Contact qa@example.com', strategy: 'redact' },
+    });
+    expect(maskResponse.statusCode).toBe(200);
+    expect(maskResponse.json().data).toMatchObject({ masked: 'Contact [REDACTED]', totalMasked: 1, strategy: 'redact' });
+  });
+
+  it('rejects malformed masking policy input and deletes an existing policy', async () => {
+    const invalidResponse = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/data-masking/policies',
+      payload: { fieldPattern: '*.unsafe', piiType: 'not-pii', strategy: 'unknown' },
+    });
+    expect(invalidResponse.statusCode).toBe(400);
+
+    const deleteResponse = await app.inject({
+      headers: authHeaders,
+      method: 'DELETE',
+      url: `/api/v1/data-masking/policies/${policyId}`,
+    });
+    expect(deleteResponse.statusCode).toBe(204);
+  });
+});
+
 describe('Removed confidence-calibration surface', () => {
   it('does not expose analyzer findings as outcome predictions', async () => {
     const response = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/overview' });

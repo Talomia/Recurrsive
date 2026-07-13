@@ -8,6 +8,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { authMiddleware } from '../middleware/auth.js';
 import { assertSafeOutboundUrl, validateOutboundUrl } from '../security/outbound-url.js';
 import { store } from '../store.js';
@@ -31,6 +32,14 @@ export interface NotificationRecord {
   sent_at: string;
   /** Delivery status. */
   status: 'sent' | 'failed';
+  /** Human-readable notification title. */
+  title: string;
+  /** Display severity. */
+  severity: 'info' | 'error';
+  /** Whether a user has read the notification. */
+  read: boolean;
+  /** Whether the notification has been dismissed. */
+  dismissed: boolean;
   /** Optional error message if delivery failed. */
   error?: string;
 }
@@ -54,8 +63,13 @@ export interface ChannelInfo {
 const MAX_HISTORY = 50;
 
 async function generateNotificationId(): Promise<string> {
-  const count = await store.count('notifications') + 1;
-  return `notif_${String(count).padStart(6, '0')}`;
+  return `notif_${randomUUID()}`;
+}
+
+async function findNotification(id: string): Promise<{ storageId: string; record: NotificationRecord } | null> {
+  const entries = await store.entries<NotificationRecord>('notifications');
+  const match = entries.find(([, record]) => record.id === id);
+  return match ? { storageId: match[0], record: match[1] } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -273,14 +287,18 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
     const record: NotificationRecord = {
       id,
       channel: channel as NotificationChannel,
+      title: `Test ${channel} notification`,
       message: testMessage,
       sent_at: now,
       status: delivery.success ? 'sent' : 'failed',
+      severity: delivery.success ? 'info' : 'error',
+      read: false,
+      dismissed: false,
       ...(delivery.error ? { error: delivery.error } : {}),
     };
 
     // Append to store and trim to MAX_HISTORY
-    await store.append<NotificationRecord>('notifications', record);
+    await store.set<NotificationRecord>('notifications', id, record);
     await store.trim('notifications', MAX_HISTORY);
 
     return reply.status(200).send({
@@ -317,5 +335,52 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
       data: recent,
       total: await store.count('notifications'),
     });
+  });
+
+  /** Return one notification by its public ID. */
+  app.get<{ Params: { id: string } }>('/api/v1/notifications/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const found = await findNotification(request.params.id);
+    if (!found) {
+      return reply.status(404).send({
+        error: 'Not found',
+        message: `Notification ${request.params.id} not found.`,
+      });
+    }
+    return reply.status(200).send({ data: found.record });
+  });
+
+  /** Mark a notification read or dismissed. */
+  app.patch<{
+    Params: { id: string };
+    Body: { read?: boolean; dismissed?: boolean };
+  }>('/api/v1/notifications/:id', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        minProperties: 1,
+        additionalProperties: false,
+        properties: {
+          read: { type: 'boolean' },
+          dismissed: { type: 'boolean' },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const found = await findNotification(request.params.id);
+    if (!found) {
+      return reply.status(404).send({
+        error: 'Not found',
+        message: `Notification ${request.params.id} not found.`,
+      });
+    }
+
+    const updated: NotificationRecord = {
+      ...found.record,
+      ...(request.body.read !== undefined ? { read: request.body.read } : {}),
+      ...(request.body.dismissed !== undefined ? { dismissed: request.body.dismissed } : {}),
+    };
+    await store.set('notifications', found.storageId, updated);
+    return reply.status(200).send({ data: updated });
   });
 }

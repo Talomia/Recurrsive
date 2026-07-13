@@ -336,7 +336,7 @@ export default function UsersPage() {
   const pendingCount = invites.filter(i => i.status === 'pending').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 pb-6 sm:px-6 lg:p-6">
       {/* Header */}
       <Header
         title="Users"

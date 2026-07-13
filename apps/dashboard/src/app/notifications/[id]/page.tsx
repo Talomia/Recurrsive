@@ -10,13 +10,12 @@ import {
   Clock,
   Server,
   Link2,
-  Eye,
-  Trash2,
   Shield,
   Lightbulb,
   ShieldAlert,
 } from "lucide-react";
 import { getNotification } from "@/lib/api";
+import { NotificationActions } from "./NotificationActions";
 
 // ---------------------------------------------------------------------------
 // Type badge styling
@@ -81,7 +80,7 @@ export default async function NotificationDetailPage({ params }: NotificationDet
   const TypeIcon = typeStyle.icon;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto animate-fade-in-up">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 pb-6 pt-20 animate-fade-in-up sm:px-6 lg:p-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-text-muted">
         <Link
@@ -201,20 +200,7 @@ export default async function NotificationDetailPage({ params }: NotificationDet
         <div className="text-sm text-text-muted">
           Manage this notification
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
-          >
-            <Trash2 className="h-4 w-4" />
-            Dismiss
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/20 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/20 transition-colors"
-          >
-            <Eye className="h-4 w-4" />
-            Mark as Read
-          </button>
-        </div>
+        <NotificationActions id={notification.id} read={notification.read} />
       </div>
     </div>
   );

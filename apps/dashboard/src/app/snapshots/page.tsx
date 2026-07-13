@@ -1,4 +1,5 @@
 import Header from "@/components/header";
+import ProjectScopeRequired from "@/components/project-scope-required";
 import { getSnapshots } from "@/lib/api";
 import {
   Camera,
@@ -54,7 +55,7 @@ function formatDate(iso: string): string {
 
 export default async function SnapshotsPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="Analysis snapshots" />;
   const snapshots = await getSnapshots(projectId);
 
   return (

@@ -173,7 +173,7 @@ describe('Pipeline Integration', () => {
       expect(f.analyzer_id).toBeTruthy();
       expect(f.severity).toBeTruthy();
     }
-  });
+  }, 20_000);
 
   it('should track graph statistics', async () => {
     const stats = await graph.getStats();

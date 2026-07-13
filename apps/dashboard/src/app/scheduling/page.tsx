@@ -94,7 +94,7 @@ export default function SchedulingPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 pb-6 sm:px-6 lg:p-6">
       <Header title="Report scheduling" subtitle={`Automated reports for ${activeProject?.name ?? 'the selected project'}`} />
 
       {canEdit && <div className="flex justify-end">

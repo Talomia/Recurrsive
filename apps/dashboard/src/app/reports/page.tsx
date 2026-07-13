@@ -1,4 +1,5 @@
 import Header from "@/components/header";
+import ProjectScopeRequired from "@/components/project-scope-required";
 import { FileText, Download, Calendar, BarChart3, FileJson, Code2, Shield, Clock } from "lucide-react";
 import { getReportUrl, getReportsAnalysisHistory } from "@/lib/api";
 
@@ -61,7 +62,7 @@ function formatDate(iso: string): string {
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="Reports" />;
   const history = await getReportsAnalysisHistory(projectId);
 
   return (

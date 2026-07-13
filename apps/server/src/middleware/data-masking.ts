@@ -40,6 +40,9 @@ export type PIIType =
   | 'password'
   | 'jwt_token';
 
+const MASKING_STRATEGIES: MaskingStrategy[] = ['redact', 'hash', 'partial', 'tokenize', 'generalize', 'suppress'];
+const PII_TYPES: PIIType[] = ['email', 'phone', 'name', 'address', 'ssn', 'credit_card', 'ip_address', 'api_key', 'password', 'jwt_token'];
+
 /** Masking policy for a specific field pattern. */
 export interface MaskingPolicy {
   id: string;
@@ -108,8 +111,15 @@ export function applyMask(value: string, strategy: MaskingStrategy): string {
     }
     case 'tokenize': {
       // Deterministic token using HMAC-SHA256 with server-side key
-      const tokenKey = process.env['MASKING_TOKEN_KEY'] ?? 'recurrsive-masking-default-key';
-      const token = createHmac('sha256', tokenKey).update(value).digest('hex').slice(0, 16);
+      const rootKey = process.env['SECRETS_ENCRYPTION_KEY'];
+      const tokenKey = process.env['MASKING_TOKEN_KEY'] ?? (rootKey
+        ? createHmac('sha256', rootKey).update('recurrsive:data-masking:tokenization:v1').digest('hex')
+        : undefined);
+      if (!tokenKey && process.env['NODE_ENV'] === 'production') {
+        throw new Error('A production secrets key is required for tokenization.');
+      }
+      const effectiveKey = tokenKey ?? 'recurrsive-development-only-masking-key';
+      const token = createHmac('sha256', effectiveKey).update(value).digest('hex').slice(0, 16);
       return `[TOKEN:${token}]`;
     }
     case 'generalize':
@@ -177,7 +187,7 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
         enabled: true,
         totalPolicies: policies.length,
         activePolicies: enabled.length,
-        supportedStrategies: ['redact', 'hash', 'partial', 'tokenize', 'generalize', 'suppress'],
+        supportedStrategies: MASKING_STRATEGIES,
         lastScanAt: null,
         piiTypesDetected: [...new Set(policies.map(p => p.piiType))],
       },
@@ -197,7 +207,23 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
   });
 
   // Create policy
-  app.post('/api/v1/data-masking/policies', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/data-masking/policies', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['fieldPattern', 'piiType', 'strategy'],
+        additionalProperties: false,
+        properties: {
+          fieldPattern: { type: 'string', minLength: 1, maxLength: 256 },
+          piiType: { type: 'string', enum: PII_TYPES },
+          strategy: { type: 'string', enum: MASKING_STRATEGIES },
+          enabled: { type: 'boolean' },
+          reason: { type: 'string', maxLength: 1_000 },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as Partial<MaskingPolicy>;
     if (!body.fieldPattern || !body.piiType || !body.strategy) {
       return reply.status(400).send({ error: 'fieldPattern, piiType, and strategy are required' });
@@ -215,7 +241,23 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
   });
 
   // Update policy
-  app.put<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/v1/data-masking/policies/:id', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        minProperties: 1,
+        additionalProperties: false,
+        properties: {
+          fieldPattern: { type: 'string', minLength: 1, maxLength: 256 },
+          piiType: { type: 'string', enum: PII_TYPES },
+          strategy: { type: 'string', enum: MASKING_STRATEGIES },
+          enabled: { type: 'boolean' },
+          reason: { type: 'string', maxLength: 1_000 },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const existing = await store.get<MaskingPolicy>('masking_policies', request.params.id);
     if (!existing) return reply.status(404).send({ error: 'Policy not found' });
 
@@ -242,7 +284,17 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
   });
 
   // Scan text for PII
-  app.post('/api/v1/data-masking/scan', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/data-masking/scan', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['text'],
+        additionalProperties: false,
+        properties: { text: { type: 'string', minLength: 1, maxLength: 1_000_000 } },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { text?: string };
     if (!body.text) return reply.status(400).send({ error: 'text is required' });
 
@@ -260,7 +312,20 @@ export async function registerDataMaskingRoutes(app: FastifyInstance): Promise<v
   });
 
   // Apply masking to text
-  app.post('/api/v1/data-masking/mask', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post('/api/v1/data-masking/mask', {
+    preHandler: [authMiddleware],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['text'],
+        additionalProperties: false,
+        properties: {
+          text: { type: 'string', minLength: 1, maxLength: 1_000_000 },
+          strategy: { type: 'string', enum: MASKING_STRATEGIES },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { text?: string; strategy?: MaskingStrategy };
     if (!body.text) return reply.status(400).send({ error: 'text is required' });
 

@@ -1,6 +1,7 @@
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
 import { getHealthDashboard } from "@/lib/api";
+import Link from "next/link";
 import {
   HeartPulse,
   Activity,
@@ -36,7 +37,19 @@ const SERVICE_STATUS_ICONS: Record<string, typeof CheckCircle2> = {
 
 export default async function HealthPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <Header title="Deployment & Project Health" subtitle="Current process telemetry and project analysis health" />
+        <div className="glass-card rounded-2xl p-8 text-center">
+          <HeartPulse className="mx-auto h-8 w-8 text-text-muted" />
+          <h2 className="mt-3 font-semibold text-text-primary">Select a project first</h2>
+          <p className="mt-1 text-sm text-text-secondary">Project health is isolated by repository and requires an active project scope.</p>
+          <Link href="/projects" className="mt-4 inline-flex rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white">Choose a project</Link>
+        </div>
+      </div>
+    );
+  }
   try {
     const health = await getHealthDashboard(projectId);
 

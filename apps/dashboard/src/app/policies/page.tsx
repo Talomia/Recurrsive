@@ -1,4 +1,5 @@
 import Header from "@/components/header";
+import ProjectScopeRequired from "@/components/project-scope-required";
 import ScoreGauge from "@/components/score-gauge";
 import { getPolicies, getComplianceReport } from "@/lib/api";
 import type { PolicySet } from "@/lib/api";
@@ -124,7 +125,7 @@ function PolicySetCard({ policySet }: { policySet: PolicySet }) {
 
 export default async function PoliciesPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="Policy compliance" />;
   let policies: PolicySet[] = [];
   let compliance = {
     total_opportunities: 0,

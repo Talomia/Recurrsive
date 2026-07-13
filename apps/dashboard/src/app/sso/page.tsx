@@ -111,7 +111,7 @@ export default function SSOPage() {
   if (loading) return <div className="flex h-64 items-center justify-center" role="status"><Loader2 className="h-8 w-8 animate-spin text-accent-blue" /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 pb-6 sm:px-6 lg:p-6">
       <Header title="Single sign-on" subtitle="Signed SAML 2.0 identity providers and active sessions" />
       <div className="flex justify-end"><button type="button" onClick={() => setForm({ ...EMPTY_FORM })} className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white">Add SAML provider</button></div>
       {error && <div role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}

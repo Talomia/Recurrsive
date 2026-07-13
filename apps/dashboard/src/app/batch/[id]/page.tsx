@@ -34,7 +34,7 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
   const BatchIcon = batchStyle.icon;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 pb-6 pt-20 sm:px-6 lg:p-6">
       <nav><Link href="/batch" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-text-primary"><ArrowLeft className="h-4 w-4" />Batch history</Link></nav>
       <header className="glass-card rounded-2xl p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">

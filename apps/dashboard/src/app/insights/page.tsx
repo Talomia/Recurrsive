@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Header from "@/components/header";
+import ProjectScopeRequired from "@/components/project-scope-required";
 import { Sparkles, TrendingUp, Eye, Zap, GitBranch, AlertTriangle, Shield, BarChart3, Layers, ChevronRight, ArrowRight } from "lucide-react";
 import { getFindingsSummary, getFindings } from "@/lib/api";
 import type { Finding } from "@/lib/api";
@@ -108,7 +109,7 @@ function generateInsights(summary: {
 
 export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ projectId?: string }> }) {
   const { projectId } = await searchParams;
-  if (!projectId) return null;
+  if (!projectId) return <ProjectScopeRequired feature="Insights" />;
   try {
     const summary = await getFindingsSummary(projectId);
     const { findings } = await getFindings({ limit: 10, projectId });
