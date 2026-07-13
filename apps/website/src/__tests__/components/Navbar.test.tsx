@@ -35,7 +35,7 @@ describe('Navbar', () => {
     expect(hrefs).toContain('/product');
     expect(hrefs).toContain('/pricing');
     expect(hrefs).toContain('/docs');
-    expect(hrefs).toContain('/blog'); // Community -> /blog
+    expect(hrefs).toContain('/changelog');
   });
 
   it('renders Product link pointing to /product', () => {

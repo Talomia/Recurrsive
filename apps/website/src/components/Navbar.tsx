@@ -40,13 +40,13 @@ const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Community',
-    href: '/blog',
+    label: 'Project',
+    href: '/changelog',
     items: [
-      { label: 'Blog', href: '/blog', icon: ExternalLink, desc: 'Technical articles & updates' },
       { label: 'Changelog', href: '/changelog', icon: ExternalLink, desc: 'Release notes & history' },
       { label: 'About', href: '/about', icon: Users, desc: 'Our team & mission' },
       { label: 'Contact', href: '/contact', icon: ExternalLink, desc: 'Get in touch' },
+      { label: 'GitHub Discussions', href: 'https://github.com/Talomia/Recurrsive/discussions', icon: ExternalLink, desc: 'Questions and project discussion' },
     ],
   },
 ];

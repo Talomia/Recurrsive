@@ -46,11 +46,6 @@ describe('Sitemap', () => {
     expect(urls).toContain('https://recurrsive.dev/about');
   });
 
-  it('includes /blog', () => {
-    const urls = entries.map((e) => e.url);
-    expect(urls).toContain('https://recurrsive.dev/blog');
-  });
-
   it('includes /cloud', () => {
     const urls = entries.map((e) => e.url);
     expect(urls).toContain('https://recurrsive.dev/cloud');

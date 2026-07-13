@@ -15,7 +15,6 @@ const FOOTER_LINKS = {
     { label: 'CLI Reference', href: '/docs/cli-reference' },
     { label: 'Deployment', href: '/docs/deployment' },
     { label: 'Architecture', href: '/docs/architecture' },
-    { label: 'Blog', href: '/blog' },
   ],
   Company: [
     { label: 'About', href: '/about' },
