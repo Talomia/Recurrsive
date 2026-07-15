@@ -17,42 +17,63 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Finding, Entity, Relationship } from '@recurrsive/core';
 import { SeveritySchema, SEVERITY_WEIGHTS } from '@recurrsive/core';
-import { findDependencyTree } from '@recurrsive/graph';
 import { state } from '../state.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Edge types that constitute a forward dependency (trace_dependency). */
+const DEPENDENCY_EDGE_TYPES = new Set(['depends_on', 'imports', 'references']);
+
 /**
- * Convert a SQL string using positional `?` placeholders into one using named
- * `$pN` placeholders, returning the rewritten SQL and a matching params object.
- *
- * The graph client's `query()` only supports named (`$key`) bindings — passing
- * `{ '1': v }` against a `?`-placeholder statement makes better-sqlite3 throw
- * ("statement uses anonymous parameters"). This bridges the two: each `?` in
- * order becomes `$p0`, `$p1`, … bound to the corresponding positional value.
- *
- * All SQL passed here is internal and contains no `?` inside string literals,
- * so a straight positional replacement is safe.
- *
- * @param sql - SQL with positional `?` placeholders.
- * @param positional - Values in placeholder order.
- * @returns The named SQL and its params object.
+ * Edge types that constitute a "depends on" relationship for impact analysis
+ * (analyze_impact), broadened to include call and AI-usage edges.
  */
-function toNamedBindings(
-  sql: string,
-  positional: unknown[],
-): { sql: string; params: Record<string, unknown> } {
-  let index = 0;
-  const params: Record<string, unknown> = {};
-  const named = sql.replace(/\?/g, () => {
-    const key = `p${index}`;
-    params[key] = positional[index];
-    index += 1;
-    return `$${key}`;
-  });
-  return { sql: named, params };
+const IMPACT_EDGE_TYPES = new Set([
+  'depends_on', 'imports', 'references', 'calls', 'uses_tool', 'uses_model',
+]);
+
+/** Safety cap on traversal size to avoid pathological graphs. */
+const MAX_TRAVERSAL_NODES = 5000;
+
+/**
+ * Breadth-first traversal of the dependency graph using the client's typed
+ * relationship API (which binds parameters correctly), replacing raw recursive
+ * CTE queries that the SQLite client could not bind.
+ *
+ * @param graph - The graph client.
+ * @param startId - Entity UUID to start from (included in the result set).
+ * @param direction - `'out'` to follow dependencies, `'in'` to follow dependents.
+ * @param edgeTypes - Relationship types to traverse.
+ * @returns Discovered entity IDs in BFS order (starting with `startId`).
+ */
+async function traverseDependencies(
+  graph: ReturnType<typeof state.getGraph>,
+  startId: string,
+  direction: 'in' | 'out',
+  edgeTypes: Set<string>,
+): Promise<string[]> {
+  const visited = new Set<string>([startId]);
+  const discovered: string[] = [startId];
+  const queue: string[] = [startId];
+
+  while (queue.length > 0 && visited.size < MAX_TRAVERSAL_NODES) {
+    const current = queue.shift()!;
+    const rels = await graph.getRelationships(current, direction);
+    for (const rel of rels) {
+      if (!edgeTypes.has(rel.type)) continue;
+      // For 'out' we follow target_id; for 'in' we follow source_id.
+      const nextId = direction === 'out' ? rel.target_id : rel.source_id;
+      if (!visited.has(nextId)) {
+        visited.add(nextId);
+        discovered.push(nextId);
+        queue.push(nextId);
+      }
+    }
+  }
+
+  return discovered;
 }
 
 /**
@@ -379,24 +400,23 @@ export function registerInspectTools(server: McpServer): void {
           };
         }
 
-        // Execute the dependency tree query.
-        // Dialect is 'sql' because the MCP server always uses the SQLite
-        // backend (see state.ts:80-82). If AGE support is added to MCP,
-        // this must be updated to detect the graph provider dynamically.
-        const depQuery = findDependencyTree(source_id, 'sql');
-        const bound = toNamedBindings(depQuery.sql, depQuery.params);
-        const rows = await graph.query(bound.sql, bound.params);
+        // Walk the dependency tree with a BFS over the graph client's typed
+        // relationship API (which binds parameters correctly), following
+        // outgoing depends_on / imports / references edges. This replaces a
+        // raw recursive-CTE query whose named/positional bindings the SQLite
+        // client could not bind.
+        const depEntityIds = await traverseDependencies(
+          graph,
+          source_id,
+          'out',
+          DEPENDENCY_EDGE_TYPES,
+        );
 
-        // Parse results — rows are entity-shaped records
         const depEntities: Array<{ id: string; name: string; type: string }> = [];
-        for (const row of rows) {
-          const r = row as Record<string, unknown>;
-          if (r['id'] && r['name'] && r['type']) {
-            depEntities.push({
-              id: String(r['id']),
-              name: String(r['name']),
-              type: String(r['type']),
-            });
+        for (const id of depEntityIds) {
+          const ent = await graph.getEntity(id);
+          if (ent) {
+            depEntities.push({ id: ent.id, name: ent.name, type: ent.type });
           }
         }
 
@@ -672,37 +692,23 @@ export function registerInspectTools(server: McpServer): void {
           };
         }
 
-        // Get reverse dependents — entities that depend on this one
-        // Use a reverse dependency query (swap direction: target → source)
-        const reverseDepsQuery = `
-WITH RECURSIVE rev_tree(entity_id, depth, path) AS (
-  SELECT ?, 0, ?
-  UNION ALL
-  SELECT r.source_id, rt.depth + 1, rt.path || ',' || r.source_id
-  FROM rev_tree rt
-  JOIN relationships r ON r.target_id = rt.entity_id
-    AND r.type IN ('depends_on', 'imports', 'references', 'calls', 'uses_tool', 'uses_model')
-  WHERE rt.depth < 20
-    AND INSTR(rt.path, r.source_id) = 0
-)
-SELECT DISTINCT e.*
-FROM rev_tree rt
-JOIN entities e ON e.id = rt.entity_id
-ORDER BY rt.depth;`.trim();
+        // Get reverse dependents — entities that depend on this one — by
+        // walking INCOMING edges with the typed relationship API (same reason
+        // as trace_dependency: the SQLite client cannot bind the raw CTE's
+        // parameters). Follows the broader set of "depends on" edge types.
+        const dependentIds = await traverseDependencies(
+          graph,
+          entity_id,
+          'in',
+          IMPACT_EDGE_TYPES,
+        );
 
-        const boundReverse = toNamedBindings(reverseDepsQuery, [entity_id, entity_id]);
-        const rows = await graph.query(boundReverse.sql, boundReverse.params);
-
-        // Parse dependent entities
         const dependents: Array<{ id: string; name: string; type: string }> = [];
-        for (const row of rows) {
-          const r = row as Record<string, unknown>;
-          if (r['id'] && r['name'] && r['type'] && String(r['id']) !== entity_id) {
-            dependents.push({
-              id: String(r['id']),
-              name: String(r['name']),
-              type: String(r['type']),
-            });
+        for (const id of dependentIds) {
+          if (id === entity_id) continue;
+          const ent = await graph.getEntity(id);
+          if (ent) {
+            dependents.push({ id: ent.id, name: ent.name, type: ent.type });
           }
         }
 
