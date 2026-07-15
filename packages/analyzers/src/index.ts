@@ -5,7 +5,7 @@
  *
  * This package provides a suite of analyzers that inspect the
  * knowledge graph to detect architecture, AI, performance, cost,
- * reliability, security, data, documentation, UX, and product
+ * reliability, security, data, documentation, and product
  * issues. Each analyzer implements the core {@link Analyzer}
  * interface and produces raw {@link Finding} objects.
  *
@@ -34,7 +34,6 @@ export { ReliabilityAnalyzer } from './reliability/index.js';
 export { SecurityAnalyzer } from './security/index.js';
 export { DataAnalyzer } from './data/index.js';
 export { DocsAnalyzer } from './docs/index.js';
-export { UXAnalyzer } from './ux/index.js';
 export { ProductAnalyzer } from './product/index.js';
 export { DependencyAnalyzer } from './dependency/index.js';
 export { APIContractAnalyzer } from './api-contract/index.js';

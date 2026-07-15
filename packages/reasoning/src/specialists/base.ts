@@ -58,9 +58,11 @@ export interface Specialist {
    *
    * @param hypothesis - The hypothesis to challenge.
    * @param llm - LLM adapter for reasoning.
+   * @param evidenceContext - Optional real evidence/graph context for the
+   *   hypothesis, so the challenge is grounded in collected data.
    * @returns A challenge statement with evidence.
    */
-  challenge(hypothesis: Hypothesis, llm: LLMAdapter): Promise<string>;
+  challenge(hypothesis: Hypothesis, llm: LLMAdapter, evidenceContext?: string): Promise<string>;
 
   /**
    * Defend a hypothesis against a challenge.
@@ -68,12 +70,15 @@ export interface Specialist {
    * @param hypothesis - The hypothesis being defended.
    * @param challenge - The challenge statement to address.
    * @param llm - LLM adapter for reasoning.
+   * @param evidenceContext - Optional real evidence/graph context for the
+   *   hypothesis, so the defense is grounded in collected data.
    * @returns Defense response with revised confidence.
    */
   defend(
     hypothesis: Hypothesis,
     challenge: string,
     llm: LLMAdapter,
+    evidenceContext?: string,
   ): Promise<{ response: string; revised_confidence: number }>;
 }
 
@@ -216,7 +221,7 @@ export abstract class BaseSpecialist implements Specialist {
   async analyzeFindings(
     findings: Finding[],
     llm: LLMAdapter,
-    _graph: GraphClient,
+    graph: GraphClient,
   ): Promise<Hypothesis[]> {
     if (findings.length === 0) {
       return [];
@@ -232,10 +237,15 @@ export abstract class BaseSpecialist implements Specialist {
           `  Category: ${f.category}\n` +
           `  Confidence: ${f.confidence}\n` +
           `  Tags: ${f.tags.join(', ')}\n` +
-          `  Evidence count: ${f.evidence.length}\n` +
-          `  Locations: ${f.locations.map((l) => l.file).join(', ')}`,
+          `  Evidence:\n${formatFindingEvidence(f)}\n` +
+          `  Locations: ${f.locations.map((l) => l.file).join(', ') || '(none)'}`,
       )
       .join('\n\n');
+
+    // Pull real context for the entities these findings reference from the
+    // knowledge graph, so hypotheses are grounded in what was actually
+    // collected rather than the finding text alone.
+    const graphContext = await buildGraphContextFor(findings, graph);
 
     const messages: LLMMessage[] = [
       { role: 'system', content: this.systemPrompt },
@@ -245,6 +255,7 @@ export abstract class BaseSpecialist implements Specialist {
           `You are analyzing ${findings.length} findings as a ${this.name}.\n` +
           `Your cognitive framework: ${this.cognitiveFramework}\n\n` +
           `FINDINGS:\n${findingsSummary}\n\n` +
+          (graphContext ? `KNOWLEDGE GRAPH CONTEXT:\n${graphContext}\n\n` : '') +
           `INSTRUCTIONS:\n` +
           `1. Identify patterns, correlations, and actionable opportunities across these findings.\n` +
           `2. Group related findings into hypotheses where appropriate.\n` +
@@ -253,7 +264,10 @@ export abstract class BaseSpecialist implements Specialist {
           `counter arguments, and assumptions.\n` +
           `4. Reference the finding IDs that support each hypothesis.\n` +
           `5. Only propose hypotheses you have genuine confidence in — do NOT pad with low-quality ideas.\n` +
-          `6. Aim for 1–5 high-quality hypotheses.\n\n` +
+          `6. Ground every hypothesis in the evidence and graph context above. ` +
+          `Do NOT invent facts, metrics, or numbers that are not supported by them; ` +
+          `state any projection as an assumption.\n` +
+          `7. Aim for 1–5 high-quality hypotheses.\n\n` +
           `Respond with JSON containing a "hypotheses" array.`,
       },
     ];
@@ -290,7 +304,11 @@ export abstract class BaseSpecialist implements Specialist {
    * @param llm - LLM adapter.
    * @returns Challenge statement as text (includes embedded evidence).
    */
-  async challenge(hypothesis: Hypothesis, llm: LLMAdapter): Promise<string> {
+  async challenge(
+    hypothesis: Hypothesis,
+    llm: LLMAdapter,
+    evidenceContext?: string,
+  ): Promise<string> {
     const messages: LLMMessage[] = [
       { role: 'system', content: this.systemPrompt },
       {
@@ -308,6 +326,7 @@ export abstract class BaseSpecialist implements Specialist {
           `  Risk: ${hypothesis.risk_level}\n` +
           `  Supporting Arguments:\n${hypothesis.supporting_arguments.map((a) => `    - ${a}`).join('\n')}\n` +
           `  Assumptions:\n${hypothesis.assumptions.map((a) => `    - ${a}`).join('\n')}\n\n` +
+          (evidenceContext ? `SUPPORTING EVIDENCE & GRAPH CONTEXT:\n${evidenceContext}\n\n` : '') +
           `INSTRUCTIONS:\n` +
           `1. Apply your ${this.cognitiveFramework} framework to find weaknesses.\n` +
           `2. Identify assumptions that may not hold.\n` +
@@ -339,6 +358,7 @@ export abstract class BaseSpecialist implements Specialist {
     hypothesis: Hypothesis,
     challenge: string,
     llm: LLMAdapter,
+    evidenceContext?: string,
   ): Promise<{ response: string; revised_confidence: number }> {
     const messages: LLMMessage[] = [
       { role: 'system', content: this.systemPrompt },
@@ -351,6 +371,7 @@ export abstract class BaseSpecialist implements Specialist {
           `  Description: ${hypothesis.description}\n` +
           `  Original Confidence: ${hypothesis.confidence}\n` +
           `  Supporting Arguments:\n${hypothesis.supporting_arguments.map((a) => `    - ${a}`).join('\n')}\n\n` +
+          (evidenceContext ? `SUPPORTING EVIDENCE & GRAPH CONTEXT:\n${evidenceContext}\n\n` : '') +
           `CHALLENGE:\n${challenge}\n\n` +
           `INSTRUCTIONS:\n` +
           `1. Honestly assess the validity of the challenge.\n` +
@@ -373,4 +394,130 @@ export abstract class BaseSpecialist implements Specialist {
       revised_confidence: Math.max(0, Math.min(1, parsed.revised_confidence)),
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Shared evidence / graph context helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a finding's actual evidence content for a prompt.
+ *
+ * Specialists must reason over the real evidence, not just a count. Each
+ * evidence item is rendered with its type, description, source and a compact
+ * view of any structured data payload.
+ *
+ * @param finding - The finding whose evidence to render.
+ * @returns Indented, human-readable evidence block (or a "(none)" marker).
+ */
+export function formatFindingEvidence(finding: Finding): string {
+  if (finding.evidence.length === 0) {
+    return '    (no evidence collected)';
+  }
+  return finding.evidence
+    .map((e) => {
+      const parts = [`    - [${e.type}] ${e.description}`];
+      parts.push(`      source: ${e.source}, confidence: ${e.confidence}`);
+      if (e.data && Object.keys(e.data).length > 0) {
+        let dataStr: string;
+        try {
+          dataStr = JSON.stringify(e.data);
+        } catch {
+          dataStr = '[unserializable]';
+        }
+        if (dataStr.length > 400) dataStr = `${dataStr.slice(0, 400)}…`;
+        parts.push(`      data: ${dataStr}`);
+      }
+      return parts.join('\n');
+    })
+    .join('\n');
+}
+
+/**
+ * Build a compact knowledge-graph context block for the entities referenced
+ * by a set of findings' evidence.
+ *
+ * For each distinct referenced entity (bounded to avoid oversized prompts),
+ * the entity and its immediate relationships are pulled from the graph so the
+ * caller reasons over what was actually collected. Failures to resolve an
+ * entity are skipped silently — missing context must never fabricate facts.
+ *
+ * @param findings - Findings whose evidence entity IDs seed the lookup.
+ * @param graph - Knowledge graph client.
+ * @param maxEntities - Maximum entities to include (default 12).
+ * @returns A formatted context block, or an empty string if none available.
+ */
+export async function buildGraphContextFor(
+  findings: Finding[],
+  graph: GraphClient,
+  maxEntities = 12,
+): Promise<string> {
+  const entityIds: string[] = [];
+  const seen = new Set<string>();
+  for (const f of findings) {
+    for (const e of f.evidence) {
+      for (const id of e.entity_ids) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          entityIds.push(id);
+        }
+      }
+    }
+  }
+  if (entityIds.length === 0) return '';
+
+  const blocks: string[] = [];
+  for (const id of entityIds.slice(0, maxEntities)) {
+    try {
+      const entity = await graph.getEntity(id);
+      if (!entity) continue;
+      const rels = await graph.getRelationships(id, 'both');
+      const relSummary =
+        rels.length > 0
+          ? rels
+              .slice(0, 8)
+              .map((r) => `      ${r.type} -> ${r.target_id}`)
+              .join('\n')
+          : '      (no relationships)';
+      blocks.push(
+        `  - ${entity.type} "${entity.name}" (id: ${entity.id})\n` +
+          `    relationships:\n${relSummary}`,
+      );
+    } catch {
+      // Skip unresolved entities rather than invent context.
+    }
+  }
+
+  if (blocks.length === 0) return '';
+  const suffix =
+    entityIds.length > maxEntities
+      ? `\n  … and ${entityIds.length - maxEntities} more referenced entities not shown.`
+      : '';
+  return blocks.join('\n') + suffix;
+}
+
+/**
+ * Build a combined evidence + graph context string for a single hypothesis,
+ * using only the findings that support it. Used by the debate protocol so
+ * challenges and defenses are grounded in the same real data the proposer saw.
+ *
+ * @param hypothesis - The hypothesis to contextualise.
+ * @param findings - All findings available to the run.
+ * @param graph - Knowledge graph client.
+ * @returns A formatted context block, or an empty string if none available.
+ */
+export async function buildHypothesisContext(
+  hypothesis: Hypothesis,
+  findings: Finding[],
+  graph: GraphClient,
+): Promise<string> {
+  const related = findings.filter((f) => hypothesis.finding_ids.includes(f.id));
+  if (related.length === 0) return '';
+  const evidence = related
+    .map((f) => `  Finding "${f.title}":\n${formatFindingEvidence(f)}`)
+    .join('\n');
+  const graphContext = await buildGraphContextFor(related, graph);
+  return graphContext
+    ? `${evidence}\n  Graph context:\n${graphContext}`
+    : evidence;
 }

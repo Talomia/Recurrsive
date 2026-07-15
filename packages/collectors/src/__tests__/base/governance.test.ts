@@ -110,6 +110,28 @@ describe('GovernanceFilter', () => {
       expect(types).toContain('email');
       expect(types).toContain('ssn');
     });
+
+    // ── Credit-card Luhn validation ─────────────────────────────────────
+    it('detects a credit-card number that passes the Luhn checksum', () => {
+      // 4111 1111 1111 1111 is a well-known Luhn-valid test Visa number.
+      const detections = filter.detectPII('card 4111 1111 1111 1111 end');
+      const card = detections.find((d) => d.type === 'credit_card');
+      expect(card).toBeDefined();
+      expect(card!.match).toContain('4111');
+    });
+
+    it('rejects a 16-digit run that fails the Luhn checksum', () => {
+      // 1234 5678 9012 3456 is a 16-digit number that fails Luhn and must
+      // NOT be mass-redacted as a credit card.
+      const detections = filter.detectPII('num 1234 5678 9012 3456 end');
+      const card = detections.find((d) => d.type === 'credit_card');
+      expect(card).toBeUndefined();
+    });
+
+    it('does not flag arbitrary long digit runs as credit cards', () => {
+      const detections = filter.detectPII('order 0000 1111 2222 3334 shipped');
+      expect(detections.find((d) => d.type === 'credit_card')).toBeUndefined();
+    });
   });
 
   // ── Field Masking ─────────────────────────────────────────────────────
@@ -285,6 +307,18 @@ describe('GovernanceFilter', () => {
       expect(maskEntry!.details['entity_id']).toBe(entity.id);
     });
 
+    it('records exactly one audit entry per mask (no double logging)', () => {
+      const filter = new GovernanceFilter(
+        createGovernance({ audit_log: true, masked_fields: ['secret'], pii_detection: false }),
+      );
+      const entity = makeEntity({ properties: { secret: 'value', name: 'safe' } });
+
+      filter.maskEntity(entity);
+
+      const maskEntries = filter.getAuditLog().filter((e) => e.action === 'mask_entity');
+      expect(maskEntries).toHaveLength(1);
+    });
+
     it('does not record audit entries when audit_log is disabled', () => {
       const filter = new GovernanceFilter(
         createGovernance({ audit_log: false, masked_fields: ['secret'], pii_detection: false }),
@@ -360,6 +394,67 @@ describe('GovernanceFilter', () => {
       const text = 'This is a clean string with no sensitive data';
       const sanitized = filter.sanitizeText(text);
       expect(sanitized).toBe(text);
+    });
+
+    it('merges overlapping detections without corruption or partial leakage', () => {
+      const filter = new GovernanceFilter(createGovernance({ pii_detection: true }));
+      // The api_key pattern matches "token = eyJ...<up to first dot>" while the
+      // jwt_token pattern matches the entire JWT — the two ranges overlap.
+      const jwt =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+      const text = `token = ${jwt}`;
+
+      const sanitized = filter.sanitizeText(text);
+
+      // A single merged redaction span, no doubled/garbled placeholders.
+      expect(sanitized).toBe('[REDACTED:api_key]');
+      // No partial PII (e.g. the JWT signature tail) may survive.
+      expect(sanitized).not.toContain('SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c');
+      expect(sanitized).not.toContain('eyJ');
+    });
+  });
+
+  // ── Nested masking ────────────────────────────────────────────────────
+
+  describe('nested PII masking', () => {
+    it('sanitizes PII inside nested objects and arrays', () => {
+      const filter = new GovernanceFilter(
+        createGovernance({ masked_fields: ['password'], pii_detection: true }),
+      );
+      const entity = makeEntity({
+        properties: {
+          password: 'super-secret',
+          nested: {
+            contact: 'reach admin@example.com',
+            deeper: { list: ['ok', 'ssn 123-45-6789', 42] },
+          },
+        },
+      });
+
+      const masked = filter.maskEntity(entity);
+      const props = masked.properties as Record<string, any>;
+
+      // Top-level masked field still fully redacted.
+      expect(props['password']).toBe('***REDACTED***');
+      // PII buried in nested object is sanitized.
+      expect(props['nested'].contact).toContain('[REDACTED:email]');
+      expect(props['nested'].contact).not.toContain('admin@example.com');
+      // PII inside a nested array is sanitized; non-string primitives kept.
+      expect(props['nested'].deeper.list[0]).toBe('ok');
+      expect(props['nested'].deeper.list[1]).toContain('[REDACTED:ssn]');
+      expect(props['nested'].deeper.list[1]).not.toContain('123-45-6789');
+      expect(props['nested'].deeper.list[2]).toBe(42);
+    });
+
+    it('does not mutate the original nested structures', () => {
+      const filter = new GovernanceFilter(
+        createGovernance({ masked_fields: [], pii_detection: true }),
+      );
+      const original = { contact: 'admin@example.com' };
+      const entity = makeEntity({ properties: { nested: original } });
+
+      filter.maskEntity(entity);
+      expect(original.contact).toBe('admin@example.com');
     });
   });
 });

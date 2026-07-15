@@ -162,6 +162,7 @@ export class ReasoningEngine {
       allHypotheses,
       this.specialists,
       graphClient,
+      findings,
     );
 
     logger.info(`Debate concluded after ${rounds.length} rounds`);

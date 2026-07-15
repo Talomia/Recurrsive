@@ -1,9 +1,9 @@
 /**
  * Tests for CostAnalyzer.
  *
- * Covers all 6 rules: expensive model overuse, no token tracking,
- * missing semantic caching, unused model configurations, missing
- * batch processing, and no cost alerts.  Also tests finalize().
+ * Covers all 5 rules: no token tracking, missing semantic caching,
+ * unused model configurations, missing batch processing, and no cost
+ * alerts.  Also tests finalize().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -103,127 +103,7 @@ describe('CostAnalyzer', () => {
     expect(analyzer.categories).toContain('cost');
   });
 
-  // ── Rule 1: Expensive Model Overuse ─────────────────────────────────
-
-  describe('expensive model overuse', () => {
-    it('detects expensive model used for simple task via task_complexity', async () => {
-      const model = makeEntity({ type: 'model', name: 'gpt-4' });
-      const fn = makeEntity({
-        type: 'function',
-        name: 'classifyEmail',
-        properties: { task_complexity: 'simple' },
-      });
-
-      const rel = makeRel({ type: 'uses_model', source_id: fn.id, target_id: model.id });
-
-      const ctx = makeContext(
-        { model: [model], function: [fn], cost_metric: [], prompt: [], alert: [] },
-        (id, dir) => {
-          if (id === model.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const expFindings = findings.filter((f) => f.title.includes('Expensive model'));
-      expect(expFindings).toHaveLength(1);
-      expect(expFindings[0]!.severity).toBe('medium');
-    });
-
-    it('detects expensive model for function tagged as simple-task', async () => {
-      const model = makeEntity({ type: 'model', name: 'claude-3-opus' });
-      const fn = makeEntity({
-        type: 'function',
-        name: 'summarizeText',
-        tags: ['simple-task'],
-      });
-
-      const rel = makeRel({ type: 'uses_model', source_id: fn.id, target_id: model.id });
-
-      const ctx = makeContext(
-        { model: [model], function: [fn], cost_metric: [], prompt: [], alert: [] },
-        (id, dir) => {
-          if (id === model.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const expFindings = findings.filter((f) => f.title.includes('Expensive model'));
-      expect(expFindings).toHaveLength(1);
-    });
-
-    it('detects expensive model for summarization tag', async () => {
-      const model = makeEntity({ type: 'model', name: 'gemini-ultra' });
-      const fn = makeEntity({
-        type: 'function',
-        name: 'doSummary',
-        tags: ['summarization'],
-      });
-
-      const rel = makeRel({ type: 'uses_model', source_id: fn.id, target_id: model.id });
-
-      const ctx = makeContext(
-        { model: [model], function: [fn], cost_metric: [], prompt: [], alert: [] },
-        (id, dir) => {
-          if (id === model.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const expFindings = findings.filter((f) => f.title.includes('Expensive model'));
-      expect(expFindings).toHaveLength(1);
-    });
-
-    it('does not flag cheap models', async () => {
-      const model = makeEntity({ type: 'model', name: 'gpt-3.5-turbo' });
-      const fn = makeEntity({
-        type: 'function',
-        name: 'simpleTask',
-        properties: { task_complexity: 'simple' },
-      });
-
-      const rel = makeRel({ type: 'uses_model', source_id: fn.id, target_id: model.id });
-
-      const ctx = makeContext(
-        { model: [model], function: [fn], cost_metric: [], prompt: [], alert: [] },
-        (id, dir) => {
-          if (id === model.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const expFindings = findings.filter((f) => f.title.includes('Expensive model'));
-      expect(expFindings).toHaveLength(0);
-    });
-
-    it('does not flag expensive models for complex tasks', async () => {
-      const model = makeEntity({ type: 'model', name: 'gpt-4' });
-      const fn = makeEntity({
-        type: 'function',
-        name: 'reasonAbout',
-        properties: { task_complexity: 'complex' },
-      });
-
-      const rel = makeRel({ type: 'uses_model', source_id: fn.id, target_id: model.id });
-
-      const ctx = makeContext(
-        { model: [model], function: [fn], cost_metric: [], prompt: [], alert: [] },
-        (id, dir) => {
-          if (id === model.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const expFindings = findings.filter((f) => f.title.includes('Expensive model'));
-      expect(expFindings).toHaveLength(0);
-    });
-  });
-
-  // ── Rule 2: No Token Tracking ──────────────────────────────────────
+  // ── Rule 1: No Token Tracking ──────────────────────────────────────
 
   describe('no token tracking', () => {
     it('detects missing token tracking for LLM-calling functions', async () => {
@@ -282,7 +162,7 @@ describe('CostAnalyzer', () => {
     });
   });
 
-  // ── Rule 3: Missing Semantic Caching ───────────────────────────────
+  // ── Rule 2: Missing Semantic Caching ───────────────────────────────
 
   describe('missing semantic caching', () => {
     it('detects missing semantic caching for reusable prompts', async () => {
@@ -358,7 +238,7 @@ describe('CostAnalyzer', () => {
     });
   });
 
-  // ── Rule 4: Unused Model Configurations ────────────────────────────
+  // ── Rule 3: Unused Model Configurations ────────────────────────────
 
   describe('unused model configurations', () => {
     it('detects model with no incoming references', async () => {
@@ -411,7 +291,7 @@ describe('CostAnalyzer', () => {
     });
   });
 
-  // ── Rule 5: Missing Batch Processing ───────────────────────────────
+  // ── Rule 4: Missing Batch Processing ───────────────────────────────
 
   describe('missing batch processing', () => {
     it('detects loop with API calls and no batching', async () => {
@@ -514,7 +394,7 @@ describe('CostAnalyzer', () => {
     });
   });
 
-  // ── Rule 6: No Cost Alerts ─────────────────────────────────────────
+  // ── Rule 5: No Cost Alerts ─────────────────────────────────────────
 
   describe('no cost alerts', () => {
     it('detects missing cost alerts when models exist', async () => {

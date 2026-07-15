@@ -73,9 +73,30 @@ export class Judge {
       ranking: this.calculateRanking(opp),
     }));
 
-    scored.sort((a, b) => b.ranking.final_score - a.ranking.final_score);
+    scored.sort((a, b) => this.compareScored(a, b));
 
     return scored.map((s) => s.opportunity);
+  }
+
+  /**
+   * Deterministic comparator: final score desc, then severity desc, then id asc.
+   * Tie-breaking never depends on insertion order.
+   */
+  private compareScored(
+    a: { opportunity: Opportunity; ranking: HypothesisRanking },
+    b: { opportunity: Opportunity; ranking: HypothesisRanking },
+  ): number {
+    const scoreDelta = b.ranking.final_score - a.ranking.final_score;
+    if (Math.abs(scoreDelta) > 1e-9) return scoreDelta;
+    const sevDelta =
+      (SEVERITY_WEIGHTS[b.opportunity.severity] ?? 3) -
+      (SEVERITY_WEIGHTS[a.opportunity.severity] ?? 3);
+    if (sevDelta !== 0) return sevDelta;
+    return a.opportunity.id < b.opportunity.id
+      ? -1
+      : a.opportunity.id > b.opportunity.id
+        ? 1
+        : 0;
   }
 
   /**
@@ -97,7 +118,7 @@ export class Judge {
       ranking: this.calculateRanking(opp),
     }));
 
-    scored.sort((a, b) => b.ranking.final_score - a.ranking.final_score);
+    scored.sort((a, b) => this.compareScored(a, b));
 
     return {
       opportunities: scored.map((s) => s.opportunity),
@@ -171,26 +192,27 @@ export class Judge {
   private scoreBusinessImpact(opp: Opportunity): number {
     const impact = opp.expected_impact;
 
-    // Number of affected services (capped at 10)
+    // Number of affected services (capped at 10). This is a real, collected
+    // structural signal.
     const serviceImpact = Math.min(impact.affected_services.length, 10) / 10;
 
-    // Number of metrics with positive change (capped at 5)
-    const positiveMetrics = impact.metrics.filter(
-      (m) => m.direction === 'increase' || (m.change_percent !== undefined && m.change_percent > 0),
+    // Metrics contribute only when they are MEASURED (a real baseline that is
+    // not flagged as an estimate). We do NOT treat direction === 'increase' as
+    // "positive": the semantics are metric-specific (an increase in latency or
+    // error rate is bad), so direction alone cannot indicate improvement.
+    const measuredMetrics = impact.metrics.filter(
+      (m) => m.current_value !== undefined && m.current_value !== '' && m.is_estimate !== true,
     ).length;
-    const metricImpact = Math.min(positiveMetrics, 5) / 5;
+    const metricImpact = Math.min(measuredMetrics, 5) / 5;
 
-    // Presence of business value statement adds weight
-    const hasBusinessValue = impact.business_value ? 0.2 : 0;
-
-    // Severity-based baseline
+    // Severity-based baseline.
     const severityWeight = SEVERITY_WEIGHTS[opp.severity] ?? 3;
     const severityBase = severityWeight / 5;
 
-    return Math.min(
-      1,
-      severityBase * 0.4 + serviceImpact * 0.2 + metricImpact * 0.2 + hasBusinessValue,
-    );
+    // Weights sum to 1.0 across the three real signals. A free-form
+    // business_value string is qualitative and unverifiable, so it no longer
+    // adds a flat bonus that could dominate the score.
+    return Math.min(1, severityBase * 0.6 + serviceImpact * 0.2 + metricImpact * 0.2);
   }
 
   /**

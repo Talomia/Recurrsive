@@ -2,7 +2,7 @@
  * @module @recurrsive/analyzers/cost
  *
  * Cost analyzer that detects cost-related issues in AI integrations
- * such as expensive model overuse, missing token tracking, and
+ * such as missing token tracking, missing semantic caching, and
  * opportunities for batch processing.
  *
  * @packageDocumentation
@@ -15,15 +15,6 @@ import type {
   Entity,
 } from '@recurrsive/core';
 import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
-
-/** Model names considered "expensive" (GPT-4 class). */
-const EXPENSIVE_MODEL_PATTERNS = [
-  /gpt-4/i,
-  /claude-3-opus/i,
-  /gemini-ultra/i,
-  /o1-pro/i,
-  /o3-pro/i,
-];
 
 /** Model names considered "cheap" alternatives. */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -41,18 +32,17 @@ export const CHEAP_MODEL_PATTERNS = [
  * in AI/LLM usage.
  *
  * ### Rules
- * 1. Expensive model overuse for simple tasks
- * 2. No token tracking / usage logging
- * 3. Missing semantic caching
- * 4. Unused model configurations
- * 5. Missing batch processing
- * 6. No cost alerts
+ * 1. No token tracking / usage logging
+ * 2. Missing semantic caching
+ * 3. Unused model configurations
+ * 4. Missing batch processing
+ * 5. No cost alerts
  */
 export class CostAnalyzer implements Analyzer {
   readonly id = 'cost.optimization';
   readonly name = 'Cost Analyzer';
   readonly description =
-    'Detects cost optimization opportunities such as expensive model overuse, missing token tracking, and batch processing.';
+    'Detects cost optimization opportunities such as missing token tracking, missing semantic caching, and batch processing.';
   readonly version = '0.1.0';
   readonly categories = ['cost' as const];
 
@@ -64,14 +54,12 @@ export class CostAnalyzer implements Analyzer {
     const findings: Finding[] = [];
 
     const [
-      expensiveModel,
       noTokenTracking,
       missingSemanticCache,
       unusedConfigs,
       missingBatch,
       noCostAlerts,
     ] = await Promise.all([
-      this.detectExpensiveModelOveruse(ctx),
       this.detectNoTokenTracking(ctx),
       this.detectMissingSemanticCaching(ctx),
       this.detectUnusedModelConfigurations(ctx),
@@ -80,7 +68,6 @@ export class CostAnalyzer implements Analyzer {
     ]);
 
     findings.push(
-      ...expensiveModel,
       ...noTokenTracking,
       ...missingSemanticCache,
       ...unusedConfigs,
@@ -107,7 +94,7 @@ export class CostAnalyzer implements Analyzer {
         createFinding({
           analyzer_id: this.id,
           title: 'Multiple AI models without cost tracking',
-          description: `Project uses ${models.length} AI models (${modelNames}) but has no cost_metric entities. With multiple models, cost variance can be significant (up to 100x between model tiers). Without cost tracking, budget overruns from model selection mistakes or traffic spikes will go undetected.`,
+          description: `Project uses ${models.length} AI models (${modelNames}) but has no cost_metric entities. Different model tiers can vary substantially in price, so without cost tracking, budget overruns from model selection mistakes or traffic spikes will go undetected.`,
           severity: 'high',
           category: 'cost',
           evidence: [
@@ -136,77 +123,7 @@ export class CostAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 1: Expensive Model Overuse ────────────────────────────────
-
-  /**
-   * Detect usage of GPT-4 class models for tasks that could use
-   * cheaper models.
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for expensive model overuse.
-   */
-  private async detectExpensiveModelOveruse(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const models = await ctx.graph.getEntities('model');
-    const functions = await ctx.graph.getEntities('function');
-
-    for (const model of models) {
-      const modelName = model.name.toLowerCase();
-      const isExpensive = EXPENSIVE_MODEL_PATTERNS.some((p) => p.test(modelName));
-      if (!isExpensive) continue;
-
-      // Find functions using this model
-      const inRels = await ctx.graph.getRelationships(model.id, 'in');
-      const callers = inRels.filter((r) => r.type === 'uses_model');
-
-      for (const rel of callers) {
-        // Look up the calling function to determine task complexity
-        const caller = functions.find((f) => f.id === rel.source_id);
-        if (!caller) continue;
-
-        const taskComplexity =
-          (caller.properties['task_complexity'] as string | undefined) ?? 'unknown';
-        const isSimpleTask =
-          taskComplexity === 'simple' ||
-          taskComplexity === 'low' ||
-          caller.tags.includes('simple-task') ||
-          caller.tags.includes('classification') ||
-          caller.tags.includes('extraction') ||
-          caller.tags.includes('summarization');
-
-        if (isSimpleTask) {
-          const loc = locationFromEntity(caller);
-          findings.push(
-            createFinding({
-              analyzer_id: this.id,
-              title: `Expensive model for simple task: ${caller.name}`,
-              description: `Function '${caller.name}' uses ${model.name} for a task marked as '${taskComplexity}'. Cheaper models (GPT-4o-mini, Claude Haiku) can handle simple tasks at 10-50x lower cost with comparable quality.`,
-              severity: 'medium',
-              category: 'cost',
-              evidence: [
-                createEvidence({
-                  type: 'metric',
-                  source: this.id,
-                  description: `Expensive model '${model.name}' used for '${taskComplexity}' task`,
-                  entity_ids: [caller.id, model.id],
-                  confidence: 0.8,
-                  data: { model_name: model.name, task_complexity: taskComplexity },
-                }),
-              ],
-              locations: loc ? [loc] : [],
-              suggested_fix: `Switch to a cheaper model (e.g., GPT-4o-mini, Claude Haiku) for this ${taskComplexity} task. Use model routing to automatically select the cheapest capable model per task.`,
-              confidence: 0.75,
-              tags: ['expensive-model', 'cost', 'model-selection'],
-            }),
-          );
-        }
-      }
-    }
-
-    return findings;
-  }
-
-  // ── Rule 2: No Token Tracking ──────────────────────────────────────
+  // ── Rule 1: No Token Tracking ──────────────────────────────────────
 
   /**
    * Detect missing token usage logging in AI-consuming functions.
@@ -266,7 +183,7 @@ export class CostAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 3: Missing Semantic Caching ───────────────────────────────
+  // ── Rule 2: Missing Semantic Caching ───────────────────────────────
 
   /**
    * Detect repeated similar queries to LLM without semantic caching.
@@ -303,7 +220,7 @@ export class CostAnalyzer implements Analyzer {
         createFinding({
           analyzer_id: this.id,
           title: 'Missing semantic caching for prompt templates',
-          description: `Found ${repeatablePrompts.length} reusable prompt templates without semantic caching. Semantic caching can reduce LLM costs by 20-60% by serving cached responses for semantically similar queries.`,
+          description: `Found ${repeatablePrompts.length} reusable prompt templates without semantic caching. Semantic caching can reduce cost by serving cached responses for semantically similar queries — the actual savings depend on how often similar queries recur in your workload.`,
           severity: 'medium',
           category: 'cost',
           evidence: [
@@ -328,7 +245,7 @@ export class CostAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 4: Unused Model Configurations ────────────────────────────
+  // ── Rule 3: Unused Model Configurations ────────────────────────────
 
   /**
    * Detect model configs that are defined but never referenced.
@@ -377,7 +294,7 @@ export class CostAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 5: Missing Batch Processing ───────────────────────────────
+  // ── Rule 4: Missing Batch Processing ───────────────────────────────
 
   /**
    * Detect individual API calls that could be batched together.
@@ -441,7 +358,7 @@ export class CostAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 6: No Cost Alerts ─────────────────────────────────────────
+  // ── Rule 5: No Cost Alerts ─────────────────────────────────────────
 
   /**
    * Detect missing cost monitoring and alerting configuration.

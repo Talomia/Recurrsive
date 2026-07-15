@@ -18,9 +18,11 @@ import type {
   DebateRound,
   DebateChallenge,
   DebateResponse,
+  Finding,
   GraphClient,
 } from '@recurrsive/core';
 import type { Specialist } from '../specialists/base.js';
+import { buildHypothesisContext } from '../specialists/base.js';
 import type { LLMAdapter } from '../llm/adapter.js';
 
 const logger = createLogger({ context: { component: 'reasoning:debate' } });
@@ -59,6 +61,25 @@ function averageConfidenceChange(
   return count > 0 ? totalDelta / count : 0;
 }
 
+/**
+ * Maximum hypotheses a single specialist will challenge per round. The set is
+ * ordered by {@link importance} first, so a bound never silently drops the
+ * highest-stakes hypotheses the way array-order truncation did.
+ */
+const MAX_CHALLENGES_PER_SPECIALIST = 10;
+
+/**
+ * Debate-priority of a hypothesis. Higher-confidence, better-evidenced
+ * hypotheses are the ones most worth scrutinising, since they are the ones
+ * that will drive downstream opportunities.
+ *
+ * @param h - The hypothesis to score.
+ * @returns A priority value; larger means challenge sooner.
+ */
+function importance(h: Hypothesis): number {
+  return 0.6 * h.confidence + 0.4 * h.evidence_strength;
+}
+
 // ---------------------------------------------------------------------------
 // Debate Protocol
 // ---------------------------------------------------------------------------
@@ -86,7 +107,9 @@ export class DebateProtocol {
   /**
    * @param llm - LLM adapter for specialist reasoning.
    * @param maxRounds - Maximum number of debate rounds.
-   * @param minConsensus - Minimum average confidence for consensus (0–1).
+   * @param minConsensus - Minimum inter-agent AGREEMENT ratio (0–1) required to
+   *   declare consensus — i.e. the fraction of challenges the hypotheses must
+   *   withstand. This is NOT an average-confidence threshold.
    */
   constructor(llm: LLMAdapter, maxRounds: number, minConsensus: number) {
     this.llm = llm;
@@ -99,17 +122,33 @@ export class DebateProtocol {
    *
    * @param hypotheses - Initial hypotheses to debate.
    * @param specialists - Specialist agents participating in the debate.
-   * @param _graph - Knowledge graph client for additional context.
+   * @param graph - Knowledge graph client used to ground challenges/defenses.
+   * @param findings - Findings backing the hypotheses (for evidence context).
    * @returns Ordered list of debate rounds with challenges and responses.
    * @throws {ReasoningError} If LLM calls fail during debate.
    */
   async execute(
     hypotheses: Hypothesis[],
     specialists: Specialist[],
-    _graph: GraphClient,
+    graph: GraphClient,
+    findings: Finding[] = [],
   ): Promise<DebateRound[]> {
     if (hypotheses.length === 0 || specialists.length === 0) {
       return [];
+    }
+
+    // Pre-build real evidence + graph context per hypothesis so every
+    // challenge and defense reasons over collected data, not titles alone.
+    const contextByHypothesis = new Map<string, string>();
+    for (const h of hypotheses) {
+      try {
+        contextByHypothesis.set(
+          h.id,
+          await buildHypothesisContext(h, findings, graph),
+        );
+      } catch {
+        contextByHypothesis.set(h.id, '');
+      }
     }
 
     const rounds: DebateRound[] = [];
@@ -122,6 +161,7 @@ export class DebateProtocol {
         roundNum,
         currentHypotheses,
         specialists,
+        contextByHypothesis,
       );
       rounds.push(round);
 
@@ -130,11 +170,11 @@ export class DebateProtocol {
       // Update the round's hypotheses snapshot to reflect revised values
       round.hypotheses = currentHypotheses.map((h) => ({ ...h }));
 
-      // Check for consensus (convergence)
+      // Check for consensus (actual inter-agent agreement / convergence)
       if (this.hasConsensus(rounds)) {
         logger.info(
           `Consensus reached after ${roundNum} rounds ` +
-          `(avg confidence: ${this.averageConfidence(currentHypotheses).toFixed(3)})`,
+          `(agreement: ${this.agreementRatio(round).toFixed(3)})`,
         );
         break;
       }
@@ -157,6 +197,7 @@ export class DebateProtocol {
     roundNumber: number,
     hypotheses: Hypothesis[],
     specialists: Specialist[],
+    contextByHypothesis: Map<string, string>,
   ): Promise<DebateRound> {
     const challenges: DebateChallenge[] = [];
     const responses: DebateResponse[] = [];
@@ -166,13 +207,17 @@ export class DebateProtocol {
 
     // Each specialist challenges hypotheses from OTHER specialists
     for (const specialist of specialists) {
-      // Find hypotheses proposed by OTHER specialists
-      const otherHypotheses = hypotheses.filter(
-        (h) => h.proposed_by !== specialist.role,
-      );
+      // Find hypotheses proposed by OTHER specialists, ordered by importance so
+      // that when we bound the work we scrutinise the highest-stakes claims —
+      // not whatever happened to appear first in the array.
+      const otherHypotheses = hypotheses
+        .filter((h) => h.proposed_by !== specialist.role)
+        .sort((a, b) => importance(b) - importance(a));
 
-      // Limit challenges per specialist per round to avoid excessive LLM calls
-      const toChallenge = otherHypotheses.slice(0, 3);
+      // Bound challenges per specialist per round to keep LLM cost finite, but
+      // select by importance rather than array order. When the set is small,
+      // every hypothesis is covered.
+      const toChallenge = otherHypotheses.slice(0, MAX_CHALLENGES_PER_SPECIALIST);
 
       for (const hypothesis of toChallenge) {
         try {
@@ -181,7 +226,12 @@ export class DebateProtocol {
             `(proposed by ${hypothesis.proposed_by})`,
           );
 
-          const challengeText = await specialist.challenge(hypothesis, this.llm);
+          const context = contextByHypothesis.get(hypothesis.id);
+          const challengeText = await specialist.challenge(
+            hypothesis,
+            this.llm,
+            context,
+          );
 
           const challenge: DebateChallenge = {
             challenger: specialist.role,
@@ -198,6 +248,7 @@ export class DebateProtocol {
               hypothesis,
               challengeText,
               this.llm,
+              context,
             );
 
             const response: DebateResponse = {
@@ -264,12 +315,18 @@ export class DebateProtocol {
   /**
    * Check whether the debate has reached consensus.
    *
-   * Consensus is reached when EITHER:
-   * 1. The average confidence across all hypotheses exceeds
-   *    {@link minConsensus}, OR
-   * 2. The average confidence change between the last two rounds is
-   *    below a convergence threshold (0.02), meaning specialists
-   *    have stopped changing their minds.
+   * Consensus is about actual inter-agent AGREEMENT, not how confident agents
+   * feel. It is reached when EITHER:
+   * 1. Agreement in the latest round is high — the fraction of challenges the
+   *    hypotheses withstood (defender kept confidence ≥ 0.5) is at or above
+   *    {@link minConsensus}. A round with no challenges means nothing was
+   *    disputed, which is also agreement. This correctly ends the debate when
+   *    agents agree even that a hypothesis is *weak* (low confidence, no
+   *    dissent), instead of forcing more rounds as the old confidence-average
+   *    test did.
+   * 2. Positions have converged — the average confidence change between the
+   *    last two rounds is below 2%, meaning agents have stopped moving. This is
+   *    a genuine "no more disagreement is being resolved" signal.
    *
    * @param rounds - All debate rounds so far.
    * @returns True if consensus has been reached.
@@ -280,13 +337,12 @@ export class DebateProtocol {
     const lastRound = rounds[rounds.length - 1];
     if (!lastRound) return false;
 
-    // Check if average confidence meets the minimum threshold
-    const avgConf = this.averageConfidence(lastRound.hypotheses);
-    if (avgConf >= this.minConsensus) {
+    // 1. High agreement / low dissent in the latest round.
+    if (this.agreementRatio(lastRound) >= this.minConsensus) {
       return true;
     }
 
-    // Check for convergence (confidence not changing meaningfully)
+    // 2. Convergence — agents have stopped changing their minds.
     if (rounds.length >= 2) {
       const prevRound = rounds[rounds.length - 2];
       if (prevRound) {
@@ -294,7 +350,6 @@ export class DebateProtocol {
           lastRound.hypotheses,
           prevRound.hypotheses,
         );
-        // Converged when average change is < 2%
         if (delta < 0.02) {
           return true;
         }
@@ -305,14 +360,50 @@ export class DebateProtocol {
   }
 
   /**
-   * Calculate the average confidence across a set of hypotheses.
+   * Measure inter-agent agreement within a round.
    *
-   * @param hypotheses - Hypotheses to average.
-   * @returns Average confidence score (0–1).
+   * For each challenge, the defender's post-exchange confidence is the real
+   * signal: if it stayed at or above 0.5 the defense held (the challenger's
+   * objection did not land — agreement); if it fell below 0.5 the defender
+   * conceded doubt (dissent). Agreement is the fraction of challenges that were
+   * withstood. A round with no challenges has nothing in dispute and so counts
+   * as full agreement (1.0).
+   *
+   * @param round - The debate round to assess.
+   * @returns Agreement ratio in [0, 1].
    */
-  private averageConfidence(hypotheses: Hypothesis[]): number {
-    if (hypotheses.length === 0) return 0;
-    const total = hypotheses.reduce((sum, h) => sum + h.confidence, 0);
-    return total / hypotheses.length;
+  private agreementRatio(round: DebateRound): number {
+    const DISSENT_CONFIDENCE = 0.5;
+    // Pair each challenge with the defense it provoked (k-th challenge for a
+    // hypothesis ↔ k-th response for that hypothesis, as pushed in order).
+    let total = 0;
+    let withstood = 0;
+
+    const byHypothesis = new Map<string, { challenges: number; responses: number[] }>();
+    for (const c of round.challenges) {
+      const entry = byHypothesis.get(c.hypothesis_id) ?? { challenges: 0, responses: [] };
+      entry.challenges += 1;
+      byHypothesis.set(c.hypothesis_id, entry);
+    }
+    for (const r of round.responses) {
+      const entry = byHypothesis.get(r.hypothesis_id) ?? { challenges: 0, responses: [] };
+      entry.responses.push(r.revised_confidence);
+      byHypothesis.set(r.hypothesis_id, entry);
+    }
+
+    for (const { challenges, responses } of byHypothesis.values()) {
+      for (let i = 0; i < challenges; i++) {
+        total += 1;
+        const revised = responses[i];
+        // A challenge with a defense that held counts as withstood. A challenge
+        // with no recorded defense is treated as unresolved (not withstood).
+        if (revised !== undefined && revised >= DISSENT_CONFIDENCE) {
+          withstood += 1;
+        }
+      }
+    }
+
+    if (total === 0) return 1; // nothing disputed → agreement
+    return withstood / total;
   }
 }

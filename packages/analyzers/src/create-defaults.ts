@@ -16,7 +16,6 @@ import { ReliabilityAnalyzer } from './reliability/index.js';
 import { SecurityAnalyzer } from './security/index.js';
 import { DataAnalyzer } from './data/index.js';
 import { DocsAnalyzer } from './docs/index.js';
-import { UXAnalyzer } from './ux/index.js';
 import { ProductAnalyzer } from './product/index.js';
 import { DependencyAnalyzer } from './dependency/index.js';
 import { APIContractAnalyzer } from './api-contract/index.js';
@@ -51,7 +50,6 @@ export function createDefaultAnalyzers(): Analyzer[] {
     new SecurityAnalyzer(),
     new DataAnalyzer(),
     new DocsAnalyzer(),
-    new UXAnalyzer(),
     new ProductAnalyzer(),
     new DependencyAnalyzer(),
     new APIContractAnalyzer(),

@@ -175,6 +175,32 @@ function findBlockEnd(source: string, startIndex: number): number {
   return source.length;
 }
 
+/**
+ * Detect control-flow features (try/catch error handling and loops)
+ * within a function or method body.
+ *
+ * These are heuristic, regex-based checks over the body text — they
+ * genuinely reflect what is present in the source, and power analyzer
+ * rules that reason about error handling and iteration. They are not a
+ * guarantee (e.g. a `for` mentioned in a comment counts), but they are
+ * derived from the actual code rather than assumed.
+ *
+ * @param body - Function/method body source text (braces included).
+ * @returns `has_try_catch` and `has_loop` flags.
+ */
+export function detectBodyFeatures(body: string): {
+  has_try_catch: boolean;
+  has_loop: boolean;
+} {
+  const has_try_catch = /\btry\s*\{/.test(body) && /\bcatch\b/.test(body);
+  const has_loop =
+    /\bfor\b\s*(?:await\s+)?\(/.test(body) ||
+    /\bwhile\s*\(/.test(body) ||
+    /\bdo\s*\{/.test(body) ||
+    /\.\s*(?:forEach|map|filter|reduce|flatMap)\s*\(/.test(body);
+  return { has_try_catch, has_loop };
+}
+
 // ─── Regex Patterns ───────────────────────────────────────────────────────────
 
 /** Matches `export` keyword optionally preceding a declaration. */
@@ -432,9 +458,13 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const isDefault = exportKeyword.includes('default');
       const isAsync = asyncKeyword === 'async';
       const startLine = lineAt(source, match.index);
-      const blockEnd = findBlockEnd(source, source.indexOf('{', match.index));
+      const braceStart = source.indexOf('{', match.index);
+      const blockEnd = findBlockEnd(source, braceStart);
       const endLine = lineAt(source, blockEnd);
       const jsdoc = extractJSDoc(source, startLine);
+      const { has_try_catch, has_loop } = detectBodyFeatures(
+        source.substring(braceStart, blockEnd),
+      );
 
       // Extract decorators above the function
       const decorators = this._extractDecoratorsAboveLine(source, startLine);
@@ -454,6 +484,8 @@ export class TypeScriptExtractor implements LanguageExtractor {
           is_async: isAsync,
           is_exported: isExported,
           is_default: isDefault,
+          has_try_catch,
+          has_loop,
           jsdoc: jsdoc ?? null,
           decorators,
           kind: 'function_declaration',
@@ -499,17 +531,25 @@ export class TypeScriptExtractor implements LanguageExtractor {
       // Estimate end line — look for closing brace or end of expression
       const arrowIndex = source.indexOf('=>', match.index);
       let endLine = startLine;
+      let body = '';
       if (arrowIndex !== -1) {
         const afterArrow = source.substring(arrowIndex + 2).trimStart();
         if (afterArrow.startsWith('{')) {
-          const blockEnd = findBlockEnd(source, arrowIndex + 2 + (source.substring(arrowIndex + 2).indexOf('{')));
+          const braceStart = arrowIndex + 2 + (source.substring(arrowIndex + 2).indexOf('{'));
+          const blockEnd = findBlockEnd(source, braceStart);
           endLine = lineAt(source, blockEnd);
+          body = source.substring(braceStart, blockEnd);
         } else {
           // Single expression — find semicolon or newline
           const semiIdx = source.indexOf(';', arrowIndex);
           endLine = semiIdx !== -1 ? lineAt(source, semiIdx) : startLine;
+          body = source.substring(
+            arrowIndex + 2,
+            semiIdx !== -1 ? semiIdx : arrowIndex + 2,
+          );
         }
       }
+      const { has_try_catch, has_loop } = detectBodyFeatures(body);
 
       const relationships: ExtractedRelationship[] = [];
       if (isExported) {
@@ -526,6 +566,8 @@ export class TypeScriptExtractor implements LanguageExtractor {
           is_async: isAsync,
           is_exported: isExported,
           is_default: false,
+          has_try_catch,
+          has_loop,
           jsdoc: jsdoc ?? null,
           decorators,
           kind: 'arrow_function',
@@ -674,10 +716,15 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const braceOrSemiIndex = match[0].endsWith('{')
         ? absoluteIndex + match[0].length - 1
         : -1;
+      const methodBlockEnd =
+        braceOrSemiIndex >= 0 ? findBlockEnd(fullSource, braceOrSemiIndex) : -1;
       const endLine =
-        braceOrSemiIndex >= 0
-          ? lineAt(fullSource, findBlockEnd(fullSource, braceOrSemiIndex))
-          : startLine;
+        methodBlockEnd >= 0 ? lineAt(fullSource, methodBlockEnd) : startLine;
+      const { has_try_catch, has_loop } = detectBodyFeatures(
+        methodBlockEnd >= 0
+          ? fullSource.substring(braceOrSemiIndex, methodBlockEnd)
+          : '',
+      );
 
       const jsdoc = extractJSDoc(fullSource, startLine);
 
@@ -693,6 +740,8 @@ export class TypeScriptExtractor implements LanguageExtractor {
           is_abstract: isAbstract,
           is_getter: isGetter,
           is_setter: isSetter,
+          has_try_catch,
+          has_loop,
           visibility,
           jsdoc: jsdoc ?? null,
           kind: 'method',

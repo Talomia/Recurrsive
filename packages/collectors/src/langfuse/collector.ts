@@ -317,7 +317,7 @@ export class LangfuseCollector implements Collector {
 
     // Build entities from API data
     const entities = this.buildEntities(traces, prompts);
-    const relationships = this.buildRelationships(entities);
+    const relationships = this.buildRelationships(entities, traces);
 
     // Apply governance masking
     const maskedEntities = entities.map((e) => this.governanceFilter.maskEntity(e));
@@ -544,18 +544,21 @@ export class LangfuseCollector implements Collector {
   /**
    * Build relationships between entities.
    *
-   * Creates:
+   * Only relationships that are backed by actually-collected Langfuse data
+   * are emitted (evidence-only):
    * - `uses_model` — prompt uses a specific model
-   * - `contains` — pipeline contains prompts
    * - `monitors` — performance_metric monitors a model
    * - `owns` — user owns a prompt
-   * - `calls` — pipeline calls a model
+   * - `calls` — pipeline calls a model, derived from the models observed in
+   *   the trace's observations
    * - `evaluates_with` — evaluation evaluates a model
    *
    * @param entities - All entities built from this collection.
+   * @param traces - Traces fetched from the Langfuse API, used to derive the
+   *   real pipeline → model linkage from observation data.
    * @returns Array of relationships.
    */
-  private buildRelationships(entities: Entity[]): Relationship[] {
+  private buildRelationships(entities: Entity[], traces: LangfuseTrace[]): Relationship[] {
     const relationships: Relationship[] = [];
 
     const users = entities.filter((e) => e.type === 'user');
@@ -574,27 +577,6 @@ export class LangfuseCollector implements Collector {
           prompt_name: prompt.name,
           model_name: modelName,
         }));
-      }
-    }
-
-    // Pipeline → Prompt (contains) — pipelines contain prompts
-    // Map pipelines to prompts by convention
-    const pipelinePromptMap: Record<string, string[]> = {
-      'rag-pipeline': ['summarization-v2', 'extraction'],
-      'code-assistant-chain': ['code-review'],
-      'document-processor': ['extraction', 'classification'],
-      'chat-agent': ['chat-system-prompt'],
-    };
-
-    for (const pipeline of pipelines) {
-      const promptNames = pipelinePromptMap[pipeline.name] ?? [];
-      for (const promptName of promptNames) {
-        const promptEntity = prompts.find((p) => p.name === promptName);
-        if (promptEntity) {
-          relationships.push(this.makeRel('contains', pipeline.id, promptEntity.id, {
-            pipeline_name: pipeline.name,
-          }));
-        }
       }
     }
 
@@ -620,17 +602,21 @@ export class LangfuseCollector implements Collector {
       }
     }
 
-    // Pipeline → Model (calls) — pipelines call models
-    // Derive from the prompts each pipeline contains
-    for (const pipeline of pipelines) {
-      const promptNames = pipelinePromptMap[pipeline.name] ?? [];
-      const modelNames = new Set<string>();
-      for (const promptName of promptNames) {
-        const promptEntity = prompts.find((p) => p.name === promptName);
-        if (promptEntity) {
-          modelNames.add(promptEntity.properties['model'] as string);
-        }
+    // Pipeline → Model (calls) — pipelines call models.
+    // Derived from real collected data: each trace (pipeline) links to the
+    // models observed in its observations.
+    const pipelineModelNames = new Map<string, Set<string>>();
+    for (const trace of traces) {
+      if (!trace.name || !trace.observations) continue;
+      const modelSet = pipelineModelNames.get(trace.name) ?? new Set<string>();
+      for (const obs of trace.observations) {
+        if (obs.model) modelSet.add(obs.model);
       }
+      pipelineModelNames.set(trace.name, modelSet);
+    }
+
+    for (const pipeline of pipelines) {
+      const modelNames = pipelineModelNames.get(pipeline.name) ?? new Set<string>();
       for (const modelName of modelNames) {
         const modelEntity = models.find((m) => m.name === modelName);
         if (modelEntity) {

@@ -201,17 +201,38 @@ export function generateMarkdownReport(
       lines.push(`> ${opp.expected_impact.summary}`);
       lines.push('');
       if (opp.expected_impact.metrics.length > 0) {
-        lines.push('| Metric | Current | Expected | Change |');
-        lines.push('|--------|---------|----------|--------|');
-        for (const m of opp.expected_impact.metrics) {
-          const current = m.current_value?.toString() ?? '—';
-          const expected = m.expected_value?.toString() ?? '—';
-          const change = m.change_percent !== undefined
-            ? `${m.change_percent > 0 ? '+' : ''}${m.change_percent}%`
-            : '—';
-          lines.push(`| ${m.name} | ${current} | ${expected} | ${change} |`);
+        const measured = opp.expected_impact.metrics.filter(
+          (m) => m.current_value !== undefined && m.current_value !== '' && m.is_estimate !== true,
+        );
+        const estimates = opp.expected_impact.metrics.filter(
+          (m) => !(m.current_value !== undefined && m.current_value !== '' && m.is_estimate !== true),
+        );
+        if (measured.length > 0) {
+          lines.push('_Measured metrics_');
+          lines.push('| Metric | Current | Expected | Change |');
+          lines.push('|--------|---------|----------|--------|');
+          for (const m of measured) {
+            const current = m.current_value?.toString() ?? '—';
+            const expected = m.expected_value?.toString() ?? '—';
+            const change = m.change_percent !== undefined
+              ? `${m.change_percent > 0 ? '+' : ''}${m.change_percent}%`
+              : '—';
+            lines.push(`| ${m.name} | ${current} | ${expected} | ${change} |`);
+          }
+          lines.push('');
         }
-        lines.push('');
+        if (estimates.length > 0) {
+          lines.push('_Projected metrics (estimates — not measured)_');
+          for (const m of estimates) {
+            const target = m.expected_value !== undefined ? `→ ${m.expected_value}` : '';
+            const dir = m.direction ? ` (${m.direction})` : '';
+            lines.push(`- ${m.name} _(estimate)_ ${target}${dir}`.trimEnd());
+            if (m.assumptions && m.assumptions.length > 0) {
+              lines.push(`  - Assumptions: ${m.assumptions.join('; ')}`);
+            }
+          }
+          lines.push('');
+        }
       }
 
       // Effort

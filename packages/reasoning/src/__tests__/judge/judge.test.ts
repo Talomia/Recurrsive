@@ -346,7 +346,11 @@ describe('Judge', () => {
   // ── Business impact scoring details ──────────────────────────────────────
 
   describe('business impact scoring', () => {
-    it('business_value presence adds weight', () => {
+    it('a free-form business_value string does NOT inflate business impact', () => {
+      // A qualitative, unverifiable business_value statement must not add a flat
+      // bonus to the score — otherwise any opportunity could pad its ranking by
+      // asserting vague value. Business impact must be driven by real signals
+      // (severity, affected services, measured metrics) only.
       const noBizVal = makeOpportunity({
         id: '00000000-0000-4000-8000-000000000001',
         expected_impact: {
@@ -373,9 +377,7 @@ describe('Judge', () => {
         (r) => r.hypothesis_id === withBizVal.id,
       )!;
 
-      expect(withRank.business_impact_score).toBeGreaterThan(
-        noRank.business_impact_score,
-      );
+      expect(withRank.business_impact_score).toBe(noRank.business_impact_score);
     });
 
     it('more affected services increase business impact', () => {

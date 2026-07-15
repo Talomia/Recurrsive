@@ -6,6 +6,15 @@ import { z } from 'zod';
  * Entities are the nodes of the graph. Each entity type maps to a
  * distinct concept across code, AI, data, infrastructure, and
  * organizational domains.
+ *
+ * NOTE ON RESERVED TYPES: some types are written by collectors but not yet
+ * read by any analyzer or the reasoning engine. In particular
+ * `performance_metric` and `incident` are emitted by observability collectors
+ * (apm, telemetry, arize, helicone, error-tracking, langfuse) and are RESERVED
+ * for future analyzer/reasoning consumers. They are intentionally part of the
+ * schema so collected data is not lost; absence of a consumer is expected, not
+ * a bug. Do not remove them without also updating the collectors that write
+ * them.
  */
 export const EntityTypeSchema = z.enum([
   'repository',

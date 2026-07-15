@@ -528,4 +528,38 @@ func init() {
       expect(imports.length).toBe(2);
     });
   });
+
+  // ── Control-flow features (has_loop) ──────────────────────────────────
+
+  describe('control-flow features', () => {
+    it('detects a for loop in a function body', () => {
+      const source = [
+        'package main',
+        '',
+        'func ProcessAll(items []string) {',
+        '\tfor _, item := range items {',
+        '\t\tsave(item)',
+        '\t}',
+        '}',
+        '',
+      ].join('\n');
+      const fn = extractor.extract(source, 'svc.go').find((e) => e.name === 'ProcessAll');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_loop']).toBe(true);
+    });
+
+    it('reports false for a function without loops', () => {
+      const source = [
+        'package main',
+        '',
+        'func Add(a int, b int) int {',
+        '\treturn a + b',
+        '}',
+        '',
+      ].join('\n');
+      const fn = extractor.extract(source, 'm.go').find((e) => e.name === 'Add');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_loop']).toBe(false);
+    });
+  });
 });

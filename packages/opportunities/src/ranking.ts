@@ -67,14 +67,22 @@ const MAX_EVIDENCE_COUNT = 20;
 /**
  * Compute a normalised impact score (0–1) for an opportunity.
  *
+ * Impact is anchored on severity. It does NOT scale with the raw number of
+ * metrics — that count is trivially inflated by model-generated (and possibly
+ * hallucinated) estimates. Only a *measured* metric (one with a real baseline
+ * that is not flagged as an estimate) contributes a small, capped bonus,
+ * because a genuine before/after measurement is stronger evidence of impact.
+ *
  * @param opp - The opportunity to score
  * @returns Numeric impact score between 0 and 1
  */
 function impactScore(opp: Opportunity): number {
   const severityScore = SEVERITY_IMPACT[opp.severity];
-  const metricCount = opp.expected_impact.metrics.length;
-  const metricBonus = Math.min(metricCount / 5, 1) * 0.2;
-  return Math.min(severityScore + metricBonus, 1.0);
+  const hasMeasuredMetric = opp.expected_impact.metrics.some(
+    (m) => m.current_value !== undefined && m.current_value !== '' && m.is_estimate !== true,
+  );
+  const measuredBonus = hasMeasuredMetric ? 0.1 : 0;
+  return Math.min(severityScore + measuredBonus, 1.0);
 }
 
 /**
@@ -134,6 +142,21 @@ export function computeScore(
   opp: Opportunity,
   weights: ScoreWeights = DEFAULT_WEIGHTS,
 ): number {
+  if (weights !== DEFAULT_WEIGHTS) {
+    const sum =
+      weights.confidence +
+      weights.impact +
+      weights.effortInverse +
+      weights.riskInverse +
+      weights.evidenceNormalized;
+    if (Math.abs(sum - 1) > 1e-3) {
+      throw new RangeError(
+        `Score weights must sum to 1.0 (received ${sum.toFixed(4)}). ` +
+          `A composite score is only meaningful when its weights form a convex combination.`,
+      );
+    }
+  }
+
   const score =
     opp.confidence * weights.confidence +
     impactScore(opp) * weights.impact +
@@ -147,11 +170,30 @@ export function computeScore(
 /**
  * Rank an array of opportunities by their composite score (descending).
  *
+ * Ties are broken deterministically and meaningfully: first by severity
+ * (more severe first), then by ascending `id`, so the ordering never depends
+ * on insertion order.
+ *
  * @param opportunities - Array of opportunities to rank
  * @returns A new array sorted by composite score (highest first)
  */
 export function rankOpportunities(opportunities: readonly Opportunity[]): Opportunity[] {
-  return [...opportunities].sort((a, b) => computeScore(b) - computeScore(a));
+  return [...opportunities].sort((a, b) => compareOpportunities(a, b));
+}
+
+/**
+ * Deterministic comparator: composite score desc, then severity desc, then id asc.
+ *
+ * @param a - First opportunity
+ * @param b - Second opportunity
+ * @returns Negative if `a` ranks first, positive if `b` ranks first.
+ */
+export function compareOpportunities(a: Opportunity, b: Opportunity): number {
+  const scoreDelta = computeScore(b) - computeScore(a);
+  if (Math.abs(scoreDelta) > 1e-9) return scoreDelta;
+  const severityDelta = SEVERITY_IMPACT[b.severity] - SEVERITY_IMPACT[a.severity];
+  if (severityDelta !== 0) return severityDelta;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 /** A group of interdependent opportunities. */

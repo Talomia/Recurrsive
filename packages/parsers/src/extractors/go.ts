@@ -95,6 +95,21 @@ function findMatchingBrace(source: string, openIndex: number): number {
   return source.length - 1;
 }
 
+/**
+ * Detect whether a Go function/method body contains a loop.
+ *
+ * Go has a single loop construct (`for`, which also covers `for range`
+ * and infinite `for {}`), so this is a straightforward heuristic check
+ * over the actual body text. Go has no try/catch, so `has_try_catch`
+ * is intentionally not reported for Go entities.
+ *
+ * @param body - Function/method body source text.
+ * @returns `has_loop` flag.
+ */
+export function detectBodyFeatures(body: string): { has_loop: boolean } {
+  return { has_loop: /\bfor\b[\s{]/.test(body) };
+}
+
 // ─── Regex Patterns ───────────────────────────────────────────────────────────
 
 /** Go package declaration. */
@@ -354,6 +369,7 @@ export class GoExtractor implements LanguageExtractor {
           exported: isExported(name),
           is_method: false,
           is_init: isInit,
+          has_loop: detectBodyFeatures(source.substring(braceIndex, endBrace + 1)).has_loop,
         },
         source_location: {
           file: filePath,
@@ -414,6 +430,7 @@ export class GoExtractor implements LanguageExtractor {
           is_init: false,
           receiver,
           receiver_type: receiverType,
+          has_loop: detectBodyFeatures(source.substring(braceIndex, endBrace + 1)).has_loop,
         },
         source_location: {
           file: filePath,

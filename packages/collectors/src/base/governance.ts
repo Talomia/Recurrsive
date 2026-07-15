@@ -93,6 +93,38 @@ const PII_PATTERNS: ReadonlyArray<{ type: PIIType; pattern: RegExp }> = [
 /** The masking placeholder used when redacting sensitive values. */
 const MASK_VALUE = '***REDACTED***';
 
+/**
+ * Validate a string of digits against the Luhn checksum algorithm.
+ *
+ * Used to distinguish real credit-card numbers from arbitrary digit runs
+ * so that non-card numbers are not mass-redacted as credit cards.
+ *
+ * @param digits - A string containing only ASCII digits.
+ * @returns `true` if the digit sequence passes the Luhn check.
+ */
+function isValidLuhn(digits: string): boolean {
+  if (!/^\d+$/.test(digits)) {
+    return false;
+  }
+
+  let sum = 0;
+  let double = false;
+  // Process digits right-to-left.
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let d = digits.charCodeAt(i) - 48; // '0' === 48
+    if (double) {
+      d *= 2;
+      if (d > 9) {
+        d -= 9;
+      }
+    }
+    sum += d;
+    double = !double;
+  }
+
+  return sum % 10 === 0;
+}
+
 const logger = createLogger({ context: { module: 'governance' } });
 
 // ---------------------------------------------------------------------------
@@ -152,12 +184,9 @@ export class GovernanceFilter {
 
     if (this.config.pii_detection) {
       for (const [key, value] of Object.entries(maskedProps)) {
-        if (typeof value === 'string') {
-          const detections = this.detectPII(value);
-          if (detections.length > 0) {
-            maskedProps[key] = this.sanitizeText(value);
-          }
-        }
+        // Recurse into nested objects/arrays so PII buried in nested
+        // structures is sanitized too, not just top-level strings.
+        maskedProps[key] = this.sanitizeValue(value);
       }
     }
 
@@ -166,17 +195,48 @@ export class GovernanceFilter {
       properties: maskedProps,
     };
 
-    if (this.config.audit_log) {
-      this.auditEntries.push(
-        this.createAuditEntry('mask_entity', {
-          entity_id: entity.id,
-          entity_type: entity.type,
-          masked_fields: this.config.masked_fields.filter((f) => f in entity.properties),
-        }),
-      );
-    }
+    // createAuditEntry is the single place that appends to auditEntries
+    // (and it internally respects the audit_log flag), so call it directly
+    // rather than pushing its return value ourselves — otherwise each mask
+    // would be logged twice.
+    this.createAuditEntry('mask_entity', {
+      entity_id: entity.id,
+      entity_type: entity.type,
+      masked_fields: this.config.masked_fields.filter((f) => f in entity.properties),
+    });
 
     return masked;
+  }
+
+  /**
+   * Recursively sanitize a value for PII.
+   *
+   * - Strings are passed through {@link sanitizeText}.
+   * - Arrays are mapped element-wise.
+   * - Plain objects have each entry recursed into.
+   * - All other primitives are returned unchanged.
+   *
+   * @param value - The value to sanitize.
+   * @returns The sanitized value (a new structure for arrays/objects).
+   */
+  private sanitizeValue(value: unknown): unknown {
+    if (typeof value === 'string') {
+      return this.sanitizeText(value);
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.sanitizeValue(item));
+    }
+
+    if (value !== null && typeof value === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+        result[key] = this.sanitizeValue(val);
+      }
+      return result;
+    }
+
+    return value;
   }
 
   // -----------------------------------------------------------------------
@@ -229,6 +289,16 @@ export class GovernanceFilter {
       let match: RegExpExecArray | null;
 
       while ((match = regex.exec(text)) !== null) {
+        // credit_card matches are noisy: the pattern matches any run of
+        // 13-19ish digits. Only treat a match as a credit card if it passes
+        // the Luhn checksum, otherwise arbitrary numbers get mass-redacted.
+        if (type === 'credit_card') {
+          const digits = match[0].replace(/[-\s]/g, '');
+          if (digits.length < 13 || digits.length > 19 || !isValidLuhn(digits)) {
+            continue;
+          }
+        }
+
         detections.push({
           type,
           match: match[0],
@@ -255,17 +325,60 @@ export class GovernanceFilter {
 
     let sanitized = text;
 
-    // Process detections in reverse order so indices remain valid
-    const detections = this.detectPII(text).sort((a, b) => b.start - a.start);
+    // detectPII scans each pattern independently, so matches from different
+    // patterns can overlap (e.g. a phone number embedded in a credit-card
+    // match). Splicing overlapping ranges independently double-splices and
+    // can leak partial PII. Merge overlapping/adjacent ranges first so each
+    // character range is redacted exactly once.
+    const merged = this.mergeDetections(this.detectPII(text));
 
-    for (const detection of detections) {
+    // Process merged spans in reverse order so indices remain valid as we splice.
+    const ordered = merged.sort((a, b) => b.start - a.start);
+
+    for (const span of ordered) {
       sanitized =
-        sanitized.slice(0, detection.start) +
-        `[REDACTED:${detection.type}]` +
-        sanitized.slice(detection.end);
+        sanitized.slice(0, span.start) +
+        `[REDACTED:${span.type}]` +
+        sanitized.slice(span.end);
     }
 
     return sanitized;
+  }
+
+  /**
+   * Merge overlapping or adjacent PII detections into non-overlapping spans.
+   *
+   * When two detections overlap, they are combined into a single redaction
+   * span that adopts the type of the earliest (left-most) detection. This
+   * guarantees no character range is redacted twice and no partial PII is
+   * left behind between two overlapping matches.
+   *
+   * @param detections - Raw detections (possibly overlapping).
+   * @returns Non-overlapping detection spans sorted by ascending start index.
+   */
+  private mergeDetections(detections: PIIDetection[]): PIIDetection[] {
+    if (detections.length <= 1) {
+      return [...detections];
+    }
+
+    const sorted = [...detections].sort((a, b) => a.start - b.start || a.end - b.end);
+    const merged: PIIDetection[] = [];
+
+    for (const detection of sorted) {
+      const last = merged[merged.length - 1];
+
+      // Overlapping or adjacent (touching) ranges are merged into `last`.
+      // `last.type` retains the left-most detection's type.
+      if (last && detection.start <= last.end) {
+        if (detection.end > last.end) {
+          last.end = detection.end;
+        }
+      } else {
+        merged.push({ ...detection });
+      }
+    }
+
+    return merged;
   }
 
   // -----------------------------------------------------------------------

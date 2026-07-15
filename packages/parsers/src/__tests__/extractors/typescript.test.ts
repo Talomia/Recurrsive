@@ -443,4 +443,73 @@ export const helper = (x: number) => x * 2;
       expect(imports[0]!.module).toBe('@nestjs/common');
     });
   });
+
+  // ── Control-flow features (has_try_catch / has_loop) ──────────────────
+
+  describe('control-flow features', () => {
+    it('detects try/catch in a function body', () => {
+      const source = `
+export async function callModel(input: string): Promise<string> {
+  try {
+    return await client.chat(input);
+  } catch (err) {
+    return 'error';
+  }
+}
+`;
+      const fn = extractor.extract(source, 'svc.ts').find((e) => e.name === 'callModel');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_try_catch']).toBe(true);
+      expect(fn!.properties['has_loop']).toBe(false);
+    });
+
+    it('detects loops in a function body', () => {
+      const source = `
+function processAll(items: string[]): void {
+  for (const item of items) {
+    save(item);
+  }
+}
+`;
+      const fn = extractor.extract(source, 'svc.ts').find((e) => e.name === 'processAll');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_loop']).toBe(true);
+      expect(fn!.properties['has_try_catch']).toBe(false);
+    });
+
+    it('detects array-iteration methods as loops', () => {
+      const source = `const mapAll = (xs: number[]) => { return xs.map((x) => x * 2); };`;
+      const fn = extractor.extract(source, 'svc.ts').find((e) => e.name === 'mapAll');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_loop']).toBe(true);
+    });
+
+    it('reports false for a plain function with neither', () => {
+      const source = `function add(a: number, b: number): number { return a + b; }`;
+      const fn = extractor.extract(source, 'm.ts').find((e) => e.name === 'add');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_try_catch']).toBe(false);
+      expect(fn!.properties['has_loop']).toBe(false);
+    });
+
+    it('detects features inside class methods', () => {
+      const source = `
+class Worker {
+  async run(items: string[]): Promise<void> {
+    for (const item of items) {
+      try {
+        await this.process(item);
+      } catch (e) {
+        this.log(e);
+      }
+    }
+  }
+}
+`;
+      const method = extractor.extract(source, 'w.ts').find((e) => e.name === 'run');
+      expect(method).toBeDefined();
+      expect(method!.properties['has_loop']).toBe(true);
+      expect(method!.properties['has_try_catch']).toBe(true);
+    });
+  });
 });

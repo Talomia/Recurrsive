@@ -114,7 +114,16 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 export const ImpactSchema = z.object({
   /** One-line summary of the impact. */
   summary: z.string(),
-  /** Quantified metrics affected by this opportunity. */
+  /**
+   * Metrics affected by this opportunity.
+   *
+   * A metric may be either MEASURED (derived from evidence values actually
+   * present in the collected input) or an ESTIMATE (a model-generated
+   * projection). Estimates MUST set `is_estimate: true` and SHOULD attach the
+   * `assumptions` they rest on. Consumers must never present an estimate as a
+   * measured before/after value. A metric with no `current_value` has no
+   * measured baseline and must not be rendered as a false before/after.
+   */
   metrics: z.array(
     z.object({
       name: z.string(),
@@ -122,6 +131,10 @@ export const ImpactSchema = z.object({
       expected_value: z.union([z.string(), z.number()]).optional(),
       change_percent: z.number().optional(),
       direction: z.enum(['increase', 'decrease', 'unchanged']).optional(),
+      /** True when this metric is a model-generated projection, not a measurement. */
+      is_estimate: z.boolean().optional(),
+      /** Assumptions the estimate rests on (required in spirit when `is_estimate`). */
+      assumptions: z.array(z.string()).optional(),
     }),
   ),
   /** Service names affected. */

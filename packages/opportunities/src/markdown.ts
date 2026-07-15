@@ -96,15 +96,50 @@ function renderOpportunityDetail(opp: Opportunity): string {
   lines.push(opp.expected_impact.summary);
   lines.push('');
   if (opp.expected_impact.metrics.length > 0) {
-    lines.push('| Metric | Current | Expected | Change |');
-    lines.push('|--------|---------|----------|--------|');
-    for (const m of opp.expected_impact.metrics) {
-      const current = m.current_value?.toString() ?? '—';
-      const expected = m.expected_value?.toString() ?? '—';
-      const change = m.change_percent !== undefined ? `${m.change_percent > 0 ? '+' : ''}${m.change_percent}%` : '—';
-      lines.push(`| ${m.name} | ${current} | ${expected} | ${change} |`);
+    // A metric is a genuine measured before/after only when it carries a
+    // measured `current_value` AND is not flagged as an estimate. Everything
+    // else is a projection and must be rendered as a clearly-labelled estimate,
+    // never as a false before/after.
+    const measured = opp.expected_impact.metrics.filter(
+      (m) => m.current_value !== undefined && m.current_value !== '' && m.is_estimate !== true,
+    );
+    const estimates = opp.expected_impact.metrics.filter(
+      (m) => !(m.current_value !== undefined && m.current_value !== '' && m.is_estimate !== true),
+    );
+
+    if (measured.length > 0) {
+      lines.push('**Measured metrics**');
+      lines.push('');
+      lines.push('| Metric | Current | Expected | Change |');
+      lines.push('|--------|---------|----------|--------|');
+      for (const m of measured) {
+        const current = m.current_value?.toString() ?? '—';
+        const expected = m.expected_value?.toString() ?? '—';
+        const change =
+          m.change_percent !== undefined
+            ? `${m.change_percent > 0 ? '+' : ''}${m.change_percent}%`
+            : '—';
+        lines.push(`| ${m.name} | ${current} | ${expected} | ${change} |`);
+      }
+      lines.push('');
     }
-    lines.push('');
+
+    if (estimates.length > 0) {
+      lines.push('**Projected metrics (estimates — not measured)**');
+      lines.push('');
+      for (const m of estimates) {
+        const target = m.expected_value !== undefined ? `→ ${m.expected_value}` : '';
+        const dir = m.direction ? ` (${m.direction})` : '';
+        lines.push(`- **${m.name}** _(estimate)_ ${target}${dir}`.trimEnd());
+        if (m.assumptions && m.assumptions.length > 0) {
+          lines.push(`  - Assumptions:`);
+          for (const a of m.assumptions) {
+            lines.push(`    - ${a}`);
+          }
+        }
+      }
+      lines.push('');
+    }
   }
   if (opp.expected_impact.affected_services.length > 0) {
     lines.push(`**Affected Services:** ${opp.expected_impact.affected_services.join(', ')}`);

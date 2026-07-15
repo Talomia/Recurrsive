@@ -161,6 +161,27 @@ function extractDocstring(lines: string[], startLine: number): string | undefine
   return undefined;
 }
 
+/**
+ * Detect control-flow features (try/except error handling and loops)
+ * within a Python function body.
+ *
+ * Heuristic, regex-based checks over the actual body text. They power
+ * analyzer rules reasoning about error handling and iteration.
+ *
+ * @param bodyText - Function body source text.
+ * @returns `has_try_catch` and `has_loop` flags.
+ */
+export function detectBodyFeatures(bodyText: string): {
+  has_try_catch: boolean;
+  has_loop: boolean;
+} {
+  const has_try_catch =
+    /(^|\n)\s*try\s*:/.test(bodyText) && /(^|\n)\s*except\b/.test(bodyText);
+  const has_loop =
+    /\bfor\b\s+[\w(]/.test(bodyText) || /\bwhile\b\s+[^\n:]+:/.test(bodyText);
+  return { has_try_catch, has_loop };
+}
+
 // ─── Regex Patterns ───────────────────────────────────────────────────────────
 
 /** Python function/method definition. */
@@ -382,6 +403,9 @@ export class PythonExtractor implements LanguageExtractor {
       const isAsync = asyncKw === 'async';
       const docstring = extractDocstring(lines, startLineIdx);
       const decorators = decoratorsByLine.get(startLine) ?? [];
+      const { has_try_catch, has_loop } = detectBodyFeatures(
+        lines.slice(startLineIdx, endLineIdx + 1).join('\n'),
+      );
 
       // Determine if this is a top-level function or a method
       const isMethod = indent.length > 0;
@@ -401,6 +425,8 @@ export class PythonExtractor implements LanguageExtractor {
           is_method: isMethod,
           is_private: isPrivate,
           is_dunder: isDunder,
+          has_try_catch,
+          has_loop,
           docstring: docstring ?? null,
           decorators,
           indent_level: indent.length,

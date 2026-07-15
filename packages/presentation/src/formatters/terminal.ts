@@ -206,20 +206,40 @@ export function formatOpportunityDetail(opp: Opportunity): string {
   lines.push(`  ${BOLD}${UNDERLINE}Expected Impact${RESET}`);
   lines.push(`  ${opp.expected_impact.summary}`);
   if (opp.expected_impact.metrics.length > 0) {
-    const metricHeaders = ['Metric', 'Current', 'Expected', 'Change'];
-    const metricRows = opp.expected_impact.metrics.map((m) => [
-      m.name,
-      m.current_value?.toString() ?? '—',
-      m.expected_value?.toString() ?? '—',
-      m.change_percent !== undefined
-        ? `${m.change_percent > 0 ? '+' : ''}${m.change_percent}%`
-        : '—',
-    ]);
-    lines.push('');
-    // Indent table lines
-    const table = formatTable(metricHeaders, metricRows);
-    for (const line of table.split('\n')) {
-      lines.push(`  ${line}`);
+    const isMeasured = (m: (typeof opp.expected_impact.metrics)[number]): boolean =>
+      m.current_value !== undefined && m.current_value !== '' && m.is_estimate !== true;
+    const measured = opp.expected_impact.metrics.filter(isMeasured);
+    const estimates = opp.expected_impact.metrics.filter((m) => !isMeasured(m));
+
+    if (measured.length > 0) {
+      const metricHeaders = ['Metric', 'Current', 'Expected', 'Change'];
+      const metricRows = measured.map((m) => [
+        m.name,
+        m.current_value?.toString() ?? '—',
+        m.expected_value?.toString() ?? '—',
+        m.change_percent !== undefined
+          ? `${m.change_percent > 0 ? '+' : ''}${m.change_percent}%`
+          : '—',
+      ]);
+      lines.push('');
+      // Indent table lines
+      const table = formatTable(metricHeaders, metricRows);
+      for (const line of table.split('\n')) {
+        lines.push(`  ${line}`);
+      }
+    }
+
+    if (estimates.length > 0) {
+      lines.push('');
+      lines.push(`  ${DIM}Projected metrics (estimates — not measured):${RESET}`);
+      for (const m of estimates) {
+        const target = m.expected_value !== undefined ? ` → ${m.expected_value}` : '';
+        const dir = m.direction ? ` (${m.direction})` : '';
+        lines.push(`  ${FG_BLUE}▸${RESET} ${m.name} ${DIM}(estimate)${RESET}${target}${dir}`);
+        if (m.assumptions && m.assumptions.length > 0) {
+          lines.push(`      ${DIM}Assumptions: ${m.assumptions.join('; ')}${RESET}`);
+        }
+      }
     }
   }
 

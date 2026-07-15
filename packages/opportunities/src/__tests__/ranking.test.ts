@@ -115,7 +115,8 @@ describe('computeScore', () => {
     //   confidence * 0.20 + impact * 0.30 + effortInverse * 0.20 + riskInverse * 0.15 + evidenceNorm * 0.15
     //
     // Inputs: severity=critical(1.0), confidence=1.0, t_shirt=xs(0.1), risk=negligible(0.1), evidence=20
-    // impact: min(1.0 + min(1/5,1)*0.2, 1.0) = min(1.0 + 0.04, 1.0) = 1.0
+    // impact: min(severity(1.0) + measuredBonus(0.1), 1.0) = 1.0 (the metric has a
+    //   measured current_value, but impact is capped at 1.0 by severity alone)
     // effortInverse: 1.0 - 0.1 = 0.9
     // riskInverse: 1.0 - 0.1 = 0.9
     // evidenceNorm: min(20/20, 1.0) = 1.0
@@ -164,10 +165,33 @@ describe('computeScore', () => {
     expect(computeScore(many)).toBeGreaterThan(computeScore(few));
   });
 
-  it('more metrics give a small impact bonus', () => {
-    const fewMetrics = makeOpp({ metric_count: 0 });
-    const manyMetrics = makeOpp({ metric_count: 5 });
-    expect(computeScore(manyMetrics)).toBeGreaterThan(computeScore(fewMetrics));
+  it('a measured metric adds a small impact bonus, but count does NOT scale it', () => {
+    // Impact must not scale with the raw number of metrics — that is trivially
+    // inflated by model-generated estimates. A single measured metric earns the
+    // (capped) bonus; adding more measured metrics earns nothing extra.
+    const noMetrics = makeOpp({ severity: 'medium', metric_count: 0 });
+    const oneMetric = makeOpp({ severity: 'medium', metric_count: 1 });
+    const fiveMetrics = makeOpp({ severity: 'medium', metric_count: 5 });
+
+    expect(computeScore(oneMetric)).toBeGreaterThan(computeScore(noMetrics));
+    // More metrics beyond the first do not further inflate the score.
+    expect(computeScore(fiveMetrics)).toBe(computeScore(oneMetric));
+  });
+
+  it('estimate-only metrics (no measured baseline) do NOT earn an impact bonus', () => {
+    const base = makeOpp({ severity: 'medium', metric_count: 0 });
+    const withEstimate = makeOpp({ severity: 'medium', metric_count: 0 });
+    // Attach a projection with no measured current_value, flagged as an estimate.
+    withEstimate.expected_impact.metrics = [
+      {
+        name: 'projected_latency',
+        expected_value: '100ms',
+        direction: 'decrease',
+        is_estimate: true,
+        assumptions: ['unverified projection'],
+      },
+    ];
+    expect(computeScore(withEstimate)).toBe(computeScore(base));
   });
 
   describe('edge cases', () => {
@@ -213,6 +237,32 @@ describe('computeScore', () => {
       const rounded = Math.round(score * 1000) / 1000;
       expect(score).toBe(rounded);
     });
+
+    it('throws when custom weights do not sum to ~1.0', () => {
+      const opp = makeOpp();
+      expect(() =>
+        computeScore(opp, {
+          confidence: 0.5,
+          impact: 0.5,
+          effortInverse: 0.5,
+          riskInverse: 0.5,
+          evidenceNormalized: 0.5,
+        }),
+      ).toThrow(/sum to 1\.0/);
+    });
+
+    it('accepts custom weights that sum to 1.0', () => {
+      const opp = makeOpp();
+      expect(() =>
+        computeScore(opp, {
+          confidence: 0.2,
+          impact: 0.2,
+          effortInverse: 0.2,
+          riskInverse: 0.2,
+          evidenceNormalized: 0.2,
+        }),
+      ).not.toThrow();
+    });
   });
 });
 
@@ -244,6 +294,27 @@ describe('rankOpportunities', () => {
 
   it('returns empty array for empty input', () => {
     expect(rankOpportunities([])).toEqual([]);
+  });
+
+  it('breaks score ties deterministically by severity then id', () => {
+    // Same score-driving inputs but different severity and id. The tie-break
+    // must be severity-desc then id-asc, never insertion order.
+    const a = makeOpp({ id: '00000000-0000-0000-0000-0000000000aa', severity: 'high' });
+    const b = makeOpp({ id: '00000000-0000-0000-0000-0000000000bb', severity: 'high' });
+    const c = makeOpp({ id: '00000000-0000-0000-0000-0000000000cc', severity: 'critical' });
+
+    // Force identical composite scores by matching all score inputs except
+    // severity/id — but severity feeds the score, so instead assert the
+    // ordering is stable regardless of input order.
+    const order1 = rankOpportunities([a, b, c]).map((o) => o.id);
+    const order2 = rankOpportunities([c, b, a]).map((o) => o.id);
+    const order3 = rankOpportunities([b, a, c]).map((o) => o.id);
+    expect(order1).toEqual(order2);
+    expect(order2).toEqual(order3);
+    // Critical outranks the highs; the two highs tie on score and break by id-asc.
+    expect(order1[0]).toBe(c.id);
+    expect(order1[1]).toBe(a.id);
+    expect(order1[2]).toBe(b.id);
   });
 
   it('preserves all elements', () => {

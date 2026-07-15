@@ -47,10 +47,16 @@ const OPPORTUNITY_DETAIL_SCHEMA = {
             type: 'object',
             properties: {
               name: { type: 'string' },
+              // current_value is a MEASURED baseline. Only provide it when the
+              // value appears in the supplied findings/evidence. Never invent one.
               current_value: { type: 'string' },
               expected_value: { type: 'string' },
               change_percent: { type: 'number' },
               direction: { type: 'string', enum: ['increase', 'decrease', 'unchanged'] },
+              // is_estimate MUST be true for any projected/model-generated value.
+              is_estimate: { type: 'boolean' },
+              // assumptions the projection rests on; required when is_estimate is true.
+              assumptions: { type: 'array', items: { type: 'string' } },
             },
             required: ['name'],
           },
@@ -143,6 +149,8 @@ interface OpportunityLLMOutput {
       expected_value?: string | number;
       change_percent?: number;
       direction?: 'increase' | 'decrease' | 'unchanged';
+      is_estimate?: boolean;
+      assumptions?: string[];
     }>;
     affected_services: string[];
     affected_users?: string;
@@ -290,8 +298,20 @@ export class Synthesizer {
           `You are a senior engineering advisor synthesizing a multi-agent debate ` +
           `into a concrete, actionable opportunity. Produce a comprehensive assessment ` +
           `that an engineering team can immediately act on.\n\n` +
-          `Be specific and quantitative where possible. Avoid vague statements like ` +
-          `"may improve performance" — instead say "expected to reduce p99 latency by 30-40%".`,
+          `EVIDENCE-ONLY RULE — this is critical:\n` +
+          `- Ground every statement in the supplied FINDINGS and EVIDENCE. Do NOT ` +
+          `invent specific numbers, percentages, or multipliers.\n` +
+          `- Only populate a metric's "current_value" when that baseline value ` +
+          `actually appears in the provided findings/evidence. If no measured ` +
+          `baseline exists, leave current_value empty.\n` +
+          `- Any projected "expected_value" or "change_percent" is a MODEL ESTIMATE, ` +
+          `not a measurement. For every such metric set "is_estimate": true and ` +
+          `list the "assumptions" the projection rests on. Never fabricate precise ` +
+          `figures (do NOT write things like "reduces p99 latency by 30-40%" unless ` +
+          `that range is directly supported by the supplied evidence).\n` +
+          `- Prefer qualitative impact ("expected to reduce tail latency; magnitude ` +
+          `unverified without benchmarking") over invented quantities. It is better ` +
+          `to omit a number than to fabricate one.`,
       },
       {
         role: 'user',
@@ -317,7 +337,9 @@ export class Synthesizer {
           `3. severity: "critical", "high", "medium", "low", or "info"\n` +
           `4. problem: clear problem statement\n` +
           `5. recommendation: specific actionable recommendation\n` +
-          `6. impact: quantified impact assessment with metrics\n` +
+          `6. impact: evidence-grounded impact assessment. Provide current_value ` +
+          `only when a measured baseline exists in the evidence; flag every ` +
+          `projection with is_estimate=true and its assumptions\n` +
           `7. effort: t-shirt size, estimated hours/days, skills required\n` +
           `8. risk: implementation risk with mitigations\n` +
           `9. validation: how to verify success after implementation\n` +
@@ -344,7 +366,7 @@ export class Synthesizer {
       problem: detail.problem,
       evidence: relatedFindings.flatMap((f) => f.evidence),
       recommendation: detail.recommendation,
-      expected_impact: this.buildImpact(detail.impact),
+      expected_impact: this.buildImpact(detail.impact, hypothesis),
       confidence: hypothesis.confidence,
       effort: this.buildEffort(detail.effort),
       risk: this.buildRisk(detail.risk),
@@ -353,6 +375,7 @@ export class Synthesizer {
       reasoning: provenance,
       locations: relatedFindings.flatMap((f) => f.locations),
       related: [],
+      assumptions: hypothesis.assumptions.length > 0 ? [...hypothesis.assumptions] : undefined,
       status: 'proposed',
       created_at: now,
       updated_at: now,
@@ -426,42 +449,92 @@ export class Synthesizer {
     hypothesis: Hypothesis,
     rounds: DebateRound[],
   ): AgentProvenance {
-    const supporters: string[] = [];
-    const dissenters: Array<{ agent_id: string; reason: string }> = [];
+    // Pair each challenge with the defense it provoked. Within a round the
+    // protocol pushes a defense immediately after each challenge, so the k-th
+    // challenge for a hypothesis matches the k-th response for that hypothesis.
+    interface Exchange {
+      challenger: string;
+      challenge: string;
+      revisedConfidence: number;
+    }
+    const exchanges: Exchange[] = [];
 
-    // Analyze debate responses to classify supporters vs dissenters
     for (const round of rounds) {
-      for (const response of round.responses) {
-        if (response.hypothesis_id !== hypothesis.id) continue;
+      const challenges = round.challenges.filter(
+        (c) => c.hypothesis_id === hypothesis.id,
+      );
+      const responses = round.responses.filter(
+        (r) => r.hypothesis_id === hypothesis.id,
+      );
+      challenges.forEach((challenge, i) => {
+        const response = responses[i];
+        if (!response) return; // challenge with no recorded defense
+        exchanges.push({
+          challenger: challenge.challenger,
+          challenge: challenge.challenge,
+          revisedConfidence: response.revised_confidence,
+        });
+      });
+    }
 
-        // Look for challenges to this hypothesis
-        const relatedChallenges = round.challenges.filter(
-          (c) => c.hypothesis_id === hypothesis.id,
-        );
+    // A challenger dissents when the defender's own post-exchange confidence
+    // fell below 0.5 — i.e. the defender conceded doubt, so the challenge
+    // landed. This is inter-agent disagreement, not the proposer's self-report.
+    // Keep each dissenting challenger once, recording their strongest concern
+    // (the exchange where confidence dropped lowest).
+    const DISSENT_CONFIDENCE = 0.5;
+    const dissentByAgent = new Map<string, { reason: string; conf: number }>();
+    const challengers = new Set<string>();
 
-        for (const challenge of relatedChallenges) {
-          // If the defense resulted in higher confidence, the challenger's
-          // point was addressed — we consider them a constructive participant
-          if (response.revised_confidence >= hypothesis.confidence * 0.9) {
-            if (!supporters.includes(challenge.challenger)) {
-              supporters.push(challenge.challenger);
-            }
-          } else {
-            dissenters.push({
-              agent_id: challenge.challenger,
-              reason: challenge.challenge.slice(0, 200),
-            });
-          }
+    for (const ex of exchanges) {
+      challengers.add(ex.challenger);
+      if (ex.revisedConfidence < DISSENT_CONFIDENCE) {
+        const existing = dissentByAgent.get(ex.challenger);
+        if (!existing || ex.revisedConfidence < existing.conf) {
+          dissentByAgent.set(ex.challenger, {
+            reason: ex.challenge.slice(0, 200),
+            conf: ex.revisedConfidence,
+          });
         }
       }
     }
+
+    const dissenters = [...dissentByAgent.entries()].map(([agent_id, v]) => ({
+      agent_id,
+      reason: v.reason,
+    }));
+
+    // This challenge/defense protocol has no explicit "support" signal, so we
+    // do not fabricate supporters. A challenger whose challenge the hypothesis
+    // withstood is not a supporter — they simply did not dissent.
+    const supporters: string[] = [];
 
     return {
       proposer: hypothesis.proposed_by,
       supporters,
       dissenters,
-      consensus_score: hypothesis.confidence,
+      consensus_score: this.computeConsensus(challengers.size, dissenters.length),
     };
+  }
+
+  /**
+   * Compute a real consensus score from debate structure.
+   *
+   * Consensus is the fraction of distinct challengers whose objections the
+   * hypothesis withstood (i.e. did not become dissenters) — genuine inter-agent
+   * agreement, distinct from the proposer's self-reported confidence. When no
+   * peer ever challenged the hypothesis there is no agreement signal to measure,
+   * so we return a neutral 0.5 to flag it as untested rather than assuming
+   * agreement.
+   *
+   * @param challengerCount - Number of distinct agents that challenged.
+   * @param dissenterCount - Number of those challengers that dissented.
+   * @returns Consensus score in [0, 1].
+   */
+  private computeConsensus(challengerCount: number, dissenterCount: number): number {
+    if (challengerCount === 0) return 0.5;
+    const agreed = challengerCount - dissenterCount;
+    return Math.max(0, Math.min(1, agreed / challengerCount));
   }
 
   /**
@@ -483,18 +556,59 @@ export class Synthesizer {
   }
 
   /**
-   * Build an Impact object from LLM output.
+   * Build an Impact object from LLM output, enforcing the evidence-only rule.
+   *
+   * Every metric produced by the LLM is a model projection unless it carries a
+   * measured `current_value` baseline. This method:
+   * - Flags any forward-looking metric (one with an expected value, a percent
+   *   change, or an explicit `is_estimate`) as an estimate and attaches the
+   *   assumptions it rests on (falling back to the hypothesis assumptions).
+   * - Drops `change_percent` when there is no measured `current_value`, because
+   *   a percentage change against a non-existent baseline is fabricated.
+   *
+   * @param raw - The LLM impact output.
+   * @param hypothesis - The source hypothesis (for assumption fallback).
+   * @returns A sanitized {@link Impact} where estimates are honestly labelled.
    */
-  private buildImpact(raw: OpportunityLLMOutput['impact']): Impact {
+  private buildImpact(
+    raw: OpportunityLLMOutput['impact'],
+    hypothesis: Hypothesis,
+  ): Impact {
     return {
       summary: raw.summary,
-      metrics: raw.metrics.map((m) => ({
-        name: m.name,
-        current_value: m.current_value,
-        expected_value: m.expected_value,
-        change_percent: m.change_percent,
-        direction: m.direction,
-      })),
+      metrics: raw.metrics.map((m) => {
+        const hasMeasuredBaseline =
+          m.current_value !== undefined && m.current_value !== '';
+        const isProjection =
+          m.is_estimate === true ||
+          m.expected_value !== undefined ||
+          m.change_percent !== undefined;
+
+        // Assumptions are required (in spirit) for any estimate. Prefer the
+        // metric's own assumptions, otherwise fall back to the hypothesis'.
+        let assumptions: string[] | undefined;
+        if (isProjection) {
+          const provided = (m.assumptions ?? []).filter((a) => a.trim() !== '');
+          assumptions =
+            provided.length > 0
+              ? provided
+              : hypothesis.assumptions.length > 0
+                ? [...hypothesis.assumptions]
+                : ['Projection is model-generated and has not been measured.'];
+        }
+
+        return {
+          name: m.name,
+          current_value: hasMeasuredBaseline ? m.current_value : undefined,
+          expected_value: m.expected_value,
+          // A percent change is only meaningful against a measured baseline;
+          // otherwise it would be a fabricated figure, so we drop it.
+          change_percent: hasMeasuredBaseline ? m.change_percent : undefined,
+          direction: m.direction,
+          is_estimate: isProjection ? true : undefined,
+          assumptions,
+        };
+      }),
       affected_services: raw.affected_services,
       affected_users: raw.affected_users,
       business_value: raw.business_value,

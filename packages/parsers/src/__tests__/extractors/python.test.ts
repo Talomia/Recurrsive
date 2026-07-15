@@ -412,4 +412,44 @@ def main():
       expect(imports.length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  // ── Control-flow features (has_try_catch / has_loop) ──────────────────
+
+  describe('control-flow features', () => {
+    it('detects try/except in a function body', () => {
+      const source = [
+        'def fetch(x):',
+        '    try:',
+        '        return call(x)',
+        '    except Exception:',
+        '        return None',
+        '',
+      ].join('\n');
+      const fn = extractor.extract(source, 'svc.py').find((e) => e.name === 'fetch');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_try_catch']).toBe(true);
+      expect(fn!.properties['has_loop']).toBe(false);
+    });
+
+    it('detects for/while loops in a function body', () => {
+      const source = [
+        'def process(items):',
+        '    for item in items:',
+        '        save(item)',
+        '',
+      ].join('\n');
+      const fn = extractor.extract(source, 'svc.py').find((e) => e.name === 'process');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_loop']).toBe(true);
+      expect(fn!.properties['has_try_catch']).toBe(false);
+    });
+
+    it('reports false for a plain function with neither', () => {
+      const source = ['def add(a, b):', '    return a + b', ''].join('\n');
+      const fn = extractor.extract(source, 'm.py').find((e) => e.name === 'add');
+      expect(fn).toBeDefined();
+      expect(fn!.properties['has_try_catch']).toBe(false);
+      expect(fn!.properties['has_loop']).toBe(false);
+    });
+  });
 });

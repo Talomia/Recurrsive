@@ -95,16 +95,21 @@ function classifyPhase(opp: Opportunity): PhaseName {
 }
 
 /**
- * Compute a rough impact value for an opportunity based on severity,
- * confidence, and metric count.
+ * Compute a rough impact value for an opportunity based on severity and
+ * confidence only.
+ *
+ * The previous formula multiplied by the raw metric count, which is unbounded
+ * and trivially inflated by model-generated (possibly hallucinated) estimate
+ * metrics. Impact must not scale with how many metrics an LLM happened to
+ * emit, so metric count is dropped entirely in favour of severity × confidence
+ * (bounded by the severity weight).
  *
  * @param opp - The opportunity to assess
- * @returns A numeric impact estimate
+ * @returns A numeric impact estimate in [0, severityWeight]
  */
 function estimateImpact(opp: Opportunity): number {
   const severityWeight = SEVERITY_IMPACT_WEIGHT[opp.severity];
-  const metricCount = Math.max(opp.expected_impact.metrics.length, 1);
-  return severityWeight * opp.confidence * metricCount;
+  return severityWeight * opp.confidence;
 }
 
 // ---------------------------------------------------------------------------
