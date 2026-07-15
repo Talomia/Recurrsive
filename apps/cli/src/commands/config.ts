@@ -397,7 +397,7 @@ export function registerConfigCommand(program: Command): void {
       const configObj = config as unknown as Record<string, unknown>;
       setConfigValue(configObj, key, value);
 
-      const configPath = join(projectRoot, '.recurrsive', 'config.yaml');
+      const configPath = join(projectRoot, '.recurrsive', 'config.json');
       await saveConfig(config, configPath);
 
       success(`Set ${bold(key)} = ${cyan(value)}`);
@@ -410,7 +410,7 @@ export function registerConfigCommand(program: Command): void {
     .action(async () => {
       const { projectRoot } = await loadConfig();
       const defaultConfig = getDefaultConfig();
-      const configPath = join(projectRoot, '.recurrsive', 'config.yaml');
+      const configPath = join(projectRoot, '.recurrsive', 'config.json');
 
       await saveConfig(defaultConfig, configPath);
 

@@ -441,6 +441,18 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
+    // generateId is mocked to a constant; make it unique so seeded users get
+    // distinct ids (createUser keys users by id).
+    const { generateId } = await import('@recurrsive/core');
+    let counter = 0;
+    (generateId as ReturnType<typeof vi.fn>).mockImplementation(() => `seed-user-${++counter}`);
+
+    // Seed real, store-backed users (no demo users exist anymore).
+    const { createUser } = await import('../middleware/users.js');
+    await createUser({ username: 'admin', email: 'admin@test.dev', password: 'admin-password', role: 'admin', displayName: 'Admin User' });
+    await createUser({ username: 'analyst', email: 'analyst@test.dev', password: 'analyst-password', role: 'analyst', displayName: 'Analyst User' });
+    await createUser({ username: 'viewer', email: 'viewer@test.dev', password: 'viewer-password', role: 'viewer', displayName: 'Viewer User' });
+
     app = Fastify({ logger: false });
     await registerAuthRoutes(app);
     await app.ready();
@@ -460,7 +472,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'admin', password: 'admin' },
+      payload: { username: 'admin', password: 'admin-password' },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -474,7 +486,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'analyst', password: 'analyst' },
+      payload: { username: 'analyst', password: 'analyst-password' },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -516,10 +528,11 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'admin', password: 'admin' },
+      payload: { username: 'admin', password: 'admin-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;
+    const adminId = loginBody.data.user.id;
 
     const res = await app.inject({
       method: 'POST',
@@ -532,7 +545,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     // Verify the refreshed token is valid and carries the right claims
     const payload = verifyToken(body.data.token);
     expect(payload).not.toBeNull();
-    expect(payload!.sub).toBe('user-admin');
+    expect(payload!.sub).toBe(adminId);
     expect(payload!.role).toBe('admin');
   });
 
@@ -550,7 +563,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'viewer', password: 'viewer' },
+      payload: { username: 'viewer', password: 'viewer-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;
@@ -581,7 +594,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'admin', password: 'admin' },
+      payload: { username: 'admin', password: 'admin-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;
@@ -602,7 +615,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'viewer', password: 'viewer' },
+      payload: { username: 'viewer', password: 'viewer-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;
@@ -620,7 +633,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'admin', password: 'admin' },
+      payload: { username: 'admin', password: 'admin-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;
@@ -638,7 +651,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'admin', password: 'admin' },
+      payload: { username: 'admin', password: 'admin-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;
@@ -666,7 +679,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'admin', password: 'admin' },
+      payload: { username: 'admin', password: 'admin-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;
@@ -694,7 +707,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'admin', password: 'admin' },
+      payload: { username: 'admin', password: 'admin-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;
@@ -711,7 +724,7 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     const loginRes = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      payload: { username: 'analyst', password: 'analyst' },
+      payload: { username: 'analyst', password: 'analyst-password' },
     });
     const loginBody = JSON.parse(loginRes.payload);
     const token = loginBody.data.token;

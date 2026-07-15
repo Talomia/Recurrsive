@@ -13,6 +13,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api/client';
+import { useAuth } from '@/lib/auth-context';
 import { Loader2 } from 'lucide-react';
 
 interface SetupStatus {
@@ -21,6 +22,7 @@ interface SetupStatus {
 
 export default function SetupPage() {
   const router = useRouter();
+  const { authenticateWithToken } = useAuth();
   const [checking, setChecking] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,14 +93,15 @@ export default function SetupPage() {
 
       const token = (body.data?.token ?? body.token) as string | undefined;
 
-      if (token) {
-        // Auto-login: store token and redirect
-        localStorage.setItem('recurrsive_token', token);
-        document.cookie = `recurrsive_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''}`;
+      // Auto-login: adopt the token through the auth context so it persists to
+      // both localStorage and the middleware cookie AND updates React state
+      // before we navigate — otherwise the AuthGuard would bounce the brand-new
+      // admin straight back to /login.
+      if (token && authenticateWithToken(token)) {
+        router.replace('/');
+      } else {
+        router.replace('/login');
       }
-
-      // Redirect to home (or login if no token)
-      router.push(token ? '/' : '/login');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
       setSubmitting(false);

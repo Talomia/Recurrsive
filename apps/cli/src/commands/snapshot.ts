@@ -15,7 +15,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import type { Command } from 'commander';
-import type { Entity, Relationship } from '@recurrsive/core';
+import type { Entity, EntityType, Relationship } from '@recurrsive/core';
 import {
   createGraphClient,
   type ExtendedGraphClient,
@@ -101,29 +101,55 @@ async function getGraphClient(): Promise<{
 }
 
 /**
- * Read all entities from the graph via raw SQL query.
+ * Read all entities from the graph as fully-typed {@link Entity} objects.
+ *
+ * Uses the graph client's typed `getEntities(type)` query (which
+ * deserializes JSON columns like `properties`, `tags`, and
+ * `source_location`) rather than a raw `SELECT *` that would return
+ * those columns as JSON strings. This keeps export → import lossless:
+ * the re-upsert on import re-serializes proper objects instead of
+ * double-encoding already-stringified JSON.
  *
  * @param client - The graph client.
  * @returns Array of all entities.
  */
 async function getAllEntities(client: ExtendedGraphClient): Promise<Entity[]> {
-  const rows = (await client.query('SELECT * FROM entities')) as Entity[];
-  return rows;
+  const stats = await client.getStats();
+  const types = Object.keys(stats.entityCountsByType) as EntityType[];
+  const all: Entity[] = [];
+  for (const type of types) {
+    const entities = await client.getEntities(type);
+    all.push(...entities);
+  }
+  return all;
 }
 
 /**
- * Read all relationships from the graph via raw SQL query.
+ * Read all relationships from the graph as fully-typed
+ * {@link Relationship} objects.
+ *
+ * Enumerates every entity's out-edges (each relationship has exactly
+ * one source, so out-edges cover the full set) via the typed
+ * `getRelationships` query, deduplicating by relationship id. Like
+ * {@link getAllEntities}, this deserializes properties so the round
+ * trip is lossless.
  *
  * @param client - The graph client.
+ * @param entities - All entities in the graph (used as edge sources).
  * @returns Array of all relationships.
  */
 async function getAllRelationships(
   client: ExtendedGraphClient,
+  entities: Entity[],
 ): Promise<Relationship[]> {
-  const rows = (await client.query(
-    'SELECT * FROM relationships',
-  )) as Relationship[];
-  return rows;
+  const byId = new Map<string, Relationship>();
+  for (const entity of entities) {
+    const rels = await client.getRelationships(entity.id, 'out');
+    for (const rel of rels) {
+      byId.set(rel.id, rel);
+    }
+  }
+  return [...byId.values()];
 }
 
 /**
@@ -205,7 +231,7 @@ export function registerSnapshotCommand(program: Command): void {
         const entities = await getAllEntities(client);
 
         info('Reading relationships from knowledge graph...');
-        const relationships = await getAllRelationships(client);
+        const relationships = await getAllRelationships(client, entities);
 
         if (entities.length === 0 && relationships.length === 0) {
           error(

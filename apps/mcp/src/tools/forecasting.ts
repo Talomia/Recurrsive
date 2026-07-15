@@ -46,9 +46,9 @@ export function registerForecastTools(server: McpServer): void {
       try {
         const params = new URLSearchParams();
         if (horizon !== undefined) params.set('horizon', String(horizon));
-        if (project_id) params.set('project_id', project_id);
+        if (project_id) params.set('projectId', project_id);
         const qs = params.toString();
-        const path = `/api/v1/forecasting${qs ? `?${qs}` : ''}`;
+        const path = `/api/v1/forecasting/health${qs ? `?${qs}` : ''}`;
 
         const result = await apiGet<unknown>(path);
 
@@ -67,21 +67,40 @@ export function registerForecastTools(server: McpServer): void {
     'what_if_analysis',
     'Run a what-if impact simulation for a set of hypothetical actions. ' +
     'Estimates how each action would affect the project health score and ' +
-    'which dimensions are impacted.',
+    'which dimensions are impacted. Each action is an object with a `type` ' +
+    'field. Recognized types (with calibrated impact models) include: ' +
+    'fix-critical-findings, fix-security-issues, add-tests, add-monitoring, ' +
+    'upgrade-dependencies, refactor-architecture, add-documentation, ' +
+    'enable-strict-mode, add-rate-limiting, optimize-performance. Unknown ' +
+    'types fall back to `estimatedImpact` if provided.',
     {
       actions: z
-        .array(z.string())
-        .describe('List of hypothetical actions to simulate (e.g. "Migrate to TypeScript strict mode")'),
-      project_id: z
-        .string()
-        .optional()
-        .describe('Project ID to simulate against. Omit for the active project.'),
+        .array(
+          z.object({
+            type: z
+              .string()
+              .describe('Action type, e.g. "fix-critical-findings" or "add-tests".'),
+            description: z
+              .string()
+              .optional()
+              .describe('Optional human-readable description of the action.'),
+            estimatedImpact: z
+              .number()
+              .optional()
+              .describe('Optional explicit health-score delta for unknown action types.'),
+          }),
+        )
+        .min(1)
+        .describe(
+          'List of action objects to simulate, e.g. ' +
+          '[{ "type": "add-tests" }, { "type": "fix-security-issues" }].',
+        ),
     },
-    async ({ actions, project_id }) => {
+    async ({ actions }) => {
       try {
         const result = await apiRequest<unknown>('/api/v1/forecasting/what-if', {
           method: 'POST',
-          body: JSON.stringify({ actions, project_id }),
+          body: JSON.stringify({ actions }),
         });
 
         return {
@@ -97,20 +116,14 @@ export function registerForecastTools(server: McpServer): void {
 
   server.tool(
     'get_evolution',
-    'Get the evolution graph data showing how project health, entity count, ' +
-    'and findings have changed over time. Supports multiple time periods.',
-    {
-      period: z
-        .enum(['7d', '30d', '90d', '1y'])
-        .optional()
-        .describe('Time period for evolution data (default: 30d)'),
-    },
-    async ({ period }) => {
+    'Get the evolution graph data showing how project health, findings, and ' +
+    'opportunities have changed across recorded analysis runs. Returns the ' +
+    'full recorded history (the server does not currently support time-window ' +
+    'filtering).',
+    {},
+    async () => {
       try {
-        const selectedPeriod = period ?? '30d';
-        const result = await apiGet<unknown>(
-          `/api/v1/forecasting/evolution?period=${encodeURIComponent(selectedPeriod)}`,
-        );
+        const result = await apiGet<unknown>('/api/v1/forecasting/evolution');
 
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],

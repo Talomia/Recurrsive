@@ -3,14 +3,15 @@
  *
  * `recurrsive comparisons` — Compare analysis runs side-by-side.
  *
- * Provides subcommands for listing past analysis runs and
- * generating diffs between two runs showing health score deltas,
- * findings added/removed, and category breakdowns.
+ * Lists past analysis runs and diffs two of them, showing real deltas
+ * in health score, findings, and opportunities. Both subcommands read
+ * the server's `/api/v1/analysis/history` endpoint; the diff is computed
+ * from those real run records (there is no separate compare endpoint).
  *
  * @packageDocumentation
  */
 
-import { apiRequest } from '../config.js';
+import { apiRequestList, reportApiError } from '../config.js';
 import type { Command } from 'commander';
 import {
   header,
@@ -19,51 +20,43 @@ import {
   dim,
   table,
   bold,
-  cyan,
   green,
   red,
-  yellow,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server's AnalysisHistoryEntry shape)
 // ---------------------------------------------------------------------------
 
-/** A single analysis run entry. */
 interface AnalysisRun {
   id: string;
-  label: string;
-  date: string;
-  health_score: number;
-  findings: number;
-  resolved: number;
-}
-
-/** Category breakdown within a finding. */
-interface CategoryDelta {
-  name: string;
-  baseline: number;
-  target: number;
-  delta: number;
-}
-
-/** Comparison diff between two analysis runs. */
-interface ComparisonDiff {
-  baseline: AnalysisRun;
-  target: AnalysisRun;
-  health_delta: number;
-  findings_delta: number;
-  resolution_rate_baseline: number;
-  resolution_rate_target: number;
-  resolution_rate_delta: number;
-  new_findings: number;
-  findings_resolved: number;
-  categories: CategoryDelta[];
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  findingCount: number;
+  opportunityCount: number;
+  includeReasoning: boolean;
+  healthScore: number | null;
+  status: 'success' | 'failed';
+  error: string | null;
 }
 
 // ---------------------------------------------------------------------------
-// API helpers
+// Helpers
 // ---------------------------------------------------------------------------
+
+function fmtDate(iso: string): string {
+  return iso.replace('T', ' ').replace(/\.\d+Z$/, 'Z');
+}
+
+function fmtHealth(score: number | null): string {
+  return score === null ? dim('—') : String(score);
+}
+
+function signed(delta: number): string {
+  const s = delta >= 0 ? `+${delta}` : String(delta);
+  return delta > 0 ? green(s) : delta < 0 ? red(s) : dim(s);
+}
 
 // ---------------------------------------------------------------------------
 // Command Registration
@@ -85,102 +78,90 @@ export function registerComparisonsCommand(program: Command): void {
     .description('List available analysis runs')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
+      let runs: AnalysisRun[];
       try {
-        let runs: AnalysisRun[];
-        try {
-          const data = await apiRequest('/api/v1/analysis/history') as { data: AnalysisRun[] };
-          runs = data.data;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(runs, null, 2));
-          return;
-        }
-
-        header('Analysis Runs');
-
-        if (runs.length === 0) {
-          info(dim('No analysis runs found.'));
-          return;
-        }
-
-        const rows = runs.map(r => [
-          r.id,
-          r.label,
-          r.date.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
-          String(r.health_score),
-          String(r.findings),
-          String(r.resolved),
-        ]);
-
-        table(['ID', 'Label', 'Date', 'Health', 'Findings', 'Resolved'], rows);
-
-        info(`\n${dim(`Showing ${runs.length} run(s)`)}`);
+        runs = (await apiRequestList<AnalysisRun>('/api/v1/analysis/history')).items;
       } catch (err) {
-        error(`Failed to list analysis runs: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'List analysis runs' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(runs, null, 2));
+        return;
+      }
+
+      header('Analysis Runs');
+
+      if (runs.length === 0) {
+        info(dim('No analysis runs found. Run `recurrsive analyze` first.'));
+        return;
+      }
+
+      const rows = runs.map((r) => [
+        r.id,
+        fmtDate(r.startedAt),
+        r.status === 'success' ? green(r.status) : red(r.status),
+        fmtHealth(r.healthScore),
+        String(r.findingCount),
+        String(r.opportunityCount),
+      ]);
+      console.log(table(['ID', 'Date', 'Status', 'Health', 'Findings', 'Opps'], rows));
+      info(`\n${dim(`Showing ${runs.length} run(s)`)}`);
     });
 
   // ── comparisons diff <run1> <run2> ─────────────────────────────────
   comparisons
     .command('diff <run1> <run2>')
-    .description('Show diff between two analysis runs')
+    .description('Show the diff between two analysis runs (baseline → target)')
     .option('--json', 'Output as JSON')
     .action(async (run1: string, run2: string, opts: { json?: boolean }) => {
+      let runs: AnalysisRun[];
       try {
-        let diff: ComparisonDiff;
-        try {
-          diff = await apiRequest(
-            `/api/v1/analysis/compare?baseline=${encodeURIComponent(run1)}&target=${encodeURIComponent(run2)}`,
-          ) as ComparisonDiff;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(diff, null, 2));
-          return;
-        }
-
-        header(`Comparison: ${diff.baseline.label} → ${diff.target.label}`);
-
-        // Health score delta
-        const healthSign = diff.health_delta >= 0 ? '+' : '';
-        info(`  ${bold('Health Score:')}  ${diff.baseline.health_score} → ${diff.target.health_score}  (${green(`${healthSign}${diff.health_delta}`)})`);
-
-        // Findings delta
-        const findingsSign = diff.findings_delta >= 0 ? '+' : '';
-        info(`  ${bold('Findings:')}     ${diff.baseline.findings} → ${diff.target.findings}  (${cyan(`${findingsSign}${diff.findings_delta}`)})`);
-
-        // Resolution rates
-        info(`  ${bold('Res. Rate:')}    ${diff.resolution_rate_baseline}% → ${diff.resolution_rate_target}%  (${diff.resolution_rate_delta >= 0 ? green(`+${diff.resolution_rate_delta}%`) : red(`${diff.resolution_rate_delta}%`)})`);
-
-        info('');
-        info(`  ${bold('New Findings:')}      ${cyan(String(diff.new_findings))}`);
-        info(`  ${bold('Findings Resolved:')} ${green(String(diff.findings_resolved))}`);
-
-        // Category breakdown
-        if (diff.categories.length > 0) {
-          info('');
-          info(bold('  Category Breakdown:'));
-
-          const catRows = diff.categories.map(c => {
-            const sign = c.delta >= 0 ? '+' : '';
-            return [c.name, String(c.baseline), String(c.target), `${sign}${c.delta}`];
-          });
-
-          table(['Category', 'Baseline', 'Target', 'Delta'], catRows);
-        }
-
-        info(`\n${dim(`Baseline: ${diff.baseline.id}  |  Target: ${diff.target.id}`)}`);
+        runs = (await apiRequestList<AnalysisRun>('/api/v1/analysis/history')).items;
       } catch (err) {
-        error(`Failed to compare runs: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'Load analysis runs' });
       }
+
+      const baseline = runs.find((r) => r.id === run1);
+      const target = runs.find((r) => r.id === run2);
+
+      if (!baseline || !target) {
+        const missing = !baseline ? run1 : run2;
+        error(`Analysis run not found: ${missing}`);
+        info(dim('Use `recurrsive comparisons list` to see available run IDs.'));
+        process.exitCode = 1;
+        return;
+      }
+
+      const healthDelta =
+        baseline.healthScore !== null && target.healthScore !== null
+          ? target.healthScore - baseline.healthScore
+          : null;
+      const findingsDelta = target.findingCount - baseline.findingCount;
+      const oppsDelta = target.opportunityCount - baseline.opportunityCount;
+
+      if (opts.json) {
+        console.log(
+          JSON.stringify(
+            { baseline, target, healthDelta, findingsDelta, oppsDelta },
+            null,
+            2,
+          ),
+        );
+        return;
+      }
+
+      header(`Comparison: ${baseline.id} → ${target.id}`);
+
+      if (healthDelta !== null) {
+        info(`  ${bold('Health Score:')}  ${baseline.healthScore} → ${target.healthScore}  (${signed(healthDelta)})`);
+      } else {
+        info(`  ${bold('Health Score:')}  ${fmtHealth(baseline.healthScore)} → ${fmtHealth(target.healthScore)}  ${dim('(not comparable)')}`);
+      }
+      info(`  ${bold('Findings:')}      ${baseline.findingCount} → ${target.findingCount}  (${signed(findingsDelta)})`);
+      info(`  ${bold('Opportunities:')} ${baseline.opportunityCount} → ${target.opportunityCount}  (${signed(oppsDelta)})`);
+      info('');
+      info(`  ${dim(`Baseline: ${fmtDate(baseline.startedAt)}  |  Target: ${fmtDate(target.startedAt)}`)}`);
+      console.log('');
     });
 }

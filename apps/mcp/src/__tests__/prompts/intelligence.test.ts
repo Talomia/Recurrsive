@@ -200,10 +200,10 @@ describe('registerIntelligencePrompts', () => {
       expect(result.messages[0].content.text).toContain('Recommended Actions');
     });
 
-    it('mentions list_experiments tool', async () => {
+    it('mentions list_simulations tool', async () => {
       const handler = getHandler();
       const result = await handler({} as Record<string, never>);
-      expect(result.messages[0].content.text).toContain('list_experiments');
+      expect(result.messages[0].content.text).toContain('list_simulations');
     });
   });
 

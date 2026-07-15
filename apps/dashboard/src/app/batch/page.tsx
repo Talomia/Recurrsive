@@ -130,7 +130,8 @@ function BatchCard({ batch }: { batch: BatchRun }) {
     (p) => p.status === "completed"
   ).length;
   const totalCount = batch.projects.length;
-  const progressPercent = Math.round((completedCount / totalCount) * 100);
+  // Guard against divide-by-zero (empty batch) → would render "NaN%".
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   return (
     <details className="group rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden transition-all hover:border-white/15">
@@ -311,22 +312,28 @@ export default async function BatchPage() {
                   {activeBatch.projects.length} projects complete
                 </span>
                 <span className="text-xs font-medium text-blue-400 tabular-nums">
-                  {Math.round(
-                    (activeBatch.projects.filter((p) => p.status === "completed").length /
-                      activeBatch.projects.length) *
-                      100
-                  )}%
+                  {activeBatch.projects.length > 0
+                    ? Math.round(
+                        (activeBatch.projects.filter((p) => p.status === "completed").length /
+                          activeBatch.projects.length) *
+                          100
+                      )
+                    : 0}%
                 </span>
               </div>
               <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500"
                   style={{
-                    width: `${Math.round(
-                      (activeBatch.projects.filter((p) => p.status === "completed").length /
-                        activeBatch.projects.length) *
-                        100
-                    )}%`,
+                    width: `${
+                      activeBatch.projects.length > 0
+                        ? Math.round(
+                            (activeBatch.projects.filter((p) => p.status === "completed").length /
+                              activeBatch.projects.length) *
+                              100
+                          )
+                        : 0
+                    }%`,
                   }}
                 />
               </div>

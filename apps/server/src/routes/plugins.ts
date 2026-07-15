@@ -13,7 +13,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { generateId, nowISO } from '@recurrsive/core';
+import { nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
 import { store } from '../store.js';
 
@@ -77,37 +77,13 @@ interface MarketplaceEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Marketplace seed data (written to store on first run)
-// ---------------------------------------------------------------------------
-
-const marketplaceSeedData: Array<Omit<MarketplaceEntry, 'id'>> = [
-  { name: '@recurrsive/plugin-sonarqube', version: '1.0.0', description: 'Import SonarQube quality gates and issues as findings', author: 'Recurrsive Team', type: 'collector', tags: ['quality', 'sonarqube', 'static-analysis'], downloads: 12450, rating: 4.7, verified: true, createdAt: '2026-02-01T00:00:00Z' },
-  { name: '@recurrsive/plugin-jira', version: '2.1.0', description: 'Sync Jira issues, sprints, and velocity metrics', author: 'Recurrsive Team', type: 'collector', tags: ['project-management', 'jira', 'agile'], downloads: 8920, rating: 4.5, verified: true, createdAt: '2026-01-15T00:00:00Z' },
-  { name: '@recurrsive/plugin-slack-reporter', version: '1.2.0', description: 'Send analysis reports and alerts to Slack channels', author: 'Community', type: 'reporter', tags: ['notifications', 'slack', 'reports'], downloads: 6340, rating: 4.3, verified: true, createdAt: '2026-03-10T00:00:00Z' },
-  { name: '@recurrsive/plugin-terraform', version: '0.8.0', description: 'Analyze Terraform configs for security and cost optimization', author: 'Community', type: 'analyzer', tags: ['iac', 'terraform', 'cloud', 'security'], downloads: 4210, rating: 4.1, verified: false, createdAt: '2026-04-01T00:00:00Z' },
-  { name: '@recurrsive/plugin-pagerduty', version: '1.0.0', description: 'Collect incident data from PagerDuty for reliability analysis', author: 'Community', type: 'collector', tags: ['incidents', 'pagerduty', 'sre'], downloads: 3890, rating: 4.4, verified: true, createdAt: '2026-02-20T00:00:00Z' },
-  { name: '@recurrsive/plugin-linear', version: '1.1.0', description: 'Import Linear issues and project data', author: 'Community', type: 'collector', tags: ['project-management', 'linear', 'issues'], downloads: 3150, rating: 4.6, verified: false, createdAt: '2026-05-01T00:00:00Z' },
-  { name: '@recurrsive/plugin-snyk', version: '1.0.0', description: 'Import Snyk vulnerability scan results', author: 'Recurrsive Team', type: 'collector', tags: ['security', 'vulnerabilities', 'snyk'], downloads: 7820, rating: 4.8, verified: true, createdAt: '2026-01-20T00:00:00Z' },
-  { name: '@recurrsive/plugin-openai-cost', version: '0.5.0', description: 'Track OpenAI API costs and token usage patterns', author: 'Community', type: 'analyzer', tags: ['ai', 'openai', 'cost', 'llm'], downloads: 2450, rating: 4.0, verified: false, createdAt: '2026-06-01T00:00:00Z' },
-  { name: '@recurrsive/plugin-k8s-health', version: '1.3.0', description: 'Kubernetes cluster health and resource utilization analyzer', author: 'Recurrsive Team', type: 'analyzer', tags: ['kubernetes', 'infrastructure', 'health'], downloads: 5670, rating: 4.5, verified: true, createdAt: '2026-03-15T00:00:00Z' },
-  { name: '@recurrsive/plugin-confluence', version: '0.9.0', description: 'Collect documentation from Confluence spaces', author: 'Community', type: 'collector', tags: ['documentation', 'confluence', 'wiki'], downloads: 1890, rating: 3.8, verified: false, createdAt: '2026-05-15T00:00:00Z' },
-];
-
-// No seed data for installed plugins — plugins are installed by the user via the API.
-
-// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
+//
+// The plugin marketplace store starts EMPTY. Entries are published/installed
+// by real users via the API — there is no seeded fake catalog.
 
 export async function registerPluginRoutes(app: FastifyInstance): Promise<void> {
-  // Seed marketplace data into store if empty (idempotent on restart)
-  if (await store.count('plugin_marketplace') === 0) {
-    for (const entry of marketplaceSeedData) {
-      const id = generateId();
-      await store.set<MarketplaceEntry>('plugin_marketplace', id, { ...entry, id });
-    }
-  }
-
   // ── Marketplace ───────────────────────────────────────────────────────────
 
   app.get<{ Querystring: { type?: string; search?: string; sort?: string } }>(

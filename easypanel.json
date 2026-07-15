@@ -1,4 +1,5 @@
 {
+  "_comment": "SECURITY: JWT_SECRET is intentionally set to the placeholder 'REPLACE_WITH_STRONG_SECRET'. The server REFUSES to start in production (NODE_ENV=production) until this is replaced with a strong, unique secret. First-run bootstrap: create the initial admin via POST /api/v1/setup (no demo/built-in users exist).",
   "services": [
     {
       "type": "app",
@@ -41,7 +42,7 @@
           "type": "dockerfile",
           "file": "docker/Dockerfile"
         },
-        "env": "DATABASE_URL=postgresql://postgres:recurrsive@recurrsive_postgres:5432/postgres\nGRAPH_PROVIDER=postgresql_age\nPORT=3000\nHOST=0.0.0.0\nNODE_ENV=production\nJWT_SECRET=change-me-in-production\nCORS_ORIGIN=https://recurrsive-dashboard.easypanel.host\nALLOW_DEMO_USERS=true\nENABLE_ENTERPRISE=true\nENABLE_ECOSYSTEM=true\nRECURRSIVE_LLM_PROVIDER=openai\nRECURRSIVE_LLM_MODEL=gpt-4.1-mini\nRECURRSIVE_LLM_API_KEY=\nRECURRSIVE_WEBHOOK_SECRET=\nRECURRSIVE_WEBHOOK_TIMEOUT_MS=5000\nRECURRSIVE_WEBHOOK_MAX_RETRIES=3",
+        "env": "DATABASE_URL=postgresql://postgres:recurrsive@recurrsive_postgres:5432/postgres\nGRAPH_PROVIDER=postgresql_age\nPORT=3000\nHOST=0.0.0.0\nNODE_ENV=production\nJWT_SECRET=REPLACE_WITH_STRONG_SECRET\nCORS_ORIGIN=https://recurrsive-dashboard.easypanel.host\nENABLE_ENTERPRISE=true\nENABLE_ECOSYSTEM=true\nRECURRSIVE_LLM_PROVIDER=openai\nRECURRSIVE_LLM_MODEL=gpt-4.1-mini\nRECURRSIVE_LLM_API_KEY=\nRECURRSIVE_WEBHOOK_SECRET=\nRECURRSIVE_WEBHOOK_TIMEOUT_MS=5000\nRECURRSIVE_WEBHOOK_MAX_RETRIES=3",
         "deploy": {
           "command": null,
           "replicas": 1,

@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-import { apiRequest } from '../config.js';
+import { apiRequest, apiRequestList, reportApiError } from '../config.js';
 import type { Command } from 'commander';
 import {
   header,
@@ -19,39 +19,45 @@ import {
   cyan,
   green,
   red,
-  yellow,
   dim,
   table,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server's BatchRun shape)
 // ---------------------------------------------------------------------------
 
-/** Batch project entry. */
 interface BatchProject {
   path: string;
-  status: 'pending' | 'running' | 'complete' | 'failed';
-  started_at?: string;
-  completed_at?: string;
-  findings_count?: number;
-  opportunities_count?: number;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  started_at?: string | null;
+  completed_at?: string | null;
+  error?: string;
 }
 
-/** Batch run record. */
 interface BatchRun {
   batch_id: string;
-  status: 'pending' | 'running' | 'complete' | 'partial';
+  status: 'pending' | 'running' | 'completed' | 'partial' | 'failed';
   projects: BatchProject[];
   created_at: string;
-  completed_at?: string;
+  completed_at?: string | null;
 }
 
 // ---------------------------------------------------------------------------
-// API helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
+function batchStatusText(status: string): string {
+  return status === 'completed' ? green(status) : status === 'failed' ? red(status) : status;
+}
 
+function projectStatusText(status: string): string {
+  return status === 'completed'
+    ? green('✔ completed')
+    : status === 'failed'
+      ? red('✗ failed')
+      : dim(status);
+}
 
 // ---------------------------------------------------------------------------
 // Command Registration
@@ -79,48 +85,40 @@ export function registerBatchCommand(program: Command): void {
         process.exitCode = 1;
         return;
       }
-
       if (paths.length > 10) {
         error(`Maximum 10 projects per batch (got ${paths.length})`);
         process.exitCode = 1;
         return;
       }
 
+      let result: BatchRun;
       try {
-        let result: BatchRun;
-        try {
-          result = await apiRequest('/api/v1/batch/analyze', {
-            method: 'POST',
-            body: JSON.stringify({ projects: paths }),
-          }) as BatchRun;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(result, null, 2));
-          return;
-        }
-
-        header('Batch Analysis Started');
-        info(`${bold('Batch ID:')} ${cyan(result.batch_id)}`);
-        info(`${bold('Projects:')} ${result.projects.length}`);
-        info(`${bold('Status:')}  ${result.status}\n`);
-
-        const rows = result.projects.map((p, i) => [
-          String(i + 1),
-          p.path,
-          p.status === 'complete' ? green(p.status) : dim(p.status),
-        ]);
-
-        console.log(table(['#', 'Project Path', 'Status'], rows));
-
-        info(`\n${dim('Use')} ${cyan(`recurrsive batch status ${result.batch_id}`)} ${dim('to check progress')}`);
+        const env = (await apiRequest('/api/v1/batch/analyze', {
+          method: 'POST',
+          body: JSON.stringify({ projects: paths }),
+        })) as { data?: BatchRun } & Partial<BatchRun>;
+        result = (env.data ?? env) as BatchRun;
       } catch (err) {
-        error(`Failed to start batch: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'Start batch analysis' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      header('Batch Analysis Started');
+      info(`${bold('Batch ID:')} ${cyan(result.batch_id)}`);
+      info(`${bold('Projects:')} ${result.projects.length}`);
+      info(`${bold('Status:')}   ${batchStatusText(result.status)}\n`);
+
+      const rows = result.projects.map((p, i) => [
+        String(i + 1),
+        p.path,
+        projectStatusText(p.status),
+      ]);
+      console.log(table(['#', 'Project Path', 'Status'], rows));
+      info(`\n${dim('Use')} ${cyan(`recurrsive batch status ${result.batch_id}`)} ${dim('to check progress')}`);
     });
 
   // ── batch status ───────────────────────────────────────────────────
@@ -129,90 +127,72 @@ export function registerBatchCommand(program: Command): void {
     .description('Check the status of a batch run')
     .option('--json', 'Output as JSON')
     .action(async (batchId: string, opts: { json?: boolean }) => {
+      let result: BatchRun;
       try {
-        let result: BatchRun;
-        try {
-          result = await apiRequest(`/api/v1/batch/status/${batchId}`) as BatchRun;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(result, null, 2));
-          return;
-        }
-
-        header(`Batch Status: ${batchId}`);
-        info(`${bold('Status:')} ${result.status === 'complete' ? green(result.status) : result.status}`);
-        info(`${bold('Created:')} ${result.created_at}`);
-        if (result.completed_at) {
-          info(`${bold('Completed:')} ${result.completed_at}`);
-        }
-        info('');
-
-        const rows = result.projects.map((p, i) => {
-          const statusStr = p.status === 'complete' ? green('✔ complete')
-            : p.status === 'failed' ? red('✗ failed')
-            : dim(p.status);
-          return [
-            String(i + 1),
-            p.path,
-            statusStr,
-            p.findings_count !== undefined ? String(p.findings_count) : dim('-'),
-            p.opportunities_count !== undefined ? String(p.opportunities_count) : dim('-'),
-          ];
-        });
-
-        console.log(table(['#', 'Project', 'Status', 'Findings', 'Opps'], rows));
+        result = await apiRequest(`/api/v1/batch/status/${encodeURIComponent(batchId)}`).then(
+          (env) => (env as { data: BatchRun }).data,
+        );
       } catch (err) {
-        error(`Failed to get batch status: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { resource: `batch '${batchId}'`, action: 'Get batch status' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      header(`Batch Status: ${batchId}`);
+      info(`${bold('Status:')}  ${batchStatusText(result.status)}`);
+      info(`${bold('Created:')} ${result.created_at}`);
+      if (result.completed_at) {
+        info(`${bold('Completed:')} ${result.completed_at}`);
+      }
+      info('');
+
+      const rows = result.projects.map((p, i) => [
+        String(i + 1),
+        p.path,
+        projectStatusText(p.status),
+        p.error ? red(p.error) : dim('—'),
+      ]);
+      console.log(table(['#', 'Project', 'Status', 'Error'], rows));
     });
 
   // ── batch history ──────────────────────────────────────────────────
   batch
     .command('history')
     .description('View past batch analysis runs')
-    .option('--limit <n>', 'Maximum entries to show', '10')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { limit: string; json?: boolean }) => {
+    .action(async (opts: { json?: boolean }) => {
+      let runs: BatchRun[];
+      let total: number;
       try {
-        let runs: BatchRun[];
-        try {
-          const data = await apiRequest(`/api/v1/batch/history?limit=${opts.limit}`) as { batches: BatchRun[] };
-          runs = data.batches;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(runs, null, 2));
-          return;
-        }
-
-        header('Batch Run History');
-
-        if (runs.length === 0) {
-          info(dim('No batch runs recorded yet.'));
-          return;
-        }
-
-        const rows = runs.map(r => [
-          r.batch_id,
-          r.status === 'complete' ? green(r.status) : r.status,
-          String(r.projects.length),
-          r.created_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
-        ]);
-
-        console.log(table(['Batch ID', 'Status', 'Projects', 'Created'], rows));
-
-        info(`\n${dim(`Showing ${runs.length} batch run(s)`)}`);
+        const res = await apiRequestList<BatchRun>('/api/v1/batch/history');
+        runs = res.items;
+        total = res.total;
       } catch (err) {
-        error(`Failed to get batch history: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'Get batch history' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(runs, null, 2));
+        return;
+      }
+
+      header('Batch Run History');
+
+      if (runs.length === 0) {
+        info(dim('No batch runs recorded yet.'));
+        return;
+      }
+
+      const rows = runs.map((r) => [
+        r.batch_id,
+        batchStatusText(r.status),
+        String(r.projects.length),
+        r.created_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
+      ]);
+      console.log(table(['Batch ID', 'Status', 'Projects', 'Created'], rows));
+      info(`\n${dim(`Showing ${runs.length} of ${total} batch run(s)`)}`);
     });
 }

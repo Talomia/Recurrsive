@@ -33,8 +33,8 @@ export interface BatchProject {
   status: "pending" | "running" | "completed" | "failed";
   findings_count?: number;
   opportunities_count?: number;
-  started_at?: string;
-  completed_at?: string;
+  started_at?: string | null;
+  completed_at?: string | null;
   error?: string;
 }
 
@@ -42,45 +42,23 @@ export interface BatchRun {
   batch_id: string;
   status: "pending" | "running" | "completed" | "partial" | "failed";
   projects: BatchProject[];
+  options?: Record<string, unknown>;
   created_at: string;
-  completed_at?: string;
-}
-
-export interface BatchJobTask {
-  id: string;
-  name: string;
-  status: "pending" | "running" | "completed" | "failed";
-  started_at?: string;
-  completed_at?: string;
-  error?: string;
-  findings_count?: number;
-}
-
-export interface BatchJobDetail {
-  batch_id: string;
-  name: string;
-  status: "queued" | "running" | "completed" | "failed";
-  progress_percent: number;
-  items_processed: number;
-  total_items: number;
-  duration_ms: number;
-  started_at: string;
-  completed_at?: string;
-  tasks: BatchJobTask[];
-  errors: string[];
+  completed_at?: string | null;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
  * Get all projects from `GET /api/v1/projects`.
+ *
+ * Throws on failure (network error, 5xx) rather than swallowing to `[]` — a
+ * genuinely empty project list and an unreachable server are different states,
+ * and callers must be able to tell them apart (a broken server must not render
+ * the cheerful "create your first project" screen).
  */
 export async function getProjects(): Promise<Project[]> {
-  try {
-    return await apiFetch<Project[]>("/api/v1/projects");
-  } catch {
-    return [];
-  }
+  return await apiFetch<Project[]>("/api/v1/projects");
 }
 
 /**
@@ -117,11 +95,14 @@ export async function getBatchStatus(id: string): Promise<BatchRun | null> {
 }
 
 /**
- * Get a single batch job detail by ID.
+ * Get a single batch run detail by ID from `GET /api/v1/batch/:id`.
+ *
+ * Returns the canonical {@link BatchRun} shape (the same model the server
+ * persists and returns from `/batch/status/:id`). Returns null on 404/error.
  */
-export async function getBatchJob(id: string): Promise<BatchJobDetail | null> {
+export async function getBatchJob(id: string): Promise<BatchRun | null> {
   try {
-    return await apiFetch<BatchJobDetail>(`/api/v1/batch/${encodeURIComponent(id)}`);
+    return await apiFetch<BatchRun>(`/api/v1/batch/${encodeURIComponent(id)}`);
   } catch {
     return null;
   }

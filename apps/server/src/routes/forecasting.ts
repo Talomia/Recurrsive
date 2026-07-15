@@ -3,16 +3,22 @@
  *
  * Forecasting and predictive intelligence routes.
  *
- * Provides endpoints for health trajectory prediction, maturity
- * forecasting, and what-if impact simulation.
+ * Forecasts are produced ONLY from real analysis snapshots (each successful
+ * run's recorded health score). With fewer than two snapshots there is no
+ * trend to fit, so the endpoints return an explicit `insufficient_data` state
+ * rather than projecting off a single synthetic point. What-if impact is
+ * derived from the project's actual findings — removing findings and
+ * recomputing the canonical health score — not a hardcoded impact table.
  *
  * @packageDocumentation
  */
 
 import type { FastifyInstance } from 'fastify';
+import type { Finding } from '@recurrsive/core';
 import { generateId, nowISO } from '@recurrsive/core';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { computeHealthScore } from '../health-score.js';
 
 // ---------------------------------------------------------------------------
 // Forecasting utilities
@@ -38,7 +44,6 @@ function linearRegression(points: Array<{ x: number; y: number }>): {
   const slope = (n * sumXY - sumX * sumY) / denom;
   const intercept = (sumY - slope * sumX) / n;
 
-  // R² calculation
   const meanY = sumY / n;
   const ssRes = points.reduce((s, p) => s + (p.y - (slope * p.x + intercept)) ** 2, 0);
   const ssTot = points.reduce((s, p) => s + (p.y - meanY) ** 2, 0);
@@ -48,45 +53,34 @@ function linearRegression(points: Array<{ x: number; y: number }>): {
 }
 
 /**
- * Build historical timeline from real analysis runs.
- * Falls back to a single-point timeline from the current health score
- * when insufficient history is available.
+ * Build a health-score timeline from REAL analysis snapshots for a project.
+ * Each point is a successful run's recorded health score — no synthetic
+ * points, no baseline fill-in.
  */
-function buildTimeline(baseScore: number): Array<{ date: string; score: number }> {
-  if (!state.isInitialized()) {
-    // No analysis has been run — return single point with today's date
-    const today = new Date().toISOString().split('T')[0]!;
-    return [{ date: today, score: baseScore }];
-  }
-
-  const history = state.getAnalysisHistory();
-  if (history.length === 0) {
-    const today = new Date().toISOString().split('T')[0]!;
-    return [{ date: today, score: baseScore }];
-  }
-
-  // Map each history entry to a timeline point
-  // Derive a score from finding/opportunity counts (fewer findings = higher score)
-  const timeline = history
-    .filter(h => h.status === 'success')
+async function buildRealTimeline(projectId?: string): Promise<Array<{ date: string; score: number }>> {
+  const history = await state.loadHistoryForProject(projectId);
+  return history
+    .filter((h) => h.status === 'success' && h.healthScore !== null)
     .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
-    .map(entry => {
-      const date = new Date(entry.startedAt).toISOString().split('T')[0]!;
-      // Derive health score: start at 100, subtract 2 per finding, cap at 0
-      const score = Math.max(0, Math.min(100, 100 - entry.findingCount * 2 + entry.opportunityCount * 0.5));
-      return { date, score: Math.round(score * 10) / 10 };
-    });
+    .map((entry) => ({
+      date: new Date(entry.startedAt).toISOString().split('T')[0]!,
+      score: entry.healthScore!,
+    }));
+}
 
-  // If we have real history, add the current score as the latest point
-  if (timeline.length > 0) {
-    const today = new Date().toISOString().split('T')[0]!;
-    const lastDate = timeline[timeline.length - 1]!.date;
-    if (lastDate !== today) {
-      timeline.push({ date: today, score: baseScore });
-    }
-  }
+/** Findings a proposed action would remove, derived from real findings. */
+function findingsRemovedBy(
+  action: { type: string; severity?: string; category?: string },
+  findings: Finding[],
+): Finding[] {
+  if (action.severity) return findings.filter((f) => f.severity === action.severity);
+  if (action.category) return findings.filter((f) => f.category === action.category);
 
-  return timeline.length > 0 ? timeline : [{ date: new Date().toISOString().split('T')[0]!, score: baseScore }];
+  const severityMatch = /^fix-(critical|high|medium|low)-findings$/.exec(action.type);
+  if (severityMatch) return findings.filter((f) => f.severity === severityMatch[1]);
+  if (action.type === 'fix-critical-findings') return findings.filter((f) => f.severity === 'critical');
+  if (action.type === 'fix-security-issues') return findings.filter((f) => f.category === 'security');
+  return [];
 }
 
 // ---------------------------------------------------------------------------
@@ -96,36 +90,36 @@ function buildTimeline(baseScore: number): Array<{ date: string; score: number }
 export async function registerForecastingRoutes(app: FastifyInstance): Promise<void> {
   /**
    * GET /api/v1/forecasting/health
-   * Predict health score trajectory for the next N days.
-   *
-   * Query params:
-   *   - horizon: number of days to forecast (default: 30, max: 180)
-   *   - history: number of historical days to use (default: 90)
+   * Predict the health-score trajectory. Requires >= 2 real snapshots.
    */
-  app.get<{ Querystring: { horizon?: string; history?: string } }>(
+  app.get<{ Querystring: { horizon?: string; projectId?: string } }>(
     '/api/v1/forecasting/health',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
         const horizon = Math.min(180, parseInt(request.query.horizon ?? '30', 10) || 30);
+        const timeline = await buildRealTimeline(request.query.projectId);
 
-        // Use real health score as baseline if analysis has been run
-        const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
-        const baseScore = realScore ?? 0;
-        const timeline = buildTimeline(baseScore);
+        if (timeline.length < 2) {
+          return reply.send({
+            data: {
+              status: 'insufficient_data',
+              message: 'At least 2 analysis snapshots are required to forecast a trend.',
+              snapshotsAvailable: timeline.length,
+            },
+            generatedAt: nowISO(),
+          });
+        }
 
-        // Fit linear regression
         const points = timeline.map((p, i) => ({ x: i, y: p.score }));
         const regression = linearRegression(points);
 
-        // Project forward
         const forecast: Array<{ date: string; predicted: number; lowerBound: number; upperBound: number }> = [];
         const now = Date.now();
-
         for (let i = 1; i <= horizon; i++) {
           const x = timeline.length + i;
           const predicted = Math.min(100, Math.max(0, regression.slope * x + regression.intercept));
-          const uncertainty = Math.min(15, i * 0.25); // Grows with time
+          const uncertainty = Math.min(15, i * 0.25);
           forecast.push({
             date: new Date(now + i * 86400000).toISOString().split('T')[0]!,
             predicted: Math.round(predicted * 10) / 10,
@@ -134,14 +128,12 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
           });
         }
 
-        // Trend classification
         const trend = regression.slope > 0.1 ? 'improving' :
                       regression.slope < -0.1 ? 'declining' : 'stable';
 
-        // Time to target estimates
-        const targets = [90, 80, 70, 60].map(target => {
+        const currentScore = timeline[timeline.length - 1]!.score;
+        const targets = [90, 80, 70, 60].map((target) => {
           if (regression.slope <= 0) return { target, daysToReach: null, reachable: false };
-          const currentScore = timeline[timeline.length - 1]!.score;
           if (currentScore >= target) return { target, daysToReach: 0, reachable: true };
           const days = Math.ceil((target - currentScore) / regression.slope);
           return { target, daysToReach: days, reachable: days <= 365 };
@@ -149,7 +141,9 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
 
         return reply.send({
           data: {
-            currentScore: timeline[timeline.length - 1]!.score,
+            status: 'forecast',
+            estimate: true,
+            currentScore,
             trend,
             trendStrength: Math.abs(regression.slope),
             confidence: Math.round(regression.r2 * 100) / 100,
@@ -172,11 +166,10 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
 
   /**
    * POST /api/v1/forecasting/what-if
-   * Simulate the impact of proposed changes on project health.
-   *
-   * Body: { actions: [{ type, description, estimatedImpact }] }
+   * Simulate the impact of proposed changes by removing the matching findings
+   * from the project's real analysis and recomputing the canonical score.
    */
-  app.post('/api/v1/forecasting/what-if', {
+  app.post<{ Querystring: { projectId?: string } }>('/api/v1/forecasting/what-if', {
     preHandler: [authMiddleware],
     schema: {
       body: {
@@ -190,7 +183,8 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
               properties: {
                 type: { type: 'string', minLength: 1 },
                 description: { type: 'string' },
-                estimatedImpact: { type: 'number' },
+                severity: { type: 'string' },
+                category: { type: 'string' },
               },
             },
           },
@@ -203,7 +197,8 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
                 type: { type: 'string', minLength: 1 },
                 name: { type: 'string' },
                 description: { type: 'string' },
-                estimatedImpact: { type: 'number' },
+                severity: { type: 'string' },
+                category: { type: 'string' },
               },
             },
           },
@@ -214,94 +209,72 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
   }, async (request, reply) => {
     try {
       const body = request.body as {
-        actions?: Array<{
-          type: string;
-          description?: string;
-          estimatedImpact?: number;
-        }>;
-        changes?: Array<{
-          type: string;
-          name?: string;
-          description?: string;
-          estimatedImpact?: number;
-        }>;
+        actions?: Array<{ type: string; description?: string; severity?: string; category?: string }>;
+        changes?: Array<{ type: string; name?: string; description?: string; severity?: string; category?: string }>;
       };
 
       const rawActions = body.actions ?? body.changes;
-
       if (!rawActions || rawActions.length === 0) {
         return reply.status(400).send({ error: 'Bad Request', message: 'At least one action is required' });
       }
 
-      // Map raw actions / changes to standard action format
-      const actions = rawActions.map(act => ({
+      const cache = await state.loadCacheForProject(request.query.projectId);
+      if (!cache) {
+        return reply.send({
+          data: {
+            status: 'not_analyzed',
+            message: 'Run an analysis first — what-if impact is derived from the project\'s actual findings.',
+          },
+          generatedAt: nowISO(),
+        });
+      }
+
+      const actions = rawActions.map((act) => ({
         type: act.type,
         description: act.description ?? ('name' in act ? act.name : undefined) ?? act.type,
-        estimatedImpact: act.estimatedImpact,
+        severity: act.severity,
+        category: act.category,
       }));
 
-      // Use real health score if available, otherwise use algorithmic baseline
-      const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
-      const currentScore = realScore ?? 0;
-      const results = [];
-      let cumulativeImpact = 0;
+      const findings = cache.findings;
+      const currentScore = computeHealthScore(findings, cache.opportunities).overall;
 
-      // Impact models per action type
-      const impactModels: Record<string, { baseImpact: number; confidence: number; timeToRealize: number }> = {
-        'fix-critical-findings': { baseImpact: 8.5, confidence: 0.90, timeToRealize: 7 },
-        'add-tests': { baseImpact: 4.2, confidence: 0.85, timeToRealize: 14 },
-        'upgrade-dependencies': { baseImpact: 3.8, confidence: 0.75, timeToRealize: 3 },
-        'add-monitoring': { baseImpact: 5.0, confidence: 0.80, timeToRealize: 21 },
-        'refactor-architecture': { baseImpact: 6.5, confidence: 0.60, timeToRealize: 30 },
-        'add-documentation': { baseImpact: 2.5, confidence: 0.92, timeToRealize: 7 },
-        'enable-strict-mode': { baseImpact: 3.0, confidence: 0.88, timeToRealize: 5 },
-        'add-rate-limiting': { baseImpact: 2.0, confidence: 0.95, timeToRealize: 2 },
-        'fix-security-issues': { baseImpact: 7.0, confidence: 0.85, timeToRealize: 5 },
-        'optimize-performance': { baseImpact: 4.5, confidence: 0.70, timeToRealize: 14 },
-      };
-
-      for (const action of actions) {
-        const model = impactModels[action.type] ?? {
-          baseImpact: action.estimatedImpact ?? 3.0,
-          confidence: 0.50,
-          timeToRealize: 14,
-        };
-
-        const impact = action.estimatedImpact ?? model.baseImpact;
-        cumulativeImpact += impact;
-
-        results.push({
+      // Union of findings removed across all actions → projected score.
+      const removedIds = new Set<string>();
+      const results = actions.map((action) => {
+        const removed = findingsRemovedBy(action, findings);
+        for (const f of removed) removedIds.add(f.id);
+        // Marginal impact of this action alone.
+        const withoutThis = findings.filter((f) => !removed.some((r) => r.id === f.id));
+        const marginalScore = computeHealthScore(withoutThis).overall;
+        return {
           id: generateId(),
           type: action.type,
           description: action.description,
           impact: {
-            healthScoreDelta: Math.round(impact * 10) / 10,
-            confidence: model.confidence,
-            timeToRealize: `${model.timeToRealize} days`,
-            affectedDimensions: getAffectedDimensions(action.type),
+            healthScoreDelta: Math.round((marginalScore - currentScore) * 10) / 10,
+            findingsResolved: removed.length,
+            basis: removed.length > 0 ? 'measured' : 'no_matching_findings',
           },
-        });
-      }
+        };
+      });
 
-      const projectedScore = Math.min(100, currentScore + cumulativeImpact);
+      const remaining = findings.filter((f) => !removedIds.has(f.id));
+      const projectedScore = computeHealthScore(remaining).overall;
 
       return reply.send({
         data: {
+          status: 'analyzed',
+          estimate: true,
+          assumption: 'Assumes each action fully resolves the matching findings; recomputed via the canonical health score.',
           currentScore,
-          projectedScore: Math.round(projectedScore * 10) / 10,
-          totalImpact: Math.round(cumulativeImpact * 10) / 10,
+          projectedScore,
+          totalImpact: Math.round((projectedScore - currentScore) * 10) / 10,
           actions: results,
           summary: {
-            highestImpact: results.sort((a, b) => b.impact.healthScoreDelta - a.impact.healthScoreDelta)[0]?.type ?? null,
+            highestImpact: [...results].sort((a, b) => b.impact.healthScoreDelta - a.impact.healthScoreDelta)[0]?.type ?? null,
             totalActions: results.length,
-            avgConfidence: Math.round(
-              (results.reduce((s, r) => s + r.impact.confidence, 0) / results.length) * 100,
-            ) / 100,
-            recommendation: cumulativeImpact > 10
-              ? 'Strong improvement potential. Prioritize the highest-confidence actions first.'
-              : cumulativeImpact > 5
-                ? 'Moderate improvement expected. Consider bundling these changes into a focused sprint.'
-                : 'Minor improvements. These are good housekeeping tasks but won\'t dramatically change the health score.',
+            findingsResolved: removedIds.size,
           },
         },
         generatedAt: nowISO(),
@@ -313,15 +286,14 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
 
   /**
    * GET /api/v1/forecasting/evolution
-   * Get the evolution graph — track decisions, outcomes, and learning over time.
-   * Auto-generated from real analysis history.
+   * Evolution graph built from real analysis history using each run's
+   * recorded health score.
    */
-  app.get('/api/v1/forecasting/evolution', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/forecasting/evolution', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      // Build evolution events from real analysis history
-      const history = state.isInitialized() ? state.getAnalysisHistory() : [];
+      const history = await state.loadHistoryForProject(request.query.projectId);
       const successfulRuns = history
-        .filter(h => h.status === 'success')
+        .filter((h) => h.status === 'success' && h.healthScore !== null)
         .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
 
       interface EvolutionEvent {
@@ -336,21 +308,19 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
       }
 
       const events: EvolutionEvent[] = [];
-      let prevScore = 50; // baseline before any analysis
+      let prevScore: number | null = null;
 
       for (let i = 0; i < successfulRuns.length; i++) {
         const run = successfulRuns[i]!;
-        const currentScore = Math.max(0, Math.min(100, 100 - run.findingCount * 2 + run.opportunityCount * 0.5));
-        const scoreDelta = Math.round((currentScore - prevScore) * 10) / 10;
+        const currentScore = run.healthScore!;
+        // First run has no prior point → impact 0 (no fabricated baseline).
+        const scoreDelta = prevScore === null ? 0 : Math.round((currentScore - prevScore) * 10) / 10;
 
-        // Classify event type by score change
         const eventType = scoreDelta > 5 ? 'milestone' :
                           scoreDelta < -5 ? 'incident' :
                           scoreDelta > 0 ? 'decision' : 'experiment';
-
         const outcome = scoreDelta >= 0 ? 'positive' : 'resolved';
 
-        // Generate meaningful description and learnings from data
         const learnings: string[] = [];
         if (run.findingCount > 0) learnings.push(`${run.findingCount} finding(s) detected`);
         if (run.opportunityCount > 0) learnings.push(`${run.opportunityCount} improvement opportunity(ies) identified`);
@@ -362,33 +332,36 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
           date: new Date(run.startedAt).toISOString().split('T')[0]!,
           type: eventType,
           title: `Analysis run #${i + 1}`,
-          description: `Completed with ${run.findingCount} findings and ${run.opportunityCount} opportunities. Health score: ${Math.round(currentScore)}.`,
+          description: `Completed with ${run.findingCount} findings and ${run.opportunityCount} opportunities. Health score: ${currentScore}.`,
           outcome,
-          healthImpact: Math.round(scoreDelta),
+          healthImpact: scoreDelta,
           learnings,
         });
 
         prevScore = currentScore;
       }
 
-      // Calculate trajectory
-      let score = 50;
-      const trajectory = events.map(e => {
-        score = Math.max(0, Math.min(100, score + e.healthImpact));
-        return { date: e.date, score, event: e.title };
-      });
+      const trajectory = successfulRuns.map((run, i) => ({
+        date: new Date(run.startedAt).toISOString().split('T')[0]!,
+        score: run.healthScore!,
+        event: `Analysis run #${i + 1}`,
+      }));
+
+      const currentScore = successfulRuns.length > 0
+        ? successfulRuns[successfulRuns.length - 1]!.healthScore!
+        : null;
 
       return reply.send({
         data: {
           events,
           trajectory,
-          currentScore: events.length > 0 ? score : (state.isInitialized() ? state.getHealthScore().overall : 0),
-          totalDecisions: events.filter(e => e.type === 'decision').length,
-          totalMilestones: events.filter(e => e.type === 'milestone').length,
-          totalIncidents: events.filter(e => e.type === 'incident').length,
-          totalExperiments: events.filter(e => e.type === 'experiment').length,
+          currentScore,
+          totalDecisions: events.filter((e) => e.type === 'decision').length,
+          totalMilestones: events.filter((e) => e.type === 'milestone').length,
+          totalIncidents: events.filter((e) => e.type === 'incident').length,
+          totalExperiments: events.filter((e) => e.type === 'experiment').length,
           netHealthImpact: events.reduce((s, e) => s + e.healthImpact, 0),
-          allLearnings: events.flatMap(e => e.learnings),
+          allLearnings: events.flatMap((e) => e.learnings),
         },
         generatedAt: nowISO(),
       });
@@ -399,32 +372,34 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
 
   /**
    * GET /api/v1/forecasting/predictions
-   *
-   * Return forecasting predictions based on analysis history.
-   * Uses linear regression on health trajectory to predict
-   * future scores and generate actionable predictions.
+   * Interval predictions from real snapshots. Requires >= 2 snapshots.
    */
-  app.get<{ Querystring: { horizon?: string } }>(
+  app.get<{ Querystring: { horizon?: string; projectId?: string } }>(
     '/api/v1/forecasting/predictions',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
         const horizonDays = Math.min(90, parseInt(request.query.horizon ?? '30', 10) || 30);
+        const timeline = await buildRealTimeline(request.query.projectId);
 
-        const realScore = state.isInitialized() ? state.getHealthScore().overall : null;
-        const baseScore = realScore ?? 0;
-        const timeline = buildTimeline(baseScore);
+        if (timeline.length < 2) {
+          return reply.send({
+            data: {
+              status: 'insufficient_data',
+              message: 'At least 2 analysis snapshots are required to generate predictions.',
+              snapshotsAvailable: timeline.length,
+            },
+            generatedAt: nowISO(),
+          });
+        }
 
-        // Fit linear regression
         const points = timeline.map((p, i) => ({ x: i, y: p.score }));
         const regression = linearRegression(points);
-
         const trend = regression.slope > 0.1 ? 'improving' :
                       regression.slope < -0.1 ? 'declining' : 'stable';
 
-        // Generate predictions for key future intervals
-        const intervals = [7, 14, 30, 60, 90].filter(d => d <= horizonDays);
-        const predictions = intervals.map(days => {
+        const intervals = [7, 14, 30, 60, 90].filter((d) => d <= horizonDays);
+        const predictions = intervals.map((days) => {
           const x = timeline.length + days;
           const predicted = Math.min(100, Math.max(0, regression.slope * x + regression.intercept));
           const uncertainty = Math.min(20, days * 0.3);
@@ -438,15 +413,14 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
           };
         });
 
-        // Overall confidence from R²
-        const confidence = Math.round(regression.r2 * 100) / 100;
-
         return reply.send({
           data: {
+            status: 'forecast',
+            estimate: true,
             predictions,
-            confidence,
+            confidence: Math.round(regression.r2 * 100) / 100,
             horizon: `${horizonDays} days`,
-            current_score: baseScore,
+            current_score: timeline[timeline.length - 1]!.score,
             trend,
             data_points: timeline.length,
           },
@@ -457,24 +431,4 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
       }
     },
   );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getAffectedDimensions(actionType: string): string[] {
-  const mapping: Record<string, string[]> = {
-    'fix-critical-findings': ['security', 'reliability'],
-    'add-tests': ['testing', 'reliability', 'developer_experience'],
-    'upgrade-dependencies': ['security', 'reliability'],
-    'add-monitoring': ['operational', 'reliability'],
-    'refactor-architecture': ['architecture', 'developer_experience'],
-    'add-documentation': ['documentation', 'developer_experience'],
-    'enable-strict-mode': ['reliability', 'developer_experience'],
-    'add-rate-limiting': ['security', 'reliability'],
-    'fix-security-issues': ['security'],
-    'optimize-performance': ['performance', 'operational'],
-  };
-  return mapping[actionType] ?? ['general'];
 }

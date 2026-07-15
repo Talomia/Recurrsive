@@ -25,6 +25,7 @@ interface ListOpportunitiesQuery {
   severity?: Severity;
   limit?: string;
   offset?: string;
+  projectId?: string;
 }
 
 interface OpportunityParams {
@@ -60,9 +61,9 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
     '/api/v1/opportunities',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const { category, status, severity, limit: limitStr, offset: offsetStr } = request.query;
+      const { category, status, severity, limit: limitStr, offset: offsetStr, projectId } = request.query;
 
-      const manager = state.getOpportunities();
+      const manager = await state.loadOpportunitiesForProject(projectId);
       let results = manager.list({
         category,
         status,
@@ -90,12 +91,12 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    *
    * Retrieve a single opportunity by its UUID.
    */
-  app.get<{ Params: OpportunityParams }>(
+  app.get<{ Params: OpportunityParams; Querystring: { projectId?: string } }>(
     '/api/v1/opportunities/:id',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
-      const manager = state.getOpportunities();
+      const manager = await state.loadOpportunitiesForProject(request.query.projectId);
       const opportunity = manager.get(id);
 
       if (!opportunity) {
@@ -224,9 +225,9 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    *
    * Return opportunity categories with counts.
    */
-  app.get('/api/v1/opportunities/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/opportunities/categories', { preHandler: [authMiddleware] }, async (request, reply) => {
 
-    const manager = state.getOpportunities();
+    const manager = await state.loadOpportunitiesForProject(request.query.projectId);
     const all = manager.list({});
 
     // Group by category

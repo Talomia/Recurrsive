@@ -12,7 +12,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { apiGet, apiErrorResult } from '../api.js';
+import { apiGet, apiRequest, apiRequestText, apiErrorResult } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Tool registration
@@ -38,16 +38,25 @@ export function registerExportTools(server: McpServer): void {
     },
     async ({ format, scope }) => {
       try {
-        const params = new URLSearchParams();
-        params.set('format', format);
-        params.set('scope', scope);
+        // Create the export server-side, then download the generated content.
+        const created = await apiRequest<{
+          data: { export_id: string; download_url: string; record_count: number };
+        }>('/api/v1/export', {
+          method: 'POST',
+          body: JSON.stringify({ format, scope }),
+        });
 
-        const result = await apiGet<unknown>(`/api/v1/reports/exports?${params.toString()}`);
+        const record = created.data;
+        const content = await apiRequestText(record.download_url);
+
+        const header = `Export ${record.export_id} — format=${format}, scope=${scope}, `
+          + `records=${record.record_count}\n`
+          + `${'-'.repeat(60)}\n`;
 
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
+            text: header + content,
           }],
         };
       } catch (error) {
@@ -59,23 +68,26 @@ export function registerExportTools(server: McpServer): void {
   // ── compare_analysis_runs ───────────────────────────────────────────
   server.tool(
     'compare_analysis_runs',
-    'Compare two analysis runs to identify changes',
+    'Compare the most recent analysis run against an earlier run from history, ' +
+    'reporting added/removed findings and opportunities. Requires at least two ' +
+    'analysis runs to have been recorded on the server.',
     {
       baseline_run: z
         .number()
-        .describe('Run number of the baseline analysis'),
-      target_run: z
-        .number()
-        .describe('Run number of the target analysis to compare against'),
+        .optional()
+        .describe(
+          'History index of the baseline run to compare the latest run against. ' +
+          'Omit to compare against the immediately preceding run.',
+        ),
     },
-    async ({ baseline_run, target_run }) => {
+    async ({ baseline_run }) => {
       try {
         const params = new URLSearchParams();
-        params.set('baseline', String(baseline_run));
-        params.set('target', String(target_run));
+        if (baseline_run !== undefined) params.set('baseline', String(baseline_run));
+        const qs = params.toString();
 
         const result = await apiGet<unknown>(
-          `/api/v1/reports/exports/compare?${params.toString()}`,
+          `/api/v1/analysis/compare${qs ? `?${qs}` : ''}`,
         );
 
         return {

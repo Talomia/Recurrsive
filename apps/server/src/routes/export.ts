@@ -73,7 +73,7 @@ function generateContent(format: ExportFormat, scope: ExportScope): string {
     status: o.status,
   })) ?? [];
 
-  let healthData = { overall_score: 0, dimensions: {} as Record<string, number> };
+  let healthData = { overall_score: null as number | null, dimensions: {} as Record<string, number> };
   if (state.isInitialized() && cache) {
     try {
       const hs = state.getHealthScore();

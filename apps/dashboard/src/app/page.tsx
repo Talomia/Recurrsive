@@ -13,7 +13,6 @@ import Link from 'next/link';
 import {
   Activity,
   Lightbulb,
-  DollarSign,
   Brain,
   Clock,
   Globe,
@@ -42,6 +41,7 @@ import {
   getPerformanceMetrics,
   getProjects,
   getFindingsSummary,
+  EMPTY_HEALTH_METRICS,
   type HealthMetrics,
   type TimelinePoint,
   type Opportunity,
@@ -310,11 +310,12 @@ function StrategicRecommendation({
 export default function OverviewPage() {
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [hasData, setHasData] = useState(false);
   const [projectCount, setProjectCount] = useState(0);
 
   // Overview data
-  const [health, setHealth] = useState<HealthMetrics>({ healthScore: 0, healthTrend: 0, qualityScore: 0, qualityTrend: 0, opportunities: 0, newOpportunities: 0, techDebt: 0, techDebtTrend: 0, aiQualityScore: 0, aiQualityTrend: 0 });
+  const [health, setHealth] = useState<HealthMetrics>(EMPTY_HEALTH_METRICS);
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [perfMetrics, setPerfMetrics] = useState<Awaited<ReturnType<typeof getPerformanceMetrics>>>([]);
@@ -324,25 +325,28 @@ export default function OverviewPage() {
   const [execLoaded, setExecLoaded] = useState(false);
   const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
 
-  // Load overview data
+  // Load overview data. `getHealthMetrics` and `getProjects` throw on a real
+  // failure (server down / 5xx) so we can show an error state instead of a
+  // misleading "welcome / no data yet" screen. A brand-new but healthy server
+  // returns empty data (not an error) → welcome state.
   useEffect(() => {
     (async () => {
       try {
-        const [h, t, o, p, projects] = await Promise.all([
-          getHealthMetrics(),
+        const [h, projects] = await Promise.all([getHealthMetrics(), getProjects()]);
+        // Secondary series are best-effort (they degrade to empty on their own).
+        const [t, o, p] = await Promise.all([
           getTimeline(),
           getOpportunities(),
           getPerformanceMetrics(),
-          getProjects(),
         ]);
         setHealth(h);
         setTimeline(t);
         setOpportunities(o);
         setPerfMetrics(p);
         setProjectCount(projects.length);
-        setHasData(h.healthScore > 0 || t.length > 0 || o.length > 0 || projects.length > 0);
-      } catch {
-        // Will show welcome state
+        setHasData(h.analyzed || t.length > 0 || o.length > 0 || projects.length > 0);
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Failed to load dashboard');
       } finally {
         setLoading(false);
       }
@@ -368,6 +372,30 @@ export default function OverviewPage() {
         />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header
+          title="Intelligence Overview"
+          subtitle="Evidence-backed system health, recommendations, and engineering intelligence"
+        />
+        <div className="flex-1 p-6 flex items-center justify-center">
+          <div className="max-w-md w-full text-center">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 mb-4">
+              <AlertTriangle className="h-7 w-7 text-red-400" />
+            </div>
+            <h2 className="text-lg font-semibold text-text-primary mb-2">Couldn&apos;t load the dashboard</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              The analysis server is unreachable or returned an error. This is not the same as
+              having no data yet — check that the API server is running.
+            </p>
+            <p className="text-xs text-text-tertiary font-mono">{loadError}</p>
+          </div>
         </div>
       </div>
     );
@@ -432,69 +460,61 @@ export default function OverviewPage() {
         {/* Overview Tab */}
         {activeTab === 'Overview' && (
           <div role="tabpanel" aria-label="Overview" className="space-y-6 stagger-children">
-            {/* Top Metrics Row */}
+            {/* Top Metrics Row — real, measured values only. No invented
+                trends, "new this week" counts, tech-debt dollars, or
+                sparklines synthesized from unrelated series. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               {/* Health Score */}
               <div className="glass-card p-5 flex items-center gap-5">
-                <ScoreGauge value={health.healthScore} size={90} label="Health" />
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-text-secondary">
-                    Health Score
-                  </p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums text-text-primary">
-                    {health.healthScore}
-                    <span className="text-sm text-text-muted font-normal">
-                      /100
-                    </span>
-                  </p>
-                  <div className="mt-1 flex items-center gap-1">
-                    <span className={`text-xs font-semibold ${health.healthTrend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {health.healthTrend >= 0 ? '+' : ''}{health.healthTrend}%
-                    </span>
-                    <span className="text-xs text-text-muted">vs last 30d</span>
+                {health.analyzed && health.healthScore != null ? (
+                  <>
+                    <ScoreGauge value={health.healthScore} size={90} label="Health" />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-text-secondary">Health Score</p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-text-primary">
+                        {health.healthScore}
+                        <span className="text-sm text-text-muted font-normal">/100</span>
+                      </p>
+                      {health.analyzedAt && (
+                        <p className="mt-1 text-xs text-text-muted">
+                          Analyzed {new Date(health.analyzedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-text-secondary">Health Score</p>
+                    <p className="mt-1 text-lg font-semibold text-text-secondary">Not analyzed yet</p>
+                    <p className="mt-1 text-xs text-text-muted">Run an analysis to compute a score.</p>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Opportunities */}
+              {/* Opportunities — real count */}
               <MetricCard
                 icon={<Lightbulb className="h-4 w-4 text-amber-400" />}
                 label="Opportunities"
-                value={health.opportunities}
-                trend={12.5}
-              >
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-semibold text-blue-400">
-                  +{health.newOpportunities} new this week
-                </span>
-              </MetricCard>
+                value={health.opportunityCount}
+              />
 
-              {/* Tech Debt */}
+              {/* Findings — real count (replaces fabricated tech-debt dollars) */}
               <MetricCard
-                icon={<DollarSign className="h-4 w-4 text-red-400" />}
-                label="Tech Debt Estimate"
-                value={`$${(health.techDebt / 1000).toFixed(1)}K`}
-                trend={health.techDebtTrend}
-              >
-                <TrendChart
-                  data={timeline.slice(-8).map(t => ({ value: Math.round(100 - t.healthScore * 0.3) }))}
-                  color="#ef4444"
-                  height={32}
-                />
-              </MetricCard>
+                icon={<ShieldAlert className="h-4 w-4 text-red-400" />}
+                label="Findings"
+                value={health.findingCount}
+              />
 
-              {/* AI Quality */}
+              {/* AI Readiness — real dimension score, or no-data */}
               <MetricCard
                 icon={<Brain className="h-4 w-4 text-purple-400" />}
-                label="AI Quality Score"
-                value={health.aiQualityScore}
-                suffix="/100"
-                trend={health.aiQualityTrend}
+                label="AI Readiness"
+                value={health.aiQualityScore != null ? health.aiQualityScore : '—'}
+                suffix={health.aiQualityScore != null ? '/100' : undefined}
               >
-                <TrendChart
-                  data={timeline.slice(-8).map(t => ({ value: Math.round(t.quality * 0.95 + t.reliability * 0.05) }))}
-                  color="#8b5cf6"
-                  height={32}
-                />
+                {health.aiQualityScore == null && (
+                  <span className="text-[11px] text-text-muted">No data yet</span>
+                )}
               </MetricCard>
             </div>
 
@@ -547,34 +567,30 @@ export default function OverviewPage() {
 
             {!execLoading && (
               <>
-                {/* KPI Row */}
+                {/* KPI Row — measured values, no invented trends */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <KPICard
                     title="System Health"
-                    value={pct(health.healthScore)}
-                    trend={health.healthTrend}
+                    value={health.healthScore != null ? pct(health.healthScore) : 'Not analyzed'}
                     icon="💚"
                     gradient="linear-gradient(135deg, #22c55e, #16a34a)"
                   />
                   <KPICard
                     title="Code Quality"
-                    value={pct(health.qualityScore)}
-                    trend={health.qualityTrend}
+                    value={health.qualityScore != null ? pct(health.qualityScore) : '—'}
                     icon="⚡"
                     gradient="linear-gradient(135deg, #3b82f6, #2563eb)"
                   />
                   <KPICard
-                    title="AI Quality"
-                    value={pct(health.aiQualityScore)}
-                    trend={health.aiQualityTrend}
+                    title="AI Readiness"
+                    value={health.aiQualityScore != null ? pct(health.aiQualityScore) : '—'}
                     icon="🤖"
                     gradient="linear-gradient(135deg, #8b5cf6, #7c3aed)"
                   />
                   <KPICard
-                    title="Tech Debt"
-                    value={`${health.techDebt}h`}
-                    trend={health.techDebtTrend}
-                    icon="🏗️"
+                    title="Total Findings"
+                    value={totalFindings || health.findingCount}
+                    icon="🛡️"
                     gradient="linear-gradient(135deg, #f97316, #ea580c)"
                   />
                 </div>
@@ -593,10 +609,6 @@ export default function OverviewPage() {
                       <RiskIndicator
                         level={highCount > 3 ? 'high' : highCount > 0 ? 'medium' : 'low'}
                         label={`Reliability (${highCount} high findings)`}
-                      />
-                      <RiskIndicator
-                        level={health.techDebt > 40 ? 'high' : 'medium'}
-                        label={`Tech Debt (${health.techDebt}h estimated)`}
                       />
                     </div>
 

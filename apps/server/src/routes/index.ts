@@ -48,6 +48,7 @@ import { registerOpenAPIRoutes } from './openapi.js';
 import { registerIntelligencePackRoutes } from './intelligence-packs.js';
 import { registerOpportunityRoutes } from './opportunities.js';
 import { registerActivityRoutes } from './activity.js';
+import { registerAssistantRoutes } from './assistant.js';
 
 // ---------------------------------------------------------------------------
 // Tier 2 — Enterprise
@@ -152,6 +153,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await registerOpenAPIRoutes(app);
   await registerIntelligencePackRoutes(app);
   await registerActivityRoutes(app);
+  await registerAssistantRoutes(app);
 
   // ── Tier 2 — Enterprise ─────────────────────────────────────────────────
   if (enableEnterprise) {

@@ -42,13 +42,13 @@ interface Tenant {
   activeUsers: number;
 }
 
-interface Benchmark {
-  name: string;
-  result: string;
-  baseline: string;
-  delta: string;
-  runDate?: string;
-  environment?: string;
+interface BenchmarkReport {
+  industry: string;
+  sampleSize: number;
+  percentiles?: { p25: number; p50: number; p75: number; p90: number };
+  dimensionAverages?: Record<string, number>;
+  topImprovementAreas?: string[];
+  message?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +110,7 @@ export function registerPlatformResources(server: McpServer): void {
       let plugins: Plugin[] = [];
 
       try {
-        plugins = await apiGet<Plugin[]>('/api/v1/plugins');
+        plugins = await apiGet<Plugin[]>('/api/v1/plugins/installed');
       } catch {
         // API unavailable — fall back to empty list
       }
@@ -148,7 +148,7 @@ export function registerPlatformResources(server: McpServer): void {
       let tenants: Tenant[] = [];
 
       try {
-        tenants = await apiGet<Tenant[]>('/api/v1/multi-tenant/tenants');
+        tenants = await apiGet<Tenant[]>('/api/v1/tenants');
       } catch {
         // API unavailable — fall back to empty list
       }
@@ -177,37 +177,54 @@ export function registerPlatformResources(server: McpServer): void {
     'benchmarks-latest',
     'recurrsive://benchmarks/latest',
     {
-      description: 'Latest cloud benchmark results including analysis throughput, ' +
-        'graph query latency, and memory efficiency metrics.',
+      description: 'Anonymized industry benchmark report — health-score ' +
+        'percentiles and per-dimension averages aggregated across submitted ' +
+        'benchmarks.',
       mimeType: 'text/markdown',
     },
     async (uri) => {
-      let benchmarks: Benchmark[] = [];
+      let report: BenchmarkReport | null = null;
 
       try {
-        benchmarks = await apiGet<Benchmark[]>('/api/v1/cloud/benchmarks');
+        report = await apiGet<BenchmarkReport>('/api/v1/cloud/benchmarks/report');
       } catch {
-        // API unavailable — fall back to empty list
+        // API unavailable — report stays null
       }
 
-      const lines = [
-        '# Latest Benchmarks',
-        '',
-      ];
+      const lines = ['# Industry Benchmark Report', ''];
 
-      if (benchmarks.length === 0) {
-        lines.push('No benchmark data available. Ensure the Recurrsive server is running.');
+      if (!report || (report.sampleSize ?? 0) === 0) {
+        lines.push('No benchmark data available yet. Benchmarks are populated as ' +
+          'organizations opt in and submit anonymized scores.');
       } else {
         lines.push(
-          '| Benchmark | Result | Baseline | Delta |',
-          '| --- | --- | --- | --- |',
+          `**Industry:** ${report.industry}`,
+          `**Sample size:** ${report.sampleSize}`,
+          '',
         );
 
-        for (const b of benchmarks) {
-          lines.push(`| ${b.name} | ${b.result} | ${b.baseline} | ${b.delta} |`);
+        if (report.percentiles) {
+          lines.push(
+            '## Overall Score Percentiles',
+            '',
+            '| p25 | p50 | p75 | p90 |',
+            '| --- | --- | --- | --- |',
+            `| ${report.percentiles.p25} | ${report.percentiles.p50} | ${report.percentiles.p75} | ${report.percentiles.p90} |`,
+            '',
+          );
         }
 
-        lines.push('', '> Benchmarks are updated after each scheduled performance run.');
+        if (report.dimensionAverages && Object.keys(report.dimensionAverages).length > 0) {
+          lines.push('## Dimension Averages', '', '| Dimension | Average |', '| --- | --- |');
+          for (const [dim, avg] of Object.entries(report.dimensionAverages)) {
+            lines.push(`| ${dim} | ${avg} |`);
+          }
+          lines.push('');
+        }
+
+        if (report.topImprovementAreas && report.topImprovementAreas.length > 0) {
+          lines.push(`**Top improvement areas:** ${report.topImprovementAreas.join(', ')}`);
+        }
       }
 
       return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }] };

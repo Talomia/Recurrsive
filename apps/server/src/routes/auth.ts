@@ -3,16 +3,17 @@
  *
  * Authentication and API key management routes.
  *
- * Provides login, token refresh, and user info endpoints, plus CRUD
- * operations for API keys. Demo users available for development
- * (disabled in production unless ALLOW_DEMO_USERS=true).
+ * Provides login, token refresh, logout, and user info endpoints, plus CRUD
+ * operations for API keys. Authentication is exclusively against real,
+ * store-backed users — there are NO demo/built-in accounts. The first admin
+ * is created via `POST /api/v1/setup`; further users are invite-only.
  *
  * @packageDocumentation
  */
 
 import type { FastifyInstance } from 'fastify';
 import { createLogger } from '@recurrsive/core';
-import { createToken, authMiddleware } from '../middleware/auth.js';
+import { createToken, authMiddleware, verifyToken, revokeToken } from '../middleware/auth.js';
 import type { AuthUser } from '../middleware/auth.js';
 import { generateApiKey, listApiKeys, revokeApiKey } from '../middleware/api-keys.js';
 import { requireRole } from '../middleware/rbac.js';
@@ -24,38 +25,8 @@ import type { User } from '../middleware/users.js';
 
 const logger = createLogger({ context: { component: 'server:routes:auth' } });
 
-// ---------------------------------------------------------------------------
-// Demo users (hardcoded — never for production)
-// ---------------------------------------------------------------------------
-
-interface DemoUser {
-  id: string;
-  username: string;
-  password: string;
-  role: Role;
-  displayName: string;
-}
-
-const _ALL_DEMO_USERS: DemoUser[] = [
-  { id: 'user-admin', username: 'admin', password: 'admin', role: 'admin', displayName: 'Admin User' },
-  { id: 'user-analyst', username: 'analyst', password: 'analyst', role: 'analyst', displayName: 'Analyst User' },
-  { id: 'user-viewer', username: 'viewer', password: 'viewer', role: 'viewer', displayName: 'Viewer User' },
-];
-
-/**
- * In production, demo users are disabled unless ALLOW_DEMO_USERS=true.
- * This prevents trivial credential-based access to production deployments.
- */
-const DEMO_USERS: DemoUser[] =
-  process.env['NODE_ENV'] === 'production' && process.env['ALLOW_DEMO_USERS'] !== 'true'
-    ? []
-    : _ALL_DEMO_USERS;
-
-if (DEMO_USERS.length === 0) {
-  logger.warn('Demo users disabled in production. Set ALLOW_DEMO_USERS=true to override.');
-} else if (process.env['NODE_ENV'] === 'production') {
-  logger.warn('Demo users are enabled in production (ALLOW_DEMO_USERS=true).');
-}
+/** Minimum password length enforced consistently across the server. */
+const MIN_PASSWORD_LENGTH = 8;
 
 // ---------------------------------------------------------------------------
 // Request body types
@@ -88,8 +59,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   /**
    * Authenticate with username/password and receive a JWT token.
    *
-   * Authenticates using built-in accounts (admin/admin, analyst/analyst, viewer/viewer).
-   * Demo users are disabled in production unless ALLOW_DEMO_USERS=true.
+   * Authenticates ONLY against real, store-backed users. Create the first
+   * admin via `POST /api/v1/setup`; add further users via invites.
    */
   app.post<{ Body: LoginBody }>('/api/v1/auth/login', async (request, reply) => {
     const { username, password } = request.body ?? {};
@@ -101,36 +72,14 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    // 1. Try real (store-backed) users first
     const realUser = await authenticateUser(username, password);
     if (realUser) {
       const token = createToken(realUser.id, realUser.role as Role, undefined, realUser.username);
-      logger.info(`User '${realUser.username}' logged in successfully (store)`);
+      logger.info(`User '${realUser.username}' logged in successfully`);
       return reply.status(200).send({
         data: {
           token,
           user: realUser,
-        },
-      });
-    }
-
-    // 2. Fall back to demo users (dev/test mode only)
-    const demo = DEMO_USERS.find(
-      (u) => u.username === username && u.password === password,
-    );
-
-    if (demo) {
-      const token = createToken(demo.id, demo.role, undefined, demo.username);
-      logger.info(`User '${demo.username}' logged in successfully (demo)`);
-      return reply.status(200).send({
-        data: {
-          token,
-          user: {
-            id: demo.id,
-            username: demo.username,
-            role: demo.role,
-            displayName: demo.displayName,
-          },
         },
       });
     }
@@ -140,6 +89,28 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       error: 'Unauthorized',
       message: 'Invalid username or password',
     });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // POST /api/v1/auth/logout
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Log out by revoking the presented token's `jti`. The token cannot be used
+   * again, even though it has not yet expired. Requires authentication.
+   */
+  app.post('/api/v1/auth/logout', {
+    preHandler: authMiddleware,
+  }, async (request, reply) => {
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const payload = verifyToken(authHeader.slice(7));
+      if (payload) {
+        await revokeToken(payload);
+        logger.info(`User '${payload.sub}' logged out (token revoked)`);
+      }
+    }
+    return reply.status(200).send({ message: 'Logged out — token revoked' });
   });
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -197,16 +168,14 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    // Fall back to demo users
-    const demo = DEMO_USERS.find((u) => u.id === user.id);
-
+    // No store-backed user (e.g. API-key principal) — return token-derived info.
     return reply.status(200).send({
       data: {
         id: user.id,
         role: user.role,
         authMethod: user.authMethod,
-        displayName: demo?.displayName ?? user.id,
-        username: demo?.username ?? user.id,
+        displayName: user.username ?? user.id,
+        username: user.username ?? user.id,
       },
     });
   });
@@ -321,10 +290,10 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+    if (typeof newPassword !== 'string' || newPassword.length < MIN_PASSWORD_LENGTH) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: 'New password must be at least 6 characters',
+        message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters`,
       });
     }
 

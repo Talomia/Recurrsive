@@ -36,13 +36,13 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
 
     const timeline = state.getEvolutionTimeline();
 
-    // Derive events for compatibility with test assertions expecting events on the timeline response
+    // Derive events from real analysis history using each run's recorded score.
     const history = state.getAnalysisHistory();
     const events = history
-      .filter(h => h.status === 'success')
+      .filter(h => h.status === 'success' && h.healthScore !== null)
       .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
       .map(entry => {
-        const score = Math.max(0, Math.min(100, 100 - entry.findingCount * 2));
+        const score = entry.healthScore!;
         return {
           id: entry.id,
           type: score >= 80 ? 'milestone' : score >= 50 ? 'analysis' : 'incident',
@@ -175,13 +175,13 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
       const limit = Math.min(100, Math.max(1, parseInt(request.query.limit ?? '50', 10) || 50));
       const offset = Math.max(0, parseInt(request.query.offset ?? '0', 10) || 0);
 
-      // Build events from analysis history
+      // Build events from analysis history using each run's recorded score.
       const history = state.getAnalysisHistory();
       const events = history
-        .filter(h => h.status === 'success')
+        .filter(h => h.status === 'success' && h.healthScore !== null)
         .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
         .map(entry => {
-          const score = Math.max(0, Math.min(100, 100 - entry.findingCount * 2));
+          const score = entry.healthScore!;
           return {
             id: entry.id,
             type: score >= 80 ? 'milestone' : score >= 50 ? 'analysis' : 'incident',

@@ -144,7 +144,9 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       // Compute results from real analysis data when available
       const cache = state.isInitialized() ? state.getAnalysisCache() : null;
       const findings = cache?.findings ?? [];
-      const healthScore = state.isInitialized() ? state.getHealthScore().overall : 50;
+      // Real health score; when no analysis has run, the true baseline is a
+      // clean slate (100 = zero findings), not a fabricated midpoint.
+      const healthScore = state.getHealthScore().overall ?? 100;
 
       // Derive impact score from finding severity distribution
       const criticalCount = findings.filter(f => f.severity === 'critical').length;

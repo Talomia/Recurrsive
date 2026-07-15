@@ -26,6 +26,42 @@ interface Notification {
   createdAt: string;
 }
 
+/** Raw notification record as returned by the server history endpoint. */
+interface RawNotification {
+  id: string;
+  title?: string;
+  message?: string;
+  body?: string;
+  level?: string;
+  severity?: string;
+  status?: string;
+  channel?: string;
+  read?: boolean;
+  createdAt?: string;
+  sent_at?: string;
+}
+
+const LEVELS = new Set(["info", "warning", "error", "success"]);
+
+/** Map a server record onto the panel's Notification shape. */
+function mapNotification(r: RawNotification): Notification {
+  let level: Notification["level"] = "info";
+  if (r.level && LEVELS.has(r.level)) level = r.level as Notification["level"];
+  else if (r.severity === "critical" || r.severity === "high") level = "error";
+  else if (r.severity === "medium") level = "warning";
+  else if (r.status === "failed") level = "error";
+  else if (r.status === "sent") level = "success";
+
+  return {
+    id: r.id,
+    title: r.title ?? r.message ?? "Notification",
+    body: r.body,
+    level,
+    read: r.read ?? false,
+    createdAt: r.createdAt ?? r.sent_at ?? new Date().toISOString(),
+  };
+}
+
 interface NotificationsPanelProps {
   /** If provided, the panel renders as a controlled component. */
   open?: boolean;
@@ -84,28 +120,25 @@ export default function NotificationsPanel({
     }
   }, [controlledOpen, isOpen, onClose]);
 
+  // Load notifications from the server (used on open and after mark-all-read).
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiFetch<RawNotification[]>("/api/v1/notifications/history?limit=10");
+      setNotifications(Array.isArray(data) ? data.map(mapNotification) : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load notifications");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Fetch notifications when panel opens
   useEffect(() => {
     if (!isOpen) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    apiFetch<Notification[]>("/api/v1/notifications/history?limit=10")
-      .then((data) => {
-        if (!cancelled) setNotifications(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message ?? "Failed to load notifications");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen]);
+    void load();
+  }, [isOpen, load]);
 
   // Click outside to close
   useEffect(() => {
@@ -134,13 +167,15 @@ export default function NotificationsPanel({
     return () => document.removeEventListener("keydown", handleKey);
   }, [isOpen, close]);
 
-  // Mark all as read
-  const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    // Fire-and-forget API call
-    apiFetch("/api/v1/notifications/read-all", { method: "POST" }).catch(
-      () => {}
-    );
+  // Mark all as read — only clears the badge once the server confirms.
+  const markAllRead = useCallback(async () => {
+    try {
+      await apiFetch("/api/v1/notifications/read-all", { method: "POST", unwrap: false });
+      // Server accepted: reflect the read state locally so the badge clears.
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark all as read");
+    }
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -242,10 +277,7 @@ export default function NotificationsPanel({
                 <AlertTriangle className="h-8 w-8 text-amber-400/60 mb-2" aria-hidden="true" />
                 <p className="text-sm text-text-muted text-center">{error}</p>
                 <button
-                  onClick={() => {
-                    close();
-                    setTimeout(toggle, 100);
-                  }}
+                  onClick={() => void load()}
                   className="mt-2 text-xs text-accent-blue hover:underline"
                 >
                   Try again

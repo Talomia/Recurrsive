@@ -17,6 +17,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type {
   Opportunity,
+  Finding,
   Entity,
   Relationship,
   MaturityDimension,
@@ -76,13 +77,17 @@ function formatOpportunitySummary(opp: Opportunity): string {
 // computeHealthScore is imported from ../health.js
 
 /**
- * Compute per-dimension maturity scores from opportunities.
+ * Compute per-dimension maturity scores from analyzer findings.
  *
- * @param opportunities - All opportunities.
+ * Findings — not opportunities — drive the dimension breakdown so that a
+ * project analyzed without reasoning (zero opportunities) still reports an
+ * honest picture instead of an all-100 table.
+ *
+ * @param findings - All analyzer findings.
  * @returns Array of maturity score summaries per dimension.
  */
 function computeMaturityScores(
-  opportunities: Opportunity[],
+  findings: Finding[],
 ): Array<{ dimension: string; score: number; level: string; issueCount: number; topRisks: string[] }> {
   const dimensions: MaturityDimension[] = [
     'architecture',
@@ -116,15 +121,12 @@ function computeMaturityScores(
   };
 
   return dimensions.map((dim) => {
-    const dimOpps = opportunities.filter((opp) => {
-      const mapped = categoryToDimension[opp.category];
-      return mapped === dim && opp.status !== 'archived' && opp.status !== 'validated';
-    });
+    const dimFindings = findings.filter((f) => categoryToDimension[f.category] === dim);
 
-    // Score: 100 minus weighted penalties
+    // Severity-weighted penalty from the canonical severity weights.
     let dimScore = 100;
-    for (const opp of dimOpps) {
-      const weight = SEVERITY_WEIGHTS[opp.severity] ?? 1;
+    for (const f of dimFindings) {
+      const weight = SEVERITY_WEIGHTS[f.severity] ?? 1;
       dimScore -= weight * 5;
     }
     dimScore = Math.max(0, Math.min(100, dimScore));
@@ -137,12 +139,12 @@ function computeMaturityScores(
     else if (dimScore >= 30) level = 'developing';
     else level = 'initial';
 
-    const topRisks = dimOpps
-      .filter((o) => o.type === 'risk' || o.severity === 'critical' || o.severity === 'high')
+    const topRisks = dimFindings
+      .filter((f) => f.severity === 'critical' || f.severity === 'high')
       .slice(0, 3)
-      .map((o) => o.title);
+      .map((f) => f.title);
 
-    return { dimension: dim, score: dimScore, level, issueCount: dimOpps.length, topRisks };
+    return { dimension: dim, score: dimScore, level, issueCount: dimFindings.length, topRisks };
   });
 }
 
@@ -215,12 +217,24 @@ export function registerAnalyzeTools(server: McpServer): void {
           for (const opp of cache.opportunities.slice(0, 5)) {
             summary.push(`- [${opp.severity.toUpperCase()}] ${opp.title} (${opp.category})`);
           }
+        } else if (!(include_reasoning ?? false)) {
+          summary.push(
+            '',
+            '> Reasoning was not run (include_reasoning=false), so no opportunities ' +
+            'were generated. Findings above are the raw analyzer output.',
+          );
         }
 
-        // Compute health score
-        const stats = await state.getGraph().getStats();
-        const health = computeHealthScore(cache.opportunities, stats);
+        // Canonical health score is derived from findings (see health.ts),
+        // so a no-reasoning run with real findings does not report a false 100.
+        const health = computeHealthScore(cache.findings);
         summary.push('', `## Health Score: ${health}/100`, '');
+        if (cache.findings.length === 0) {
+          summary.push(
+            '> No findings were produced. If this is unexpected, verify the path is a ' +
+            'git repository with analyzable source.',
+          );
+        }
 
         return {
           content: [{ type: 'text' as const, text: summary.join('\n') }],
@@ -718,10 +732,21 @@ export function registerAnalyzeTools(server: McpServer): void {
           };
         }
 
+        const cache = state.getAnalysisCache();
+        if (!cache) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: 'Not analyzed yet — no analysis results are cached. ' +
+                'Run the "analyze_project" tool first.',
+            }],
+          };
+        }
+
         const opportunities = state.getOpportunities().list();
         const stats = await state.getGraph().getStats();
-        const health = computeHealthScore(opportunities, stats);
-        const maturity = computeMaturityScores(opportunities);
+        const health = computeHealthScore(cache.findings);
+        const maturity = computeMaturityScores(cache.findings);
 
         const output = [
           `# Health Score: ${health}/100`,

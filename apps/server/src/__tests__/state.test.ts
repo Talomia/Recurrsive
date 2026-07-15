@@ -232,32 +232,21 @@ describe('ServerState', () => {
   // ── Evolution Timeline ───────────────────────────────────────────────
 
   describe('evolution timeline', () => {
-    it('returns a default timeline when not initialized and no cache', async () => {
+    it('returns an honest empty timeline when not initialized and no cache', async () => {
       const timeline = state.getEvolutionTimeline();
       expect(timeline).toHaveProperty('snapshots');
       expect(timeline).toHaveProperty('trends');
       expect(Array.isArray(timeline.snapshots)).toBe(true);
-      expect(timeline.snapshots.length).toBeGreaterThanOrEqual(1);
+      // No analysis → NO fabricated synthetic snapshot.
+      expect(timeline.snapshots.length).toBe(0);
     });
 
-    it('default timeline has overall_health of 50 without cache', async () => {
+    it('has no snapshots (no fabricated overall_health) without cache', async () => {
       const timeline = state.getEvolutionTimeline();
-      const snapshot = timeline.snapshots[0]!;
-      expect(snapshot.overall_health).toBe(50);
+      expect(timeline.snapshots).toEqual([]);
     });
 
-    it('default timeline snapshot has expected properties', async () => {
-      const timeline = state.getEvolutionTimeline();
-      const snapshot = timeline.snapshots[0]!;
-      expect(snapshot).toHaveProperty('id');
-      expect(snapshot).toHaveProperty('timestamp');
-      expect(snapshot).toHaveProperty('maturity_scores');
-      expect(snapshot).toHaveProperty('opportunity_count');
-      expect(snapshot).toHaveProperty('debt_count');
-      expect(snapshot).toHaveProperty('risk_count');
-    });
-
-    it('default timeline has empty trends array', async () => {
+    it('has empty trends array without cache', async () => {
       const timeline = state.getEvolutionTimeline();
       expect(timeline.trends).toEqual([]);
     });
@@ -266,9 +255,10 @@ describe('ServerState', () => {
   // ── Health Score ─────────────────────────────────────────────────────
 
   describe('health score', () => {
-    it('returns default health score without analysis cache', async () => {
+    it('returns a not_analyzed sentinel (null overall) without analysis cache', async () => {
       const score = state.getHealthScore();
-      expect(score.overall).toBe(50);
+      expect(score.overall).toBeNull();
+      expect(score.status).toBe('not_analyzed');
       expect(score.dimensions).toEqual([]);
     });
   });

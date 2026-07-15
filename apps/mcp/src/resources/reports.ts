@@ -16,7 +16,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type {
-  Opportunity,
+  Finding,
   MaturityDimension,
 } from '@recurrsive/core';
 import { state } from '../state.js';
@@ -66,9 +66,23 @@ export function registerReportResources(server: McpServer): void {
         };
       }
 
+      const cache = state.getAnalysisCache();
+      if (!cache) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: 'Not analyzed yet — no analysis results are cached. ' +
+              'Use the "analyze_project" tool first.',
+          }],
+        };
+      }
+
+      const findings = cache.findings;
       const opportunities = state.getOpportunities().list();
       const stats = await state.getGraph().getStats();
-      const health = computeHealthScore(opportunities, stats);
+      // Canonical score is derived from findings (see health.ts).
+      const health = computeHealthScore(findings);
 
       const dimensions: MaturityDimension[] = [
         'architecture', 'ai', 'security', 'operational', 'product',
@@ -91,31 +105,29 @@ export function registerReportResources(server: McpServer): void {
         `**Project:** ${state.getProjectInfo().name}`,
         `**Total Entities:** ${stats.totalEntities}`,
         `**Total Relationships:** ${stats.totalRelationships}`,
+        `**Findings:** ${findings.length}`,
         `**Open Opportunities:** ${opportunities.length}`,
         '',
-        '## Maturity by Dimension',
+        '## Findings by Dimension',
         '',
-        '| Dimension | Issues | Severity Breakdown |',
+        '| Dimension | Findings | Severity Breakdown |',
         '| --- | --- | --- |',
       ];
 
       for (const dim of dimensions) {
-        const dimOpps = opportunities.filter((o: Opportunity) => categoryToDimension[o.category] === dim);
+        const dimFindings = findings.filter((f: Finding) => categoryToDimension[f.category] === dim);
         const severityBreakdown = ['critical', 'high', 'medium', 'low', 'info']
           .map((s) => {
-            const count = dimOpps.filter((o: Opportunity) => o.severity === s).length;
+            const count = dimFindings.filter((f: Finding) => f.severity === s).length;
             return count > 0 ? `${s}: ${count}` : null;
           })
           .filter(Boolean)
           .join(', ');
-        lines.push(`| ${dim} | ${dimOpps.length} | ${severityBreakdown || '—'} |`);
+        lines.push(`| ${dim} | ${dimFindings.length} | ${severityBreakdown || '—'} |`);
       }
 
-      const cache = state.getAnalysisCache();
-      if (cache) {
-        lines.push('', `**Last analyzed:** ${cache.analyzedAt}`);
-        lines.push(`**Analysis duration:** ${(cache.durationMs / 1000).toFixed(1)}s`);
-      }
+      lines.push('', `**Last analyzed:** ${cache.analyzedAt}`);
+      lines.push(`**Analysis duration:** ${(cache.durationMs / 1000).toFixed(1)}s`);
 
       return {
         contents: [{
@@ -150,11 +162,21 @@ export function registerReportResources(server: McpServer): void {
       const top = state.getOpportunities().getTopN(10);
 
       if (top.length === 0) {
+        // Opportunities only exist when reasoning (LLM) has run. Zero
+        // opportunities does NOT mean a healthy project — there may be many
+        // unresolved findings. Report honestly based on findings.
+        const cache = state.getAnalysisCache();
+        const findingCount = cache?.findings.length ?? 0;
+        const text = findingCount > 0
+          ? `No opportunities are available. Reasoning may not have run ` +
+            `(opportunities require an LLM key). ${findingCount} raw finding(s) ` +
+            `were detected — use the "list_findings" tool to review them.`
+          : 'No opportunities and no findings were produced by the latest analysis.';
         return {
           contents: [{
             uri: uri.href,
             mimeType: 'text/plain',
-            text: 'No opportunities found. The project looks healthy!',
+            text,
           }],
         };
       }
@@ -283,15 +305,16 @@ export function registerReportResources(server: McpServer): void {
       }
 
       const cache = state.getAnalysisCache();
-      const opportunities = state.getOpportunities().list();
       const stats = await state.getGraph().getStats();
-      const health = computeHealthScore(opportunities, stats);
+      // Canonical score is derived from findings (see health.ts); null-safe
+      // when no analysis has been cached.
+      const health = cache ? computeHealthScore(cache.findings) : null;
 
       const lines = [
         `# Intelligence Snapshot`,
         '',
         `**Project:** ${state.getProjectInfo().name}`,
-        `**Health Score:** ${health}/100`,
+        `**Health Score:** ${health === null ? 'Not analyzed yet' : `${health}/100`}`,
         '',
       ];
 

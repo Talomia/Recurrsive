@@ -351,4 +351,26 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       total: runs.length,
     });
   });
+
+  /**
+   * GET /api/v1/batch/:id
+   *
+   * Batch detail by id — the same record as `/batch/status/:id`, provided as
+   * a canonical detail endpoint for consumers. Registered after the static
+   * `/batch/status`, `/batch/history`, and `/batch/analyze` paths so those
+   * are not shadowed by the `:id` parameter.
+   */
+  app.get<{ Params: { id: string } }>('/api/v1/batch/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params;
+    const batch = await store.get<BatchRun>('batches', id);
+
+    if (!batch) {
+      return reply.status(404).send({
+        error: 'Not found',
+        message: `Batch run ${id} not found.`,
+      });
+    }
+
+    return reply.status(200).send({ data: batch });
+  });
 }

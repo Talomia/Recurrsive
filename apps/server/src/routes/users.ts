@@ -26,6 +26,9 @@ import type { CreateUserInput, UpdateUserInput } from '../middleware/users.js';
 
 const logger = createLogger({ context: { component: 'server:routes:users' } });
 
+/** Minimum password length, matching the rest of the server. */
+const MIN_PASSWORD_LENGTH = 8;
+
 // ---------------------------------------------------------------------------
 // Request body/param types
 // ---------------------------------------------------------------------------
@@ -121,6 +124,13 @@ export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({
         error: 'Bad Request',
         message: '"username", "email", and "password" are required',
+      });
+    }
+
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
       });
     }
 

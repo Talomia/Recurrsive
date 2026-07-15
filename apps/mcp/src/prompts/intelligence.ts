@@ -115,7 +115,7 @@ export function registerIntelligencePrompts(server: McpServer): void {
                 `- Implementation priority order`,
                 `- Key risks and mitigation strategies`,
                 ``,
-                `Use the \`list_experiments\` tool to retrieve simulation data.`,
+                `Use the \`list_simulations\` tool to retrieve simulation data.`,
               ].join('\n'),
             },
           },

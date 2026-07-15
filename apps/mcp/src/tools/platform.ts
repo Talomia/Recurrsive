@@ -93,19 +93,21 @@ export function registerPlatformTools(server: McpServer): void {
 
   server.tool(
     'get_benchmarks',
-    'Get cloud benchmarking data comparing analysis performance across ' +
-    'providers. Optionally filter by cloud provider (aws, gcp, azure).',
+    'Get the anonymized industry benchmark report — health-score percentiles ' +
+    'and per-dimension averages aggregated across submitted benchmarks. ' +
+    'Optionally filter by industry. Returns an empty report (sampleSize 0) ' +
+    'when no benchmark data has been submitted.',
     {
-      provider: z
+      industry: z
         .string()
         .optional()
-        .describe('Cloud provider filter: aws, gcp, azure'),
+        .describe('Industry filter (e.g. "fintech", "healthcare"). Omit for all industries.'),
     },
-    async ({ provider }) => {
+    async ({ industry }) => {
       try {
-        const path = provider
-          ? `/api/v1/benchmarks?provider=${encodeURIComponent(provider)}`
-          : '/api/v1/benchmarks';
+        const path = industry
+          ? `/api/v1/cloud/benchmarks/report?industry=${encodeURIComponent(industry)}`
+          : '/api/v1/cloud/benchmarks/report';
         const result = await apiGet<unknown>(path);
 
         return {

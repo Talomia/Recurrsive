@@ -134,7 +134,7 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
   app.get('/api/v1/activity/stats', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const history = state.isInitialized() ? state.getAnalysisHistory() : [];
     const successfulRuns = history.filter(h => h.status === 'success');
-    const failedRuns = history.filter(h => h.status === 'error');
+    const failedRuns = history.filter(h => h.status === 'failed');
 
     // Activity in last 24 hours
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();

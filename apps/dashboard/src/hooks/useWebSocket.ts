@@ -170,7 +170,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     }
 
     clearReconnectTimer();
-    reconnectAttemptsRef.current = 0;
+    // NOTE: do NOT reset reconnectAttemptsRef here. `connect` is called by the
+    // reconnect timer itself, so zeroing it on every cycle would keep the
+    // backoff delay pinned at the base value (hammering the server ~every
+    // 1-2s forever). The counter is reset only on a successful open (onopen)
+    // and on an explicit manual/auto connect (see `manualConnect` / effect).
 
     if (mountedRef.current) {
       setStatus('connecting');
@@ -264,11 +268,21 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     }
   }, [url, clearReconnectTimer, maxReconnectAttempts, reconnectBaseDelay]);
 
+  /**
+   * Manually (re)connect from a clean slate — resets the backoff counter so a
+   * user-initiated reconnect starts fast again. Used for the public `connect`.
+   */
+  const manualConnect = useCallback(() => {
+    reconnectAttemptsRef.current = 0;
+    connect();
+  }, [connect]);
+
   // Auto-connect on mount
   useEffect(() => {
     mountedRef.current = true;
 
     if (autoConnect) {
+      reconnectAttemptsRef.current = 0;
       connect();
     }
 
@@ -287,7 +301,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     lastEvent,
     events,
     clientCount,
-    connect,
+    connect: manualConnect,
     disconnect,
     send,
   };

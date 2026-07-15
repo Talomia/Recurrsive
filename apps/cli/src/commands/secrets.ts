@@ -3,69 +3,65 @@
  *
  * `recurrsive secrets` — Manage secrets and view audit logs.
  *
- * Provides subcommands for listing secrets (values always masked),
- * triggering rotation, and viewing access/rotation audit events.
+ * Values are never displayed. Rotation is performed by the server; the
+ * CLI reports the real resulting version. Audit entries come from the
+ * server's `/api/v1/secrets/audit/log` endpoint.
  *
  * @packageDocumentation
  */
 
 import type { Command } from 'commander';
-import { apiRequest } from '../config.js';
+import { apiRequest, apiRequestList, reportApiError } from '../config.js';
 import {
   header,
   info,
   success,
-  warning,
   bold,
   cyan,
   dim,
   green,
-  yellow,
   red,
   magenta,
   table,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server's secret shapes)
 // ---------------------------------------------------------------------------
 
 interface SecretEntry {
-  name: string;
+  id: string;
+  key: string;
+  description: string;
   backend: string;
   version: number;
-  lastRotated: string;
-  status: 'current' | 'expiring' | 'expired';
+  tags: string[];
+  lastRotated: string | null;
+  rotationIntervalDays: number;
+  expiresAt: string | null;
 }
 
-interface AuditEvent {
-  timestamp: string;
-  key: string;
-  action: string;
+interface SecretAuditEntry {
+  id: string;
+  secretId: string;
+  secretKey: string;
+  action: 'created' | 'read' | 'updated' | 'rotated' | 'deleted';
   actor: string;
-  sourceIp: string;
+  timestamp: string;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function statusBadge(status: string): string {
-  switch (status) {
-    case 'current':  return green('● current');
-    case 'expiring': return yellow('● expiring');
-    case 'expired':  return red('● expired');
-    default:         return dim('● unknown');
-  }
-}
-
 function actionBadge(action: string): string {
   switch (action) {
-    case 'read':   return dim('READ');
-    case 'rotate': return magenta('ROTATE');
-    case 'create': return green('CREATE');
-    case 'delete': return red('DELETE');
-    default:       return dim(action.toUpperCase());
+    case 'read':    return dim('READ');
+    case 'rotated': return magenta('ROTATED');
+    case 'created': return green('CREATED');
+    case 'updated': return cyan('UPDATED');
+    case 'deleted': return red('DELETED');
+    default:        return dim(action.toUpperCase());
   }
 }
 
@@ -86,67 +82,67 @@ export function registerSecretsCommand(program: Command): void {
   // ── secrets list ─────────────────────────────────────────────────────
   secrets
     .command('list')
-    .description('List all secrets (values never shown)')
+    .description('List all secrets (values are never shown)')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
-      let data: SecretEntry[];
+      let items: SecretEntry[];
+      let total: number;
       try {
-        data = await apiRequest('/api/v1/secrets') as SecretEntry[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        const res = await apiRequestList<SecretEntry>('/api/v1/secrets');
+        items = res.items;
+        total = res.total;
+      } catch (err) {
+        reportApiError(err, { action: 'List secrets' });
       }
 
       if (opts.json) {
-        const safe = data.map((s) => ({ ...s, value: '••••••••' }));
-        console.log(JSON.stringify(safe, null, 2));
+        console.log(JSON.stringify(items, null, 2));
         return;
       }
 
       header('Secrets');
 
-      const rows = data.map((s) => [
-        bold(s.name),
+      if (items.length === 0) {
+        info(dim('No secrets managed yet.'));
+        return;
+      }
+
+      const rows = items.map((s) => [
+        bold(s.key),
         cyan(s.backend),
         `v${s.version}`,
-        dim(s.lastRotated),
-        statusBadge(s.status),
+        dim(s.lastRotated ?? 'never'),
+        s.rotationIntervalDays > 0 ? `${s.rotationIntervalDays}d` : dim('manual'),
       ]);
-
-      console.log(table(['Key Name', 'Backend', 'Version', 'Last Rotated', 'Status'], rows));
+      console.log(table(['Key', 'Backend', 'Version', 'Last Rotated', 'Rotation'], rows));
       console.log('');
-      info(dim(`${data.length} secrets managed · Values are never displayed`));
+      info(dim(`${total} secret(s) managed · Values are never displayed`));
       console.log('');
     });
 
   // ── secrets rotate ───────────────────────────────────────────────────
   secrets
     .command('rotate <id>')
-    .description('Trigger secret rotation')
+    .description('Trigger rotation for a secret (by its ID)')
     .action(async (id: string) => {
-      let secrets: SecretEntry[];
-      try {
-        secrets = await apiRequest('/api/v1/secrets') as SecretEntry[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
-      }
-      const secret = secrets.find((s) => s.name === id);
-      const oldVersion = secret ? secret.version : 1;
-      const newVersion = oldVersion + 1;
-
       header('Secret Rotation');
 
-      info(`  ${bold('Key:')}          ${cyan(id)}`);
-      info(`  ${bold('Old Version:')}  v${oldVersion}`);
-      info(`  ${bold('New Version:')}  ${green(`v${newVersion}`)}`);
-      info(`  ${bold('Timestamp:')}    ${dim(new Date().toISOString())}`);
-      console.log('');
+      let result: { secret: SecretEntry; message?: string };
+      try {
+        const env = (await apiRequest(`/api/v1/secrets/${encodeURIComponent(id)}/rotate`, {
+          method: 'POST',
+          body: JSON.stringify({}),
+        })) as { data: SecretEntry; message?: string };
+        result = { secret: env.data, message: env.message };
+      } catch (err) {
+        reportApiError(err, { resource: `secret '${id}'`, action: 'Rotate secret' });
+      }
 
-      success(`Secret ${bold(id)} rotated to v${newVersion}`);
+      info(`  ${bold('Key:')}         ${cyan(result.secret.key)}`);
+      info(`  ${bold('New Version:')} ${green(`v${result.secret.version}`)}`);
+      info(`  ${bold('Rotated At:')}  ${dim(result.secret.lastRotated ?? '')}`);
       console.log('');
-
-      warning('New version may take up to 60s to propagate across all services.');
+      success(result.message ?? `Secret ${bold(result.secret.key)} rotated to v${result.secret.version}`);
       console.log('');
     });
 
@@ -158,33 +154,35 @@ export function registerSecretsCommand(program: Command): void {
     .option('--limit <n>', 'Number of events to show', '10')
     .action(async (opts: { json?: boolean; limit?: string }) => {
       const limit = parseInt(opts.limit ?? '10', 10);
-      let allData: AuditEvent[];
+      let allEvents: SecretAuditEntry[];
       try {
-        allData = await apiRequest('/api/v1/secrets/audit') as AuditEvent[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        allEvents = (await apiRequestList<SecretAuditEntry>('/api/v1/secrets/audit/log')).items;
+      } catch (err) {
+        reportApiError(err, { action: 'Fetch secrets audit log' });
       }
-      const data = allData.slice(0, limit);
+      const events = allEvents.slice(0, limit);
 
       if (opts.json) {
-        console.log(JSON.stringify(data, null, 2));
+        console.log(JSON.stringify(events, null, 2));
         return;
       }
 
-      header('Audit Log');
+      header('Secrets Audit Log');
 
-      const rows = data.map((e) => [
-        dim(e.timestamp),
-        bold(e.key),
+      if (events.length === 0) {
+        info(dim('No secret audit events recorded yet.'));
+        return;
+      }
+
+      const rows = events.map((e) => [
+        dim(e.timestamp.replace('T', ' ').replace(/\.\d+Z$/, 'Z')),
+        bold(e.secretKey),
         actionBadge(e.action),
         cyan(e.actor),
-        dim(e.sourceIp),
       ]);
-
-      console.log(table(['Timestamp', 'Key', 'Action', 'Actor', 'Source IP'], rows));
+      console.log(table(['Timestamp', 'Key', 'Action', 'Actor'], rows));
       console.log('');
-      info(dim(`Showing ${data.length} most recent events`));
+      info(dim(`Showing ${events.length} most recent event(s)`));
       console.log('');
     });
 }

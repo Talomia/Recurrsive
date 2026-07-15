@@ -10,6 +10,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { error } from './output/terminal.js';
 
 /**
  * Base URL for the Recurrsive API server.
@@ -65,15 +66,46 @@ function getToken(): string | undefined {
 }
 
 /**
+ * Error thrown when the server responds with a non-2xx status.
+ *
+ * Carries the HTTP status code so callers can distinguish
+ * authentication (401), authorization (403), not-found (404), and
+ * other server errors.
+ */
+export class ApiError extends Error {
+  constructor(
+    /** HTTP status code returned by the server. */
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/**
+ * Error thrown when the server could not be reached at all
+ * (connection refused, DNS failure, timeout, etc.).
+ */
+export class ApiConnectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ApiConnectionError';
+  }
+}
+
+/**
  * Make an API request to the Recurrsive server.
  *
  * Automatically injects the auth token (if available) as a
- * `Authorization: Bearer <token>` header.
+ * `Authorization: Bearer <token>` header. Returns the parsed JSON
+ * envelope (`{ data, total?, message? }` on success).
  *
  * @param path - API path (e.g. `/api/v1/analytics/summary`).
  * @param options - Standard fetch options.
- * @returns Parsed JSON response.
- * @throws Error if the response is not ok (non-2xx status).
+ * @returns Parsed JSON envelope.
+ * @throws {ApiConnectionError} If the server cannot be reached.
+ * @throws {ApiError} If the response is not ok (non-2xx status).
  */
 export async function apiRequest(
   path: string,
@@ -89,15 +121,125 @@ export async function apiRequest(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API error ${res.status}: ${body}`);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  } catch (err) {
+    // Network-level failure: server unreachable, DNS, TLS, timeout, etc.
+    throw new ApiConnectionError(
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
-  return res.json();
+  if (!res.ok) {
+    // Try to extract the server's structured `{ error, message }` body.
+    let message = res.statusText;
+    try {
+      const body = await res.text();
+      if (body) {
+        try {
+          const parsed = JSON.parse(body) as { error?: string; message?: string };
+          message = parsed.message ?? parsed.error ?? body;
+        } catch {
+          message = body;
+        }
+      }
+    } catch {
+      // Ignore body read errors — fall back to statusText.
+    }
+    throw new ApiError(res.status, message);
+  }
+
+  // 204 No Content and empty bodies have nothing to parse.
+  if (res.status === 204) return { data: undefined };
+  const text = await res.text();
+  if (!text) return { data: undefined };
+  return JSON.parse(text);
+}
+
+/**
+ * Make an API request and unwrap the `{ data }` envelope, returning
+ * the payload directly.
+ *
+ * @param path - API path.
+ * @param options - Standard fetch options.
+ * @returns The unwrapped `data` payload.
+ */
+export async function apiRequestData<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const env = (await apiRequest(path, options)) as { data?: T };
+  return env.data as T;
+}
+
+/**
+ * Make an API request for a list endpoint and unwrap both the `data`
+ * array and the `total` count from the envelope.
+ *
+ * @param path - API path.
+ * @param options - Standard fetch options.
+ * @returns The unwrapped list and total count.
+ */
+export async function apiRequestList<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<{ items: T[]; total: number }> {
+  const env = (await apiRequest(path, options)) as {
+    data?: T[];
+    total?: number;
+  };
+  const items = Array.isArray(env.data) ? env.data : [];
+  return { items, total: env.total ?? items.length };
+}
+
+/**
+ * Print an honest, actionable error message for an API failure and
+ * exit the process. Distinguishes authentication, authorization,
+ * not-found, other server errors, and connection failures.
+ *
+ * This is the single shared error handler for all server-backed CLI
+ * commands — do not print blanket "server may be down" messages
+ * elsewhere.
+ *
+ * @param err - The caught error.
+ * @param opts - Optional context (e.g. the resource being fetched).
+ */
+export function reportApiError(
+  err: unknown,
+  opts: { resource?: string; action?: string } = {},
+): never {
+  if (err instanceof ApiError) {
+    switch (err.status) {
+      case 401:
+        error(
+          'Not authenticated. Run `recurrsive login`, or `recurrsive setup` for first-time setup.',
+        );
+        break;
+      case 403:
+        error(`Access denied: ${err.message}`);
+        break;
+      case 404:
+        error(
+          opts.resource
+            ? `Not found: ${opts.resource}`
+            : `Not found (404): ${err.message}`,
+        );
+        break;
+      default:
+        error(
+          `${opts.action ? `${opts.action}: ` : ''}Server error (HTTP ${err.status}): ${err.message}`,
+        );
+    }
+  } else if (err instanceof ApiConnectionError) {
+    error(
+      `Could not reach the API server at ${API_BASE_URL} (${err.message}). ` +
+        'Ensure it is running, or set RECURRSIVE_SERVER to the correct URL.',
+    );
+  } else {
+    error(
+      `${opts.action ? `${opts.action}: ` : ''}${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  process.exit(1);
 }

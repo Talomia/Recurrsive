@@ -58,25 +58,26 @@ export function registerSearchTools(server: McpServer): void {
   // ── get_audit_events ─────────────────────────────────────────────
   server.tool(
     'get_audit_events',
-    'Retrieve recent audit trail events',
+    'Retrieve recent audit-trail events (API access log). Optionally filter by ' +
+    'action class. Requires analyst-level credentials.',
     {
-      type: z
-        .string()
+      action: z
+        .enum(['read', 'write', 'delete', 'auth', 'admin'])
         .optional()
-        .describe('Filter by event type (e.g., analysis.started, policy.evaluated)'),
+        .describe('Filter by action class: read, write, delete, auth, admin'),
       limit: z
         .number()
         .optional()
-        .describe('Maximum number of events to return (default 20)'),
+        .describe('Maximum number of events to return (default 100, max 1000)'),
     },
-    async ({ type, limit }) => {
+    async ({ action, limit }) => {
       try {
         const params = new URLSearchParams();
-        if (type) params.set('type', type);
+        if (action) params.set('action', action);
         if (limit !== undefined) params.set('limit', String(limit));
         const qs = params.toString();
 
-        const result = await apiGet<unknown>(`/api/v1/search/audit${qs ? `?${qs}` : ''}`);
+        const result = await apiGet<unknown>(`/api/v1/audit${qs ? `?${qs}` : ''}`);
 
         return {
           content: [{

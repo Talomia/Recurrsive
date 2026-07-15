@@ -14,7 +14,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { apiGet, apiRequest } from '../api.js';
+import { apiGet } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,17 +28,21 @@ interface Project {
 }
 
 interface Comparison {
+  id: string;
   name: string;
-  architecture: number;
-  security: number;
-  testing: number;
-  docs: number;
-  reliability: number;
+  slug?: string;
+  healthScore: number;
+  language?: string;
+  framework?: string;
+  lastAnalysis?: string;
 }
 
 interface TimelineEvent {
-  week: string;
-  [project: string]: string | number;
+  id: string;
+  type: string;
+  timestamp: string;
+  title: string;
+  description: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,7 +106,7 @@ export function registerProjectResources(server: McpServer): void {
       let comparisons: Comparison[] = [];
 
       try {
-        comparisons = await apiGet<Comparison[]>('/api/v1/comparisons');
+        comparisons = await apiGet<Comparison[]>('/api/v1/projects/compare/health');
       } catch {
         // API unavailable — fall back to empty list
       }
@@ -110,12 +114,14 @@ export function registerProjectResources(server: McpServer): void {
       const lines = [
         '# Cross-Project Health Comparison',
         '',
-        '| Project | Architecture | Security | Testing | Documentation | Reliability |',
-        '| --- | --- | --- | --- | --- | --- |',
+        '| Project | Health | Language | Framework | Last Analysis |',
+        '| --- | --- | --- | --- | --- |',
       ];
 
       for (const c of comparisons) {
-        lines.push(`| ${c.name} | ${c.architecture} | ${c.security} | ${c.testing} | ${c.docs} | ${c.reliability} |`);
+        lines.push(
+          `| ${c.name} | ${c.healthScore}/100 | ${c.language ?? '—'} | ${c.framework ?? '—'} | ${c.lastAnalysis ?? 'never'} |`,
+        );
       }
 
       lines.push('', '> Use `analyze_project` to refresh scores for a specific project.');
@@ -138,37 +144,32 @@ export function registerProjectResources(server: McpServer): void {
       let events: TimelineEvent[] = [];
 
       try {
-        const response = await apiRequest<{ events: TimelineEvent[] }>('/api/v1/timeline');
-        events = response.events ?? [];
+        // GET /api/v1/timeline returns { data: { ...timeline, events } }.
+        const data = await apiGet<{ events?: TimelineEvent[] }>('/api/v1/timeline');
+        events = data.events ?? [];
       } catch {
-        // API unavailable — fall back to empty list
+        // API unavailable / not analyzed — fall back to empty list
       }
 
       if (events.length === 0) {
         const lines = [
           '# Project Evolution Timeline',
           '',
-          'No timeline data available. Ensure the Recurrsive server is running and projects have been analyzed.',
+          'No timeline data available. Ensure the Recurrsive server is running and an analysis has been recorded.',
         ];
         return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }] };
       }
 
-      // Dynamically build header from the keys of the first event (excluding 'week')
-      const projectKeys = Object.keys(events[0]!).filter(k => k !== 'week');
-
       const lines = [
         '# Project Evolution Timeline',
         '',
-        `| Week | ${projectKeys.join(' | ')} |`,
-        `| --- | ${projectKeys.map(() => '---').join(' | ')} |`,
+        '| When | Type | Event | Details |',
+        '| --- | --- | --- | --- |',
       ];
 
-      for (const t of events) {
-        const values = projectKeys.map(k => String(t[k] ?? ''));
-        lines.push(`| ${t.week} | ${values.join(' | ')} |`);
+      for (const e of events) {
+        lines.push(`| ${e.timestamp} | ${e.type} | ${e.title} | ${e.description} |`);
       }
-
-      lines.push('', '> All projects show positive health trends over the observed period.');
 
       return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: lines.join('\n') }] };
     },

@@ -37,30 +37,25 @@ vi.mock('../../api.js', () => ({
         { name: 'mobile-app', health: 77, opportunities: 7, lastAnalyzed: '2024-12-28T12:00:00Z' },
       ]);
     }
-    if (path === '/api/v1/comparisons') {
+    if (path === '/api/v1/projects/compare/health') {
       return Promise.resolve([
-        { name: 'api-gateway', architecture: 85, security: 80, testing: 78, docs: 70, reliability: 88 },
-        { name: 'web-dashboard', architecture: 72, security: 68, testing: 75, docs: 60, reliability: 74 },
-        { name: 'auth-service', architecture: 90, security: 95, testing: 88, docs: 82, reliability: 92 },
-        { name: 'data-pipeline', architecture: 65, security: 58, testing: 62, docs: 50, reliability: 68 },
-        { name: 'mobile-app', architecture: 78, security: 74, testing: 80, docs: 65, reliability: 76 },
+        { id: 'p1', name: 'api-gateway', slug: 'api-gateway', healthScore: 85, language: 'TypeScript', framework: 'Fastify', lastAnalysis: '2024-12-28T14:30:00Z' },
+        { id: 'p2', name: 'web-dashboard', slug: 'web-dashboard', healthScore: 72, language: 'TypeScript', framework: 'React', lastAnalysis: '2024-12-27T10:15:00Z' },
+        { id: 'p3', name: 'auth-service', slug: 'auth-service', healthScore: 90, language: 'Go', framework: 'Gin', lastAnalysis: '2024-12-28T16:00:00Z' },
       ]);
     }
-    return Promise.reject(new Error('Unknown path'));
-  }),
-  apiRequest: vi.fn().mockImplementation((path: string) => {
     if (path === '/api/v1/timeline') {
       return Promise.resolve({
+        snapshots: [],
         events: [
-          { week: 'W49', apiGw: 75, webDash: 65, auth: 88, dataPipe: 58, mobile: 70 },
-          { week: 'W50', apiGw: 78, webDash: 67, auth: 89, dataPipe: 60, mobile: 73 },
-          { week: 'W51', apiGw: 80, webDash: 69, auth: 90, dataPipe: 62, mobile: 75 },
-          { week: 'W52', apiGw: 82, webDash: 71, auth: 91, dataPipe: 64, mobile: 77 },
+          { id: 'r1', type: 'analysis', timestamp: '2024-12-28T14:30:00Z', title: 'Analysis completed', description: 'Produced 5 findings and 3 opportunities' },
+          { id: 'r2', type: 'milestone', timestamp: '2024-12-27T10:15:00Z', title: 'Analysis completed', description: 'Produced 2 findings and 1 opportunity' },
         ],
       });
     }
     return Promise.reject(new Error('Unknown path'));
   }),
+  apiRequest: vi.fn().mockRejectedValue(new Error('Unknown path')),
 }));
 
 import { registerProjectResources } from '../../resources/projects.js';
@@ -226,13 +221,13 @@ describe('registerProjectResources', () => {
       expect(result.contents[0].text).toContain('Cross-Project Health Comparison');
     });
 
-    it('contains dimension columns', async () => {
+    it('contains health comparison columns', async () => {
       const handler = getHandler();
       const result = await handler({ href: 'recurrsive://projects/comparison' });
-      expect(result.contents[0].text).toContain('Architecture');
-      expect(result.contents[0].text).toContain('Security');
-      expect(result.contents[0].text).toContain('Testing');
-      expect(result.contents[0].text).toContain('Reliability');
+      expect(result.contents[0].text).toContain('Health');
+      expect(result.contents[0].text).toContain('Language');
+      expect(result.contents[0].text).toContain('Framework');
+      expect(result.contents[0].text).toContain('api-gateway');
     });
 
     it('mentions analyze_project tool', async () => {
@@ -262,19 +257,12 @@ describe('registerProjectResources', () => {
       expect(result.contents[0].text).toContain('Project Evolution Timeline');
     });
 
-    it('contains weekly data rows', async () => {
+    it('contains recorded analysis events', async () => {
       const handler = getHandler();
       const result = await handler({ href: 'recurrsive://projects/timeline' });
-      expect(result.contents[0].text).toContain('W49');
-      expect(result.contents[0].text).toContain('W50');
-      expect(result.contents[0].text).toContain('W51');
-      expect(result.contents[0].text).toContain('W52');
-    });
-
-    it('mentions positive health trends', async () => {
-      const handler = getHandler();
-      const result = await handler({ href: 'recurrsive://projects/timeline' });
-      expect(result.contents[0].text).toContain('positive health trends');
+      expect(result.contents[0].text).toContain('Analysis completed');
+      expect(result.contents[0].text).toContain('2024-12-28T14:30:00Z');
+      expect(result.contents[0].text).toContain('analysis');
     });
   });
 });

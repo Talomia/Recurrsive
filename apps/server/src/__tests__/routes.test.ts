@@ -190,11 +190,12 @@ describe ('Health endpoints', () => {
     expect(body).toHaveProperty('initialized');
   });
 
-  it ('GET /api/v1/health-score returns 503 before initialization', async () => {
+  it ('GET /api/v1/health-score returns not_analyzed (200) before any analysis', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/health-score' });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.error).toBe('Server not initialized');
+    expect(body.data.status).toBe('not_analyzed');
+    expect(body.data.overall).toBeNull();
   });
 });
 

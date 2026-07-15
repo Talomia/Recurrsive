@@ -481,6 +481,12 @@ export function registerAnalyzeCommand(program: Command): void {
           const allFindings = [...analysisResult.findings, ...ctx.getEmitted()];
           // ── Step 11 (optional): Reasoning ───────────────────────────
           let opportunities: Opportunity[] = [];
+          // Track what actually happened so we never claim work we did not do.
+          let reasoningStatus:
+            | 'ran'
+            | 'skipped_no_key'
+            | 'failed'
+            | 'disabled' = opts.reasoning ? 'skipped_no_key' : 'disabled';
           const reasoningStep = 11;
 
           // Build reasoning config — prefer config file, fall back to env var
@@ -516,32 +522,47 @@ export function registerAnalyzeCommand(program: Command): void {
 
               const consensusResult = await engine.process(allFindings, graphClient);
               opportunities = consensusResult.opportunities;
+              reasoningStatus = 'ran';
               reasonSpinner.succeed(
                 `Reasoning complete: ${bold(String(opportunities.length))} opportunities promoted`,
               );
             } catch (err: unknown) {
+              reasoningStatus = 'failed';
               reasonSpinner.fail('Reasoning engine failed');
               warning(
                 `Reasoning error: ${err instanceof Error ? err.message : String(err)}`,
               );
-              info('Falling back to analyzer findings only.');
+              info('Reporting analyzer findings only (no opportunities generated).');
             }
           } else if (opts.reasoning && !llmApiKey) {
-            info(
-              'Reasoning skipped — no LLM configured. ' +
-                `Set ${bold('reasoning')} in config or ${bold('RECURRSIVE_LLM_API_KEY')} env var.`,
-            );
+            reasoningStatus = 'skipped_no_key';
           }
 
           // ── Step: Generate opportunities from findings ─────────────
           const oppsStep = opts.reasoning ? 12 : 11;
-          step(oppsStep, totalSteps, 'Generating opportunity reports...');
+          step(oppsStep, totalSteps, 'Collecting opportunities...');
 
-          // If no reasoning, create basic opportunities from findings
-          if (opportunities.length === 0 && allFindings.length > 0) {
-            info(
-              `Converting ${bold(String(allFindings.length))} findings to opportunities...`,
-            );
+          // Opportunities are ONLY produced by the reasoning engine. When it
+          // did not run we do not fabricate a "conversion" — we report the
+          // real reason so the user knows how to enable it.
+          if (opportunities.length === 0) {
+            if (reasoningStatus === 'skipped_no_key') {
+              info(
+                'Reasoning skipped: no LLM key configured. ' +
+                  `Run with ${bold('RECURRSIVE_LLM_API_KEY')} set (or add ${bold('reasoning')} to config) to generate opportunities.`,
+              );
+            } else if (reasoningStatus === 'disabled') {
+              info(
+                `Reasoning disabled (${bold('--no-reasoning')}); no opportunities generated. ` +
+                  `Findings are still saved and reportable.`,
+              );
+            } else if (reasoningStatus === 'failed') {
+              info(
+                'Reasoning failed; no opportunities generated. Findings are still saved and reportable.',
+              );
+            } else {
+              info('Reasoning ran but promoted no findings to opportunities.');
+            }
           }
 
           const manager = new OpportunityManager(opportunities);
@@ -677,11 +698,26 @@ export function registerAnalyzeCommand(program: Command): void {
             }
           }
 
-          console.log(
-            dim('  Run ') +
-              cyan(bold('recurrsive opportunities')) +
-              dim(' to view and manage opportunities.'),
-          );
+          if (opportunities.length > 0) {
+            console.log(
+              dim('  Run ') +
+                cyan(bold('recurrsive opportunities')) +
+                dim(' to view and manage opportunities.'),
+            );
+          } else if (allFindings.length > 0) {
+            console.log(
+              dim('  Run ') +
+                cyan(bold('recurrsive report')) +
+                dim(' to generate a findings report') +
+                (reasoningStatus === 'skipped_no_key'
+                  ? dim(', or set ') + bold('RECURRSIVE_LLM_API_KEY') + dim(' and re-run to generate opportunities.')
+                  : dim('.')),
+            );
+          } else {
+            console.log(
+              dim('  No findings or opportunities were produced for this project.'),
+            );
+          }
           console.log('');
 
           // Cleanup

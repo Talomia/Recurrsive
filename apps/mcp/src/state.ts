@@ -62,6 +62,8 @@ export class ServerState {
   private projectPath: string | null = null;
   private projectInfo: ProjectInfo | null = null;
   private analysisCache: AnalysisCache | null = null;
+  /** The prior analysis run's cache, retained so runs can be compared. */
+  private previousAnalysisCache: AnalysisCache | null = null;
 
   /**
    * Initialize the server state for a given project directory.
@@ -329,6 +331,8 @@ export class ServerState {
       analyzedAt: nowISO(),
       durationMs: Date.now() - start,
     };
+    // Retain the prior run so compare_analyses can diff against it.
+    this.previousAnalysisCache = this.analysisCache;
     this.analysisCache = cache;
 
     return cache;
@@ -388,6 +392,17 @@ export class ServerState {
   }
 
   /**
+   * Return the previous analysis run's cache, if a prior run exists in this
+   * session.
+   *
+   * @returns The previous analysis cache, or null if fewer than two runs have
+   *   been performed.
+   */
+  getPreviousAnalysisCache(): AnalysisCache | null {
+    return this.previousAnalysisCache;
+  }
+
+  /**
    * Check whether the server state has been initialized.
    *
    * @returns `true` if initialized with a project path.
@@ -408,6 +423,7 @@ export class ServerState {
     this.projectPath = null;
     this.projectInfo = null;
     this.analysisCache = null;
+    this.previousAnalysisCache = null;
     logger.info('Server state disposed');
   }
 

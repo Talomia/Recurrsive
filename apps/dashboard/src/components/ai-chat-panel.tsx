@@ -8,7 +8,9 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { X, Send, Sparkles, Bot, Loader2, User } from "lucide-react";
+import { X, Send, Sparkles, Bot, Loader2, User, AlertTriangle } from "lucide-react";
+import { sendAssistantChat, type AssistantChatMessage } from "@/lib/api/assistant";
+import { useAssistant } from "./assistant-context";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -22,6 +24,8 @@ interface ChatMessage {
 interface AiChatPanelProps {
   open: boolean;
   onClose: () => void;
+  /** Active project id — the assistant grounds answers in this project. */
+  projectId?: string;
 }
 
 // ── Constants ────────────────────────────────────────────
@@ -30,29 +34,14 @@ const INITIAL_MESSAGE: ChatMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Hi! I'm Recurrsive AI. I can help you understand your codebase analysis, explain findings, and suggest improvements. What would you like to know?",
+    "Hi! I'm Recurrsive AI. Ask me about your codebase analysis — findings, opportunities, health, or architecture — and I'll answer using this project's real data.",
   timestamp: new Date(),
 };
 
-const MOCK_RESPONSES = [
-  "I'm currently in development mode, but I'd love to help! Once fully enabled, I'll be able to analyze your codebase findings, explain complex patterns, suggest improvements, and help you navigate insights across your projects.",
-  "Great question! This feature is still being built out. Soon I'll be able to drill into specific findings, compare analysis results, and provide actionable recommendations based on your codebase data.",
-  "I appreciate your interest! While I'm not yet connected to the full analysis engine, I'm designed to help you understand technical debt, security findings, and architectural patterns once the integration is complete.",
-  "That's an excellent topic to explore. In my full version, I'll cross-reference findings with best practices databases to give you context-aware suggestions tailored to your specific tech stack.",
-  "Thanks for asking! Right now I'm running in preview mode. The full release will include the ability to generate reports, explain complex dependency chains, and suggest refactoring strategies.",
-];
-
-let responseIndex = 0;
-
-function getNextMockResponse(): string {
-  const response = MOCK_RESPONSES[responseIndex % MOCK_RESPONSES.length];
-  responseIndex++;
-  return response;
-}
-
 // ── Component ────────────────────────────────────────────
 
-export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
+export default function AiChatPanel({ open, onClose, projectId }: AiChatPanelProps) {
+  const { availability, reason, reportStatus } = useAssistant();
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -84,7 +73,7 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
     return () => document.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
 
-  // Send message
+  // Send message — calls the real assistant endpoint.
   const sendMessage = useCallback(
     async (content: string) => {
       if (!content.trim() || isTyping) return;
@@ -96,6 +85,11 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
         timestamp: new Date(),
       };
 
+      // Build the conversation history the server expects (roles + content).
+      const history: AssistantChatMessage[] = [...messages, userMsg]
+        .filter((m) => m.id !== "welcome")
+        .map((m) => ({ role: m.role, content: m.content }));
+
       setMessages((prev) => [...prev, userMsg]);
       setInput("");
       setIsTyping(true);
@@ -105,22 +99,36 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
         inputRef.current.style.height = "auto";
       }
 
-      // Simulate AI response delay
-      await new Promise((resolve) =>
-        setTimeout(resolve, 800 + Math.random() * 1200)
-      );
+      let replyText: string;
+      try {
+        const res = await sendAssistantChat(history, projectId);
+        reportStatus(res.status, res.reason);
+        if (res.status === "unavailable") {
+          replyText =
+            res.message ||
+            "The assistant is unavailable — configure an LLM API key (RECURRSIVE_LLM_API_KEY) on the server to enable it.";
+        } else if (res.status === "error") {
+          replyText = res.message || "The assistant returned an error. Please try again.";
+        } else {
+          replyText = res.message || "(The assistant returned an empty response.)";
+        }
+      } catch {
+        reportStatus("error");
+        replyText =
+          "Couldn't reach the assistant service. Check that the API server is running and try again.";
+      }
 
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: "assistant",
-        content: getNextMockResponse(),
+        content: replyText,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, aiMsg]);
       setIsTyping(false);
     },
-    [isTyping]
+    [isTyping, messages, projectId, reportStatus]
   );
 
   const handleSubmit = (e: FormEvent) => {
@@ -191,8 +199,20 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
                 Recurrsive AI
               </h2>
               <p className="text-[10px] text-text-muted flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-400 inline-block" />
-                Online · Preview Mode
+                <span
+                  className={`h-1.5 w-1.5 rounded-full inline-block ${
+                    availability === "available"
+                      ? "bg-green-400"
+                      : availability === "unavailable"
+                        ? "bg-amber-400"
+                        : "bg-text-muted"
+                  }`}
+                />
+                {availability === "available"
+                  ? "Online"
+                  : availability === "unavailable"
+                    ? "Unavailable — no LLM key"
+                    : "Checking availability…"}
               </p>
             </div>
           </div>
@@ -212,6 +232,14 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
           aria-live="polite"
           aria-label="Chat messages"
         >
+          {availability === "unavailable" && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2.5">
+              <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-xs text-amber-300 leading-relaxed">
+                {reason ?? "Assistant unavailable — configure an LLM key to enable it."}
+              </p>
+            </div>
+          )}
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -309,7 +337,7 @@ export default function AiChatPanel({ open, onClose }: AiChatPanelProps) {
             </button>
           </form>
           <p className="text-[9px] text-text-tertiary mt-2 text-center select-none">
-            Recurrsive AI · Preview mode · Responses are simulated
+            Recurrsive AI · Answers are grounded in your project&apos;s analysis
           </p>
         </div>
       </aside>

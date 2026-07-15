@@ -102,6 +102,99 @@ async function loadOpportunities(oppsPath: string): Promise<Opportunity[]> {
   }
 }
 
+/**
+ * Build a report directly from findings. Used when analysis produced
+ * findings but no opportunities (e.g. a run without an LLM key, where
+ * the reasoning engine did not promote findings into opportunities).
+ *
+ * This guarantees a no-reasoning run still yields a report with real
+ * content rather than an empty document with a success message.
+ *
+ * @param findings - The findings to render.
+ * @param format - Output format.
+ * @param title - Report title.
+ * @returns Rendered report content.
+ */
+function buildFindingsReport(
+  findings: Finding[],
+  format: ReportFormat,
+  title: string,
+): string {
+  if (format === 'json') {
+    return JSON.stringify(
+      {
+        title,
+        generated_at: new Date().toISOString(),
+        opportunities: [],
+        findings,
+        note: 'Findings only — no opportunities were generated (reasoning did not run).',
+      },
+      null,
+      2,
+    );
+  }
+
+  if (format === 'sarif') {
+    const sevToLevel = (s: string): string =>
+      s === 'critical' || s === 'high' ? 'error' : s === 'medium' ? 'warning' : 'note';
+    const sarif = {
+      $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
+      version: '2.1.0',
+      runs: [
+        {
+          tool: { driver: { name: 'Recurrsive', informationUri: 'https://recurrsive.io' } },
+          results: findings.map((f) => ({
+            ruleId: f.analyzer_id,
+            level: sevToLevel(f.severity),
+            message: { text: `${f.title}: ${f.description}` },
+            locations: f.locations.map((loc) => ({
+              physicalLocation: {
+                artifactLocation: { uri: loc.file },
+                ...(loc.start_line
+                  ? { region: { startLine: loc.start_line } }
+                  : {}),
+              },
+            })),
+          })),
+        },
+      ],
+    };
+    return JSON.stringify(sarif, null, 2);
+  }
+
+  // Markdown body — reused verbatim for HTML (wrapped in <pre>).
+  const body =
+    `# ${title}\n\n` +
+    `**Generated:** ${new Date().toISOString()}\n` +
+    `**Findings:** ${findings.length}\n\n` +
+    `> No opportunities were generated for this run (reasoning did not run). ` +
+    `The findings below are the raw analyzer output.\n\n` +
+    findings
+      .map(
+        (f) =>
+          `## ${f.title}\n\n` +
+          `**Severity:** ${f.severity} | **Category:** ${f.category} | ` +
+          `**Confidence:** ${Math.round(f.confidence * 100)}%\n\n` +
+          `${f.description}\n\n` +
+          (f.locations[0]
+            ? `**Location:** ${f.locations[0].file}${f.locations[0].start_line ? `:${f.locations[0].start_line}` : ''}\n\n`
+            : '') +
+          (f.suggested_fix ? `**Suggested fix:** ${f.suggested_fix}\n\n` : ''),
+      )
+      .join('---\n\n');
+
+  if (format === 'html') {
+    return (
+      `<!doctype html><html><head><meta charset="utf-8">` +
+      `<title>${title}</title></head><body>` +
+      `<pre>${body.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>` +
+      `</body></html>`
+    );
+  }
+
+  return body;
+}
+
 // ---------------------------------------------------------------------------
 // Command Registration
 // ---------------------------------------------------------------------------
@@ -203,32 +296,39 @@ export function registerReportCommand(program: Command): void {
         const reportTitle = opts.title ?? `Recurrsive Analysis Report`;
         let content: string;
 
-        switch (format) {
-          case 'markdown': {
-            content = generateMarkdownReport(opportunities, {
-              title: reportTitle,
-              includeActionItems: true,
-            });
-            break;
-          }
-          case 'html': {
-            content = generateHtmlReport(opportunities, {
-              title: reportTitle,
-            });
-            break;
-          }
-          case 'sarif': {
-            content = generateSarifReport(opportunities, {
-              title: reportTitle,
-            });
-            break;
-          }
-          case 'json': {
-            content = generateJsonReport(opportunities, {
-              title: reportTitle,
-              includeEvidence: true,
-            });
-            break;
+        if (opportunities.length === 0) {
+          // No opportunities (reasoning did not run) — report the real
+          // findings instead of emitting an empty opportunity report.
+          info(dim('  No opportunities found — reporting findings directly.'));
+          content = buildFindingsReport(findings, format, reportTitle);
+        } else {
+          switch (format) {
+            case 'markdown': {
+              content = generateMarkdownReport(opportunities, {
+                title: reportTitle,
+                includeActionItems: true,
+              });
+              break;
+            }
+            case 'html': {
+              content = generateHtmlReport(opportunities, {
+                title: reportTitle,
+              });
+              break;
+            }
+            case 'sarif': {
+              content = generateSarifReport(opportunities, {
+                title: reportTitle,
+              });
+              break;
+            }
+            case 'json': {
+              content = generateJsonReport(opportunities, {
+                title: reportTitle,
+                includeEvidence: true,
+              });
+              break;
+            }
           }
         }
 

@@ -5,6 +5,7 @@
  */
 
 export { apiFetch, ApiError, BASE_URL } from './client';
+export * from './assistant';
 export * from './health';
 export * from './analysis';
 export * from './opportunities';

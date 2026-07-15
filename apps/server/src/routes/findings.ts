@@ -23,10 +23,15 @@ interface FindingsQuery {
   analyzer?: string;
   limit?: string;
   offset?: string;
+  projectId?: string;
 }
 
 interface FindingParams {
   id: string;
+}
+
+interface ProjectQuery {
+  projectId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,7 +55,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
-        const cache = state.getAnalysisCache();
+        const cache = await state.loadCacheForProject(request.query.projectId);
         if (!cache) {
           return reply.status(404).send({
             error: 'No analysis results available',
@@ -105,9 +110,9 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
    *
    * Get a summary of findings grouped by severity and category.
    */
-  app.get('/api/v1/findings/summary', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: ProjectQuery }>('/api/v1/findings/summary', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      const cache = state.getAnalysisCache();
+      const cache = await state.loadCacheForProject(request.query.projectId);
       if (!cache) {
         return reply.status(404).send({
           error: 'No analysis results available',
@@ -155,9 +160,9 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
   // Dashboard findings page — returns findings with severity stats.
   // Maps core Finding objects to the FindingsPageItem shape.
 
-  app.get('/api/v1/findings/page', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: ProjectQuery }>('/api/v1/findings/page', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      const cache = state.getAnalysisCache();
+      const cache = await state.loadCacheForProject(request.query.projectId);
       if (!cache) {
         return reply.status(503).send({
           error: 'Not ready',
@@ -200,9 +205,9 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
    *
    * Return categories of findings with counts and highest severity per category.
    */
-  app.get('/api/v1/findings/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: ProjectQuery }>('/api/v1/findings/categories', { preHandler: [authMiddleware] }, async (request, reply) => {
     try {
-      const cache = state.getAnalysisCache();
+      const cache = await state.loadCacheForProject(request.query.projectId);
       if (!cache) {
         return reply.status(200).send({ data: [], total: 0 });
       }
@@ -256,7 +261,7 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
-        const cache = state.getAnalysisCache();
+        const cache = await state.loadCacheForProject((request.query as ProjectQuery).projectId);
         if (!cache) {
           return reply.status(404).send({
             error: 'No analysis results available',

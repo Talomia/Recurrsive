@@ -13,12 +13,15 @@ import type { ReactNode } from 'react';
 import { AuthProvider } from '@/lib/auth-context';
 import { AuthGuard } from '@/components/auth-guard';
 import { ActiveProjectProvider } from '@/components/active-project-context';
+import { AssistantProvider } from '@/components/assistant-context';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       <AuthGuard>
-        <ActiveProjectProvider>{children}</ActiveProjectProvider>
+        <AssistantProvider>
+          <ActiveProjectProvider>{children}</ActiveProjectProvider>
+        </AssistantProvider>
       </AuthGuard>
     </AuthProvider>
   );

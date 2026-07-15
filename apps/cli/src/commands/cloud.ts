@@ -1,63 +1,70 @@
 /**
  * @module @recurrsive/cli/commands/cloud
  *
- * `recurrsive cloud` — Cloud platform insights and status.
+ * `recurrsive cloud` — Cloud platform insights.
  *
- * Provides subcommands for viewing industry benchmarks, cross-org
- * learned patterns, the partner directory, and platform status.
+ * Subcommands view industry benchmarks, cross-org learned patterns, the
+ * partner directory, and the managed-services catalog. All data comes
+ * from the server; the CLI does not fabricate uptime, latency, or scores.
  *
  * @packageDocumentation
  */
 
 import type { Command } from 'commander';
-import { apiRequest } from '../config.js';
+import { apiRequest, apiRequestList, reportApiError } from '../config.js';
 import {
   header,
   info,
   bold,
   cyan,
   dim,
-  green,
   yellow,
-  red,
   magenta,
-  progressBar,
   table,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server response shapes)
 // ---------------------------------------------------------------------------
 
-interface BenchmarkEntry {
-  metric: string;
-  yourScore: number;
-  industryAvg: number;
-  percentile: number;
+interface BenchmarkReport {
+  industry: string;
+  sampleSize: number;
+  percentiles: { p25: number; p50: number; p75: number; p90: number };
+  dimensionAverages: Record<string, number>;
+  topImprovementAreas: string[];
 }
 
-interface PatternEntry {
+interface LearnedPattern {
+  id: string;
   name: string;
   category: string;
-  adoptionRate: number;
-  impact: string;
-  source: string;
+  occurrences: number;
+  successRate: number;
+  avgImpact: number;
+  recommendation: string;
+  confidence: number;
 }
 
-interface PartnerEntry {
+interface Partner {
+  id: string;
   name: string;
-  tier: 'Platinum' | 'Gold' | 'Silver';
-  specialty: string;
-  region: string;
-  status: string;
+  tier: 'platinum' | 'gold' | 'silver';
+  type: string;
+  specializations: string[];
+  regions: string[];
+  certifiedEngineers: number;
+  customerCount: number;
 }
 
-interface ServiceStatus {
-  service: string;
-  status: 'operational' | 'degraded' | 'outage';
-  uptime: string;
-  latency: string;
-  region: string;
+interface ManagedService {
+  id: string;
+  name: string;
+  description: string;
+  tier: string;
+  features: string[];
+  priceRange: string;
+  sla: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,29 +73,10 @@ interface ServiceStatus {
 
 function tierBadge(tier: string): string {
   switch (tier) {
-    case 'Platinum': return magenta('◆ Platinum');
-    case 'Gold':     return cyan('◆ Gold');
-    case 'Silver':   return yellow('◆ Silver');
+    case 'platinum': return magenta('◆ Platinum');
+    case 'gold':     return cyan('◆ Gold');
+    case 'silver':   return yellow('◆ Silver');
     default:         return dim(`◆ ${tier}`);
-  }
-}
-
-function serviceStatusBadge(status: string): string {
-  switch (status) {
-    case 'operational': return green('● operational');
-    case 'degraded':    return yellow('● degraded');
-    case 'outage':      return red('● outage');
-    default:            return dim('● unknown');
-  }
-}
-
-function impactBadge(impact: string): string {
-  switch (impact) {
-    case 'Critical': return red(impact);
-    case 'High':     return yellow(impact);
-    case 'Medium':   return cyan(impact);
-    case 'Low':      return dim(impact);
-    default:         return dim(impact);
   }
 }
 
@@ -104,20 +92,23 @@ function impactBadge(impact: string): string {
 export function registerCloudCommand(program: Command): void {
   const cloud = program
     .command('cloud')
-    .description('Cloud platform insights and status');
+    .description('Cloud platform insights (benchmarks, patterns, partners, services)');
 
   // ── cloud benchmarks ─────────────────────────────────────────────────
   cloud
     .command('benchmarks')
-    .description('Show industry benchmarks and percentiles')
+    .description('Show the aggregated industry benchmark report')
+    .option('--industry <name>', 'Filter to a specific industry')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { json?: boolean }) => {
-      let data: BenchmarkEntry[];
+    .action(async (opts: { industry?: string; json?: boolean }) => {
+      const qs = opts.industry ? `?industry=${encodeURIComponent(opts.industry)}` : '';
+      let data: BenchmarkReport | { message: string; sampleSize: number };
       try {
-        data = await apiRequest('/api/v1/cloud/benchmarks') as BenchmarkEntry[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        data = await apiRequest(`/api/v1/cloud/benchmarks/report${qs}`).then(
+          (env) => (env as { data: BenchmarkReport | { message: string; sampleSize: number } }).data,
+        );
+      } catch (err) {
+        reportApiError(err, { action: 'Fetch benchmark report' });
       }
 
       if (opts.json) {
@@ -127,19 +118,33 @@ export function registerCloudCommand(program: Command): void {
 
       header('Industry Benchmarks');
 
-      const rows = data.map((b) => [
-        bold(b.metric),
-        cyan(String(b.yourScore)),
-        dim(String(b.industryAvg)),
-        progressBar(b.percentile, 100, 15),
+      if (!('percentiles' in data) || data.sampleSize === 0) {
+        info(dim('No benchmark data available yet. Submit anonymized benchmarks to build the dataset.'));
+        console.log('');
+        return;
+      }
+
+      console.log(`  ${bold('Industry:')}    ${cyan(data.industry)}`);
+      console.log(`  ${bold('Sample size:')} ${cyan(String(data.sampleSize))}`);
+      console.log('');
+      console.log(
+        `  ${bold('Percentiles:')}  p25 ${data.percentiles.p25} · p50 ${data.percentiles.p50} · ` +
+          `p75 ${data.percentiles.p75} · p90 ${data.percentiles.p90}`,
+      );
+      console.log('');
+
+      const rows = Object.entries(data.dimensionAverages).map(([dim_, avg]) => [
+        bold(dim_),
+        String(avg),
       ]);
-
-      console.log(table(['Metric', 'Your Score', 'Industry Avg', 'Percentile'], rows));
-      console.log('');
-
-      const avgPercentile = Math.round(data.reduce((s, b) => s + b.percentile, 0) / data.length);
-      info(`  ${bold('Overall Ranking:')} Top ${100 - avgPercentile}% ${dim(`(${avgPercentile}th percentile)`)}`);
-      console.log('');
+      if (rows.length > 0) {
+        console.log(table(['Dimension', 'Average'], rows));
+        console.log('');
+      }
+      if (data.topImprovementAreas.length > 0) {
+        info(`Top improvement areas: ${data.topImprovementAreas.join(', ')}`);
+        console.log('');
+      }
     });
 
   // ── cloud patterns ───────────────────────────────────────────────────
@@ -148,32 +153,39 @@ export function registerCloudCommand(program: Command): void {
     .description('View cross-organization learned patterns')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
-      let data: PatternEntry[];
+      let patterns: LearnedPattern[];
+      let total: number;
       try {
-        data = await apiRequest('/api/v1/cloud/patterns') as PatternEntry[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        const res = await apiRequestList<LearnedPattern>('/api/v1/cloud/patterns');
+        patterns = res.items;
+        total = res.total;
+      } catch (err) {
+        reportApiError(err, { action: 'Fetch learned patterns' });
       }
 
       if (opts.json) {
-        console.log(JSON.stringify(data, null, 2));
+        console.log(JSON.stringify(patterns, null, 2));
         return;
       }
 
       header('Cross-Org Learned Patterns');
 
-      const rows = data.map((p) => [
+      if (patterns.length === 0) {
+        info(dim('No patterns learned yet. Patterns emerge from aggregated, anonymized analysis data.'));
+        console.log('');
+        return;
+      }
+
+      const rows = patterns.map((p) => [
         bold(p.name),
         cyan(p.category),
-        `${p.adoptionRate}%`,
-        impactBadge(p.impact),
-        dim(p.source),
+        String(p.occurrences),
+        `${Math.round(p.successRate * 100)}%`,
+        `+${p.avgImpact}`,
       ]);
-
-      console.log(table(['Pattern', 'Category', 'Adoption', 'Impact', 'Source'], rows));
+      console.log(table(['Pattern', 'Category', 'Occurrences', 'Success', 'Avg Impact'], rows));
       console.log('');
-      info(dim(`${data.length} patterns aggregated from anonymized cross-org data`));
+      info(dim(`${total} pattern(s) aggregated from anonymized cross-org data`));
       console.log('');
     });
 
@@ -183,77 +195,75 @@ export function registerCloudCommand(program: Command): void {
     .description('View the partner directory')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
-      let data: PartnerEntry[];
+      let partners: Partner[];
+      let total: number;
       try {
-        data = await apiRequest('/api/v1/marketplace/partners') as PartnerEntry[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        const res = await apiRequestList<Partner>('/api/v1/partners');
+        partners = res.items;
+        total = res.total;
+      } catch (err) {
+        reportApiError(err, { action: 'Fetch partners' });
       }
 
       if (opts.json) {
-        console.log(JSON.stringify(data, null, 2));
+        console.log(JSON.stringify(partners, null, 2));
         return;
       }
 
       header('Partner Directory');
 
-      const rows = data.map((p) => [
-        bold(p.name),
-        tierBadge(p.tier),
-        p.specialty,
-        dim(p.region),
-        p.status === 'active' ? green(p.status) : yellow(p.status),
-      ]);
-
-      console.log(table(['Name', 'Tier', 'Specialty', 'Region', 'Status'], rows));
-      console.log('');
-      info(dim(`${data.length} certified partners`));
-      console.log('');
-    });
-
-  // ── cloud status ─────────────────────────────────────────────────────
-  cloud
-    .command('status')
-    .description('Show cloud platform status')
-    .option('--json', 'Output as JSON')
-    .action(async (opts: { json?: boolean }) => {
-      let data: ServiceStatus[];
-      try {
-        data = await apiRequest('/api/v1/cloud/status') as ServiceStatus[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
-      }
-
-      if (opts.json) {
-        console.log(JSON.stringify(data, null, 2));
+      if (partners.length === 0) {
+        info(dim('No partners registered yet.'));
+        console.log('');
         return;
       }
 
-      header('Platform Status');
-
-      const operational = data.filter((s) => s.status === 'operational').length;
-      const total = data.length;
-      const healthPct = Math.round((operational / total) * 100);
-
-      console.log(`  ${bold('Platform Health:')}`);
-      console.log(`    ${progressBar(healthPct, 100, 35)}`);
-      console.log(`    ${green(String(operational))}/${total} services operational`);
-      console.log('');
-
-      const rows = data.map((s) => [
-        bold(s.service),
-        serviceStatusBadge(s.status),
-        s.uptime,
-        cyan(s.latency),
-        dim(s.region),
+      const rows = partners.map((p) => [
+        bold(p.name),
+        tierBadge(p.tier),
+        p.type,
+        (p.specializations ?? []).join(', '),
+        (p.regions ?? []).join(', '),
       ]);
-
-      console.log(table(['Service', 'Status', 'Uptime', 'Latency', 'Region'], rows));
+      console.log(table(['Name', 'Tier', 'Type', 'Specializations', 'Regions'], rows));
       console.log('');
+      info(dim(`${total} partner(s)`));
+      console.log('');
+    });
 
-      info(dim(`Last updated: ${new Date().toISOString()}`));
+  // ── cloud services ───────────────────────────────────────────────────
+  cloud
+    .command('services')
+    .description('View the managed-services catalog')
+    .option('--json', 'Output as JSON')
+    .action(async (opts: { json?: boolean }) => {
+      let services: ManagedService[];
+      try {
+        services = (await apiRequestList<ManagedService>('/api/v1/cloud/services')).items;
+      } catch (err) {
+        reportApiError(err, { action: 'Fetch managed services' });
+      }
+
+      if (opts.json) {
+        console.log(JSON.stringify(services, null, 2));
+        return;
+      }
+
+      header('Managed Services');
+
+      if (services.length === 0) {
+        info(dim('No managed services available.'));
+        console.log('');
+        return;
+      }
+
+      const rows = services.map((s) => [
+        bold(s.name),
+        cyan(s.tier),
+        s.priceRange,
+        s.sla,
+      ]);
+      console.log(table(['Service', 'Tier', 'Price', 'SLA'], rows));
       console.log('');
     });
 }

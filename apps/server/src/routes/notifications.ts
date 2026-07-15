@@ -30,6 +30,8 @@ export interface NotificationRecord {
   sent_at: string;
   /** Delivery status. */
   status: 'sent' | 'failed';
+  /** Whether the notification has been marked read. */
+  read: boolean;
   /** Optional error message if delivery failed. */
   error?: string;
 }
@@ -262,6 +264,7 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
       message: testMessage,
       sent_at: now,
       status: delivery.success ? 'sent' : 'failed',
+      read: false,
       ...(delivery.error ? { error: delivery.error } : {}),
     };
 
@@ -303,5 +306,48 @@ export async function registerNotificationRoutes(app: FastifyInstance): Promise<
       data: recent,
       total: await store.count('notifications'),
     });
+  });
+
+  /**
+   * POST /api/v1/notifications/read-all
+   *
+   * Mark every notification as read. Returns the number updated.
+   * Registered BEFORE the parametric `:id` route so it is not shadowed.
+   */
+  app.post('/api/v1/notifications/read-all', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const entries = await store.entries<NotificationRecord>('notifications');
+    let updated = 0;
+    for (const [key, record] of entries) {
+      if (!record.read) {
+        record.read = true;
+        await store.set<NotificationRecord>('notifications', key, record);
+        updated++;
+      }
+    }
+    return reply.status(200).send({
+      data: { updated },
+      message: `Marked ${updated} notification(s) as read`,
+    });
+  });
+
+  /**
+   * GET /api/v1/notifications/:id
+   *
+   * Return a single notification. Matches either the store key or the
+   * record's own `id` field.
+   */
+  app.get<{ Params: { id: string } }>('/api/v1/notifications/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params;
+    const entries = await store.entries<NotificationRecord>('notifications');
+    const match = entries.find(([key, record]) => key === id || record.id === id);
+
+    if (!match) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: `Notification '${id}' not found`,
+      });
+    }
+
+    return reply.status(200).send({ data: match[1] });
   });
 }

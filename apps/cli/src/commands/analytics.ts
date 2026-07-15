@@ -9,18 +9,16 @@
  * @packageDocumentation
  */
 
-import { apiRequest } from '../config.js';
+import { apiRequestData, reportApiError } from '../config.js';
 import type { Command } from 'commander';
 import {
   header,
   info,
-  error,
   dim,
   table,
   bold,
   cyan,
   green,
-  yellow,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
@@ -53,10 +51,6 @@ interface CategoryStat {
 }
 
 // ---------------------------------------------------------------------------
-// API helpers
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Command Registration
 // ---------------------------------------------------------------------------
 
@@ -76,47 +70,39 @@ export function registerAnalyticsCommand(program: Command): void {
     .description('View analytics summary and trends')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
+      let summary: AnalyticsSummary;
       try {
-        let summary: AnalyticsSummary;
-        try {
-          summary = await apiRequest('/api/v1/analytics/summary') as AnalyticsSummary;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(summary, null, 2));
-          return;
-        }
-
-        header('Analytics Summary');
-
-        info(`  ${bold('Analysis Runs:')}    ${cyan(String(summary.analysis_runs))}`);
-        info(`  ${bold('Total Findings:')}   ${cyan(String(summary.total_findings))}`);
-        info(`  ${bold('Resolved:')}         ${green(String(summary.findings_resolved))}`);
-        info(`  ${bold('Resolution Rate:')}  ${green(`${summary.resolution_rate}%`)}`);
-        info(`  ${bold('Avg Health Score:')} ${cyan(String(summary.avg_health_score))}`);
-
-        if (summary.trends.length > 0) {
-          info('');
-          info(bold('  Trends (weekly):'));
-
-          const rows = summary.trends.map(t => [
-            t.date,
-            String(t.findings),
-            String(t.resolved),
-            `${t.health}%`,
-          ]);
-
-          table(['Date', 'Findings', 'Resolved', 'Health'], rows);
-        }
-
-        info(`\n${dim(`Showing ${summary.trends.length} data point(s)`)}`);
+        summary = await apiRequestData<AnalyticsSummary>('/api/v1/analytics/summary');
       } catch (err) {
-        error(`Failed to load analytics summary: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'Load analytics summary' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(summary, null, 2));
+        return;
+      }
+
+      header('Analytics Summary');
+
+      info(`  ${bold('Analysis Runs:')}    ${cyan(String(summary.analysis_runs))}`);
+      info(`  ${bold('Total Findings:')}   ${cyan(String(summary.total_findings))}`);
+      info(`  ${bold('Resolved:')}         ${green(String(summary.findings_resolved))}`);
+      info(`  ${bold('Resolution Rate:')}  ${green(`${summary.resolution_rate}%`)}`);
+      info(`  ${bold('Avg Health Score:')} ${cyan(String(summary.avg_health_score))}`);
+
+      if (summary.trends.length > 0) {
+        console.log('');
+        info(bold('  Trends:'));
+        const rows = summary.trends.map((t) => [
+          t.date,
+          String(t.findings),
+          String(t.resolved),
+          `${t.health}%`,
+        ]);
+        console.log(table(['Date', 'Findings', 'Resolved', 'Health'], rows));
+      }
+
+      info(`\n${dim(`Showing ${summary.trends.length} data point(s)`)}`);
     });
 
   // ── analytics categories ──────────────────────────────────────────────
@@ -125,42 +111,34 @@ export function registerAnalyticsCommand(program: Command): void {
     .description('View top finding categories')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
+      let categories: CategoryStat[];
       try {
-        let categories: CategoryStat[];
-        try {
-          const data = await apiRequest('/api/v1/analytics/top-categories') as { categories: CategoryStat[] };
-          categories = data.categories;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(categories, null, 2));
-          return;
-        }
-
-        header('Top Categories');
-
-        if (categories.length === 0) {
-          info(dim('No category data available.'));
-          return;
-        }
-
-        // Find max name length for alignment
-        const maxName = Math.max(...categories.map(c => c.name.length));
-
-        for (const cat of categories) {
-          const barLength = Math.round(cat.percentage / 2);
-          const bar = '█'.repeat(barLength);
-          const name = cat.name.padEnd(maxName);
-          info(`  ${bold(name)}  ${cyan(bar)} ${dim(`${cat.count} (${cat.percentage}%)`)}`);
-        }
-
-        info(`\n${dim(`${categories.length} categories`)}`);
+        // The server returns the category array directly in `data`.
+        categories = await apiRequestData<CategoryStat[]>('/api/v1/analytics/top-categories');
       } catch (err) {
-        error(`Failed to load categories: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'Load categories' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(categories, null, 2));
+        return;
+      }
+
+      header('Top Categories');
+
+      if (!categories || categories.length === 0) {
+        info(dim('No category data available.'));
+        return;
+      }
+
+      const maxName = Math.max(...categories.map((c) => c.name.length));
+      for (const cat of categories) {
+        const barLength = Math.round(cat.percentage / 2);
+        const bar = '█'.repeat(barLength);
+        const name = cat.name.padEnd(maxName);
+        info(`  ${bold(name)}  ${cyan(bar)} ${dim(`${cat.count} (${cat.percentage}%)`)}`);
+      }
+
+      info(`\n${dim(`${categories.length} categories`)}`);
     });
 }

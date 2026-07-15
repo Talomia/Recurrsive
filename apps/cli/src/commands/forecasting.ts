@@ -4,13 +4,15 @@
  * `recurrsive forecast` — Health predictions and what-if simulations.
  *
  * Provides subcommands for viewing health trend forecasts with
- * confidence bands and running interactive what-if impact analyses.
+ * confidence bands and running what-if impact analyses. All data comes
+ * from the server's `/api/v1/forecasting/*` endpoints — the CLI does not
+ * fabricate scores or fall back to placeholder values.
  *
  * @packageDocumentation
  */
 
 import type { Command } from 'commander';
-import { apiRequest } from '../config.js';
+import { apiRequest, reportApiError } from '../config.js';
 import {
   header,
   info,
@@ -26,56 +28,60 @@ import {
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server's forecasting response shapes)
 // ---------------------------------------------------------------------------
 
-interface HealthForecast {
-  currentHealth: number;
-  predictedHealth: number;
-  trend: 'improving' | 'declining' | 'stable';
-  confidenceLow: number;
-  confidenceHigh: number;
-  margin: number;
-  factors: string[];
-  weekly: { week: string; predicted: number; confidence: string; trend: string }[];
+interface HealthForecastData {
+  status?: 'insufficient_data';
+  message?: string;
+  snapshotsAvailable?: number;
+  currentScore?: number;
+  trend?: 'improving' | 'declining' | 'stable';
+  confidence?: number;
+  history?: Array<{ date: string; score: number }>;
+  forecast?: Array<{
+    date: string;
+    predicted: number;
+    lowerBound: number;
+    upperBound: number;
+  }>;
+  targets?: Array<{ target: number; daysToReach: number | null; reachable: boolean }>;
 }
 
-interface WhatIfAction {
-  id: string;
-  name: string;
-  impact: number;
-  effort: string;
-  confidence: number;
-  category: string;
+interface WhatIfData {
+  status?: 'insufficient_data';
+  message?: string;
+  currentScore?: number;
+  projectedScore?: number;
+  totalImpact?: number;
+  actions?: Array<{
+    type: string;
+    description?: string;
+    impact?: {
+      healthScoreDelta: number;
+      confidence: number;
+      timeToRealize: string;
+      affectedDimensions: string[];
+    };
+  }>;
+  summary?: {
+    highestImpact?: string | null;
+    totalActions?: number;
+    avgConfidence?: number;
+    recommendation?: string;
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatTrend(trend: string): string {
+function formatTrend(trend: string | undefined): string {
   switch (trend) {
     case 'improving': return green('▲ Improving');
     case 'declining': return red('▼ Declining');
-    default:          return yellow('─ Stable');
-  }
-}
-
-function formatTrendArrow(trend: string): string {
-  switch (trend) {
-    case 'improving': return green('▲');
-    case 'declining': return red('▼');
-    default:          return dim('─');
-  }
-}
-
-function effortBadge(effort: string): string {
-  switch (effort) {
-    case 'S':  return green(`[${effort}]`);
-    case 'M':  return cyan(`[${effort}]`);
-    case 'L':  return yellow(`[${effort}]`);
-    case 'XL': return red(`[${effort}]`);
-    default:   return dim(`[${effort}]`);
+    case 'stable':    return yellow('─ Stable');
+    default:          return dim('unknown');
   }
 }
 
@@ -101,12 +107,13 @@ export function registerForecastCommand(program: Command): void {
     .option('--days <n>', 'Forecast horizon in days', '30')
     .action(async (opts: { json?: boolean; days?: string }) => {
       const days = parseInt(opts.days ?? '30', 10);
-      let data: HealthForecast;
+      let data: HealthForecastData;
       try {
-        data = await apiRequest('/api/v1/forecasting') as HealthForecast;
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        data = await apiRequest(
+          `/api/v1/forecasting/health?horizon=${days}`,
+        ).then((env) => (env as { data: HealthForecastData }).data);
+      } catch (err) {
+        reportApiError(err, { action: 'Fetch health forecast' });
       }
 
       if (opts.json) {
@@ -116,84 +123,121 @@ export function registerForecastCommand(program: Command): void {
 
       header(`Health Forecast (${days}-day horizon)`);
 
-      console.log(`  ${bold('Current Health:')}`);
-      console.log(`    ${progressBar(data.currentHealth, 100, 35)}`);
-      console.log('');
-      console.log(`  ${bold('Predicted Health:')}`);
-      console.log(`    ${progressBar(data.predictedHealth, 100, 35)}`);
-      console.log('');
-      console.log(`  ${bold('Trend:')}       ${formatTrend(data.trend)}`);
-      console.log(`  ${bold('Confidence:')}  ${cyan(`${data.confidenceLow}–${data.confidenceHigh}`)} ${dim(`(±${data.margin})`)}`);
-      console.log('');
-
-      header('Key Factors');
-      for (const factor of data.factors) {
-        console.log(`  ${magenta('→')} ${factor}`);
+      // Honest empty state — the server needs >= 2 snapshots to forecast.
+      if (data.status === 'insufficient_data' || data.currentScore === undefined) {
+        info(
+          data.message ??
+            'Not enough analysis history to forecast. Run `recurrsive analyze` at least twice.',
+        );
+        if (typeof data.snapshotsAvailable === 'number') {
+          console.log(dim(`  Snapshots available: ${data.snapshotsAvailable} (need at least 2)`));
+        }
+        console.log('');
+        return;
       }
 
-      header('Weekly Forecast');
-      const rows = data.weekly.map((w) => [
-        bold(w.week),
-        String(w.predicted),
-        dim(w.confidence),
-        formatTrendArrow(w.trend),
-      ]);
-      console.log(table(['Week', 'Predicted Score', 'Confidence', 'Trend'], rows));
+      console.log(`  ${bold('Current Health:')}`);
+      console.log(`    ${progressBar(data.currentScore, 100, 35)}`);
+      console.log('');
+      console.log(`  ${bold('Trend:')}       ${formatTrend(data.trend)}`);
+      if (typeof data.confidence === 'number') {
+        console.log(`  ${bold('Confidence:')}  ${cyan(`${Math.round(data.confidence * 100)}%`)} ${dim('(model fit R²)')}`);
+      }
       console.log('');
 
-      info(dim('Predictions based on historical trend analysis and active opportunity resolution rates.'));
+      const forecast = data.forecast ?? [];
+      if (forecast.length > 0) {
+        header('Projected Scores');
+        const rows = forecast.map((f) => [
+          bold(f.date),
+          String(f.predicted),
+          dim(`${f.lowerBound}–${f.upperBound}`),
+        ]);
+        console.log(table(['Date', 'Predicted', 'Range'], rows));
+        console.log('');
+      }
+
+      const targets = (data.targets ?? []).filter((t) => t.reachable && t.daysToReach !== null);
+      if (targets.length > 0) {
+        header('Time to Target');
+        for (const t of targets) {
+          console.log(`  ${magenta('→')} Reach ${bold(String(t.target))} in ~${t.daysToReach} days`);
+        }
+        console.log('');
+      }
+
+      info(dim('Projections are model estimates from historical analysis snapshots, not guarantees.'));
       console.log('');
     });
 
   // ── forecast what-if ─────────────────────────────────────────────────
   forecast
     .command('what-if')
-    .description('Interactive what-if impact simulation')
+    .description('Simulate the health impact of one or more proposed actions')
+    .argument(
+      '<actions...>',
+      'Action types (e.g. fix-critical-findings add-tests upgrade-dependencies)',
+    )
     .option('--json', 'Output as JSON')
-    .action(async (opts: { json?: boolean }) => {
-      let actions: WhatIfAction[];
-      let body: Record<string, unknown>;
+    .action(async (actions: string[], opts: { json?: boolean }) => {
+      let data: WhatIfData;
       try {
-        body = await apiRequest('/api/v1/forecasting/actions') as Record<string, unknown>;
-        actions = body as unknown as WhatIfAction[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        data = await apiRequest('/api/v1/forecasting/what-if', {
+          method: 'POST',
+          body: JSON.stringify({ actions: actions.map((type) => ({ type })) }),
+        }).then((env) => (env as { data: WhatIfData }).data);
+      } catch (err) {
+        reportApiError(err, { action: 'Run what-if simulation' });
       }
-      const bodyData = body['data'] as Record<string, unknown> | undefined;
-      const currentHealth = (bodyData?.['currentScore'] ?? bodyData?.['currentHealth'] ?? 74) as number;
 
       if (opts.json) {
-        console.log(JSON.stringify({ currentHealth, actions }, null, 2));
+        console.log(JSON.stringify(data, null, 2));
         return;
       }
 
       header('What-If Simulation');
 
-      console.log(`  ${bold('Current Health:')} ${progressBar(currentHealth, 100, 25)}`);
+      if (data.status === 'insufficient_data' || data.currentScore === undefined) {
+        info(
+          data.message ??
+            'Not enough analysis data to simulate impact. Run `recurrsive analyze` first.',
+        );
+        console.log('');
+        return;
+      }
+
+      console.log(`  ${bold('Current Health:')} ${progressBar(data.currentScore, 100, 25)}`);
       console.log('');
 
-      header('Available Actions');
-
-      for (const action of actions) {
-        const impactBar = green('█'.repeat(action.impact)) + dim('░'.repeat(15 - action.impact));
-        console.log(`  ${cyan('▸')} ${bold(action.name)}`);
-        console.log(`    Impact: ${impactBar} ${green(`+${action.impact}`)}  ${effortBadge(action.effort)}  ${dim(`${action.confidence}% confidence`)}`);
-        console.log(`    ${dim(`Category: ${action.category}`)}`);
+      header('Actions');
+      for (const action of data.actions ?? []) {
+        console.log(`  ${cyan('▸')} ${bold(action.description ?? action.type)}`);
+        if (action.impact) {
+          console.log(
+            `    Impact: ${green(`+${action.impact.healthScoreDelta}`)}  ` +
+              `${dim(`${Math.round(action.impact.confidence * 100)}% confidence`)}  ` +
+              `${dim(`realizes in ${action.impact.timeToRealize}`)}`,
+          );
+          if (action.impact.affectedDimensions.length > 0) {
+            console.log(`    ${dim(`Dimensions: ${action.impact.affectedDimensions.join(', ')}`)}`);
+          }
+        }
         console.log('');
       }
 
-      // Cumulative impact summary
-      const totalImpact = actions.reduce((s, a) => s + a.impact, 0);
-      const projected = Math.min(100, currentHealth + totalImpact);
+      if (data.projectedScore !== undefined) {
+        header('Projected Impact');
+        console.log(`  ${bold('If all actions completed:')}`);
+        console.log(`    ${progressBar(data.projectedScore, 100, 35)}`);
+        if (typeof data.totalImpact === 'number') {
+          console.log(`    ${green(`+${data.totalImpact}`)} ${dim('points from current score (estimate)')}`);
+        }
+        console.log('');
+      }
 
-      header('Cumulative Impact');
-      console.log(`  ${bold('If all actions completed:')}`);
-      console.log(`    ${progressBar(projected, 100, 35)}`);
-      console.log(`    ${green(`+${totalImpact}`)} ${dim('points from current score')}`);
-      console.log('');
-
-      info(dim('Run individual actions to refine predictions with real-time data.'));
-      console.log('');
+      if (data.summary?.recommendation) {
+        info(dim(data.summary.recommendation));
+        console.log('');
+      }
     });
 }

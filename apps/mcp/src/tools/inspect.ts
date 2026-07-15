@@ -25,6 +25,37 @@ import { state } from '../state.js';
 // ---------------------------------------------------------------------------
 
 /**
+ * Convert a SQL string using positional `?` placeholders into one using named
+ * `$pN` placeholders, returning the rewritten SQL and a matching params object.
+ *
+ * The graph client's `query()` only supports named (`$key`) bindings — passing
+ * `{ '1': v }` against a `?`-placeholder statement makes better-sqlite3 throw
+ * ("statement uses anonymous parameters"). This bridges the two: each `?` in
+ * order becomes `$p0`, `$p1`, … bound to the corresponding positional value.
+ *
+ * All SQL passed here is internal and contains no `?` inside string literals,
+ * so a straight positional replacement is safe.
+ *
+ * @param sql - SQL with positional `?` placeholders.
+ * @param positional - Values in placeholder order.
+ * @returns The named SQL and its params object.
+ */
+function toNamedBindings(
+  sql: string,
+  positional: unknown[],
+): { sql: string; params: Record<string, unknown> } {
+  let index = 0;
+  const params: Record<string, unknown> = {};
+  const named = sql.replace(/\?/g, () => {
+    const key = `p${index}`;
+    params[key] = positional[index];
+    index += 1;
+    return `$${key}`;
+  });
+  return { sql: named, params };
+}
+
+/**
  * Format a finding into a compact summary string.
  *
  * @param finding - The finding to format.
@@ -353,10 +384,8 @@ export function registerInspectTools(server: McpServer): void {
         // backend (see state.ts:80-82). If AGE support is added to MCP,
         // this must be updated to detect the graph provider dynamically.
         const depQuery = findDependencyTree(source_id, 'sql');
-        const rows = await graph.query(depQuery.sql, {
-          '1': depQuery.params[0],
-          '2': depQuery.params[1],
-        });
+        const bound = toNamedBindings(depQuery.sql, depQuery.params);
+        const rows = await graph.query(bound.sql, bound.params);
 
         // Parse results — rows are entity-shaped records
         const depEntities: Array<{ id: string; name: string; type: string }> = [];
@@ -661,10 +690,8 @@ FROM rev_tree rt
 JOIN entities e ON e.id = rt.entity_id
 ORDER BY rt.depth;`.trim();
 
-        const rows = await graph.query(reverseDepsQuery, {
-          '1': entity_id,
-          '2': entity_id,
-        });
+        const boundReverse = toNamedBindings(reverseDepsQuery, [entity_id, entity_id]);
+        const rows = await graph.query(boundReverse.sql, boundReverse.params);
 
         // Parse dependent entities
         const dependents: Array<{ id: string; name: string; type: string }> = [];

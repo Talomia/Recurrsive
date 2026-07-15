@@ -354,38 +354,26 @@ describe ('Projects endpoints', () => {
 // ===========================================================================
 
 describe ('Forecasting endpoints', () => {
-  it('GET /api/v1/forecasting/health returns prediction data', async () => {
+  it('GET /api/v1/forecasting/health reports insufficient_data with < 2 snapshots', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/health' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
     expect(body).toHaveProperty('generatedAt');
-    expect(body.data).toHaveProperty('currentScore');
-    expect(body.data).toHaveProperty('trend');
-    expect(body.data).toHaveProperty('confidence');
-    expect(body.data).toHaveProperty('forecast');
+    // No real analysis snapshots exist in this test → honest insufficient_data.
+    expect(body.data.status).toBe('insufficient_data');
+    expect(body.data.snapshotsAvailable).toBe(0);
+    expect(body.data).not.toHaveProperty('forecast');
   });
 
-  it ('Prediction has trend, confidence, and forecast fields', async () => {
-    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/health' });
-    const body = res.json();
-    expect(['improving', 'declining', 'stable']).toContain(body.data.trend);
-    expect(typeof body.data.confidence).toBe('number');
-    expect(body.data.confidence).toBeGreaterThanOrEqual(0);
-    expect(body.data.confidence).toBeLessThanOrEqual(1);
-    expect(Array.isArray(body.data.forecast)).toBe(true);
-    expect(body.data.forecast.length).toBeGreaterThan(0);
-  });
-
-  it ('Horizon parameter limits forecast length', async () => {
+  it ('Insufficient-data response carries a helpful message', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/forecasting/health?horizon=7' });
-    expect(res.statusCode).toBe(200);
     const body = res.json();
-    // Forecast should have at most 7 entries (capped to 30 by slice, but horizon=7 generates only 7)
-    expect(body.data.forecast.length).toBeLessThanOrEqual(7);
+    expect(body.data.status).toBe('insufficient_data');
+    expect(typeof body.data.message).toBe('string');
   });
 
-  it ('POST /api/v1/forecasting/what-if returns impact analysis', async () => {
+  it ('POST /api/v1/forecasting/what-if reports not_analyzed without analysis', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
@@ -400,32 +388,8 @@ describe ('Forecasting endpoints', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
-    expect(body.data).toHaveProperty('currentScore');
-    expect(body.data).toHaveProperty('projectedScore');
-    expect(body.data).toHaveProperty('totalImpact');
-    expect(body.data).toHaveProperty('actions');
-    expect(body.data.actions).toHaveLength(2);
-  });
-
-  it ('What-if accepts actions array and returns per-action impact', async () => {
-    const res = await app.inject({
-      headers: authHeaders,
-      method: 'POST',
-      url: '/api/v1/forecasting/what-if',
-      payload: {
-        actions: [
-          { type: 'add-monitoring', description: 'Add APM monitoring' },
-        ],
-      },
-    });
-    const body = res.json();
-    const action = body.data.actions[0];
-    expect(action).toHaveProperty('type');
-    expect(action).toHaveProperty('description');
-    expect(action).toHaveProperty('impact');
-    expect(action.impact).toHaveProperty('healthScoreDelta');
-    expect(action.impact).toHaveProperty('confidence');
-    expect(action.impact).toHaveProperty('timeToRealize');
+    // No analysis cache → what-if cannot be grounded in real findings.
+    expect(body.data.status).toBe('not_analyzed');
   });
 
   it ('POST /api/v1/forecasting/what-if returns 400 without actions', async () => {
@@ -1230,21 +1194,16 @@ describe ('Plugins endpoints', () => {
     expect(Array.isArray(body.data)).toBe(true);
   });
 
-  it ('GET /api/v1/plugins/marketplace returns marketplace listing', async () => {
+  it ('GET /api/v1/plugins/marketplace starts EMPTY (no seeded fake catalog)', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/plugins/marketplace' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty('data');
     expect(body).toHaveProperty('total');
     expect(Array.isArray(body.data)).toBe(true);
-    expect(body.total).toBeGreaterThan(0);
-    // Verify marketplace entry shape
-    const entry = body.data[0];
-    expect(entry).toHaveProperty('name');
-    expect(entry).toHaveProperty('version');
-    expect(entry).toHaveProperty('type');
-    expect(entry).toHaveProperty('downloads');
-    expect(entry).toHaveProperty('rating');
+    // The marketplace store starts empty — no fabricated npm packages.
+    expect(body.total).toBe(0);
+    expect(body.data).toEqual([]);
   });
 
   it ('POST /api/v1/plugins/install/:id installs a plugin', async () => {
@@ -2029,7 +1988,8 @@ describe ('Store-backed login', () => {
     expect(body.data.user.role).toBe('analyst');
   });
 
-  it ('Login still works with demo users in test mode', async () => {
+  it ('Login rejects the removed demo credentials (admin/admin)', async () => {
+    // Demo users have been removed entirely — these credentials must NOT work.
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -2038,11 +1998,7 @@ describe ('Store-backed login', () => {
         password: 'admin',
       },
     });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data).toHaveProperty('token');
-    expect(body.data.user.username).toBe('admin');
-    expect(body.data.user.role).toBe('admin');
+    expect(res.statusCode).toBe(401);
   });
 
   it ('Login fails with wrong password for store-backed user', async () => {
@@ -2235,7 +2191,7 @@ describe ('Password change endpoint', () => {
     expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body.error).toBe('Bad Request');
-    expect(body.message).toContain('at least 6 characters');
+    expect(body.message).toContain('at least 8 characters');
   });
 });
 

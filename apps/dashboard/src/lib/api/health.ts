@@ -4,22 +4,45 @@
  * Health score metrics, performance metrics, and dimension data.
  */
 
-import { apiFetch } from './client';
+import { apiFetch, ApiError } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+/**
+ * Health metrics for the overview dashboard.
+ *
+ * Every field is a MEASURED value from the server — there are no synthesized
+ * trends, invented "new this week" counts, or fabricated tech-debt dollars.
+ * When no analysis has run, `analyzed` is false and the score fields are null
+ * so the UI can render "Not analyzed yet" rather than a misleading 0/100.
+ */
 export interface HealthMetrics {
-  healthScore: number;
-  healthTrend: number;
-  qualityScore: number;
-  qualityTrend: number;
-  opportunities: number;
-  newOpportunities: number;
-  techDebt: number;
-  techDebtTrend: number;
-  aiQualityScore: number;
-  aiQualityTrend: number;
+  /** Whether at least one analysis has been recorded for the active project. */
+  analyzed: boolean;
+  /** Canonical health score (0-100), or null when not analyzed. */
+  healthScore: number | null;
+  /** Code-quality dimension score (0-100), or null when unavailable. */
+  qualityScore: number | null;
+  /** AI-readiness dimension score (0-100), or null when unavailable. */
+  aiQualityScore: number | null;
+  /** Real count of open findings. */
+  findingCount: number;
+  /** Real count of opportunities. */
+  opportunityCount: number;
+  /** ISO timestamp of the last analysis, or null. */
+  analyzedAt: string | null;
 }
+
+/** An empty, not-analyzed HealthMetrics value (no data yet — not an error). */
+export const EMPTY_HEALTH_METRICS: HealthMetrics = {
+  analyzed: false,
+  healthScore: null,
+  qualityScore: null,
+  aiQualityScore: null,
+  findingCount: 0,
+  opportunityCount: 0,
+  analyzedAt: null,
+};
 
 export interface PerformanceMetric {
   label: string;
@@ -51,50 +74,61 @@ export interface HealthDashboardData {
 /**
  * Get health metrics from `GET /api/v1/health-score`.
  *
- * Server returns: `{ overall_health, dimensions, snapshot, finding_count, opportunity_count, analyzed_at }`
- * Dashboard needs: `HealthMetrics` shape with scores and trends.
+ * Server returns the canonical health score plus per-dimension breakdown,
+ * finding/opportunity counts, and `analyzed_at`. When no analysis has run the
+ * server reports `status: 'not_analyzed'` with a null score.
+ *
+ * A "not analyzed" result (200 with null score, or a 503 "not initialized")
+ * is returned as {@link EMPTY_HEALTH_METRICS} — a genuine empty state. Any
+ * other failure (network error, 500) is re-thrown so callers can render a
+ * distinct error state instead of a misleading empty dashboard.
  */
 export async function getHealthMetrics(): Promise<HealthMetrics> {
+  let raw: {
+    overall_health?: number | null;
+    overall?: number | null;
+    status?: string;
+    dimensions?: Record<string, number>;
+    finding_count?: number;
+    opportunity_count?: number;
+    analyzed_at?: string | null;
+  };
+
   try {
-    const raw = await apiFetch<{
-      overall_health: number;
-      dimensions: Record<string, number>;
-      health_trend: number;
-      tech_debt: number;
-      finding_count: number;
-      opportunity_count: number;
-    }>("/api/v1/health-score");
+    raw = await apiFetch("/api/v1/health-score");
+  } catch (err) {
+    // 503 = server has no analysis yet → treat as an honest empty state.
+    if (err instanceof ApiError && err.status === 503) {
+      return { ...EMPTY_HEALTH_METRICS };
+    }
+    // Anything else is a real failure — let the caller show an error state.
+    throw err;
+  }
 
-    const healthTrend = raw.health_trend ?? 0;
-    const codeQuality = raw.dimensions?.code_quality ?? raw.dimensions?.documentation ?? 0;
-    const aiQuality = raw.dimensions?.ai_readiness ?? raw.dimensions?.security ?? 0;
+  const score = raw.overall_health ?? raw.overall ?? null;
+  const analyzed = raw.status !== 'not_analyzed' && score != null && raw.analyzed_at != null;
 
+  if (!analyzed) {
     return {
-      healthScore: raw.overall_health,
-      healthTrend,
-      qualityScore: codeQuality,
-      qualityTrend: healthTrend > 0 ? healthTrend * 0.5 : 0,
-      opportunities: raw.opportunity_count,
-      newOpportunities: Math.min(7, raw.opportunity_count),
-      techDebt: raw.tech_debt ?? raw.finding_count * 3000,
-      techDebtTrend: healthTrend > 0 ? -healthTrend * 2 : 0,
-      aiQualityScore: aiQuality,
-      aiQualityTrend: healthTrend > 0 ? healthTrend * 0.4 : 0,
-    };
-  } catch {
-    return {
-      healthScore: 0,
-      healthTrend: 0,
-      qualityScore: 0,
-      qualityTrend: 0,
-      opportunities: 0,
-      newOpportunities: 0,
-      techDebt: 0,
-      techDebtTrend: 0,
-      aiQualityScore: 0,
-      aiQualityTrend: 0,
+      ...EMPTY_HEALTH_METRICS,
+      // Surface real counts even before a full score is available.
+      findingCount: raw.finding_count ?? 0,
+      opportunityCount: raw.opportunity_count ?? 0,
     };
   }
+
+  const codeQuality = raw.dimensions?.code_quality ?? raw.dimensions?.documentation;
+  const aiQuality = raw.dimensions?.ai_readiness ?? raw.dimensions?.security;
+
+  return {
+    analyzed: true,
+    healthScore: score,
+    qualityScore: codeQuality ?? null,
+    aiQualityScore: aiQuality ?? null,
+    findingCount: raw.finding_count ?? 0,
+    opportunityCount: raw.opportunity_count ?? 0,
+    analyzedAt: raw.analyzed_at ?? null,
+  };
 }
 
 /**

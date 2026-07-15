@@ -3,13 +3,13 @@
  *
  * `recurrsive notifications` — Manage notification channels.
  *
- * Provides subcommands for listing channels, testing notifications,
- * and viewing notification history.
+ * Provides subcommands for listing channels, sending test
+ * notifications, and viewing notification history.
  *
  * @packageDocumentation
  */
 
-import { apiRequest } from '../config.js';
+import { apiRequest, apiRequestList, reportApiError } from '../config.js';
 import type { Command } from 'commander';
 import {
   header,
@@ -18,40 +18,34 @@ import {
   bold,
   cyan,
   green,
-  yellow,
+  red,
   dim,
   table,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server's notification shapes)
 // ---------------------------------------------------------------------------
 
-/** Supported notification channel. */
 type ChannelType = 'console' | 'slack' | 'http';
 
-/** Notification channel configuration. */
-interface NotificationChannel {
-  type: ChannelType;
-  name: string;
-  enabled: boolean;
-  config_required: string[];
+/** Channel configuration info from the server. */
+interface ChannelInfo {
+  channel: ChannelType;
   description: string;
+  configured: boolean;
+  config_hint: string;
 }
 
-/** Notification history entry. */
-interface NotificationEntry {
+/** A record of a sent notification. */
+interface NotificationRecord {
   id: string;
   channel: ChannelType;
-  title: string;
-  severity: string;
+  message: string;
   sent_at: string;
-  status: 'delivered' | 'failed';
+  status: 'sent' | 'failed';
+  error?: string;
 }
-
-// ---------------------------------------------------------------------------
-// API helpers
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Command Registration
@@ -74,43 +68,30 @@ export function registerNotificationsCommand(program: Command): void {
     .description('List available notification channels')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
+      let channels: ChannelInfo[];
       try {
-        let channels: NotificationChannel[];
-        try {
-          const data = await apiRequest('/api/v1/notifications/channels') as { channels: NotificationChannel[] };
-          channels = data.channels;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(channels, null, 2));
-          return;
-        }
-
-        header('Notification Channels');
-
-        const rows = channels.map(ch => [
-          ch.enabled ? green('●') : dim('○'),
-          bold(ch.name),
-          ch.type,
-          ch.description,
-          ch.config_required.length > 0
-            ? dim(ch.config_required.join(', '))
-            : green('none'),
-        ]);
-
-        console.log(table(
-          ['', 'Name', 'Type', 'Description', 'Config Required'],
-          rows,
-        ));
-
-        info(`\n${dim('Use')} ${cyan('recurrsive notifications test <channel>')} ${dim('to send a test notification')}`);
+        channels = (await apiRequestList<ChannelInfo>('/api/v1/notifications/channels')).items;
       } catch (err) {
-        error(`Failed to list channels: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'List notification channels' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(channels, null, 2));
+        return;
+      }
+
+      header('Notification Channels');
+
+      const rows = channels.map((ch) => [
+        ch.configured ? green('●') : dim('○'),
+        bold(ch.channel),
+        ch.description,
+        ch.configured ? green('configured') : dim(ch.config_hint),
+      ]);
+      console.log(table(['', 'Channel', 'Description', 'Status'], rows));
+      info(
+        `\n${dim('Use')} ${cyan('recurrsive notifications test <channel>')} ${dim('to send a test notification')}`,
+      );
     });
 
   // ── notifications test ──────────────────────────────────────────────
@@ -127,32 +108,31 @@ export function registerNotificationsCommand(program: Command): void {
         return;
       }
 
+      let result: { status: string; channel: string; message: string; error?: string };
       try {
-        let result: { status: string; channel: string; message: string };
-        try {
-          const body: Record<string, unknown> = { channel };
-          if (opts.url) {
-            body['config'] = { webhookUrl: opts.url, url: opts.url };
-          }
-          result = await apiRequest('/api/v1/notifications/test', {
-            method: 'POST',
-            body: JSON.stringify(body),
-          }) as typeof result;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
+        const body: Record<string, unknown> = { channel };
+        if (opts.url) {
+          body['config'] = { webhookUrl: opts.url, url: opts.url };
         }
-
-        if (opts.json) {
-          console.log(JSON.stringify(result, null, 2));
-          return;
-        }
-
-        header('Test Notification');
-        header(`Channel: ${bold(channel)}`);
-        info(`${green('✔')} ${result.message}`);
+        const env = (await apiRequest('/api/v1/notifications/test', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        })) as { data?: typeof result } & { status?: string; channel?: string; message?: string };
+        result = (env.data ?? env) as typeof result;
       } catch (err) {
-        error(`Failed to send test notification: ${err instanceof Error ? err.message : String(err)}`);
+        reportApiError(err, { action: 'Send test notification' });
+      }
+
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      header(`Test Notification: ${bold(channel)}`);
+      if (result.status === 'sent') {
+        info(`${green('✔')} ${result.message}`);
+      } else {
+        info(`${red('✗')} Delivery failed${result.error ? `: ${result.error}` : ''}`);
         process.exitCode = 1;
       }
     });
@@ -161,52 +141,37 @@ export function registerNotificationsCommand(program: Command): void {
   notif
     .command('history')
     .description('View recent notification history')
-    .option('--limit <n>', 'Maximum entries to show', '20')
-    .option('--channel <type>', 'Filter by channel type')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { limit: string; channel?: string; json?: boolean }) => {
+    .action(async (opts: { json?: boolean }) => {
+      let entries: NotificationRecord[];
+      let total: number;
       try {
-        let entries: NotificationEntry[];
-        try {
-          const params = new URLSearchParams();
-          params.set('limit', opts.limit);
-          if (opts.channel) params.set('channel', opts.channel);
-          const data = await apiRequest(`/api/v1/notifications/history?${params}`) as { notifications: NotificationEntry[] };
-          entries = data.notifications;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(entries, null, 2));
-          return;
-        }
-
-        header('Notification History');
-
-        if (entries.length === 0) {
-          info(dim('No notifications sent yet.'));
-          return;
-        }
-
-        const rows = entries.map(e => [
-          e.status === 'delivered' ? green('✔') : '\u001b[31m✗\u001b[0m',
-          bold(e.title),
-          e.channel,
-          e.severity,
-          e.sent_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
-        ]);
-
-        console.log(table(
-          ['', 'Title', 'Channel', 'Severity', 'Sent At'],
-          rows,
-        ));
-
-        info(`\n${dim(`Showing ${entries.length} notification(s)`)}`);
+        const res = await apiRequestList<NotificationRecord>('/api/v1/notifications/history');
+        entries = res.items;
+        total = res.total;
       } catch (err) {
-        error(`Failed to retrieve history: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'Retrieve notification history' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(entries, null, 2));
+        return;
+      }
+
+      header('Notification History');
+
+      if (entries.length === 0) {
+        info(dim('No notifications sent yet.'));
+        return;
+      }
+
+      const rows = entries.map((e) => [
+        e.status === 'sent' ? green('✔') : red('✗'),
+        e.channel,
+        e.message,
+        e.sent_at.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
+      ]);
+      console.log(table(['', 'Channel', 'Message', 'Sent At'], rows));
+      info(`\n${dim(`Showing ${entries.length} of ${total} notification(s)`)}`);
     });
 }

@@ -105,7 +105,7 @@ export function registerIntelligenceTools(server: McpServer): void {
     {},
     async () => {
       try {
-        const result = await apiGet<unknown>('/api/v1/simulations/confidence');
+        const result = await apiGet<unknown>('/api/v1/confidence/overview');
 
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],

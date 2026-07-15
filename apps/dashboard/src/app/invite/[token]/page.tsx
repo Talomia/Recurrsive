@@ -23,7 +23,7 @@ interface InviteInfo {
 export default function AcceptInvitePage() {
   const params = useParams();
   const router = useRouter();
-  const { login } = useAuth();
+  const { authenticateWithToken } = useAuth();
   const token = params.token as string;
 
   const [invite, setInvite] = useState<InviteInfo | null>(null);
@@ -65,8 +65,8 @@ export default function AcceptInvitePage() {
       setSubmitError('Passwords do not match');
       return;
     }
-    if (password.length < 6) {
-      setSubmitError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setSubmitError('Password must be at least 8 characters');
       return;
     }
     if (username.length < 3) {
@@ -84,14 +84,13 @@ export default function AcceptInvitePage() {
 
       const newToken = body.data?.token ?? body.token;
 
-      if (newToken) {
-        // Store token and redirect
-        localStorage.setItem('recurrsive_token', newToken);
-        document.cookie = `recurrsive_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''}`;
-        router.push('/');
+      // Adopt the token through the auth context (persists to localStorage +
+      // middleware cookie and updates state) so the new member lands
+      // authenticated on the dashboard instead of being bounced to /login.
+      if (newToken && authenticateWithToken(newToken)) {
+        router.replace('/');
       } else {
-        // Fallback: redirect to login
-        router.push('/login');
+        router.replace('/login');
       }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Network error');
@@ -196,7 +195,7 @@ export default function AcceptInvitePage() {
                     style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}
                     placeholder="Create a password"
                     required
-                    minLength={6}
+                    minLength={8}
                   />
                 </div>
 

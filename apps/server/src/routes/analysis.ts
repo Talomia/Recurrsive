@@ -24,6 +24,8 @@ interface AnalyzeBody {
   gitUrl?: string;
   analyzers?: string[];
   include_reasoning?: boolean;
+  /** Project id to scope this analysis under (defaults to the implicit project). */
+  projectId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,7 +51,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
   app.post<{ Body: AnalyzeBody }>('/api/v1/analyze', {
     preHandler: [authMiddleware, validateBody(ANALYZE_REQUEST_FIELDS)],
   }, async (request, reply) => {
-    const { path: projectPath, gitUrl, analyzers, include_reasoning } = request.body;
+    const { path: projectPath, gitUrl, analyzers, include_reasoning, projectId } = request.body;
 
     if (!projectPath && !gitUrl) {
       return reply.status(400).send({
@@ -145,7 +147,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
     }
 
     // Fire off the analysis asynchronously
-    state.runAnalysis(analyzers, include_reasoning)
+    state.runAnalysis(analyzers, include_reasoning, projectId)
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         logger.error(`Analysis failed: ${message}`);

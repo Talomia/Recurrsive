@@ -11,7 +11,6 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z } from 'zod';
 import { apiGet, apiRequest, apiErrorResult } from '../api.js';
 
 // ---------------------------------------------------------------------------
@@ -27,21 +26,15 @@ export function registerSnapshotTools(server: McpServer): void {
   // ── take_snapshot ────────────────────────────────────────────────
   server.tool(
     'take_snapshot',
-    'Take a snapshot of current project health metrics',
-    {
-      label: z
-        .string()
-        .optional()
-        .describe('Optional label for the snapshot (e.g., "pre-refactor", "v2.1-release")'),
-    },
-    async ({ label }) => {
+    'Take a snapshot of the current project state by exporting the knowledge ' +
+    'graph — all entities and relationships plus summary stats. The result can ' +
+    'be saved and later re-imported. Requires an analysis to have been run on ' +
+    'the server.',
+    {},
+    async () => {
       try {
-        const body: Record<string, string> = {};
-        if (label) body['label'] = label;
-
-        const result = await apiRequest<unknown>('/api/v1/snapshots', {
+        const result = await apiRequest<unknown>('/api/v1/snapshots/export', {
           method: 'POST',
-          body: JSON.stringify(body),
         });
 
         return {
@@ -51,7 +44,7 @@ export function registerSnapshotTools(server: McpServer): void {
           }],
         };
       } catch (error) {
-        return apiErrorResult(error, 'take snapshot');
+        return apiErrorResult(error, 'export snapshot');
       }
     },
   );
@@ -59,20 +52,12 @@ export function registerSnapshotTools(server: McpServer): void {
   // ── get_timeline ─────────────────────────────────────────────────
   server.tool(
     'get_timeline',
-    'Get the project evolution timeline',
-    {
-      limit: z
-        .number()
-        .optional()
-        .describe('Maximum number of timeline entries to return (default 10)'),
-    },
-    async ({ limit }) => {
+    'Get the project evolution timeline — snapshots and derived trend series ' +
+    'recorded across analysis runs on the server.',
+    {},
+    async () => {
       try {
-        const params = new URLSearchParams();
-        if (limit !== undefined) params.set('limit', String(limit));
-        const qs = params.toString();
-
-        const result = await apiGet<unknown>(`/api/v1/snapshots${qs ? `?${qs}` : ''}`);
+        const result = await apiGet<unknown>('/api/v1/timeline');
 
         return {
           content: [{

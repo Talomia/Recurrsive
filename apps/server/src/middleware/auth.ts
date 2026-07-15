@@ -14,11 +14,12 @@
  * @packageDocumentation
  */
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
 import { createLogger } from '@recurrsive/core';
 import type { Role } from './rbac.js';
 import { validateApiKey } from './api-keys.js';
+import { store } from '../store.js';
 
 const logger = createLogger({ context: { component: 'server:middleware:auth' } });
 
@@ -29,17 +30,32 @@ const logger = createLogger({ context: { component: 'server:middleware:auth' } }
 /** Secret used for HMAC-SHA256 signing. Never rotated in dev mode. */
 const JWT_SECRET = process.env['JWT_SECRET'] ?? 'recurrsive-dev-secret';
 
-if (JWT_SECRET === 'recurrsive-dev-secret') {
+/**
+ * Insecure placeholder secrets that must never be used in production. This
+ * includes the dev default and the deployment-template placeholder that
+ * easypanel.json ships with, which forces the operator to set a real secret.
+ */
+const INSECURE_SECRETS = new Set([
+  'recurrsive-dev-secret',
+  'REPLACE_WITH_STRONG_SECRET',
+  'changeme',
+  'secret',
+]);
+
+if (INSECURE_SECRETS.has(JWT_SECRET)) {
   if (process.env['NODE_ENV'] === 'production') {
     logger.error(
-      'CRITICAL: JWT_SECRET is using the default insecure value in production. ' +
-      'Set a strong JWT_SECRET environment variable before deploying.',
+      'CRITICAL: JWT_SECRET is using an insecure placeholder value in production. ' +
+      'Set a strong, unique JWT_SECRET environment variable before deploying.',
     );
     process.exit(1);
   } else {
-    logger.warn('JWT_SECRET is using the default dev-only value. Set JWT_SECRET in production.');
+    logger.warn('JWT_SECRET is using an insecure placeholder value. Set JWT_SECRET in production.');
   }
 }
+
+/** Store table holding revoked JWT ids (jti → expiry unix seconds). */
+const REVOKED_TOKENS_TABLE = 'revoked_tokens';
 
 /** Default token lifetime in seconds (1 hour). */
 const TOKEN_TTL_SECONDS = 3600;
@@ -60,6 +76,8 @@ export interface TokenPayload {
   exp: number;
   /** Optional username (present for local/SSO users, absent for API keys). */
   username?: string;
+  /** Unique token id, used for revocation. */
+  jti: string;
 }
 
 /** Shape of the `user` object decorated onto Fastify requests. */
@@ -128,7 +146,7 @@ export function createToken(userId: string, role: Role, ttlSeconds?: number, use
   const now = Math.floor(Date.now() / 1000);
   const exp = now + (ttlSeconds ?? TOKEN_TTL_SECONDS);
 
-  const tokenPayload: TokenPayload = { sub: userId, role, iat: now, exp };
+  const tokenPayload: TokenPayload = { sub: userId, role, iat: now, exp, jti: randomUUID() };
   if (username) {
     tokenPayload.username = username;
   }
@@ -156,6 +174,18 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 
   const [header, payload, signature] = parts as [string, string, string];
+
+  // Validate the header algorithm BEFORE trusting the signature. Reject any
+  // token that does not explicitly declare HS256 (defends against `alg: none`
+  // and algorithm-confusion attacks).
+  try {
+    const decodedHeader = JSON.parse(base64UrlDecode(header)) as { alg?: unknown; typ?: unknown };
+    if (decodedHeader.alg !== 'HS256') {
+      return null;
+    }
+  } catch {
+    return null;
+  }
 
   // Verify signature
   const expectedSig = sign(`${header}.${payload}`);
@@ -194,6 +224,50 @@ export function verifyToken(token: string): TokenPayload | null {
 }
 
 // ---------------------------------------------------------------------------
+// Token revocation (store-backed)
+// ---------------------------------------------------------------------------
+
+/**
+ * Revoke a token by recording its `jti` (with expiry) in the store. Once
+ * revoked, {@link isTokenRevoked} returns true until the token would have
+ * expired anyway, at which point the record is pruned lazily.
+ *
+ * @param payload - The decoded payload of the token to revoke.
+ */
+export async function revokeToken(payload: TokenPayload): Promise<void> {
+  if (!payload.jti) return;
+  try {
+    await store.set<{ exp: number }>(REVOKED_TOKENS_TABLE, payload.jti, { exp: payload.exp });
+  } catch (err) {
+    logger.warn(`Failed to persist token revocation: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/**
+ * Check whether a token id has been revoked. Expired revocation records are
+ * pruned lazily on read.
+ *
+ * @param jti - The token id to check.
+ * @returns `true` if the token is revoked and still within its lifetime.
+ */
+export async function isTokenRevoked(jti: string | undefined): Promise<boolean> {
+  if (!jti) return false;
+  try {
+    const record = await store.get<{ exp: number }>(REVOKED_TOKENS_TABLE, jti);
+    if (!record) return false;
+    const now = Math.floor(Date.now() / 1000);
+    if (record.exp <= now) {
+      // Already expired — no longer needs to be tracked.
+      await store.delete(REVOKED_TOKENS_TABLE, jti);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Request authentication helpers
 // ---------------------------------------------------------------------------
 
@@ -210,6 +284,10 @@ async function authenticateRequest(request: FastifyRequest): Promise<AuthUser | 
     const token = authHeader.slice(7);
     const payload = verifyToken(token);
     if (payload) {
+      // Reject tokens that have been explicitly revoked (e.g. via logout).
+      if (await isTokenRevoked(payload.jti)) {
+        return null;
+      }
       const user: AuthUser = {
         id: payload.sub,
         role: payload.role,

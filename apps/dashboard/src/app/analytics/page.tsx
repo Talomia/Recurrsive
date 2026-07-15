@@ -155,7 +155,7 @@ interface Insight {
   bg: string;
   title: string;
   description: string;
-  confidence: number;
+  /** A real, derived figure for this insight (count or percentage). */
   trend: string;
 }
 
@@ -186,7 +186,6 @@ function generateInsights(summary: {
       bg: "bg-red-500/10",
       title: `${critical} Critical Finding${critical > 1 ? "s" : ""} Require Attention`,
       description: `Your codebase has ${critical} critical-severity finding${critical > 1 ? "s" : ""} that should be addressed immediately. Critical findings represent active risks to security, reliability, or data integrity.`,
-      confidence: 99,
       trend: `${critical}`,
     });
   }
@@ -198,7 +197,6 @@ function generateInsights(summary: {
       bg: "bg-amber-500/10",
       title: `${high} High-Priority Findings Identified`,
       description: `${high} findings are rated high severity across your analysis. Addressing these alongside critical items will significantly improve overall system health.`,
-      confidence: 95,
       trend: `${high}`,
     });
   }
@@ -225,7 +223,6 @@ function generateInsights(summary: {
       bg: meta.bg,
       title: `${category.charAt(0).toUpperCase() + category.slice(1)}: ${count} Findings (${pct}%)`,
       description: descriptions[category] ?? `${count} findings categorized under ${category}, representing ${pct}% of your total analysis results.`,
-      confidence: Math.min(98, 80 + count),
       trend: `${pct}%`,
     });
   }
@@ -239,7 +236,6 @@ function generateInsights(summary: {
       bg: healthPct > 60 ? "bg-green-500/10" : "bg-amber-500/10",
       title: `${healthPct}% of Findings are Low/Medium Severity`,
       description: `${lowMedium} of ${total} findings are low or medium severity, indicating ${healthPct > 60 ? "a healthy codebase with room for improvement" : "significant attention needed on high-priority items"}.`,
-      confidence: 100,
       trend: `${healthPct}%`,
     });
   }

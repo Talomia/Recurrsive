@@ -70,9 +70,13 @@ export default function Header({ title, subtitle }: HeaderProps) {
   const { status, clientCount } = useWebSocket({ autoConnect: true });
   const { user, logout } = useAuth();
 
+  const activeProjectId = activeProject?.id;
+
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      // Preserve the active project scope across navigation.
+      const scope = activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : "";
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}${scope}`);
     }
   };
 
@@ -237,11 +241,11 @@ export default function Header({ title, subtitle }: HeaderProps) {
       </header>
 
       {/* AI Chat Drawer Panel */}
-      <AiChatPanel open={showAiChat} onClose={() => setShowAiChat(false)} />
+      <AiChatPanel open={showAiChat} onClose={() => setShowAiChat(false)} projectId={activeProjectId} />
 
       {/* Command Palette */}
       {showCommandPalette && (
-        <CommandPalette onClose={() => setShowCommandPalette(false)} />
+        <CommandPalette onClose={() => setShowCommandPalette(false)} activeProjectId={activeProjectId} />
       )}
     </>
   );
@@ -255,7 +259,8 @@ import {
   LayoutDashboard, Brain, HeartPulse, Clock, GitCompare,
   FolderGit2, ShieldAlert, Lightbulb, Network, BarChart3,
   Layers, Calendar, FileText, FlaskConical, Bot, Camera,
-  Users, Shield, History, Key, Eye, Webhook, Package, KeyRound, Building2, Zap
+  Users, Shield, History, Key, Eye, Webhook, Package, KeyRound, Building2, Zap,
+  Target, Boxes, Cloud, Mail, Handshake
 } from 'lucide-react';
 
 interface CommandItem {
@@ -269,9 +274,11 @@ const COMMAND_ITEMS: CommandItem[] = [
   // Intelligence
   { label: 'Overview', href: '/', icon: LayoutDashboard, group: 'Pages' },
   { label: 'Forecasting', href: '/forecasting', icon: Brain, group: 'Pages' },
+  { label: 'Confidence', href: '/confidence', icon: Target, group: 'Pages' },
   { label: 'Health', href: '/health', icon: HeartPulse, group: 'Pages' },
   { label: 'Timeline', href: '/timeline', icon: Clock, group: 'Pages' },
   { label: 'Comparisons', href: '/comparisons', icon: GitCompare, group: 'Pages' },
+  { label: 'Intelligence Packs', href: '/intelligence-packs', icon: Boxes, group: 'Pages' },
   // Analysis
   { label: 'Projects', href: '/projects', icon: FolderGit2, group: 'Pages' },
   { label: 'Findings', href: '/findings', icon: ShieldAlert, group: 'Pages' },
@@ -287,6 +294,7 @@ const COMMAND_ITEMS: CommandItem[] = [
   { label: 'Snapshots', href: '/snapshots', icon: Camera, group: 'Pages' },
   // Administration
   { label: 'Users', href: '/users', icon: Users, group: 'Pages' },
+  { label: 'Invites', href: '/invites', icon: Mail, group: 'Pages' },
   { label: 'Policies', href: '/policies', icon: Shield, group: 'Pages' },
   { label: 'Audit Trail', href: '/audit', icon: History, group: 'Pages' },
   { label: 'Settings', href: '/settings', icon: Settings, group: 'Pages' },
@@ -296,6 +304,8 @@ const COMMAND_ITEMS: CommandItem[] = [
   { label: 'Notifications', href: '/notifications', icon: Bell, group: 'Pages' },
   { label: 'Marketplace', href: '/marketplace', icon: Zap, group: 'Pages' },
   { label: 'Plugins', href: '/plugins', icon: Package, group: 'Pages' },
+  { label: 'Partners', href: '/partners', icon: Handshake, group: 'Pages' },
+  { label: 'Cloud', href: '/cloud', icon: Cloud, group: 'Pages' },
   { label: 'SSO', href: '/sso', icon: KeyRound, group: 'Pages' },
   { label: 'Tenants', href: '/tenants', icon: Building2, group: 'Pages' },
   // Actions
@@ -305,7 +315,7 @@ const COMMAND_ITEMS: CommandItem[] = [
   { label: 'Search Findings', href: '/search', icon: Search, group: 'Actions' },
 ];
 
-function CommandPalette({ onClose }: { onClose: () => void }) {
+function CommandPalette({ onClose, activeProjectId }: { onClose: () => void; activeProjectId?: string }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -329,8 +339,13 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
 
   const handleSelect = useCallback((item: CommandItem) => {
     onClose();
-    router.push(item.href);
-  }, [onClose, router]);
+    // Preserve the active project scope so navigating via the palette doesn't
+    // silently drop the selected project (which would auto-pick the first one).
+    const scope = activeProjectId && item.href !== '/projects'
+      ? `${item.href.includes('?') ? '&' : '?'}projectId=${encodeURIComponent(activeProjectId)}`
+      : '';
+    router.push(`${item.href}${scope}`);
+  }, [onClose, router, activeProjectId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {

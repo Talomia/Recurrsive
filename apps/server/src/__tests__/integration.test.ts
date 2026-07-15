@@ -259,13 +259,17 @@ describe ('Flow: Analysis → Findings → Opportunities → Health → Reports'
 
   it ('5. GET /api/v1/health-score returns health score shape', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/health-score' });
-    // 200 if initialized and cache exists, 404 if no analysis cache yet, 503 if not initialized
-    expect([200, 404, 503]).toContain(res.statusCode);
-    if (res.statusCode === 200) {
-      const body = res.json();
-      expect(body.data).toHaveProperty('overall_health');
+    // Always 200: either analyzed (overall is a number) or not_analyzed (overall null).
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data).toHaveProperty('status');
+    expect(body.data).toHaveProperty('overall_health');
+    expect(body.data).toHaveProperty('dimensions');
+    if (body.data.status === 'analyzed') {
       expect(typeof body.data.overall_health).toBe('number');
-      expect(body.data).toHaveProperty('dimensions');
+    } else {
+      expect(body.data.status).toBe('not_analyzed');
+      expect(body.data.overall_health).toBeNull();
     }
   });
 

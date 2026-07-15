@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useActiveProject } from "./active-project-context";
+import { useAssistant } from "./assistant-context";
 import clsx from "clsx";
 import {
   LayoutDashboard,
@@ -41,6 +42,11 @@ import {
   Calendar,
   Eye,
   Users,
+  Target,
+  Boxes,
+  Cloud,
+  Mail,
+  Handshake,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -68,9 +74,11 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/", label: "Overview", icon: LayoutDashboard },
       { href: "/forecasting", label: "Forecasting", icon: Brain },
+      { href: "/confidence", label: "Confidence", icon: Target },
       { href: "/health", label: "Health", icon: HeartPulse },
       { href: "/timeline", label: "Timeline", icon: Clock },
       { href: "/comparisons", label: "Comparisons", icon: GitCompare },
+      { href: "/intelligence-packs", label: "Intelligence Packs", icon: Boxes },
     ],
   },
   {
@@ -102,6 +110,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Administration",
     items: [
       { href: "/users", label: "Users", icon: Users },
+      { href: "/invites", label: "Invites", icon: Mail },
       { href: "/policies", label: "Policies", icon: Shield },
       { href: "/audit", label: "Audit Trail", icon: History },
       { href: "/settings", label: "Settings", icon: Settings },
@@ -111,6 +120,8 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/notifications", label: "Notifications", icon: Bell },
       { href: "/marketplace", label: "Marketplace", icon: Sparkles },
       { href: "/plugins", label: "Plugins", icon: Package },
+      { href: "/partners", label: "Partners", icon: Handshake },
+      { href: "/cloud", label: "Cloud", icon: Cloud },
       { href: "/sso", label: "SSO", icon: KeyRound, enterprise: true },
       { href: "/tenants", label: "Tenants", icon: Building2, enterprise: true },
     ],
@@ -157,6 +168,7 @@ export default function Sidebar() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(DEFAULT_EXPANDED);
 
   const { projects, activeProject, switchProject } = useActiveProject();
+  const { availability: aiAvailability } = useAssistant();
   const [showProjDropdown, setShowProjDropdown] = useState(false);
   const [projSearchQuery, setProjSearchQuery] = useState("");
   const projDropdownRef = useRef<HTMLDivElement>(null);
@@ -184,7 +196,9 @@ export default function Sidebar() {
     if (isPublic) return;
 
     import("@/lib/api/client").then(({ apiFetch }) => {
-      apiFetch<{ data: unknown[]; total: number }>("/api/v1/opportunities?limit=1")
+      // Read the raw envelope (unwrap:false) so we can use `total` — the true
+      // opportunity count — instead of the length of the 1-item page.
+      apiFetch<{ data: unknown[]; total: number }>("/api/v1/opportunities?limit=1", { unwrap: false })
         .then((res) => setOpportunityCount(res.total ?? 0))
         .catch((err) => {
           if (process.env.NODE_ENV === "development") {
@@ -202,8 +216,12 @@ export default function Sidebar() {
     });
   }, []);
 
-  // Hide sidebar on the login page
-  if (pathname === "/login") return null;
+  // Hide sidebar on public/unauthenticated pages (login, first-run setup,
+  // invite acceptance) — these render their own full-screen layouts.
+  const isPublicPage = ["/login", "/setup", "/invite"].some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
+  if (isPublicPage) return null;
 
   return (
     <>
@@ -446,7 +464,7 @@ export default function Sidebar() {
 
         {/* ── Bottom ─────────────────────────────────────── */}
         <div className="px-3 pb-4 space-y-2">
-          {/* AI Assistant badge */}
+          {/* AI Assistant badge — reflects REAL availability, no fake "Ready" */}
           {!collapsed && (
             <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-accent-purple/10 to-accent-blue/10 border border-purple-500/15 px-3 py-2.5">
               <Bot className="h-[18px] w-[18px] text-purple-400 shrink-0" />
@@ -455,10 +473,23 @@ export default function Sidebar() {
                   Recurrsive AI
                 </p>
                 <p className="text-[10px] text-text-muted truncate">
-                  Ready for analysis
+                  {aiAvailability === "available"
+                    ? "Assistant online"
+                    : aiAvailability === "unavailable"
+                      ? "Set an LLM key to enable"
+                      : "Checking availability…"}
                 </p>
               </div>
-              <span className="h-2 w-2 rounded-full bg-purple-400 shrink-0" />
+              <span
+                className={clsx(
+                  "h-2 w-2 rounded-full shrink-0",
+                  aiAvailability === "available"
+                    ? "bg-green-400"
+                    : aiAvailability === "unavailable"
+                      ? "bg-amber-400"
+                      : "bg-text-muted"
+                )}
+              />
             </div>
           )}
           {collapsed && (

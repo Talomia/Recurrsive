@@ -74,41 +74,6 @@ async function loadLatestSnapshot(
 }
 
 /**
- * Compute a health score from graph stats and opportunities when no
- * snapshot is available (first-run scenario).
- *
- * @param stats - Graph statistics.
- * @param opportunities - Loaded opportunities.
- * @returns An estimated overall health score (0–100).
- */
-function estimateHealthScore(
-  entityCount: number,
-  opportunities: Opportunity[],
-): number {
-  // Base score starts at 50, modified by findings
-  let score = 70;
-
-  const criticalCount = opportunities.filter(
-    (o) => o.severity === 'critical',
-  ).length;
-  const highCount = opportunities.filter(
-    (o) => o.severity === 'high',
-  ).length;
-  const mediumCount = opportunities.filter(
-    (o) => o.severity === 'medium',
-  ).length;
-
-  score -= criticalCount * 10;
-  score -= highCount * 5;
-  score -= mediumCount * 2;
-
-  // Bonus for having entities in the graph (project is scanned)
-  if (entityCount > 0) score += 5;
-
-  return Math.max(0, Math.min(100, score));
-}
-
-/**
  * Format a trend direction with colour.
  *
  * @param trend - The trend direction.
@@ -186,14 +151,18 @@ export function registerHealthCommand(program: Command): void {
         // Ignore — graph may not exist yet
       }
 
-      // Compute health score
-      const healthScore = snapshot
+      // Health score comes ONLY from a real analysis snapshot. When no
+      // snapshot exists, the project has not been analyzed — report that
+      // honestly rather than inventing a score.
+      const healthScore: number | null = snapshot
         ? snapshot.overall_health
-        : estimateHealthScore(entityCount, opportunities);
+        : null;
+      const analyzed = healthScore !== null;
 
       // ── JSON output ────────────────────────────────────────
       if (opts.json) {
         const output = {
+          status: analyzed ? 'analyzed' : 'not_analyzed',
           overall_health: healthScore,
           maturity_scores: snapshot?.maturity_scores ?? [],
           opportunity_count: opportunities.length,
@@ -215,7 +184,14 @@ export function registerHealthCommand(program: Command): void {
       // Big health score
       console.log(`  ${bold('Overall Health Score:')}`);
       console.log('');
-      console.log(`    ${progressBar(healthScore, 100, 40)}`);
+      if (healthScore !== null) {
+        console.log(`    ${progressBar(healthScore, 100, 40)}`);
+      } else {
+        console.log(`    ${yellow('Not analyzed yet')}`);
+        console.log(
+          `    ${dim('Run')} ${cyan(bold('recurrsive analyze'))} ${dim('to generate a health score.')}`,
+        );
+      }
       console.log('');
 
       // Quick stats

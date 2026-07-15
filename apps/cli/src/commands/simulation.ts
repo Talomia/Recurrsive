@@ -3,15 +3,16 @@
  *
  * `recurrsive simulate` — Run and view simulations.
  *
- * Provides subcommands for listing past simulations, starting new
- * ones (traffic-replay, load-test, failure-injection), and viewing
- * detailed results with impact metrics.
+ * Subcommands list simulations, start new ones, and view detailed
+ * results. Impact metrics and findings come from the server's stored
+ * simulation results (derived from real analysis data) — the CLI does
+ * not invent metrics or recommendations.
  *
  * @packageDocumentation
  */
 
 import type { Command } from 'commander';
-import { apiRequest } from '../config.js';
+import { apiRequest, apiRequestList, reportApiError } from '../config.js';
 import {
   header,
   info,
@@ -28,54 +29,67 @@ import {
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server's SimulationScenario shape)
 // ---------------------------------------------------------------------------
 
-interface SimulationEntry {
+interface SimulationResult {
+  impactScore: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  findings: Array<{
+    area: string;
+    impact: string;
+    probability: number;
+    recommendation: string;
+  }>;
+  metrics: {
+    estimatedLatencyChangeMs: number;
+    estimatedErrorRateChange: number;
+    estimatedCostChangePct: number;
+    estimatedAvailabilityChange: number;
+  };
+}
+
+interface SimulationScenario {
   id: string;
+  name: string;
+  description: string;
   type: string;
-  status: 'complete' | 'running' | 'pending' | 'failed';
-  riskLevel: 'HIGH' | 'MEDIUM' | 'LOW';
-  started: string;
-  duration: string;
-}
-
-interface ImpactMetric {
-  metric: string;
-  before: string;
-  after: string;
-  change: number;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  results: SimulationResult | null;
+  createdAt: string;
+  completedAt: string | null;
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants & helpers
 // ---------------------------------------------------------------------------
 
-const VALID_TYPES = ['traffic-replay', 'load-test', 'failure-injection'] as const;
+const VALID_TYPES = [
+  'traffic-replay',
+  'load-test',
+  'failure-injection',
+  'dependency-change',
+  'architecture-change',
+] as const;
 
 function statusBadge(status: string): string {
   switch (status) {
-    case 'complete': return green('● complete');
-    case 'running':  return yellow('● running');
-    case 'pending':  return cyan('● pending');
-    case 'failed':   return red('● failed');
-    default:         return dim('● unknown');
+    case 'completed': return green('● completed');
+    case 'running':   return yellow('● running');
+    case 'pending':   return cyan('● pending');
+    case 'failed':    return red('● failed');
+    default:          return dim(`● ${status}`);
   }
 }
 
-function riskBadge(level: string): string {
+function riskBadge(level: string | undefined): string {
   switch (level) {
-    case 'HIGH':   return red('HIGH');
-    case 'MEDIUM': return yellow('MEDIUM');
-    case 'LOW':    return green('LOW');
-    default:       return dim(level);
+    case 'critical': return red('CRITICAL');
+    case 'high':     return red('HIGH');
+    case 'medium':   return yellow('MEDIUM');
+    case 'low':      return green('LOW');
+    default:         return dim('—');
   }
-}
-
-function changeBadge(change: number): string {
-  if (change > 0) return green(`▲ +${Math.abs(change)}%`);
-  if (change < 0) return red(`▼ -${Math.abs(change)}%`);
-  return dim('─ 0%');
 }
 
 // ---------------------------------------------------------------------------
@@ -98,43 +112,47 @@ export function registerSimulationCommand(program: Command): void {
     .description('List all simulations')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
-      let data: SimulationEntry[];
+      let items: SimulationScenario[];
+      let total: number;
       try {
-        data = await apiRequest('/api/v1/simulations') as SimulationEntry[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        const res = await apiRequestList<SimulationScenario>('/api/v1/simulations');
+        items = res.items;
+        total = res.total;
+      } catch (err) {
+        reportApiError(err, { action: 'List simulations' });
       }
 
       if (opts.json) {
-        console.log(JSON.stringify(data, null, 2));
+        console.log(JSON.stringify(items, null, 2));
         return;
       }
 
       header('Simulations');
 
-      const rows = data.map((s) => [
+      if (items.length === 0) {
+        info(dim('No simulations yet. Start one with `recurrsive simulate run <type>`.'));
+        return;
+      }
+
+      const rows = items.map((s) => [
         bold(s.id),
         cyan(s.type),
         statusBadge(s.status),
-        riskBadge(s.riskLevel),
-        dim(s.started),
-        dim(s.duration),
+        riskBadge(s.results?.riskLevel),
+        dim(s.createdAt),
       ]);
-
-      console.log(table(['ID', 'Type', 'Status', 'Risk', 'Started', 'Duration'], rows));
+      console.log(table(['ID', 'Type', 'Status', 'Risk', 'Created'], rows));
       console.log('');
-      info(dim(`${data.length} simulations`));
+      info(dim(`${total} simulation(s)`));
       console.log('');
     });
 
   // ── simulate run ─────────────────────────────────────────────────────
   simulate
     .command('run <type>')
-    .description('Start a simulation (traffic-replay|load-test|failure-injection)')
+    .description(`Start a simulation (${VALID_TYPES.join('|')})`)
     .option('--name <name>', 'Simulation name')
-    .option('--duration <min>', 'Duration in minutes', '5')
-    .action(async (type: string, opts: { name?: string; duration?: string }) => {
+    .action(async (type: string, opts: { name?: string }) => {
       if (!VALID_TYPES.includes(type as typeof VALID_TYPES[number])) {
         error(`Invalid simulation type: ${bold(type)}`);
         info(`Valid types: ${VALID_TYPES.map((t) => cyan(t)).join(', ')}`);
@@ -146,32 +164,28 @@ export function registerSimulationCommand(program: Command): void {
 
       header('Starting Simulation');
 
-      let sim: { id: string; status: string };
+      let sim: SimulationScenario;
       try {
-        const result = await apiRequest('/api/v1/simulations', {
+        sim = await apiRequest('/api/v1/simulations', {
           method: 'POST',
           body: JSON.stringify({
             name,
             type,
             description: `${type} simulation started from CLI`,
           }),
-        });
-        sim = (result as { data: { id: string; status: string } }).data;
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        }).then((env) => (env as { data: SimulationScenario }).data);
+      } catch (err) {
+        reportApiError(err, { action: 'Start simulation' });
       }
 
-      info(`  ${bold('ID:')}       ${cyan(sim.id)}`);
-      info(`  ${bold('Type:')}     ${cyan(type)}`);
-      info(`  ${bold('Duration:')} ${opts.duration ?? '5'} minutes`);
-      info(`  ${bold('Status:')}   ${statusBadge(sim.status)}`);
-      info(`  ${bold('Started:')}  ${dim(new Date().toISOString())}`);
+      info(`  ${bold('ID:')}      ${cyan(sim.id)}`);
+      info(`  ${bold('Type:')}    ${cyan(sim.type)}`);
+      info(`  ${bold('Status:')}  ${statusBadge(sim.status)}`);
+      info(`  ${bold('Created:')} ${dim(sim.createdAt)}`);
       console.log('');
-
-      success(`Simulation ${bold(sim.id)} started successfully.`);
+      success(`Simulation ${bold(sim.id)} created.`);
       console.log('');
-      info(dim(`  Monitor progress: ${cyan(`recurrsive simulate show ${sim.id}`)}`));
+      info(dim(`View results: ${cyan(`recurrsive simulate show ${sim.id}`)}`));
       console.log('');
     });
 
@@ -181,55 +195,57 @@ export function registerSimulationCommand(program: Command): void {
     .description('Show simulation results')
     .option('--json', 'Output as JSON')
     .action(async (id: string, opts: { json?: boolean }) => {
-      let allSimulations: SimulationEntry[];
+      let sim: SimulationScenario;
       try {
-        allSimulations = await apiRequest('/api/v1/simulations') as SimulationEntry[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
-      }
-      const sim = allSimulations.find((s) => s.id === id) ?? allSimulations[0]!;
-
-      let metrics: ImpactMetric[];
-      try {
-        metrics = await apiRequest(`/api/v1/simulations/${id}/impact`) as ImpactMetric[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        sim = await apiRequest(`/api/v1/simulations/${encodeURIComponent(id)}`).then(
+          (env) => (env as { data: SimulationScenario }).data,
+        );
+      } catch (err) {
+        reportApiError(err, { resource: `simulation '${id}'`, action: 'Get simulation' });
       }
 
       if (opts.json) {
-        console.log(JSON.stringify({ simulation: sim, metrics }, null, 2));
+        console.log(JSON.stringify(sim, null, 2));
         return;
       }
 
       header(`Simulation: ${sim.id}`);
+      info(`  ${bold('Name:')}   ${sim.name}`);
+      info(`  ${bold('Type:')}   ${cyan(sim.type)}`);
+      info(`  ${bold('Status:')} ${statusBadge(sim.status)}`);
 
-      info(`  ${bold('Type:')}     ${cyan(sim.type)}`);
-      info(`  ${bold('Status:')}   ${statusBadge(sim.status)}`);
-      info(`  ${bold('Duration:')} ${dim(sim.duration)}`);
-      info(`  ${bold('Risk:')}     ${riskBadge(sim.riskLevel)}`);
+      if (!sim.results) {
+        console.log('');
+        info(dim('No results available yet.'));
+        console.log('');
+        return;
+      }
 
-      header('Impact Metrics');
+      info(`  ${bold('Risk:')}   ${riskBadge(sim.results.riskLevel)}`);
+      info(`  ${bold('Impact score:')} ${cyan(String(sim.results.impactScore))}`);
 
-      const rows = metrics.map((m) => [
-        bold(m.metric),
-        m.before,
-        m.after,
-        changeBadge(m.change),
-      ]);
+      header('Estimated Impact Metrics');
+      const m = sim.results.metrics;
+      const rows = [
+        ['Latency change', `${m.estimatedLatencyChangeMs} ms`],
+        ['Error rate change', String(m.estimatedErrorRateChange)],
+        ['Cost change', `${m.estimatedCostChangePct}%`],
+        ['Availability change', String(m.estimatedAvailabilityChange)],
+      ];
+      console.log(table(['Metric', 'Estimate'], rows));
 
-      console.log(table(['Metric', 'Before', 'After', 'Change'], rows));
+      if (sim.results.findings.length > 0) {
+        header('Findings & Recommendations');
+        for (const f of sim.results.findings) {
+          console.log(`  ${magenta('→')} ${bold(f.area)}: ${f.impact}`);
+          if (f.recommendation) {
+            console.log(`    ${dim(f.recommendation)} ${dim(`(p=${f.probability})`)}`);
+          }
+        }
+        console.log('');
+      }
 
-      header('Recommendations');
-
-      console.log(`  ${magenta('→')} ${bold('Scale horizontally')} before peak traffic windows`);
-      console.log(`  ${magenta('→')} ${bold('Add circuit breakers')} to downstream service calls`);
-      console.log(`  ${magenta('→')} ${bold('Increase connection pool')} size for database layer`);
-      console.log(`  ${magenta('→')} ${bold('Review retry policies')} to prevent cascading failures`);
-      console.log('');
-
-      info(dim('Run simulations regularly to validate resilience improvements.'));
+      info(dim('Impact metrics are model estimates derived from the project\'s current analysis findings.'));
       console.log('');
     });
 }

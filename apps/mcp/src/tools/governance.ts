@@ -16,7 +16,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import type { Entity, Relationship } from '@recurrsive/core';
+import type { Entity, Relationship, Finding } from '@recurrsive/core';
 import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
 import { state } from '../state.js';
 
@@ -339,9 +339,10 @@ export function registerGovernanceTools(server: McpServer): void {
 
   server.tool(
     'compare_analyses',
-    'Compare findings and opportunities between analysis runs. ' +
-    'Uses the cached analysis results to show what changed since ' +
-    'the last analysis.',
+    'Compare the two most recent analysis runs in this session and report the ' +
+    'drift between them: findings added and resolved (by ID), findings whose ' +
+    'severity changed, and the net change in opportunities. Requires at least ' +
+    'two runs of "analyze_project" in the current session.',
     {},
     async () => {
       try {
@@ -354,8 +355,8 @@ export function registerGovernanceTools(server: McpServer): void {
           };
         }
 
-        const cache = state.getAnalysisCache();
-        if (!cache) {
+        const current = state.getAnalysisCache();
+        if (!current) {
           return {
             content: [{
               type: 'text' as const,
@@ -364,57 +365,83 @@ export function registerGovernanceTools(server: McpServer): void {
           };
         }
 
-        const findings = cache.findings;
-        const opportunities = cache.opportunities;
-
-        // Group findings by severity
-        const bySeverity = new Map<string, number>();
-        for (const f of findings) {
-          const count = bySeverity.get(f.severity) ?? 0;
-          bySeverity.set(f.severity, count + 1);
+        const previous = state.getPreviousAnalysisCache();
+        if (!previous) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: 'Only one analysis run is available in this session, so there is ' +
+                'nothing to compare against. Run "analyze_project" again to produce a ' +
+                'second run, then compare.',
+            }],
+          };
         }
 
-        // Group findings by category
-        const byCategory = new Map<string, number>();
-        for (const f of findings) {
-          const count = byCategory.get(f.category) ?? 0;
-          byCategory.set(f.category, count + 1);
+        // Index findings by a stable key so we can diff add/remove/severity-change.
+        // Finding IDs are content-derived, so identical findings share an ID; a
+        // fingerprint (title + first location) is used as a fallback key.
+        const fingerprint = (f: Finding): string => {
+          const loc = f.locations[0];
+          const locKey = loc ? `${loc.file}:${loc.start_line ?? ''}` : '';
+          return `${f.title}::${locKey}`;
+        };
+
+        const prevByKey = new Map<string, Finding>();
+        for (const f of previous.findings) prevByKey.set(fingerprint(f), f);
+        const currByKey = new Map<string, Finding>();
+        for (const f of current.findings) currByKey.set(fingerprint(f), f);
+
+        const addedFindings: Finding[] = [];
+        const severityChanges: Array<{ title: string; from: string; to: string }> = [];
+        for (const [key, f] of currByKey) {
+          const prior = prevByKey.get(key);
+          if (!prior) {
+            addedFindings.push(f);
+          } else if (prior.severity !== f.severity) {
+            severityChanges.push({ title: f.title, from: prior.severity, to: f.severity });
+          }
         }
 
-        // Group opportunities by type
-        const oppsByType = new Map<string, number>();
-        for (const o of opportunities) {
-          const count = oppsByType.get(o.type) ?? 0;
-          oppsByType.set(o.type, count + 1);
+        const resolvedFindings: Finding[] = [];
+        for (const [key, f] of prevByKey) {
+          if (!currByKey.has(key)) resolvedFindings.push(f);
         }
 
-        // Group opportunities by status
-        const oppsByStatus = new Map<string, number>();
-        for (const o of opportunities) {
-          const count = oppsByStatus.get(o.status) ?? 0;
-          oppsByStatus.set(o.status, count + 1);
-        }
+        const findingDelta = current.findings.length - previous.findings.length;
+        const opportunityDelta = current.opportunities.length - previous.opportunities.length;
 
         const comparison = {
-          analyzed_at: cache.analyzedAt,
-          duration_ms: cache.durationMs,
-          findings: {
-            total: findings.length,
-            by_severity: Object.fromEntries(bySeverity),
-            by_category: Object.fromEntries(byCategory),
+          previous_run: {
+            analyzed_at: previous.analyzedAt,
+            findings: previous.findings.length,
+            opportunities: previous.opportunities.length,
           },
-          opportunities: {
-            total: opportunities.length,
-            by_type: Object.fromEntries(oppsByType),
-            by_status: Object.fromEntries(oppsByStatus),
+          current_run: {
+            analyzed_at: current.analyzedAt,
+            findings: current.findings.length,
+            opportunities: current.opportunities.length,
           },
+          drift: {
+            findings_added: addedFindings.length,
+            findings_resolved: resolvedFindings.length,
+            findings_severity_changed: severityChanges.length,
+            net_finding_change: findingDelta,
+            net_opportunity_change: opportunityDelta,
+          },
+          added_findings: addedFindings.slice(0, 20).map((f) => ({
+            id: f.id, title: f.title, severity: f.severity, category: f.category,
+          })),
+          resolved_findings: resolvedFindings.slice(0, 20).map((f) => ({
+            id: f.id, title: f.title, severity: f.severity, category: f.category,
+          })),
+          severity_changes: severityChanges.slice(0, 20),
           summary: [
-            `Analysis produced ${findings.length} findings and ${opportunities.length} opportunities.`,
-            findings.length > 0
-              ? `Severity breakdown: ${[...bySeverity.entries()].map(([s, c]) => `${s}=${c}`).join(', ')}.`
-              : '',
-            opportunities.length > 0
-              ? `Opportunity types: ${[...oppsByType.entries()].map(([t, c]) => `${t}=${c}`).join(', ')}.`
+            `Compared run at ${previous.analyzedAt} against run at ${current.analyzedAt}.`,
+            addedFindings.length > 0 ? `${addedFindings.length} new finding(s).` : '',
+            resolvedFindings.length > 0 ? `${resolvedFindings.length} finding(s) resolved.` : '',
+            severityChanges.length > 0 ? `${severityChanges.length} severity change(s).` : '',
+            addedFindings.length === 0 && resolvedFindings.length === 0 && severityChanges.length === 0
+              ? 'No finding-level changes detected.'
               : '',
           ].filter(Boolean).join(' '),
         };

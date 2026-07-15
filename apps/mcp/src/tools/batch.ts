@@ -55,7 +55,7 @@ export function registerBatchTools(server: McpServer): void {
           };
         }
 
-        const result = await apiRequest<unknown>('/api/v1/batch', {
+        const result = await apiRequest<unknown>('/api/v1/batch/analyze', {
           method: 'POST',
           body: JSON.stringify({ projects }),
         });
@@ -79,7 +79,7 @@ export function registerBatchTools(server: McpServer): void {
     async ({ batch_id }) => {
       try {
         const result = await apiGet<unknown>(
-          `/api/v1/batch/history/${encodeURIComponent(batch_id)}`,
+          `/api/v1/batch/status/${encodeURIComponent(batch_id)}`,
         );
 
         return {

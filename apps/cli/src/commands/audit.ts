@@ -1,43 +1,60 @@
 /**
  * @module @recurrsive/cli/commands/audit
  *
- * `recurrsive audit` — View and search the audit trail.
+ * `recurrsive audit` — View and filter the audit trail.
  *
- * Provides subcommands for listing, searching, and exporting
- * audit events from the Recurrsive server.
+ * Backed by the server's `GET /api/v1/audit` endpoint, which records
+ * every authenticated request (method, path, status, actor, action
+ * classification). There is no free-text search endpoint; the `filter`
+ * subcommand uses the real query filters the server supports.
  *
  * @packageDocumentation
  */
 
-import { apiRequest } from '../config.js';
+import { apiRequestList, reportApiError } from '../config.js';
 import type { Command } from 'commander';
 import {
   header,
   info,
-  error,
   dim,
   table,
-  yellow,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server's audit event shape)
 // ---------------------------------------------------------------------------
 
-/** Audit event record. */
+/** Audit event record as returned by the server. */
 interface AuditEvent {
   id: string;
-  type: string;
-  action: string;
-  target: string;
   timestamp: string;
-  actor?: string;
-  details?: string;
+  userId?: string;
+  username?: string;
+  role?: string;
+  method: string;
+  url: string;
+  statusCode: number;
+  action: string;
+  resourceType?: string;
+  resourceId?: string;
 }
 
 // ---------------------------------------------------------------------------
-// API helpers
+// Helpers
 // ---------------------------------------------------------------------------
+
+function eventRows(events: AuditEvent[]): string[][] {
+  return events.map((e) => [
+    (e.timestamp ?? '').replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
+    e.action ?? '',
+    e.method ?? '',
+    e.url ?? '',
+    String(e.statusCode ?? ''),
+    e.username ?? e.userId ?? dim('—'),
+  ]);
+}
+
+const COLUMNS = ['Timestamp', 'Action', 'Method', 'Path', 'Status', 'Actor'];
 
 // ---------------------------------------------------------------------------
 // Command Registration
@@ -51,7 +68,7 @@ interface AuditEvent {
 export function registerAuditCommand(program: Command): void {
   const audit = program
     .command('audit')
-    .description('View and search the audit trail');
+    .description('View and filter the audit trail');
 
   // ── audit list ──────────────────────────────────────────────────────
   audit
@@ -60,58 +77,77 @@ export function registerAuditCommand(program: Command): void {
     .option('--limit <n>', 'Maximum events to show', '20')
     .option('--json', 'Output as JSON')
     .action(async (opts: { limit: string; json?: boolean }) => {
+      let events: AuditEvent[];
+      let total: number;
       try {
-        let events: AuditEvent[];
-        try {
-          const data = await apiRequest(`/api/v1/audit?limit=${opts.limit}`) as { events: AuditEvent[] };
-          events = data.events;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        if (opts.json) {
-          console.log(JSON.stringify(events, null, 2));
-          return;
-        }
-
-        header('Audit Trail');
-
-        if (events.length === 0) {
-          info(dim('No audit events recorded yet.'));
-          return;
-        }
-
-        const rows = events.map(e => [
-          e.type,
-          e.action,
-          e.target,
-          e.timestamp.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
-        ]);
-
-        console.log(table(['Type', 'Action', 'Target', 'Timestamp'], rows));
-
-        info(`\n${dim(`Showing ${events.length} event(s)`)}`);
+        const res = await apiRequestList<AuditEvent>(
+          `/api/v1/audit?limit=${encodeURIComponent(opts.limit)}`,
+        );
+        events = res.items;
+        total = res.total;
       } catch (err) {
-        error(`Failed to list audit events: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'List audit events' });
       }
+
+      if (opts.json) {
+        console.log(JSON.stringify(events, null, 2));
+        return;
+      }
+
+      header('Audit Trail');
+
+      if (events.length === 0) {
+        info(dim('No audit events recorded yet.'));
+        return;
+      }
+
+      console.log(table(COLUMNS, eventRows(events)));
+      info(`\n${dim(`Showing ${events.length} of ${total} event(s)`)}`);
     });
 
-  // ── audit search ──────────────────────────────────────────────────────
+  // ── audit filter ────────────────────────────────────────────────────
+  // The server has no keyword search; it filters by structured fields.
   audit
-    .command('search <query>')
-    .description('Search audit events by keyword')
+    .command('filter')
+    .description('Filter audit events by the fields the server supports')
+    .option('--action <action>', 'read | write | delete | auth | admin')
+    .option('--user <userId>', 'Filter by user ID')
+    .option('--method <method>', 'HTTP method (GET, POST, …)')
+    .option('--status <group>', 'Status group: 2xx, 3xx, 4xx, 5xx')
+    .option('--from <iso>', 'Include events on or after this ISO timestamp')
+    .option('--to <iso>', 'Include events on or before this ISO timestamp')
+    .option('--limit <n>', 'Maximum events to show', '50')
     .option('--json', 'Output as JSON')
-    .action(async (query: string, opts: { json?: boolean }) => {
-      try {
+    .action(
+      async (opts: {
+        action?: string;
+        user?: string;
+        method?: string;
+        status?: string;
+        from?: string;
+        to?: string;
+        limit: string;
+        json?: boolean;
+      }) => {
+        const params = new URLSearchParams();
+        if (opts.action) params.set('action', opts.action);
+        if (opts.user) params.set('userId', opts.user);
+        if (opts.method) params.set('method', opts.method);
+        if (opts.status) params.set('status', opts.status);
+        if (opts.from) params.set('from', opts.from);
+        if (opts.to) params.set('to', opts.to);
+        params.set('limit', opts.limit);
+
         let events: AuditEvent[];
+        let total: number;
         try {
-          const data = await apiRequest(`/api/v1/audit/search?q=${encodeURIComponent(query)}`) as { events: AuditEvent[] };
-          events = data.events;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
+          const res = await apiRequestList<AuditEvent>(
+            `/api/v1/audit?${params.toString()}`,
+          );
+          events = res.items;
+          total = res.total;
+        } catch (err) {
+          reportApiError(err, { action: 'Filter audit events' });
         }
 
         if (opts.json) {
@@ -119,55 +155,36 @@ export function registerAuditCommand(program: Command): void {
           return;
         }
 
-        header(`Audit Search: "${query}"`);
+        header('Audit Trail (filtered)');
 
         if (events.length === 0) {
           info(dim('No matching audit events found.'));
           return;
         }
 
-        const rows = events.map(e => [
-          e.type,
-          e.action,
-          e.target,
-          e.timestamp.replace('T', ' ').replace(/\.\d+Z$/, 'Z'),
-        ]);
+        console.log(table(COLUMNS, eventRows(events)));
+        info(`\n${dim(`Showing ${events.length} of ${total} matching event(s)`)}`);
+      },
+    );
 
-        console.log(table(['Type', 'Action', 'Target', 'Timestamp'], rows));
-
-        info(`\n${dim(`Found ${events.length} matching event(s)`)}`);
-      } catch (err) {
-        error(`Failed to search audit events: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
-      }
-    });
-
-  // ── audit export ──────────────────────────────────────────────────────
+  // ── audit export ────────────────────────────────────────────────────
   audit
     .command('export')
-    .description('Export audit log as JSON')
-    .option('--json', 'Output as JSON (default for export)')
+    .description('Export the audit log as JSON')
     .action(async () => {
+      let events: AuditEvent[];
       try {
-        let events: AuditEvent[];
-        try {
-          const data = await apiRequest('/api/v1/audit?limit=1000') as { events: AuditEvent[] };
-          events = data.events;
-        } catch {
-          console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-          process.exit(1);
-        }
-
-        const exportData = {
-          exported_at: new Date().toISOString(),
-          event_count: events.length,
-          events,
-        };
-
-        console.log(JSON.stringify(exportData, null, 2));
+        events = (await apiRequestList<AuditEvent>('/api/v1/audit?limit=1000')).items;
       } catch (err) {
-        error(`Failed to export audit log: ${err instanceof Error ? err.message : String(err)}`);
-        process.exitCode = 1;
+        reportApiError(err, { action: 'Export audit log' });
       }
+
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        event_count: events.length,
+        events,
+      };
+
+      console.log(JSON.stringify(exportData, null, 2));
     });
 }

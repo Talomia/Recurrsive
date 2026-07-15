@@ -44,6 +44,7 @@ export const ANALYZE_REQUEST_FIELDS: FieldSchema[] = [
   { name: 'analyzers', type: 'array', required: false },
   { name: 'include_reasoning', type: 'boolean', required: false },
   { name: 'config', type: 'object', required: false },
+  { name: 'projectId', type: 'string', required: false, minLength: 1 },
 ];
 
 // ---------------------------------------------------------------------------

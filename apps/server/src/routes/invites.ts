@@ -43,6 +43,9 @@ const INVITES_TABLE = 'invites';
 /** Invite expiration period: 7 days in milliseconds. */
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Minimum password length, matching the rest of the server. */
+const MIN_PASSWORD_LENGTH = 8;
+
 // ---------------------------------------------------------------------------
 // Request body types
 // ---------------------------------------------------------------------------
@@ -262,10 +265,10 @@ export async function registerInviteRoutes(app: FastifyInstance): Promise<void> 
       });
     }
 
-    if (password.length < 6) {
+    if (password.length < MIN_PASSWORD_LENGTH) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: 'Password must be at least 6 characters',
+        message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
       });
     }
 

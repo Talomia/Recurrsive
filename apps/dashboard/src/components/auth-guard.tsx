@@ -16,22 +16,33 @@ import { useAuth } from '@/lib/auth-context';
 /** Path prefixes that don't require authentication. */
 const PUBLIC_PREFIXES = ['/login', '/setup', '/invite'];
 
+/**
+ * Public prefixes that an ALREADY-authenticated user has no business staying
+ * on — logging in again or re-running first-run setup — so we bounce them home.
+ * `/invite` is deliberately excluded: a signed-in admin may legitimately open
+ * an invite link (e.g. to inspect it), so we let them through.
+ */
+const AUTHED_REDIRECT_PREFIXES = ['/login', '/setup'];
+
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+  const redirectAuthedAway = AUTHED_REDIRECT_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(p + '/'),
+  );
 
   useEffect(() => {
     if (loading) return;
     if (!user && !isPublic) {
       router.replace('/login');
     }
-    if (user && isPublic) {
+    if (user && redirectAuthedAway) {
       router.replace('/');
     }
-  }, [user, loading, isPublic, router]);
+  }, [user, loading, isPublic, redirectAuthedAway, router]);
 
   // Show nothing while resolving auth state (prevents flash).
   if (loading) {
@@ -48,7 +59,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   // Redirect in progress — render nothing.
   if (!user && !isPublic) return null;
-  if (user && isPublic) return null;
+  if (user && redirectAuthedAway) return null;
 
   return <>{children}</>;
 }

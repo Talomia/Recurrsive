@@ -34,29 +34,37 @@ import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { store } from './store.js';
+import { computeHealthScore } from './health-score.js';
 
 const execFileAsync = promisify(execFile);
 
 const logger = createLogger({ context: { component: 'server:state' } });
 
+/**
+ * Implicit project id used when a caller does not specify one. Enables a
+ * single-project self-host deployment to work without juggling project ids,
+ * while still keeping analysis cache/history keyed by project in the store.
+ */
+export const DEFAULT_PROJECT_ID = 'default';
+
 // ---------------------------------------------------------------------------
 // Persistent history helpers (backed by the KV store → PostgreSQL)
 // ---------------------------------------------------------------------------
 
-/** Load analysis history from the store. Returns [] on any error. */
-async function loadHistory(projectRoot: string): Promise<AnalysisHistoryEntry[]> {
+/** Load analysis history from the store by project id. Returns [] on any error. */
+async function loadHistory(projectId: string): Promise<AnalysisHistoryEntry[]> {
   try {
-    const entries = await store.get<AnalysisHistoryEntry[]>('analysis_history', projectRoot);
+    const entries = await store.get<AnalysisHistoryEntry[]>('analysis_history', projectId);
     return entries ?? [];
   } catch {
     return [];
   }
 }
 
-/** Persist analysis history to the store. */
-async function saveHistory(projectRoot: string, history: AnalysisHistoryEntry[]): Promise<void> {
+/** Persist analysis history to the store, keyed by project id. */
+async function saveHistory(projectId: string, history: AnalysisHistoryEntry[]): Promise<void> {
   try {
-    await store.set('analysis_history', projectRoot, history);
+    await store.set('analysis_history', projectId, history);
   } catch (err) {
     logger.warn(`Failed to persist analysis history: ${err instanceof Error ? err.message : err}`);
   }
@@ -76,6 +84,18 @@ export type AnalysisPhase =
   | 'complete'
   | 'error';
 
+/**
+ * Reasoning-stage outcome. Distinguishes "ran and produced opportunities"
+ * from "skipped because no LLM key" and "attempted but failed", so the API
+ * never silently reports 0 opportunities as if reasoning had run.
+ */
+export interface ReasoningStatus {
+  /** Whether reasoning ran, was skipped, or failed. */
+  status: 'ran' | 'skipped' | 'unavailable' | 'failed';
+  /** Machine-readable reason (e.g. 'no_llm_key', 'no_findings'). */
+  reason?: string;
+}
+
 /** Real-time analysis status for the /api/v1/analysis/status endpoint. */
 export interface AnalysisStatus {
   /** Current pipeline phase. */
@@ -90,6 +110,8 @@ export interface AnalysisStatus {
   completedAt: string | null;
   /** Error message, if phase is 'error'. */
   error: string | null;
+  /** Outcome of the reasoning stage for the most recent run, if any. */
+  reasoning: ReasoningStatus | null;
 }
 
 /** A single record in the analysis history. */
@@ -106,11 +128,13 @@ export interface AnalysisHistoryEntry {
   findingCount: number;
   /** Number of opportunities produced. */
   opportunityCount: number;
-  /** Whether reasoning was included. */
+  /** Whether reasoning actually ran (not merely requested). */
   includeReasoning: boolean;
+  /** Health score computed for this run (null for failed runs). */
+  healthScore: number | null;
   /** Final status. */
-  status: 'success' | 'error';
-  /** Error message if status is 'error'. */
+  status: 'success' | 'failed';
+  /** Error message if status is 'failed'. */
   error: string | null;
 }
 
@@ -126,6 +150,8 @@ export interface AnalysisCache {
   analyzedAt: string;
   /** Duration of the analysis in milliseconds. */
   durationMs: number;
+  /** Outcome of the reasoning stage for this run. */
+  reasoning: ReasoningStatus;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +192,8 @@ export class ServerState {
   private projectPath: string | null = null;
   private projectInfo: ProjectInfo | null = null;
   private analysisCache: AnalysisCache | null = null;
+  /** Project id the in-memory cache/history/opportunities belong to. */
+  private _currentProjectId: string = DEFAULT_PROJECT_ID;
   private _analysisStatus: AnalysisStatus = {
     phase: 'idle',
     progress: 0,
@@ -173,6 +201,7 @@ export class ServerState {
     startedAt: null,
     completedAt: null,
     error: null,
+    reasoning: null,
   };
   private _analysisHistory: AnalysisHistoryEntry[] = [];
   private _analysisLock = false;
@@ -284,14 +313,16 @@ export class ServerState {
       ai_providers: [],
     };
 
-    // Load persisted analysis history
-    this._analysisHistory = await loadHistory(projectPath);
+    // Load persisted analysis history for the default project (a specific
+    // project id, if any, is applied when runAnalysis is invoked).
+    this._currentProjectId = DEFAULT_PROJECT_ID;
+    this._analysisHistory = await loadHistory(DEFAULT_PROJECT_ID);
     if (this._analysisHistory.length > 0) {
       logger.info(`Loaded ${this._analysisHistory.length} historical analysis entries`);
     }
 
     // Restore analysis cache from store (survives restarts)
-    const cachedAnalysis = await store.get<AnalysisCache>('analysis_cache', projectPath);
+    const cachedAnalysis = await store.get<AnalysisCache>('analysis_cache', DEFAULT_PROJECT_ID);
     if (cachedAnalysis) {
       this.analysisCache = cachedAnalysis;
       this.opportunityManager = new OpportunityManager(cachedAnalysis.opportunities);
@@ -377,6 +408,7 @@ export class ServerState {
       startedAt: nowISO(),
       completedAt: null,
       error: null,
+      reasoning: null,
     };
   }
 
@@ -392,6 +424,7 @@ export class ServerState {
       startedAt: this._analysisStatus.startedAt,
       completedAt: nowISO(),
       error: errorMessage,
+      reasoning: this._analysisStatus.reasoning,
     };
   }
 
@@ -408,6 +441,7 @@ export class ServerState {
   async runAnalysis(
     analyzerIds?: string[],
     includeReasoning?: boolean,
+    projectId?: string,
   ): Promise<AnalysisCache> {
     this.assertInitialized();
 
@@ -417,9 +451,18 @@ export class ServerState {
     }
     this._analysisLock = true;
 
+    // Everything this run persists is keyed by this project id. Load that
+    // project's history so appends and read endpoints stay consistent.
+    const activeProjectId = projectId ?? DEFAULT_PROJECT_ID;
+    if (activeProjectId !== this._currentProjectId) {
+      this._analysisHistory = await loadHistory(activeProjectId);
+    }
+    this._currentProjectId = activeProjectId;
+
     const runId = generateId();
     const start = Date.now();
     const startedAt = nowISO();
+    let reasoningStatus: ReasoningStatus = { status: 'skipped', reason: 'not_requested' };
 
     this._analysisStatus = {
       phase: 'collecting',
@@ -428,6 +471,7 @@ export class ServerState {
       startedAt,
       completedAt: null,
       error: null,
+      reasoning: null,
     };
 
     this.broadcast({
@@ -458,6 +502,17 @@ export class ServerState {
       this.updateStatus('collecting', 10, 'Running git collector…');
 
       collector = new GitCollector(this.projectPath!);
+
+      // Preflight: refuse to "succeed" on a non-git / empty directory. A failed
+      // validate() means there is nothing real to analyze — fail honestly
+      // instead of recording a run with 0 findings and health 100.
+      const validation = await collector.validate();
+      if (!validation.valid) {
+        throw new Error(
+          validation.errors[0] ?? `Not a git repository: ${this.projectPath}`,
+        );
+      }
+
       await collector.initialize({
         governance: {
           masked_fields: [],
@@ -725,37 +780,46 @@ export class ServerState {
       let consensus: ConsensusResult | null = null;
       let opportunities: Opportunity[] = [];
 
-      if (includeReasoning && analysisResult.findings.length > 0) {
-        this.updateStatus('reasoning', 70, 'Running reasoning engine…');
+      if (includeReasoning) {
+        const llmKey = process.env['RECURRSIVE_LLM_API_KEY'];
+        if (!llmKey || llmKey.trim().length === 0) {
+          // No key → do NOT invoke the engine and do NOT pretend it ran.
+          reasoningStatus = { status: 'unavailable', reason: 'no_llm_key' };
+          logger.warn('Reasoning requested but RECURRSIVE_LLM_API_KEY is not set — skipping engine.');
+        } else if (analysisResult.findings.length === 0) {
+          reasoningStatus = { status: 'skipped', reason: 'no_findings' };
+        } else {
+          this.updateStatus('reasoning', 70, 'Running reasoning engine…');
+          try {
+            const reasoningConfig = {
+              llm_provider: process.env['RECURRSIVE_LLM_PROVIDER'] ?? 'openai',
+              llm_model: process.env['RECURRSIVE_LLM_MODEL'] ?? 'gpt-4.1-mini',
+              llm_api_key: llmKey,
+              max_debate_rounds: 3,
+              min_consensus_score: 0.6,
+              specialists: [
+                'architecture_engineer' as const,
+                'security_engineer' as const,
+                'performance_engineer' as const,
+                'cost_optimizer' as const,
+              ],
+              temperature: 0.3,
+            };
 
-        try {
-          const reasoningConfig = {
-            llm_provider: process.env['RECURRSIVE_LLM_PROVIDER'] ?? 'openai',
-            llm_model: process.env['RECURRSIVE_LLM_MODEL'] ?? 'gpt-4.1-mini',
-            llm_api_key: process.env['RECURRSIVE_LLM_API_KEY'],
-            max_debate_rounds: 3,
-            min_consensus_score: 0.6,
-            specialists: [
-              'architecture_engineer' as const,
-              'security_engineer' as const,
-              'performance_engineer' as const,
-              'cost_optimizer' as const,
-            ],
-            temperature: 0.3,
-          };
-
-          const engine = new ReasoningEngine(reasoningConfig);
-          consensus = await engine.process(
-            analysisResult.findings,
-            this.graphClient!,
-          );
-          opportunities = consensus.opportunities;
-          logger.info(`Reasoning produced ${opportunities.length} opportunities`);
-        } catch (err) {
-          logger.error(
-            `Reasoning engine failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          // Fall through — we still have raw findings
+            const engine = new ReasoningEngine(reasoningConfig);
+            consensus = await engine.process(
+              analysisResult.findings,
+              this.graphClient!,
+            );
+            opportunities = consensus.opportunities;
+            reasoningStatus = { status: 'ran' };
+            logger.info(`Reasoning produced ${opportunities.length} opportunities`);
+          } catch (err) {
+            const reason = err instanceof Error ? err.message : String(err);
+            reasoningStatus = { status: 'failed', reason };
+            logger.error(`Reasoning engine failed: ${reason}`);
+            // Fall through — we still have raw findings
+          }
         }
       }
 
@@ -768,45 +832,22 @@ export class ServerState {
         consensus,
         analyzedAt: nowISO(),
         durationMs: Date.now() - start,
+        reasoning: reasoningStatus,
       };
       this.analysisCache = cache;
 
-      // Find the matching project in the store using our path-matching logic
-      let matchingProject: any = null;
-      try {
-        const crypto = await import('node:crypto');
-        const projects = await store.all<any>('projects');
-        for (const p of projects) {
-          const isGitUrl = /^https?:\/\//i.test(p.repository) || p.repository.includes('github.com') || p.repository.startsWith('git@');
-          if (isGitUrl) {
-            const hash = crypto.createHash('sha256').update(p.repository).digest('hex').slice(0, 12);
-            const expectedCloneDir = path.join('/tmp/recurrsive-repos', hash);
-            if (this.projectPath === expectedCloneDir || this.projectPath === p.repository) {
-              matchingProject = p;
-              break;
-            }
-          } else {
-            if (this.projectPath === p.repository) {
-              matchingProject = p;
-              break;
-            }
-          }
-        }
-      } catch (err) {
-        logger.warn(`Failed to identify matching project: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      // Persist analysis cache keyed by the explicit project id (survives
+      // restarts). No fragile path-hash guessing — the caller owns the id.
+      await store.set('analysis_cache', activeProjectId, cache);
+      logger.info(`Persisted analysis cache under project id: ${activeProjectId}`);
 
-      // Persist analysis cache to database so it survives restarts
-      await store.set('analysis_cache', this.projectPath!, cache);
-      if (matchingProject) {
-        await store.set('analysis_cache', matchingProject.id, cache);
-        logger.info(`Persisted analysis cache under project ID: ${matchingProject.id}`);
-      }
+      const overall = computeHealthScore(cache.findings, cache.opportunities).overall;
 
       this.updateStatus('complete', 100, 'Analysis complete');
 
       const completedAt = nowISO();
       this._analysisStatus.completedAt = completedAt;
+      this._analysisStatus.reasoning = reasoningStatus;
 
       this._analysisHistory.push({
         id: runId,
@@ -815,7 +856,8 @@ export class ServerState {
         durationMs: cache.durationMs,
         findingCount: cache.findings.length,
         opportunityCount: cache.opportunities.length,
-        includeReasoning: includeReasoning ?? false,
+        includeReasoning: reasoningStatus.status === 'ran',
+        healthScore: overall,
         status: 'success',
         error: null,
       });
@@ -825,15 +867,8 @@ export class ServerState {
         this._analysisHistory = this._analysisHistory.slice(-100);
       }
 
-      // Persist history to disk
-      await saveHistory(this.projectPath!, this._analysisHistory);
-      if (matchingProject) {
-        try {
-          await saveHistory(matchingProject.id, this._analysisHistory);
-        } catch (err) {
-          // ignore if directory doesn't exist
-        }
-      }
+      // Persist history keyed by project id
+      await saveHistory(activeProjectId, this._analysisHistory);
 
       this.broadcast({
         type: 'analysis:complete',
@@ -843,38 +878,25 @@ export class ServerState {
           durationMs: cache.durationMs,
           findingCount: cache.findings.length,
           opportunityCount: cache.opportunities.length,
+          reasoning: reasoningStatus,
         },
       });
 
-      // Update project record(s) in the store with the new health score
-      // so the projects list reflects "Analyzed" status with the real score.
+      // If a project record with this id exists, update its stored health score
+      // so the projects list reflects the real "Analyzed" state.
       try {
-        const { overall } = this.getHealthScore();
-        if (matchingProject) {
-          await store.set('projects', matchingProject.id, {
-            ...matchingProject,
+        const project = await store.get<Record<string, unknown>>('projects', activeProjectId);
+        if (project) {
+          await store.set('projects', activeProjectId, {
+            ...project,
             healthScore: overall,
             lastAnalysis: completedAt,
             updatedAt: completedAt,
           });
-          logger.info(`Updated project ${matchingProject.id} with health score ${overall}`);
-        } else {
-          // Fallback: update all projects to preserve old behavior
-          const projects = await store.all<{ id: string; healthScore: number; lastAnalysis: string | null; updatedAt: string }>('projects');
-          for (const project of projects) {
-            await store.set('projects', project.id, {
-              ...project,
-              healthScore: overall,
-              lastAnalysis: completedAt,
-              updatedAt: completedAt,
-            });
-          }
-          if (projects.length > 0) {
-            logger.info(`Fallback: Updated ${projects.length} project(s) with health score ${overall}`);
-          }
+          logger.info(`Updated project ${activeProjectId} with health score ${overall}`);
         }
       } catch (err) {
-        logger.warn(`Failed to update project records after analysis: ${err instanceof Error ? err.message : String(err)}`);
+        logger.warn(`Failed to update project record after analysis: ${err instanceof Error ? err.message : String(err)}`);
       }
 
       return cache;
@@ -887,6 +909,7 @@ export class ServerState {
         startedAt,
         completedAt: nowISO(),
         error: errorMessage,
+        reasoning: reasoningStatus.status === 'skipped' ? null : reasoningStatus,
       };
 
       this._analysisHistory.push({
@@ -896,8 +919,9 @@ export class ServerState {
         durationMs: Date.now() - start,
         findingCount: 0,
         opportunityCount: 0,
-        includeReasoning: includeReasoning ?? false,
-        status: 'error',
+        includeReasoning: reasoningStatus.status === 'ran',
+        healthScore: null,
+        status: 'failed',
         error: errorMessage,
       });
 
@@ -906,8 +930,8 @@ export class ServerState {
         this._analysisHistory = this._analysisHistory.slice(-100);
       }
 
-      // Persist history to disk
-      await saveHistory(this.projectPath!, this._analysisHistory);
+      // Persist history keyed by project id
+      await saveHistory(activeProjectId, this._analysisHistory);
       this.broadcast({
         type: 'analysis:error',
         timestamp: nowISO(),
@@ -1025,96 +1049,111 @@ export class ServerState {
       return this._evolutionTimeline;
     }
 
-    // Build a basic timeline from analysis cache
+    // Build a basic timeline from analysis cache. With no analysis, there are
+    // NO snapshots — we do not fabricate a synthetic point with a stand-in score.
     const cache = this.analysisCache;
-    const now = nowISO();
+    if (!cache) {
+      return {
+        project_id: this._currentProjectId,
+        snapshots: [],
+        trends: [],
+      };
+    }
 
     const snapshot: EvolutionSnapshot = {
       id: generateId(),
-      timestamp: now,
+      timestamp: nowISO(),
       maturity_scores: [],
-      overall_health: cache ? Math.max(0, 100 - cache.findings.length * 2) : 50,
-      opportunity_count: cache?.opportunities.length ?? 0,
-      debt_count: cache?.opportunities.filter((o) => o.type === 'debt').length ?? 0,
-      risk_count: cache?.opportunities.filter((o) => o.type === 'risk').length ?? 0,
-      top_opportunities: cache?.opportunities.slice(0, 5).map((o) => o.id) ?? [],
+      overall_health: computeHealthScore(cache.findings, cache.opportunities).overall,
+      opportunity_count: cache.opportunities.length,
+      debt_count: cache.opportunities.filter((o) => o.type === 'debt').length,
+      risk_count: cache.opportunities.filter((o) => o.type === 'risk').length,
+      top_opportunities: cache.opportunities.slice(0, 5).map((o) => o.id),
       changes_since_last: {
-        new_opportunities: cache?.opportunities.length ?? 0,
+        new_opportunities: cache.opportunities.length,
         resolved_opportunities: 0,
-        new_risks: cache?.opportunities.filter((o) => o.type === 'risk').length ?? 0,
+        new_risks: cache.opportunities.filter((o) => o.type === 'risk').length,
         resolved_risks: 0,
         maturity_changes: [],
       },
     };
 
     return {
-      project_id: this.projectPath ?? 'unknown',
+      project_id: this._currentProjectId,
       snapshots: [snapshot],
       trends: [],
     };
   }
 
   /**
-   * Compute the project health score from analysis data.
+   * Compute the project health score from the in-memory analysis cache.
    *
-   * @returns Health score (0–100) and maturity dimension scores.
+   * Delegates to the canonical {@link computeHealthScore}. Returns an explicit
+   * `not_analyzed` sentinel (overall `null`) when no analysis has run — NEVER
+   * a fabricated stand-in like 50/70/0/100.
+   *
+   * @returns Overall score (or null), dimensions, and analyzed/not-analyzed status.
    */
-  getHealthScore(): { overall: number; dimensions: MaturityScore[] } {
+  getHealthScore(): { overall: number | null; dimensions: MaturityScore[]; status: 'analyzed' | 'not_analyzed' } {
     const cache = this.analysisCache;
     if (!cache) {
-      return { overall: 50, dimensions: [] };
+      return { overall: null, dimensions: [], status: 'not_analyzed' };
     }
+    const result = computeHealthScore(cache.findings, cache.opportunities);
+    return { overall: result.overall, dimensions: result.dimensions, status: 'analyzed' };
+  }
 
-    // Derive a health score from findings using weighted severity.
-    // Uses diminishing-returns formula so many low-severity findings
-    // don't immediately zero out the score.
-    const severityWeight: Record<string, number> = {
-      critical: 10,
-      high: 5,
-      medium: 2,
-      low: 0.5,
-      info: 0,
-    };
+  /** Project id the in-memory state currently represents. */
+  getCurrentProjectId(): string {
+    return this._currentProjectId;
+  }
 
-    let weightedCount = 0;
-    for (const finding of cache.findings) {
-      weightedCount += severityWeight[finding.severity] ?? 0;
+  /**
+   * Load the persisted analysis cache for a project id. Returns the in-memory
+   * cache when it belongs to the requested project, otherwise reads the store.
+   * Returns null when that project has no analysis (never another project's data).
+   *
+   * @param projectId - Project id, or undefined for the default project.
+   */
+  async loadCacheForProject(projectId?: string): Promise<AnalysisCache | null> {
+    const id = projectId ?? DEFAULT_PROJECT_ID;
+    if (this.analysisCache && id === this._currentProjectId) {
+      return this.analysisCache;
     }
-
-    // Exponential decay: score = 100 * e^(-weightedCount / 200)
-    // This gives graceful degradation:
-    //   0 findings → 100, 50 low → ~88, 140 low → ~70,
-    //   10 critical → ~61, 20 critical → ~37
-    const overall = Math.round(100 * Math.exp(-weightedCount / 200));
-
-    // Group findings by category to derive dimension scores
-    const categoryFindings = new Map<string, number>();
-    for (const finding of cache.findings) {
-      const count = categoryFindings.get(finding.category) ?? 0;
-      categoryFindings.set(finding.category, count + 1);
+    try {
+      return (await store.get<AnalysisCache>('analysis_cache', id)) ?? null;
+    } catch {
+      return null;
     }
+  }
 
-    const dimensions: MaturityScore[] = [
-      'architecture',
-      'security',
-      'reliability',
-      'data',
-      'documentation',
-      'testing',
-    ].map((dim) => {
-      const count = categoryFindings.get(dim) ?? 0;
-      const score = Math.round(100 * Math.exp(-count / 10));
-      return {
-        dimension: dim as MaturityScore['dimension'],
-        level: score >= 80 ? 'optimizing' : score >= 60 ? 'managed' : score >= 40 ? 'defined' : score >= 20 ? 'developing' : 'initial',
-        score,
-        trend: 'stable' as const,
-        evidence: [`${count} findings in ${dim} category`],
-        recommendations: count > 0 ? [`Address ${count} ${dim} findings`] : [],
-      };
-    });
+  /**
+   * Load the persisted analysis history for a project id.
+   *
+   * @param projectId - Project id, or undefined for the default project.
+   */
+  async loadHistoryForProject(projectId?: string): Promise<AnalysisHistoryEntry[]> {
+    const id = projectId ?? DEFAULT_PROJECT_ID;
+    if (id === this._currentProjectId) {
+      return [...this._analysisHistory];
+    }
+    return loadHistory(id);
+  }
 
-    return { overall, dimensions };
+  /**
+   * Return an OpportunityManager scoped to a project. Uses the live manager
+   * (including in-session status changes) for the current project, otherwise
+   * builds a manager from that project's persisted opportunities.
+   *
+   * @param projectId - Project id, or undefined for the default project.
+   */
+  async loadOpportunitiesForProject(projectId?: string): Promise<OpportunityManager> {
+    const id = projectId ?? DEFAULT_PROJECT_ID;
+    if (id === this._currentProjectId) {
+      return this.opportunityManager;
+    }
+    const cache = await this.loadCacheForProject(id);
+    return new OpportunityManager(cache?.opportunities ?? []);
   }
 
   /**
@@ -1138,6 +1177,7 @@ export class ServerState {
     this.projectPath = null;
     this.projectInfo = null;
     this.analysisCache = null;
+    this._currentProjectId = DEFAULT_PROJECT_ID;
     this._analysisStatus = {
       phase: 'idle',
       progress: 0,
@@ -1145,6 +1185,7 @@ export class ServerState {
       startedAt: null,
       completedAt: null,
       error: null,
+      reasoning: null,
     };
     this._analysisHistory = [];
     this._analysisLock = false;

@@ -3,15 +3,15 @@
  *
  * `recurrsive plugins` — Manage and discover plugins.
  *
- * Provides subcommands for listing installed plugins, browsing
- * the marketplace, installing/uninstalling plugins, and viewing
- * detailed plugin information.
+ * All actions are backed by the server's `/api/v1/plugins/*` endpoints.
+ * The CLI reports exactly what the server returns — no placeholder
+ * versions, authors, or dependency lists.
  *
  * @packageDocumentation
  */
 
 import type { Command } from 'commander';
-import { apiRequest } from '../config.js';
+import { apiRequest, apiRequestList, reportApiError } from '../config.js';
 import {
   header,
   info,
@@ -22,30 +22,38 @@ import {
   green,
   yellow,
   red,
-  magenta,
   table,
 } from '../output/terminal.js';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match the server response shapes)
 // ---------------------------------------------------------------------------
 
 interface InstalledPlugin {
   id: string;
   name: string;
   version: string;
-  status: 'active' | 'inactive' | 'error';
+  description: string;
   author: string;
-  updated: string;
+  license: string;
+  type: string;
+  status: 'installed' | 'enabled' | 'disabled' | 'error' | 'updating';
+  installedAt: string;
+  updatedAt: string;
+  tags: string[];
 }
 
-interface MarketplacePlugin {
+interface MarketplaceEntry {
   id: string;
   name: string;
+  version: string;
   description: string;
+  author: string;
+  type: string;
+  tags: string[];
   downloads: number;
   rating: number;
-  price: string;
+  verified: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,17 +62,19 @@ interface MarketplacePlugin {
 
 function statusBadge(status: string): string {
   switch (status) {
-    case 'active':   return green('● active');
-    case 'inactive': return yellow('● inactive');
-    case 'error':    return red('● error');
-    default:         return dim('● unknown');
+    case 'enabled':   return green('● enabled');
+    case 'installed': return cyan('● installed');
+    case 'disabled':  return yellow('● disabled');
+    case 'updating':  return cyan('● updating');
+    case 'error':     return red('● error');
+    default:          return dim(`● ${status}`);
   }
 }
 
 function starRating(rating: number): string {
   const full = Math.floor(rating);
   const half = rating - full >= 0.5 ? 1 : 0;
-  const empty = 5 - full - half;
+  const empty = Math.max(0, 5 - full - half);
   return yellow('★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty));
 }
 
@@ -88,32 +98,38 @@ export function registerPluginsCommand(program: Command): void {
     .description('List installed plugins')
     .option('--json', 'Output as JSON')
     .action(async (opts: { json?: boolean }) => {
-      let data: InstalledPlugin[];
+      let items: InstalledPlugin[];
+      let total: number;
       try {
-        data = await apiRequest('/api/v1/plugins/installed') as InstalledPlugin[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
+        const res = await apiRequestList<InstalledPlugin>('/api/v1/plugins/installed');
+        items = res.items;
+        total = res.total;
+      } catch (err) {
+        reportApiError(err, { action: 'List installed plugins' });
       }
 
       if (opts.json) {
-        console.log(JSON.stringify(data, null, 2));
+        console.log(JSON.stringify(items, null, 2));
         return;
       }
 
       header('Installed Plugins');
 
-      const rows = data.map((p) => [
+      if (items.length === 0) {
+        info(dim('No plugins installed. Browse `recurrsive plugins marketplace`.'));
+        return;
+      }
+
+      const rows = items.map((p) => [
         bold(p.name),
         cyan(p.version),
         statusBadge(p.status),
         dim(p.author),
-        dim(p.updated),
+        dim(p.updatedAt),
       ]);
-
       console.log(table(['Name', 'Version', 'Status', 'Author', 'Updated'], rows));
       console.log('');
-      info(dim(`${data.length} plugins installed`));
+      info(dim(`${total} plugin(s) installed`));
       console.log('');
     });
 
@@ -122,61 +138,65 @@ export function registerPluginsCommand(program: Command): void {
     .command('marketplace')
     .description('Browse available plugins')
     .option('--json', 'Output as JSON')
-    .option('--search <query>', 'Filter plugins by name')
+    .option('--search <query>', 'Filter plugins by name/description/tag')
     .action(async (opts: { json?: boolean; search?: string }) => {
-      let data: MarketplacePlugin[];
+      const qs = opts.search ? `?search=${encodeURIComponent(opts.search)}` : '';
+      let items: MarketplaceEntry[];
+      let total: number;
       try {
-        data = await apiRequest('/api/v1/marketplace/plugins') as MarketplacePlugin[];
-      } catch {
-        console.error(yellow('⚠ Could not reach API server. Ensure the server is running.'));
-        process.exit(1);
-      }
-
-      if (opts.search) {
-        const q = opts.search.toLowerCase();
-        data = data.filter((p) => p.name.includes(q) || p.description.toLowerCase().includes(q));
+        const res = await apiRequestList<MarketplaceEntry>(
+          `/api/v1/plugins/marketplace${qs}`,
+        );
+        items = res.items;
+        total = res.total;
+      } catch (err) {
+        reportApiError(err, { action: 'Browse marketplace' });
       }
 
       if (opts.json) {
-        console.log(JSON.stringify(data, null, 2));
+        console.log(JSON.stringify(items, null, 2));
         return;
       }
 
       header('Plugin Marketplace');
 
-      if (data.length === 0) {
+      if (items.length === 0) {
         info(dim('No plugins match your search.'));
         return;
       }
 
-      const rows = data.map((p) => [
+      const rows = items.map((p) => [
         bold(p.name),
         p.description,
         cyan(p.downloads.toLocaleString()),
         starRating(p.rating),
-        p.price === 'Free' ? green(p.price) : yellow(p.price),
+        p.verified ? green('verified') : dim('community'),
       ]);
-
-      console.log(table(['Name', 'Description', 'Downloads', 'Rating', 'Price'], rows));
+      console.log(table(['Name', 'Description', 'Downloads', 'Rating', 'Source'], rows));
       console.log('');
-      info(dim(`${data.length} plugins available`));
+      info(dim(`${total} plugin(s) available`));
       console.log('');
     });
 
   // ── plugins install ──────────────────────────────────────────────────
   plugins
     .command('install <id>')
-    .description('Install a plugin')
-    .action((id: string) => {
+    .description('Install a plugin from the marketplace')
+    .action(async (id: string) => {
       header('Installing Plugin');
 
-      info(`  Resolving ${bold(cyan(id))}...`);
-      info(`  Downloading ${bold('v1.0.0')}...`);
+      let plugin: InstalledPlugin;
+      try {
+        plugin = await apiRequest(`/api/v1/plugins/install/${encodeURIComponent(id)}`, {
+          method: 'POST',
+        }).then((env) => (env as { data: InstalledPlugin }).data);
+      } catch (err) {
+        reportApiError(err, { resource: `plugin '${id}'`, action: 'Install plugin' });
+      }
+
+      success(`Installed ${bold(plugin.name)} ${cyan(`v${plugin.version}`)} (${plugin.status})`);
       console.log('');
-      success(`Plugin ${bold(id)} installed successfully (v1.0.0)`);
-      console.log('');
-      info(dim('  Configuration may be required. Run:'));
-      info(dim(`  ${cyan(`recurrsive plugins info ${id}`)} to see options.`));
+      info(dim(`Run ${cyan(`recurrsive plugins info ${plugin.id}`)} to see details.`));
       console.log('');
     });
 
@@ -184,12 +204,18 @@ export function registerPluginsCommand(program: Command): void {
   plugins
     .command('uninstall <id>')
     .description('Uninstall a plugin')
-    .action((id: string) => {
+    .action(async (id: string) => {
       header('Uninstalling Plugin');
 
-      info(`  Removing ${bold(cyan(id))}...`);
-      console.log('');
-      success(`Plugin ${bold(id)} uninstalled successfully.`);
+      try {
+        await apiRequest(`/api/v1/plugins/installed/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        });
+      } catch (err) {
+        reportApiError(err, { resource: `plugin '${id}'`, action: 'Uninstall plugin' });
+      }
+
+      success(`Plugin ${bold(id)} uninstalled.`);
       console.log('');
     });
 
@@ -197,24 +223,46 @@ export function registerPluginsCommand(program: Command): void {
   plugins
     .command('info <id>')
     .description('Show detailed plugin information')
-    .action((id: string) => {
-      header(`Plugin: ${id}`);
+    .option('--json', 'Output as JSON')
+    .action(async (id: string, opts: { json?: boolean }) => {
+      // Prefer the installed record; fall back to the marketplace entry.
+      let plugin: InstalledPlugin | MarketplaceEntry | undefined;
+      let installed = false;
+      try {
+        plugin = await apiRequest(
+          `/api/v1/plugins/installed/${encodeURIComponent(id)}`,
+        ).then((env) => (env as { data: InstalledPlugin }).data);
+        installed = true;
+      } catch {
+        try {
+          plugin = await apiRequest(
+            `/api/v1/plugins/marketplace/${encodeURIComponent(id)}`,
+          ).then((env) => (env as { data: MarketplaceEntry }).data);
+        } catch (err) {
+          reportApiError(err, { resource: `plugin '${id}'`, action: 'Get plugin info' });
+        }
+      }
 
-      info(`  ${bold('Name:')}        ${cyan(id)}`);
-      info(`  ${bold('Version:')}     ${cyan('2.4.1')}`);
-      info(`  ${bold('Author:')}      Recurrsive`);
-      info(`  ${bold('License:')}     MIT`);
-      info(`  ${bold('Description:')} Advanced analysis plugin for the Recurrsive platform.`);
-      console.log('');
+      if (opts.json) {
+        console.log(JSON.stringify(plugin, null, 2));
+        return;
+      }
 
-      header('Dependencies');
-      info(`  ${magenta('◈')} ${bold('@recurrsive/core')}  ${dim('>=4.0.0')}`);
-      info(`  ${magenta('◈')} ${bold('@recurrsive/graph')} ${dim('>=2.0.0')}`);
-
-      header('Configuration');
-      info(`  ${bold('enabled')}           ${green('true')}         ${dim('Enable/disable the plugin')}`);
-      info(`  ${bold('scan_interval')}     ${cyan('"6h"')}         ${dim('How often to run scans')}`);
-      info(`  ${bold('severity_threshold')} ${yellow('"medium"')}     ${dim('Minimum severity to report')}`);
+      header(`Plugin: ${plugin!.name}`);
+      info(`  ${bold('ID:')}          ${cyan(plugin!.id)}`);
+      info(`  ${bold('Name:')}        ${cyan(plugin!.name)}`);
+      info(`  ${bold('Version:')}     ${cyan(plugin!.version)}`);
+      info(`  ${bold('Author:')}      ${plugin!.author}`);
+      info(`  ${bold('Type:')}        ${plugin!.type}`);
+      info(`  ${bold('Description:')} ${plugin!.description}`);
+      if (installed && 'status' in plugin!) {
+        info(`  ${bold('Status:')}      ${statusBadge(plugin.status)}`);
+      } else if ('verified' in plugin!) {
+        info(`  ${bold('Verified:')}    ${plugin.verified ? green('yes') : dim('no')}`);
+      }
+      if (plugin!.tags?.length) {
+        info(`  ${bold('Tags:')}        ${dim(plugin!.tags.join(', '))}`);
+      }
       console.log('');
     });
 }

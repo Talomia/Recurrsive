@@ -204,7 +204,7 @@ async function executeScheduledRun(schedule: ScheduledReport): Promise<ReportRun
       opportunities,
       format as 'html' | 'markdown' | 'json' | 'sarif',
       {
-        healthScore: healthScore.overall,
+        healthScore: healthScore.overall ?? undefined,
         title: schedule.name,
         includeActionItems: schedule.includeExecutiveSummary,
       },
