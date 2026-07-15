@@ -262,11 +262,21 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+            <p
+              style={{
+                textAlign: 'center',
+                fontSize: '0.78rem',
+                color: 'var(--text-tertiary)',
+                marginTop: 'var(--space-sm)',
+              }}
+            >
+              Illustrative example — numbers shown are a mock-up of the CLI output, not live data.
+            </p>
           </div>
         </div>
       </section>
 
-      {/* ──────────── SOCIAL PROOF / STATS ──────────── */}
+      {/* ──────────── STATS ──────────── */}
       <section className="section-sm">
         <div className="container">
           <div className="divider-gradient" />
@@ -281,7 +291,7 @@ export default function HomePage() {
               { value: '160+', label: 'API Endpoints', icon: Globe },
               { value: '42', label: 'MCP Tools', icon: Puzzle },
               { value: '13', label: 'Analyzers', icon: Search },
-              { value: '25', label: 'CLI Commands', icon: Terminal },
+              { value: '28', label: 'CLI Commands', icon: Terminal },
             ].map((stat, i) => (
               <div
                 key={stat.label}

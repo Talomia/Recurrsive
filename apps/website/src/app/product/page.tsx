@@ -64,13 +64,13 @@ const ANALYZERS = [
   { name: 'Cost', desc: 'Infrastructure waste, over-provisioning, idle resources', icon: DollarSign },
   { name: 'Data', desc: 'Schema drift, missing indexes, query optimization', icon: Database },
   { name: 'Documentation', desc: 'Coverage gaps, stale docs, missing API docs', icon: FileText },
-  { name: 'DevOps', desc: 'CI/CD anti-patterns, deployment risks, infra-as-code', icon: Server },
   { name: 'API Contract', desc: 'Breaking changes, versioning, OpenAPI compliance', icon: Code },
   { name: 'Dependency', desc: 'CVEs, outdated packages, license conflicts', icon: Boxes },
-  { name: 'Code Quality', desc: 'Complexity, duplication, dead code, naming', icon: Eye },
   { name: 'Reliability', desc: 'Error handling, retry logic, circuit breakers', icon: Activity },
+  { name: 'AI', desc: 'AI integration patterns, evaluation coverage, RAG quality', icon: Sparkles },
   { name: 'AI Runtime', desc: 'Prompt quality, token usage, model selection', icon: Brain },
-  { name: 'AI Patterns', desc: 'RAG quality, agent loops, tool misuse', icon: Sparkles },
+  { name: 'Product', desc: 'Endpoint test coverage, product-surface quality', icon: Layers },
+  { name: 'UX', desc: 'Accessibility and internationalization signals', icon: Eye },
 ];
 
 export default function ProductPage() {

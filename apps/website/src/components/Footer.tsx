@@ -6,7 +6,7 @@ const FOOTER_LINKS = {
     { label: 'Features', href: '/product' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'Marketplace', href: '/marketplace' },
-    { label: 'Cloud', href: '/cloud' },
+    { label: 'Deployment', href: '/cloud' },
     { label: 'Changelog', href: '/changelog' },
   ],
   Resources: [
@@ -28,7 +28,6 @@ const FOOTER_LINKS = {
   Company: [
     { label: 'About', href: '/about' },
     { label: 'Contact', href: '/contact' },
-    { label: 'Careers', href: '/about' },
     { label: 'Apache 2.0 License', href: 'https://github.com/Talomia/Recurrsive/blob/main/LICENSE' },
   ],
 };

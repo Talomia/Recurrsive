@@ -1,58 +1,51 @@
 import type { Metadata } from 'next';
 import {
   Users,
-  Target,
-  Lightbulb,
   BookOpen,
-  Eye,
   Unlock,
   Heart,
   TrendingUp,
   ArrowRight,
-  Mail,
-  Briefcase,
-  Rocket,
-  Flag,
-  Award,
-  Zap,
+  Github,
+  GitPullRequest,
+  MessageSquare,
+  Scale,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'About',
   description:
-    'Meet the team behind Recurrsive — building the future of engineering intelligence with evidence-based decision making.',
+    'Recurrsive is an open-source Engineering Intelligence Platform — evidence-based recommendations across code, architecture, AI, infrastructure, and cost.',
 };
 
-const team = [
+const contributing = [
   {
-    name: 'Alex Chen',
-    role: 'CEO & Co-founder',
-    bio: 'Former VP Engineering at Stripe. 15 years building developer tools and platform infrastructure.',
-    icon: Target,
+    title: 'Read the Code',
+    description:
+      'Every collector, analyzer, and reasoning agent is open under Apache 2.0. Inspect exactly how a recommendation is produced — no black boxes.',
+    icon: BookOpen,
+    color: 'var(--purple)',
   },
   {
-    name: 'Sarah Okafor',
-    role: 'CTO & Co-founder',
-    bio: 'Ex-Google Brain researcher. PhD in program analysis and knowledge graph systems from MIT.',
-    icon: Lightbulb,
+    title: 'Open an Issue',
+    description:
+      'Found a bug, a false positive, or a missing analysis rule? File an issue on GitHub. Bug reports and feature requests shape the roadmap.',
+    icon: MessageSquare,
+    color: 'var(--blue)',
   },
   {
-    name: 'Marcus Lindgren',
-    role: 'VP Engineering',
-    bio: 'Led engineering at Datadog for 6 years. Expert in observability systems and distributed architectures.',
-    icon: Briefcase,
+    title: 'Send a Pull Request',
+    description:
+      'Add a collector, write an analyzer rule, or build a plugin with the SDK. Contributions of any size are welcome.',
+    icon: GitPullRequest,
+    color: 'var(--cyan)',
   },
   {
-    name: 'Priya Sharma',
-    role: 'Head of Product',
-    bio: 'Former product lead at GitHub Copilot. Passionate about developer experience and AI-powered workflows.',
-    icon: Rocket,
-  },
-  {
-    name: 'James Whitfield',
-    role: 'Head of Design',
-    bio: 'Design leader from Figma and Linear. Believes complex systems deserve beautiful, intuitive interfaces.',
-    icon: Eye,
+    title: 'Apache 2.0 Licensed',
+    description:
+      'Permissively licensed and free to self-host. Use it commercially, fork it, and extend it without vendor lock-in.',
+    icon: Scale,
+    color: 'var(--green)',
   },
 ];
 
@@ -79,49 +72,11 @@ const values = [
     color: 'var(--cyan)',
   },
   {
-    title: 'Continuous Learning',
+    title: 'Continuous Improvement',
     description:
-      'Our AI agents learn from every codebase they analyze. The more they see, the smarter the recommendations become for everyone.',
+      'Analyzers and reasoning agents evolve release by release. Every new rule and collector added to the open-source project benefits everyone who self-hosts it.',
     icon: TrendingUp,
     color: 'var(--green)',
-  },
-];
-
-const milestones = [
-  {
-    date: 'Q1 2025',
-    title: 'The Idea',
-    description:
-      'Founded by Alex and Sarah after seeing the same engineering problems repeated across 50+ organizations.',
-    icon: Lightbulb,
-  },
-  {
-    date: 'Q3 2025',
-    title: 'First Prototype',
-    description:
-      'Built the first knowledge graph that could map an entire system — code, infra, AI pipelines, and costs.',
-    icon: Zap,
-  },
-  {
-    date: 'Q1 2026',
-    title: 'Open Source Launch',
-    description:
-      'Released the core platform under Apache 2.0 with 14 collectors, 13 analyzers, and multi-agent reasoning.',
-    icon: Flag,
-  },
-  {
-    date: 'Q2 2026',
-    title: 'Enterprise Ready',
-    description:
-      'Shipped SSO, RBAC, audit logging, and 40+ dashboard pages. First enterprise customers onboarded.',
-    icon: Award,
-  },
-  {
-    date: 'Q3 2026',
-    title: 'Growing Fast',
-    description:
-      'Marketplace, partner portal, and cloud platform launched. Scaling the team and the vision.',
-    icon: Rocket,
   },
 ];
 
@@ -206,43 +161,45 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── Team ───────────────────────────────────────────────────────── */}
+      {/* ── Open Source Project ────────────────────────────────────────── */}
       <section className="section">
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
             <span className="badge badge-accent">
-              <Users size={14} /> Leadership
+              <Github size={14} /> Open Source
             </span>
             <h2 style={{ marginTop: 'var(--space-md)' }}>
-              Meet the <span className="text-gradient">Team</span>
+              An <span className="text-gradient">Open-Source</span> Project
             </h2>
-            <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)', maxWidth: 540, marginInline: 'auto' }}>
-              Operators, researchers, and builders who've lived the problems we're solving.
+            <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)', maxWidth: 620, marginInline: 'auto' }}>
+              Recurrsive is developed in the open under the Apache 2.0 license. There is no
+              proprietary core and no paywall on the platform itself — anyone can read the code,
+              run it, and contribute.
             </p>
           </div>
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
               gap: 'var(--space-xl)',
             }}
           >
-            {team.map((member) => {
-              const Icon = member.icon;
+            {contributing.map((item) => {
+              const Icon = item.icon;
               return (
                 <div
-                  key={member.name}
+                  key={item.title}
                   className="glass-card"
                   style={{ textAlign: 'center', padding: 'var(--space-2xl) var(--space-xl)' }}
                 >
                   <div
                     style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 'var(--radius-full)',
-                      background: 'var(--gradient-subtle)',
-                      border: '1px solid var(--border-accent)',
+                      width: 56,
+                      height: 56,
+                      borderRadius: 'var(--radius-md)',
+                      background: `color-mix(in srgb, ${item.color} 15%, transparent)`,
+                      border: `1px solid color-mix(in srgb, ${item.color} 25%, transparent)`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -250,21 +207,11 @@ export default function AboutPage() {
                       marginBottom: 'var(--space-lg)',
                     }}
                   >
-                    <Icon size={28} style={{ color: 'var(--text-accent)' }} />
+                    <Icon size={24} style={{ color: item.color }} />
                   </div>
-                  <h4 style={{ marginBottom: 'var(--space-xs)' }}>{member.name}</h4>
-                  <p
-                    style={{
-                      color: 'var(--text-accent)',
-                      fontSize: '0.9rem',
-                      fontWeight: 600,
-                      marginBottom: 'var(--space-md)',
-                    }}
-                  >
-                    {member.role}
-                  </p>
+                  <h4 style={{ marginBottom: 'var(--space-sm)' }}>{item.title}</h4>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6 }}>
-                    {member.bio}
+                    {item.description}
                   </p>
                 </div>
               );
@@ -318,85 +265,11 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── Timeline ───────────────────────────────────────────────────── */}
-      <section className="section">
-        <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
-            <span className="badge badge-accent">
-              <Flag size={14} /> Milestones
-            </span>
-            <h2 style={{ marginTop: 'var(--space-md)' }}>
-              Our <span className="text-gradient">Journey</span>
-            </h2>
-          </div>
-
-          <div style={{ maxWidth: 720, marginInline: 'auto', position: 'relative' }}>
-            {/* Vertical line */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 27,
-                top: 0,
-                bottom: 0,
-                width: 2,
-                background:
-                  'linear-gradient(to bottom, var(--purple), var(--blue), var(--cyan), transparent)',
-                borderRadius: 1,
-              }}
-            />
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2xl)' }}>
-              {milestones.map((milestone) => {
-                const Icon = milestone.icon;
-                return (
-                  <div key={milestone.date} style={{ display: 'flex', gap: 'var(--space-xl)', position: 'relative' }}>
-                    <div
-                      style={{
-                        width: 56,
-                        height: 56,
-                        minWidth: 56,
-                        borderRadius: 'var(--radius-full)',
-                        background: 'var(--bg-primary)',
-                        border: '2px solid var(--border-accent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 1,
-                      }}
-                    >
-                      <Icon size={22} style={{ color: 'var(--text-accent)' }} />
-                    </div>
-                    <div style={{ paddingTop: 'var(--space-sm)' }}>
-                      <span
-                        className="text-mono"
-                        style={{
-                          color: 'var(--text-accent)',
-                          fontSize: '0.82rem',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {milestone.date}
-                      </span>
-                      <h4 style={{ marginTop: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
-                        {milestone.title}
-                      </h4>
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.7 }}>
-                        {milestone.description}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── CTA ────────────────────────────────────────────────────────── */}
       <section className="section" style={{ background: 'var(--bg-secondary)' }}>
         <div className="container" style={{ textAlign: 'center' }}>
           <h2 style={{ marginBottom: 'var(--space-md)' }}>
-            Want to <span className="text-gradient">Join Us</span>?
+            Get <span className="text-gradient">Involved</span>
           </h2>
           <p
             style={{
@@ -407,20 +280,20 @@ export default function AboutPage() {
               marginBottom: 'var(--space-xl)',
             }}
           >
-            We're building a world-class team of engineers, researchers, and designers who want to
-            change how software gets built. Come help us.
+            Recurrsive is built in the open. Star the repository, try it on your own codebase, open
+            an issue, or send a pull request — contributions of every kind are welcome.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a href="/contact" className="btn btn-primary btn-lg">
-              <Mail size={18} /> Get in Touch
-            </a>
             <a
               href="https://github.com/Talomia/Recurrsive"
-              className="btn btn-secondary btn-lg"
+              className="btn btn-primary btn-lg"
               target="_blank"
               rel="noopener noreferrer"
             >
-              <ArrowRight size={18} /> View Open Roles
+              <Github size={18} /> View on GitHub
+            </a>
+            <a href="/docs/getting-started" className="btn btn-secondary btn-lg">
+              <ArrowRight size={18} /> Get Started
             </a>
           </div>
         </div>

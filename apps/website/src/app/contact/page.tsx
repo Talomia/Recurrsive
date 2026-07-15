@@ -4,7 +4,6 @@ import {
   Mail,
   Github,
   MessageCircle,
-  MapPin,
   Send,
   HelpCircle,
   ChevronDown,
@@ -12,34 +11,35 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+const GITHUB_URL = 'https://github.com/Talomia/Recurrsive';
+const DISCUSSIONS_URL = 'https://github.com/Talomia/Recurrsive/discussions';
+const ISSUES_URL = 'https://github.com/Talomia/Recurrsive/issues';
+const EMAIL = 'hello@recurrsive.dev';
+
 const contactCards = [
-  {
-    icon: Mail,
-    title: 'Email Us',
-    value: 'hello@recurrsive.dev',
-    description: 'For general inquiries and partnerships',
-    color: 'var(--purple)',
-  },
   {
     icon: Github,
     title: 'GitHub',
     value: 'github.com/Talomia/Recurrsive',
-    description: 'Star the repo, open issues, contribute',
+    description: 'Star the repo, open issues, and contribute',
+    href: GITHUB_URL,
     color: 'var(--blue)',
   },
   {
     icon: MessageCircle,
-    title: 'Discord Community',
-    value: 'discord.gg/recurrsive',
-    description: 'Chat with the team and community',
+    title: 'GitHub Discussions',
+    value: 'Ask & discuss',
+    description: 'Questions, ideas, and community help',
+    href: DISCUSSIONS_URL,
     color: 'var(--cyan)',
   },
   {
-    icon: MapPin,
-    title: 'Office',
-    value: 'San Francisco, CA',
-    description: 'Remote-first, HQ for meetups',
-    color: 'var(--green)',
+    icon: Mail,
+    title: 'Email',
+    value: EMAIL,
+    description: 'For anything that doesn’t fit a public issue',
+    href: `mailto:${EMAIL}`,
+    color: 'var(--purple)',
   },
 ];
 
@@ -47,33 +47,22 @@ const faqs = [
   {
     question: 'How quickly can I get Recurrsive running?',
     answer:
-      'The open-source version can be deployed in under 15 minutes with Docker Compose. Our cloud platform requires zero setup — just connect your repositories and you\'ll have your first analysis within the hour.',
+      'The open-source platform can be self-hosted with Docker Compose in a few minutes: clone the repo, run docker compose up -d, and open the dashboard. See the Getting Started and Deployment guides for details.',
   },
   {
-    question: 'Do you offer enterprise support?',
+    question: 'Is there paid support?',
     answer:
-      'Yes. Enterprise plans include dedicated support, SLA guarantees, SSO/SAML integration, custom collectors, on-premise deployment options, and a dedicated customer success manager.',
+      'Yes — optional Enterprise Support provides deployment help, configuration guidance, and prioritized fixes for the same open-source software. It does not unlock extra features. Reach out to discuss scope.',
   },
   {
     question: 'Is my source code safe?',
     answer:
-      'Absolutely. Recurrsive never stores your raw source code. Our collectors extract metadata and structural information only. For on-premise deployments, all data stays within your infrastructure.',
+      'Recurrsive is self-hosted, so your code and analysis data stay on infrastructure you control. Collectors extract structural and metadata signals; nothing is sent to a third-party service.',
   },
-];
-
-const subjectOptions = [
-  'General Inquiry',
-  'Enterprise Sales',
-  'Partnership',
-  'Technical Support',
-  'Media / Press',
-  'Careers',
 ];
 
 export default function ContactPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -82,17 +71,24 @@ export default function ContactPage() {
     message: '',
   });
 
+  // Honest behaviour: there is no server-side contact endpoint, so we do not
+  // pretend to receive the message. Instead we compose a mailto: link and hand
+  // off to the visitor's email client.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) {
       alert('Please fill out all required fields (Name, Email, Message)');
       return;
     }
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      setSubmitted(true);
-    }, 1800);
+    const subject = encodeURIComponent(
+      formData.subject ? `[Recurrsive] ${formData.subject}` : '[Recurrsive] Contact',
+    );
+    const body = encodeURIComponent(
+      `Name: ${formData.name}\nEmail: ${formData.email}` +
+        (formData.company ? `\nCompany: ${formData.company}` : '') +
+        `\n\n${formData.message}`,
+    );
+    window.location.href = `mailto:${EMAIL}?subject=${subject}&body=${body}`;
   };
 
   return (
@@ -122,13 +118,13 @@ export default function ContactPage() {
             style={{
               color: 'var(--text-secondary)',
               fontSize: '1.15rem',
-              maxWidth: 520,
+              maxWidth: 540,
               marginInline: 'auto',
               marginTop: 'var(--space-lg)',
             }}
           >
-            Whether you're evaluating Recurrsive for your team or want to partner with us, we'd
-            love to hear from you.
+            The fastest way to reach the project is on GitHub. You can also send an email — the form
+            below opens your email client with the details prefilled.
           </p>
         </div>
       </section>
@@ -137,264 +133,126 @@ export default function ContactPage() {
       <section className="section-sm">
         <div className="container">
           <div className="grid-2" style={{ alignItems: 'start' }}>
-            {/* Left — Contact Form or Success Card */}
-            {submitted ? (
-              <div
-                className="glass-card animate-fade-in"
-                style={{
-                  padding: 'var(--space-3xl) var(--space-2xl)',
-                  textAlign: 'center',
-                  background: 'rgba(20, 15, 35, 0.4)',
-                  border: '1px solid var(--border-accent)',
-                  borderRadius: 'var(--radius-lg)',
-                  boxShadow: '0 8px 32px 0 rgba(124, 58, 237, 0.1)',
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 'var(--space-sm)',
-                }}
+            {/* Left — Contact Form */}
+            <div className="glass-card" style={{ padding: 'var(--space-2xl)' }}>
+              <h3 style={{ marginBottom: 'var(--space-sm)' }}>Send a Message</h3>
+              <p style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', marginBottom: 'var(--space-lg)', lineHeight: 1.6 }}>
+                This opens your email client addressed to {EMAIL}. Prefer public? Use{' '}
+                <a href={ISSUES_URL} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
+                  GitHub Issues
+                </a>
+                .
+              </p>
+              <form
+                onSubmit={handleSubmit}
+                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
               >
-                <div
+                <div>
+                  <label htmlFor="name" style={labelStyle}>
+                    Name <span style={{ color: 'var(--red)' }}>*</span>
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    required
+                    placeholder="Your name"
+                    style={inputStyle}
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email" style={labelStyle}>
+                    Email <span style={{ color: 'var(--red)' }}>*</span>
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    placeholder="you@company.com"
+                    style={inputStyle}
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="company" style={labelStyle}>
+                    Company
+                  </label>
+                  <input
+                    id="company"
+                    type="text"
+                    placeholder="Your company"
+                    style={inputStyle}
+                    value={formData.company}
+                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="subject" style={labelStyle}>
+                    Subject
+                  </label>
+                  <select
+                    id="subject"
+                    style={{ ...inputStyle, cursor: 'pointer' }}
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                  >
+                    <option value="">Select a subject…</option>
+                    {['General Inquiry', 'Enterprise Support', 'Partnership', 'Technical Question', 'Media / Press'].map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="message" style={labelStyle}>
+                    Message <span style={{ color: 'var(--red)' }}>*</span>
+                  </label>
+                  <textarea
+                    id="message"
+                    rows={5}
+                    required
+                    placeholder="Tell us about your project…"
+                    style={{ ...inputStyle, resize: 'vertical' }}
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-lg"
                   style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: '50%',
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '2px solid var(--green)',
+                    marginTop: 'var(--space-sm)',
+                    alignSelf: 'flex-start',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 'var(--space-md)',
-                    boxShadow: '0 0 20px rgba(16, 185, 129, 0.3)',
-                    animation: 'pulse 2s infinite',
+                    gap: '10px',
                   }}
                 >
-                  <svg
-                    width="28"
-                    height="28"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--green)"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Message Received!
-                </h3>
-                <p
-                  style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.95rem',
-                    maxWidth: 360,
-                    margin: '0 auto var(--space-lg)',
-                    lineHeight: 1.6,
-                  }}
-                >
-                  Thank you for reaching out, <strong>{formData.name}</strong>. Our engineering
-                  intelligence squad has received your message and will get back to you within 24 hours.
-                </p>
-                <button
-                  onClick={() => {
-                    setSubmitted(false);
-                    setFormData({ name: '', email: '', company: '', subject: '', message: '' });
-                  }}
-                  className="btn btn-secondary btn-sm"
-                  style={{ padding: '10px 24px' }}
-                >
-                  Send Another Message
+                  <Send size={18} /> Compose Email
                 </button>
-              </div>
-            ) : (
-              <div className="glass-card" style={{ padding: 'var(--space-2xl)' }}>
-                <h3 style={{ marginBottom: 'var(--space-lg)' }}>Send a Message</h3>
-                <form
-                  onSubmit={handleSubmit}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
-                >
-                  {/* Name */}
-                  <div>
-                    <label
-                      htmlFor="name"
-                      style={{
-                        display: 'block',
-                        fontSize: '0.88rem',
-                        fontWeight: 600,
-                        marginBottom: 'var(--space-xs)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      Name <span style={{ color: 'var(--red)' }}>*</span>
-                    </label>
-                    <input
-                      id="name"
-                      type="text"
-                      required
-                      placeholder="Your name"
-                      style={inputStyle}
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    />
-                  </div>
-
-                  {/* Email */}
-                  <div>
-                    <label
-                      htmlFor="email"
-                      style={{
-                        display: 'block',
-                        fontSize: '0.88rem',
-                        fontWeight: 600,
-                        marginBottom: 'var(--space-xs)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      Email <span style={{ color: 'var(--red)' }}>*</span>
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      required
-                      placeholder="you@company.com"
-                      style={inputStyle}
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
-
-                  {/* Company */}
-                  <div>
-                    <label
-                      htmlFor="company"
-                      style={{
-                        display: 'block',
-                        fontSize: '0.88rem',
-                        fontWeight: 600,
-                        marginBottom: 'var(--space-xs)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      Company
-                    </label>
-                    <input
-                      id="company"
-                      type="text"
-                      placeholder="Your company"
-                      style={inputStyle}
-                      value={formData.company}
-                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                    />
-                  </div>
-
-                  {/* Subject */}
-                  <div>
-                    <label
-                      htmlFor="subject"
-                      style={{
-                        display: 'block',
-                        fontSize: '0.88rem',
-                        fontWeight: 600,
-                        marginBottom: 'var(--space-xs)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      Subject
-                    </label>
-                    <select
-                      id="subject"
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                      value={formData.subject}
-                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                    >
-                      <option value="" disabled>
-                        Select a subject…
-                      </option>
-                      {subjectOptions.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Message */}
-                  <div>
-                    <label
-                      htmlFor="message"
-                      style={{
-                        display: 'block',
-                        fontSize: '0.88rem',
-                        fontWeight: 600,
-                        marginBottom: 'var(--space-xs)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      Message <span style={{ color: 'var(--red)' }}>*</span>
-                    </label>
-                    <textarea
-                      id="message"
-                      rows={5}
-                      required
-                      placeholder="Tell us about your project…"
-                      style={{ ...inputStyle, resize: 'vertical' }}
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="btn btn-primary btn-lg"
-                    style={{
-                      marginTop: 'var(--space-sm)',
-                      alignSelf: 'flex-start',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      opacity: submitting ? 0.8 : 1,
-                      cursor: submitting ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {submitting ? (
-                      <>
-                        <span
-                          style={{
-                            width: 16,
-                            height: 16,
-                            border: '2px solid rgba(255, 255, 255, 0.3)',
-                            borderTopColor: '#ffffff',
-                            borderRadius: '50%',
-                            display: 'inline-block',
-                            animation: 'spin 0.8s linear infinite',
-                          }}
-                        />
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Send size={18} /> Send Message
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
-            )}
+              </form>
+            </div>
 
             {/* Right — Contact Cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
               {contactCards.map((card) => {
                 const Icon = card.icon;
                 return (
-                  <div
+                  <a
                     key={card.title}
+                    href={card.href}
+                    target={card.href.startsWith('mailto:') ? undefined : '_blank'}
+                    rel={card.href.startsWith('mailto:') ? undefined : 'noopener noreferrer'}
                     className="glass-card"
-                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-lg)' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-lg)', textDecoration: 'none' }}
                   >
                     <div
                       style={{
@@ -427,7 +285,7 @@ export default function ContactPage() {
                         {card.description}
                       </p>
                     </div>
-                  </div>
+                  </a>
                 );
               })}
             </div>
@@ -487,16 +345,6 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
-
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
-          50% { transform: scale(1.05); box-shadow: 0 0 30px rgba(16, 185, 129, 0.4); }
-        }
-      `}</style>
     </div>
   );
 }
@@ -513,4 +361,12 @@ const inputStyle: React.CSSProperties = {
   fontSize: '0.95rem',
   outline: 'none',
   transition: 'border-color 0.2s ease',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '0.88rem',
+  fontWeight: 600,
+  marginBottom: 'var(--space-xs)',
+  color: 'var(--text-secondary)',
 };

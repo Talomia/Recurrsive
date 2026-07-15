@@ -278,31 +278,22 @@ export default function DeploymentPage() {
         </div>
       </section>
 
-      {/* Recurrsive Cloud */}
+      {/* Managed cloud — not yet available */}
       <section className="section-sm">
         <div className="container" style={{ maxWidth: 900 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 'var(--space-xl)' }}>
             <Cloud size={28} style={{ color: 'var(--cyan)' }} />
             <h2 style={{ fontSize: '1.5rem' }}>
-              Recurrsive <span className="text-gradient">Cloud</span>
+              Managed <span className="text-gradient">Cloud</span>
             </h2>
           </div>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)', lineHeight: 1.7 }}>
-            Skip infrastructure management entirely. Recurrsive Cloud provides a fully managed
-            deployment with automatic scaling, backups, and updates.
-          </p>
-          <div className="grid-3">
-            {[
-              { title: 'Managed Infrastructure', desc: 'Auto-scaling, HA, zero-downtime deploys' },
-              { title: 'Automatic Backups', desc: 'Daily backups with 30-day retention' },
-              { title: 'SOC 2 Compliant', desc: 'Enterprise security and audit controls' },
-            ].map((item) => (
-              <div key={item.title} className="glass-card" style={{ textAlign: 'center', padding: 'var(--space-lg)' }}>
-                <CheckCircle2 size={24} style={{ color: 'var(--green)', marginBottom: 'var(--space-sm)' }} />
-                <h4 style={{ fontSize: '0.95rem', marginBottom: 4 }}>{item.title}</h4>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>{item.desc}</p>
-              </div>
-            ))}
+          <div className="glass-card" style={{ padding: 'var(--space-lg) var(--space-xl)', borderLeft: '3px solid var(--cyan)' }}>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+              A fully managed, hosted deployment is on the roadmap but is{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>not available yet</strong>. There is no
+              cloud service, sign-up, or compliance certification to describe today. For now,
+              self-hosting with Docker Compose (above) is the supported way to run Recurrsive.
+            </p>
           </div>
         </div>
       </section>

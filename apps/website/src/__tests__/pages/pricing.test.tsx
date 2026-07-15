@@ -31,35 +31,25 @@ describe('Pricing Page', () => {
     expect(freeMatches.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders the Enterprise tier', () => {
+  it('renders the Enterprise Support tier', () => {
     render(<PricingPage />);
-    const matches = screen.getAllByText('Enterprise');
+    const matches = screen.getAllByText('Enterprise Support');
     expect(matches.length).toBeGreaterThanOrEqual(1);
-    const customMatches = screen.getAllByText('Custom');
-    expect(customMatches.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('renders the Cloud tier', () => {
-    render(<PricingPage />);
-    const matches = screen.getAllByText('Cloud');
-    expect(matches.length).toBeGreaterThanOrEqual(1);
-    const priceMatches = screen.getAllByText('$199');
-    expect(priceMatches.length).toBeGreaterThanOrEqual(1);
+    const contactMatches = screen.getAllByText('Contact us');
+    expect(contactMatches.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders CTA buttons for each plan', () => {
     render(<PricingPage />);
     const getStarted = screen.getAllByText('Get Started Free');
-    const contactSales = screen.getAllByText('Contact Sales');
-    const startTrial = screen.getAllByText('Start Free Trial');
+    const contactUs = screen.getAllByText('Contact Us');
     expect(getStarted.length).toBeGreaterThanOrEqual(1);
-    expect(contactSales.length).toBeGreaterThanOrEqual(1);
-    expect(startTrial.length).toBeGreaterThanOrEqual(1);
+    expect(contactUs.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders the Most Popular badge on Enterprise', () => {
+  it('renders the Apache 2.0 badge on Open Source', () => {
     render(<PricingPage />);
-    const matches = screen.getAllByText('Most Popular');
+    const matches = screen.getAllByText('Apache 2.0');
     expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -73,25 +63,9 @@ describe('Pricing Page', () => {
     expect(cli.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders key Enterprise features', () => {
-    render(<PricingPage />);
-    const sso = screen.getAllByText('SSO / SAML integration');
-    const rbac = screen.getAllByText('Fine-grained RBAC');
-    expect(sso.length).toBeGreaterThanOrEqual(1);
-    expect(rbac.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('renders key Cloud features', () => {
-    render(<PricingPage />);
-    const managed = screen.getAllByText('Fully managed infrastructure');
-    const uptime = screen.getAllByText('99.9% uptime SLA');
-    expect(managed.length).toBeGreaterThanOrEqual(1);
-    expect(uptime.length).toBeGreaterThanOrEqual(1);
-  });
-
   it('renders FAQ section', () => {
     render(<PricingPage />);
-    const faq = screen.getAllByText('Why no per-seat pricing?');
+    const faq = screen.getAllByText('Is Recurrsive really free?');
     expect(faq.length).toBeGreaterThanOrEqual(1);
   });
 });

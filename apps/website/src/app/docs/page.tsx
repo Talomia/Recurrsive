@@ -105,7 +105,7 @@ const POPULAR_GUIDES = [
       { title: 'GitHub App Installation', duration: '5 min', href: '/docs/deployment' },
       { title: 'GitLab CI/CD Integration', duration: '10 min', href: '/docs/deployment' },
       { title: 'Slack Notifications Setup', duration: '5 min', href: '/docs/deployment' },
-      { title: 'Jira Issue Sync', duration: '8 min', href: '/docs/deployment' },
+      { title: 'Webhook Integrations', duration: '8 min', href: '/docs/deployment' },
     ],
   },
   {
@@ -512,10 +512,10 @@ export default function DocsPage() {
           </div>
           <div className="code-block">
             <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Install Recurrsive CLI</span>
+              <span className="comment"># Clone &amp; build the monorepo (see CLI Reference to run recurrsive)</span>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <span className="function">$</span> <span className="keyword">npm</span> install -g <span className="string">@recurrsive/cli</span>
+              <span className="function">$</span> <span className="keyword">git</span> clone <span className="string">https://github.com/Talomia/Recurrsive.git</span> && <span className="keyword">cd</span> Recurrsive && <span className="keyword">pnpm</span> install && <span className="keyword">pnpm</span> build
             </div>
             <div style={{ marginBottom: 4 }}>
               <span className="comment"># Initialize your workspace</span>
@@ -558,7 +558,7 @@ export default function DocsPage() {
               lineHeight: 1.7,
             }}
           >
-            Join our community Slack or open a GitHub discussion. Our team and community are here to help.
+            Open a GitHub discussion or file an issue. Our team and community are here to help.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="https://github.com/Talomia/Recurrsive" className="btn btn-primary btn-lg" target="_blank">

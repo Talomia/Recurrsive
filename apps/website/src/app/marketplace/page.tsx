@@ -1,270 +1,104 @@
 'use client';
 
-import { useState } from 'react';
-import type { Metadata } from 'next';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Store,
-  Search,
-  Star,
-  Download,
-  CheckCircle2,
   Boxes,
   Gauge,
   ShieldCheck,
   DollarSign,
   Database,
   FileText,
-  GitBranch,
   FileCode2,
   Package,
-  Code2,
   Activity,
   Brain,
   Cpu,
-  Container,
-  HeartPulse,
-  TrendingUp,
+  Eye,
+  Users,
   ArrowRight,
   Sparkles,
-  LayoutGrid,
+  Loader2,
+  ExternalLink,
+  AlertCircle,
 } from 'lucide-react';
 
-const CATEGORIES = ['All', 'Analyzers', 'Collectors', 'Policies', 'Intelligence Packs'] as const;
-type Category = (typeof CATEGORIES)[number];
+// ── Built-in analyzers (ship with the open-source platform) ──────────────────
+// These are the 13 analyzers included in @recurrsive/analyzers. They are part of
+// the core install — not marketplace downloads — so no ratings or download counts
+// are shown.
+const BUILT_IN_ANALYZERS = [
+  { name: 'Architecture', icon: Boxes, color: 'var(--purple)', description: 'Module coupling, dependency graphs, and structural patterns across the codebase.' },
+  { name: 'AI', icon: Brain, color: '#a855f7', description: 'AI/LLM integration patterns, prompt usage, and evaluation coverage.' },
+  { name: 'AI Runtime', icon: Cpu, color: '#e879f9', description: 'Model monitoring signals, prompt-injection risks, and LLM cost optimization.' },
+  { name: 'API Contract', icon: FileCode2, color: '#ec4899', description: 'OpenAPI validation, breaking-change detection, and contract consistency.' },
+  { name: 'Cost', icon: DollarSign, color: 'var(--green)', description: 'Cloud spend signals, over-provisioning, and cost-per-feature modeling.' },
+  { name: 'Data', icon: Database, color: 'var(--cyan)', description: 'Data flows, schema evolution, PII exposure, and migration management.' },
+  { name: 'Dependency', icon: Package, color: '#14b8a6', description: 'Dependency health, version staleness, and license compliance.' },
+  { name: 'Documentation', icon: FileText, color: 'var(--amber)', description: 'Documentation coverage, stale docs, and undocumented public APIs.' },
+  { name: 'Performance', icon: Gauge, color: 'var(--blue)', description: 'Bottlenecks, N+1 queries, blocking calls, and missing caching.' },
+  { name: 'Product', icon: Sparkles, color: '#f97316', description: 'Endpoint test coverage and product-surface quality signals.' },
+  { name: 'Reliability', icon: Activity, color: '#06b6d4', description: 'Resilience patterns — retries, timeouts, circuit breakers, health checks.' },
+  { name: 'Security', icon: ShieldCheck, color: 'var(--red)', description: 'OWASP-style checks, secret leaks, and insecure configuration.' },
+  { name: 'UX', icon: Eye, color: '#8b5cf6', description: 'Accessibility and internationalization signals across the app surface.' },
+];
 
+// ── Community extension shape returned by GET /api/v1/marketplace/extensions ──
 interface Extension {
+  id: string;
   name: string;
   author: string;
   description: string;
-  icon: React.ElementType;
-  category: Category | string;
-  downloads: string;
+  category: string;
+  source: string;
+  version: string;
+  downloads: number;
   rating: number;
-  source: 'Built-in' | 'Community';
-  installed: boolean;
-  color: string;
+  ratingCount: number;
+  repository?: string;
 }
 
-const EXTENSIONS: Extension[] = [
-  {
-    name: 'Architecture Analyzer',
-    author: 'Recurrsive',
-    description: 'Analyze system architecture, module coupling, dependency graphs, and structural patterns across your codebase.',
-    icon: Boxes,
-    category: 'Analyzers',
-    downloads: '14.2k',
-    rating: 4.9,
-    source: 'Built-in',
-    installed: true,
-    color: 'var(--purple)',
-  },
-  {
-    name: 'Performance Analyzer',
-    author: 'Recurrsive',
-    description: 'Detect bottlenecks, N+1 queries, memory leaks, and compute inefficiencies with runtime-aware analysis.',
-    icon: Gauge,
-    category: 'Analyzers',
-    downloads: '13.8k',
-    rating: 4.8,
-    source: 'Built-in',
-    installed: true,
-    color: 'var(--blue)',
-  },
-  {
-    name: 'Security Analyzer',
-    author: 'Recurrsive',
-    description: 'Scan for OWASP Top 10, CVEs, secret leaks, insecure configurations, and supply chain vulnerabilities.',
-    icon: ShieldCheck,
-    category: 'Analyzers',
-    downloads: '15.1k',
-    rating: 4.9,
-    source: 'Built-in',
-    installed: true,
-    color: 'var(--red)',
-  },
-  {
-    name: 'Cost Analyzer',
-    author: 'Recurrsive',
-    description: 'Track cloud spend, identify over-provisioned resources, and model cost-per-feature across infrastructure.',
-    icon: DollarSign,
-    category: 'Analyzers',
-    downloads: '11.3k',
-    rating: 4.7,
-    source: 'Built-in',
-    installed: true,
-    color: 'var(--green)',
-  },
-  {
-    name: 'Data Analyzer',
-    author: 'Recurrsive',
-    description: 'Audit data flows, schema evolution, PII exposure, and cross-service data lineage in real time.',
-    icon: Database,
-    category: 'Analyzers',
-    downloads: '10.6k',
-    rating: 4.6,
-    source: 'Built-in',
-    installed: true,
-    color: 'var(--cyan)',
-  },
-  {
-    name: 'Documentation Analyzer',
-    author: 'Recurrsive',
-    description: 'Evaluate documentation completeness, detect stale docs, and generate coverage reports per module.',
-    icon: FileText,
-    category: 'Analyzers',
-    downloads: '9.4k',
-    rating: 4.5,
-    source: 'Built-in',
-    installed: true,
-    color: 'var(--amber)',
-  },
-  {
-    name: 'DevOps Analyzer',
-    author: 'Recurrsive',
-    description: 'Analyze CI/CD pipelines, deployment frequency, DORA metrics, and infrastructure-as-code quality.',
-    icon: GitBranch,
-    category: 'Analyzers',
-    downloads: '12.1k',
-    rating: 4.8,
-    source: 'Built-in',
-    installed: true,
-    color: '#f97316',
-  },
-  {
-    name: 'API Contract Analyzer',
-    author: 'Recurrsive',
-    description: 'Validate OpenAPI specs, detect breaking changes, and ensure contract consistency across services.',
-    icon: FileCode2,
-    category: 'Analyzers',
-    downloads: '10.9k',
-    rating: 4.7,
-    source: 'Built-in',
-    installed: true,
-    color: '#ec4899',
-  },
-  {
-    name: 'Dependency Analyzer',
-    author: 'Recurrsive',
-    description: 'Map dependency trees, flag outdated packages, detect license conflicts, and track vulnerability exposure.',
-    icon: Package,
-    category: 'Analyzers',
-    downloads: '13.2k',
-    rating: 4.8,
-    source: 'Built-in',
-    installed: true,
-    color: '#14b8a6',
-  },
-  {
-    name: 'Code Quality Analyzer',
-    author: 'Recurrsive',
-    description: 'Measure complexity, duplication, test coverage, and maintainability index with actionable insights.',
-    icon: Code2,
-    category: 'Analyzers',
-    downloads: '14.5k',
-    rating: 4.9,
-    source: 'Built-in',
-    installed: true,
-    color: '#8b5cf6',
-  },
-  {
-    name: 'Reliability Analyzer',
-    author: 'Recurrsive',
-    description: 'Evaluate SLO compliance, error budgets, circuit breaker patterns, and fault tolerance across services.',
-    icon: Activity,
-    category: 'Analyzers',
-    downloads: '11.7k',
-    rating: 4.7,
-    source: 'Built-in',
-    installed: true,
-    color: '#06b6d4',
-  },
-  {
-    name: 'AI Runtime Analyzer',
-    author: 'Recurrsive',
-    description: 'Monitor LLM token usage, latency distributions, hallucination rates, and prompt chain performance.',
-    icon: Brain,
-    category: 'Analyzers',
-    downloads: '8.9k',
-    rating: 4.6,
-    source: 'Built-in',
-    installed: true,
-    color: '#a855f7',
-  },
-  {
-    name: 'AI Patterns Analyzer',
-    author: 'Recurrsive',
-    description: 'Detect RAG anti-patterns, evaluate agent orchestration, and audit AI safety guardrails in production.',
-    icon: Cpu,
-    category: 'Analyzers',
-    downloads: '7.8k',
-    rating: 4.5,
-    source: 'Built-in',
-    installed: true,
-    color: '#e879f9',
-  },
-  {
-    name: 'Kubernetes Analyzer',
-    author: 'CloudForge Labs',
-    description: 'Deep analysis of K8s clusters: resource quotas, pod scheduling efficiency, and network policy coverage.',
-    icon: Container,
-    category: 'Analyzers',
-    downloads: '3.2k',
-    rating: 4.4,
-    source: 'Community',
-    installed: false,
-    color: '#3b82f6',
-  },
-  {
-    name: 'Healthcare Compliance',
-    author: 'AI Safety Labs',
-    description: 'HIPAA, HITECH, and FDA 21 CFR Part 11 compliance checking for healthcare software systems.',
-    icon: HeartPulse,
-    category: 'Policies',
-    downloads: '1.8k',
-    rating: 4.3,
-    source: 'Community',
-    installed: false,
-    color: '#ef4444',
-  },
-  {
-    name: 'FinOps Optimizer',
-    author: 'FinTech Assurance Group',
-    description: 'Advanced cloud cost optimization with reserved instance recommendations and spot fleet strategies.',
-    icon: TrendingUp,
-    category: 'Intelligence Packs',
-    downloads: '2.4k',
-    rating: 4.5,
-    source: 'Community',
-    installed: false,
-    color: '#22c55e',
-  },
-];
+type FetchState = 'loading' | 'empty' | 'error' | 'ready';
 
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-      <Star size={13} style={{ color: 'var(--amber)', fill: 'var(--amber)' }} />
-      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{rating}</span>
-    </span>
-  );
-}
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
 
 export default function MarketplacePage() {
-  const [active, setActive] = useState<Category>('All');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [extensions, setExtensions] = useState<Extension[]>([]);
+  const [state, setState] = useState<FetchState>('loading');
 
-  const filtered = EXTENSIONS.filter((e) => {
-    const matchesCategory = active === 'All' || e.category === active;
-    const matchesSearch =
-      e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.author.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  useEffect(() => {
+    // Wire to the real server marketplace API. When no backend is configured or
+    // it has no published community extensions, we show an honest empty state.
+    if (!API_BASE) {
+      setState('empty');
+      return;
+    }
 
-  const analyzerCount = EXTENSIONS.filter((e) => e.category === 'Analyzers').length;
-  const categoryCount = new Set(EXTENSIONS.map((e) => e.category)).size;
+    const controller = new AbortController();
+    const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+
+    fetch(`${API_BASE}/api/v1/marketplace/extensions?source=community`, {
+      signal: controller.signal,
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((body: { data?: Extension[] }) => {
+        const data = body.data ?? [];
+        setExtensions(data);
+        setState(data.length === 0 ? 'empty' : 'ready');
+      })
+      .catch((err) => {
+        if (err.name === 'AbortError') return;
+        setState('error');
+      });
+
+    return () => controller.abort();
+  }, []);
 
   return (
     <div style={{ paddingTop: 'var(--nav-height)' }}>
@@ -288,177 +122,36 @@ export default function MarketplacePage() {
             style={{
               fontSize: 'clamp(1rem, 2vw, 1.2rem)',
               color: 'var(--text-secondary)',
-              maxWidth: 600,
-              margin: '0 auto var(--space-xl)',
+              maxWidth: 620,
+              margin: '0 auto',
               lineHeight: 1.7,
             }}
           >
-            Browse analyzers, collectors, policies, and intelligence packs to tailor
-            Recurrsive to your engineering organization.
+            Recurrsive ships with 13 built-in analyzers and a Plugin SDK for building your own
+            collectors, analyzers, policies, and intelligence packs.
           </p>
-
-          {/* Stats */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 'var(--space-2xl)',
-              marginBottom: 'var(--space-xl)',
-              flexWrap: 'wrap',
-            }}
-          >
-            <div>
-              <span
-                className="text-gradient"
-                style={{ fontSize: '1.8rem', fontWeight: 800 }}
-              >
-                {EXTENSIONS.length}
-              </span>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-                Extensions Available
-              </p>
-            </div>
-            <div>
-              <span
-                className="text-gradient"
-                style={{ fontSize: '1.8rem', fontWeight: 800 }}
-              >
-                {categoryCount}
-              </span>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>Categories</p>
-            </div>
-            <div>
-              <span
-                className="text-gradient"
-                style={{ fontSize: '1.8rem', fontWeight: 800 }}
-              >
-                {analyzerCount}
-              </span>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>Analyzers</p>
-            </div>
-          </div>
-
-          {/* Search Bar */}
-          <div
-            style={{
-              maxWidth: 520,
-              margin: '0 auto var(--space-xl)',
-              position: 'relative',
-            }}
-          >
-            <Search
-              size={18}
-              style={{
-                position: 'absolute',
-                left: 16,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-tertiary)',
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Search extensions…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '14px 20px 14px 44px',
-                background: 'var(--bg-glass)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-primary)',
-                fontSize: '0.95rem',
-                fontFamily: 'var(--font-sans)',
-                outline: 'none',
-                backdropFilter: 'blur(10px)',
-                transition: 'all var(--transition-fast)',
-              }}
-            />
-          </div>
-
-          {/* Filter Tabs */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 'var(--space-sm)',
-              flexWrap: 'wrap',
-            }}
-          >
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActive(cat)}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: 'var(--radius-full)',
-                  border: '1px solid',
-                  borderColor:
-                    active === cat ? 'var(--border-accent)' : 'var(--border-subtle)',
-                  background:
-                    active === cat
-                      ? 'rgba(124, 58, 237, 0.15)'
-                      : 'var(--bg-glass)',
-                  color:
-                    active === cat ? 'var(--text-accent)' : 'var(--text-secondary)',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-sans)',
-                  transition: 'all var(--transition-fast)',
-                  backdropFilter: 'blur(10px)',
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
         </div>
       </section>
 
-      {/* Extension Grid */}
+      {/* Built-in analyzers */}
       <section className="section-sm">
         <div className="container-wide">
+          <div style={{ textAlign: 'center', marginBottom: 'var(--space-2xl)' }}>
+            <h2 style={{ marginBottom: 'var(--space-sm)' }}>
+              Built-in <span className="text-gradient">Analyzers</span>
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', maxWidth: 560, margin: '0 auto', fontSize: '0.98rem' }}>
+              Included with every install — no download required.
+            </p>
+          </div>
           <div className="grid-4">
-            {filtered.length === 0 ? (
-              <div
-                className="glass-card animate-fade-in"
-                style={{
-                  gridColumn: '1 / -1',
-                  textAlign: 'center',
-                  padding: 'var(--space-3xl)',
-                  border: '1px dashed var(--border-medium)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 'var(--space-sm)',
-                }}
-              >
-                <Store size={44} style={{ color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }} />
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>No extensions found</h3>
-                <p style={{ color: 'var(--text-secondary)', maxWidth: 380, margin: '0 auto var(--space-md)', fontSize: '0.9rem' }}>
-                  We couldn&apos;t find any extensions matching &ldquo;{searchQuery}&rdquo;. Try checking your spelling or selecting another category.
-                </p>
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setActive('All');
-                  }}
-                  className="btn btn-secondary btn-sm"
-                >
-                  Reset Search
-                </button>
-              </div>
-            ) : (
-              filtered.map((ext) => (
-                <div key={ext.name} className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
-                  {/* Header */}
+            {BUILT_IN_ANALYZERS.map((a) => (
+              <div key={a.name} className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div
                   style={{
                     display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px',
                     marginBottom: 'var(--space-md)',
                   }}
                 >
@@ -467,123 +160,149 @@ export default function MarketplacePage() {
                       width: 44,
                       height: 44,
                       borderRadius: 'var(--radius-md)',
-                      background: `${ext.color}22`,
+                      background: `${a.color}22`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      border: `1px solid ${ext.color}33`,
+                      border: `1px solid ${a.color}33`,
+                      flexShrink: 0,
                     }}
                   >
-                    <ext.icon size={22} style={{ color: ext.color }} />
+                    <a.icon size={22} style={{ color: a.color }} />
                   </div>
-                  <span
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-full)',
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      background:
-                        ext.source === 'Built-in'
-                          ? 'rgba(124, 58, 237, 0.12)'
-                          : 'rgba(6, 182, 212, 0.12)',
-                      color:
-                        ext.source === 'Built-in'
-                          ? 'var(--text-accent)'
-                          : 'var(--cyan)',
-                      border: `1px solid ${
-                        ext.source === 'Built-in'
-                          ? 'rgba(124, 58, 237, 0.2)'
-                          : 'rgba(6, 182, 212, 0.2)'
-                      }`,
-                    }}
-                  >
-                    {ext.source}
-                  </span>
+                  <div>
+                    <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{a.name}</h4>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: 'var(--text-accent)',
+                      }}
+                    >
+                      Built-in
+                    </span>
+                  </div>
                 </div>
-
-                {/* Title & Author */}
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '4px' }}>
-                  {ext.name}
-                </h4>
-                <p
-                  style={{
-                    fontSize: '0.78rem',
-                    color: 'var(--text-tertiary)',
-                    marginBottom: 'var(--space-sm)',
-                  }}
-                >
-                  by {ext.author}
-                </p>
-
-                {/* Description */}
                 <p
                   style={{
                     fontSize: '0.85rem',
                     color: 'var(--text-secondary)',
                     lineHeight: 1.6,
-                    flex: 1,
-                    marginBottom: 'var(--space-md)',
                   }}
                 >
-                  {ext.description}
+                  {a.description}
                 </p>
-
-                {/* Stats Row */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 'var(--space-md)',
-                    paddingTop: 'var(--space-sm)',
-                    borderTop: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontSize: '0.82rem',
-                      color: 'var(--text-tertiary)',
-                    }}
-                  >
-                    <Download size={13} /> {ext.downloads}
-                  </span>
-                  <StarRating rating={ext.rating} />
-                </div>
-
-                {/* Install Button */}
-                {ext.installed ? (
-                  <button
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid rgba(34, 197, 94, 0.2)',
-                      background: 'rgba(34, 197, 94, 0.1)',
-                      color: '#4ade80',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'default',
-                      fontFamily: 'var(--font-sans)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <CheckCircle2 size={15} /> Installed
-                  </button>
-                ) : (
-                  <button className="btn btn-primary" style={{ width: '100%', padding: '10px' }}>
-                    Install
-                  </button>
-                )}
               </div>
-            ))
-          )}
+            ))}
           </div>
+        </div>
+      </section>
+
+      {/* Community extensions (wired to real API, empty by default) */}
+      <section className="section-sm" style={{ background: 'var(--bg-secondary)' }}>
+        <div className="container-wide">
+          <div style={{ textAlign: 'center', marginBottom: 'var(--space-2xl)' }}>
+            <h2 style={{ marginBottom: 'var(--space-sm)' }}>
+              Community <span className="text-gradient">Extensions</span>
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', maxWidth: 560, margin: '0 auto', fontSize: '0.98rem' }}>
+              Extensions published by the community to a connected Recurrsive server.
+            </p>
+          </div>
+
+          {state === 'loading' && (
+            <div
+              className="glass-card"
+              style={{ textAlign: 'center', padding: 'var(--space-3xl)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-md)' }}
+            >
+              <Loader2 size={32} className="animate-spin" style={{ color: 'var(--text-tertiary)' }} />
+              <p style={{ color: 'var(--text-secondary)' }}>Loading extensions…</p>
+            </div>
+          )}
+
+          {state === 'error' && (
+            <div
+              className="glass-card"
+              style={{ textAlign: 'center', padding: 'var(--space-3xl)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-sm)', border: '1px dashed var(--border-medium)' }}
+            >
+              <AlertCircle size={40} style={{ color: 'var(--amber)', marginBottom: 'var(--space-sm)' }} />
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Couldn&apos;t reach the marketplace</h3>
+              <p style={{ color: 'var(--text-secondary)', maxWidth: 420, fontSize: '0.9rem' }}>
+                The configured Recurrsive server didn&apos;t respond. Community extensions are served
+                by a running server — check that it&apos;s reachable and that credentials are set.
+              </p>
+            </div>
+          )}
+
+          {state === 'empty' && (
+            <div
+              className="glass-card"
+              style={{ textAlign: 'center', padding: 'var(--space-3xl)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-sm)', border: '1px dashed var(--border-medium)' }}
+            >
+              <Store size={44} style={{ color: 'var(--text-tertiary)', marginBottom: 'var(--space-sm)' }} />
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>No community extensions yet</h3>
+              <p style={{ color: 'var(--text-secondary)', maxWidth: 440, margin: '0 auto var(--space-md)', fontSize: '0.9rem' }}>
+                No one has published a community extension yet. Be the first — build one with the
+                Plugin SDK and submit it for review.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Link href="/marketplace/submit" className="btn btn-primary btn-sm">
+                  Submit an Extension
+                </Link>
+                <Link href="/docs/plugin-sdk" className="btn btn-secondary btn-sm">
+                  Plugin SDK Docs
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {state === 'ready' && (
+            <div className="grid-4">
+              {extensions.map((ext) => (
+                <div key={ext.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 'var(--space-md)' }}>
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 'var(--radius-md)',
+                        background: 'rgba(6, 182, 212, 0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px solid rgba(6, 182, 212, 0.2)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Users size={22} style={{ color: 'var(--cyan)' }} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{ext.name}</h4>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>by {ext.author}</p>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, flex: 1, marginBottom: 'var(--space-md)' }}>
+                    {ext.description}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-tertiary)', marginBottom: 'var(--space-md)' }}>
+                    <span>{ext.category}</span>
+                    <span>v{ext.version}</span>
+                  </div>
+                  {ext.repository ? (
+                    <a
+                      href={ext.repository}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-secondary btn-sm"
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <ExternalLink size={14} /> View Source
+                    </a>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -605,25 +324,15 @@ export default function MarketplacePage() {
             Use the Plugin SDK to create custom analyzers, collectors, and intelligence packs for your team.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/docs" className="btn btn-primary btn-lg">
+            <Link href="/docs/plugin-sdk" className="btn btn-primary btn-lg">
               <Sparkles size={18} /> Plugin SDK Docs
             </Link>
-            <Link href="/docs" className="btn btn-secondary btn-lg">
-              View Examples <ArrowRight size={18} />
+            <Link href="/marketplace/submit" className="btn btn-secondary btn-lg">
+              Submit an Extension <ArrowRight size={18} />
             </Link>
           </div>
         </div>
       </section>
-
-      <style>{`
-        input::placeholder {
-          color: var(--text-tertiary);
-        }
-        input:focus {
-          border-color: var(--border-accent) !important;
-          box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
-        }
-      `}</style>
     </div>
   );
 }

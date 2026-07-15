@@ -144,24 +144,32 @@ export default function CliReferencePage() {
       <section className="section-sm" style={{ background: 'var(--bg-secondary)' }}>
         <div className="container" style={{ maxWidth: 800 }}>
           <h2 style={{ marginBottom: 'var(--space-lg)' }}>Installation</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
+            The CLI is part of the open-source monorepo and is not published to a package registry.
+            Clone and build the repo, then run it with <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>npx</span>{' '}
+            or link it globally.
+          </p>
           <div className="code-block" style={{ marginBottom: 'var(--space-lg)' }}>
             <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Install globally</span>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <span className="function">$</span> <span className="keyword">npm</span> install -g <span className="string">@recurrsive/cli</span>
-            </div>
-            <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Or run via npx</span>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <span className="function">$</span> <span className="keyword">npx</span> recurrsive <span className="keyword">--help</span>
-            </div>
-            <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Verify installation</span>
+              <span className="comment"># Clone and build the monorepo</span>
             </div>
             <div>
-              <span className="function">$</span> <span className="keyword">recurrsive</span> version
+              <span className="function">$</span> <span className="keyword">git</span> clone <span className="string">https://github.com/Talomia/Recurrsive.git</span>
+            </div>
+            <div>
+              <span className="function">$</span> <span className="keyword">cd</span> Recurrsive && <span className="keyword">pnpm</span> install && <span className="keyword">pnpm</span> build
+            </div>
+            <div style={{ marginTop: 16, marginBottom: 4 }}>
+              <span className="comment"># Run the CLI without a global install</span>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <span className="function">$</span> <span className="keyword">npx</span> --package ./apps/cli recurrsive <span className="keyword">--help</span>
+            </div>
+            <div style={{ marginBottom: 4 }}>
+              <span className="comment"># Or link it globally, then run `recurrsive`</span>
+            </div>
+            <div>
+              <span className="function">$</span> <span className="keyword">pnpm</span> --filter @recurrsive/cli link --global
             </div>
           </div>
         </div>

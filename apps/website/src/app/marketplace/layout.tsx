@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Marketplace',
   description:
-    'Browse and install community analyzers, collectors, and intelligence packs for the Recurrsive platform.',
+    'Browse the built-in analyzers and community extensions for the Recurrsive platform, and build your own with the Plugin SDK.',
 };
 
 export default function MarketplaceLayout({ children }: { children: React.ReactNode }) {

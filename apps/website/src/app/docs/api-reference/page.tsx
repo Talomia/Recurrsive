@@ -122,24 +122,26 @@ export default function ApiReferencePage() {
           </div>
           <div className="code-block" style={{ marginBottom: 'var(--space-lg)' }}>
             <div style={{ marginBottom: 8 }}>
-              <span className="comment"># Self-hosted</span>
+              <span className="comment"># Self-hosted (local dev)</span>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <span className="string">https://your-instance.com/api/v1</span>
+              <span className="string">http://localhost:3000/api/v1</span>
             </div>
             <div style={{ marginBottom: 8 }}>
-              <span className="comment"># Recurrsive Cloud</span>
+              <span className="comment"># Self-hosted (your deployment)</span>
             </div>
             <div>
-              <span className="string">https://api.recurrsive.dev/v1</span>
+              <span className="string">https://your-instance.example.com/api/v1</span>
             </div>
           </div>
           <div className="glass-card" style={{ padding: 'var(--space-md) var(--space-lg)', borderLeft: '3px solid var(--cyan)' }}>
             <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-              <strong style={{ color: 'var(--text-primary)' }}>Versioning:</strong> The API uses URL-based
-              versioning. The current version is <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>v1</span>.
-              Breaking changes will be introduced in new major versions. Deprecated endpoints return{' '}
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>Sunset</span> headers.
+              <strong style={{ color: 'var(--text-primary)' }}>Self-hosted only:</strong> Recurrsive
+              runs on your own infrastructure — there is no hosted API today. Point requests at your
+              own instance (the dev server listens on{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>localhost:3000</span>).
+              The API uses URL-based versioning; the current version is{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>v1</span>.
             </div>
           </div>
         </div>
@@ -218,7 +220,7 @@ export default function ApiReferencePage() {
             </div>
           </div>
           <div className="code-block" style={{ marginBottom: 'var(--space-xl)' }}>
-            <div><span className="keyword">curl</span> -X POST <span className="string">https://api.recurrsive.dev/v1/analyses</span> \</div>
+            <div><span className="keyword">curl</span> -X POST <span className="string">http://localhost:3000/api/v1/analyses</span> \</div>
             <div>{'  '}-H <span className="string">&quot;Authorization: Bearer $TOKEN&quot;</span> \</div>
             <div>{'  '}-H <span className="string">&quot;Content-Type: application/json&quot;</span> \</div>
             <div>{'  '}-d <span className="string">{`'{`}</span></div>
@@ -251,33 +253,20 @@ export default function ApiReferencePage() {
             <Zap size={28} style={{ color: 'var(--amber)' }} />
             <h2 style={{ fontSize: '1.5rem' }}>Rate Limiting</h2>
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-              gap: 'var(--space-md)',
-              marginBottom: 'var(--space-xl)',
-            }}
-          >
-            {[
-              { tier: 'Free', limit: '60 req/min', burst: '10 req/s' },
-              { tier: 'Pro', limit: '600 req/min', burst: '50 req/s' },
-              { tier: 'Enterprise', limit: 'Unlimited', burst: 'Custom' },
-            ].map((t) => (
-              <div key={t.tier} className="glass-card" style={{ textAlign: 'center', padding: 'var(--space-lg)' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 8 }}>{t.tier}</div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', color: 'var(--cyan)', marginBottom: 4 }}>
-                  {t.limit}
-                </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>Burst: {t.burst}</div>
-              </div>
-            ))}
-          </div>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
+            The server includes a built-in token-bucket rate limiter. Because Recurrsive is
+            self-hosted, you set the limit yourself — the default is 100 requests per minute and is
+            configurable via the <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>rateLimitMax</span>{' '}
+            server option (set to 0 to disable). The <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>/health</span>{' '}
+            endpoint is excluded. Exceeding the limit returns{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>429</span> with a{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>Retry-After</span> header.
+          </p>
           <div className="code-block" style={{ padding: 'var(--space-md) var(--space-lg)' }}>
             <div><span className="comment"># Rate limit headers in every response</span></div>
-            <div><span className="keyword">X-RateLimit-Limit</span>: <span className="number">600</span></div>
-            <div><span className="keyword">X-RateLimit-Remaining</span>: <span className="number">594</span></div>
-            <div><span className="keyword">X-RateLimit-Reset</span>: <span className="number">1719913860</span></div>
+            <div><span className="keyword">RateLimit-Limit</span>: <span className="number">100</span></div>
+            <div><span className="keyword">RateLimit-Remaining</span>: <span className="number">94</span></div>
+            <div><span className="keyword">RateLimit-Reset</span>: <span className="number">1719913860</span></div>
           </div>
         </div>
       </section>
@@ -303,7 +292,7 @@ export default function ApiReferencePage() {
               <span className="keyword">const</span> <span className="function">ws</span> = <span className="keyword">new</span> <span className="function">WebSocket</span>(
             </div>
             <div style={{ marginBottom: 12 }}>
-              {'  '}<span className="string">&apos;wss://api.recurrsive.dev/v1/ws?token=YOUR_TOKEN&apos;</span>
+              {'  '}<span className="string">&apos;ws://localhost:3000/ws?token=YOUR_TOKEN&apos;</span>
             </div>
             <div>);</div>
             <div style={{ marginTop: 12, marginBottom: 4 }}>

@@ -8,109 +8,109 @@ import {
   Database,
   Code,
   Globe,
+  ExternalLink,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Changelog',
   description:
-    'Track every release of Recurrsive — new features, improvements, and fixes across the Engineering Intelligence Platform.',
+    'Release history for Recurrsive — mirrors the CHANGELOG.md in the repository. New features, improvements, and fixes across the platform.',
 };
 
+// Highlights mirrored from the repository CHANGELOG.md. For the complete,
+// authoritative history see the linked CHANGELOG on GitHub.
 const releases = [
   {
-    version: 'v0.5.0',
-    date: 'July 2026',
-    title: 'Marketing, Marketplace & Cloud',
+    version: 'v0.5.8',
+    date: 'Jul 8, 2026',
+    title: 'Dashboard UX/UI Overhaul',
     icon: Globe,
     color: 'var(--purple)',
     latest: true,
     changes: [
-      'Marketing website with dark-mode glassmorphism design system',
-      'Marketplace for community collectors, analyzers, and integrations',
-      'Cloud platform with team management, billing, and usage dashboards',
-      'Partner portal for SI and consulting integrations',
-      'Automated onboarding flow with guided setup wizard',
-      'Public API documentation site with interactive playground',
+      'Sidebar consolidated from 7 sections into 4 collapsible groups (28 items)',
+      'Command Palette (⌘K), notifications dropdown, and AI chat slide-out panel',
+      'Accessibility pass: scope on table headers, aria-labels, heading hierarchy',
+      'New Finding detail and Project detail pages',
+      'Shared ErrorBanner and LoadingSkeleton components',
+      'Dashboard page count grew from 46 to 48',
     ],
   },
   {
-    version: 'v0.4.1',
-    date: 'July 2026',
-    title: 'Stability & Testing',
-    icon: Code,
+    version: 'v0.5.7',
+    date: 'Jul 5, 2026',
+    title: 'Real Implementation — Zero Synthetic Data',
+    icon: Database,
     color: 'var(--blue)',
     latest: false,
     changes: [
-      'API modularization — split monolithic router into domain modules',
-      '100% component test coverage across all UI components',
-      'Docker Compose fixes for ARM64 and rootless container runtimes',
-      'Reduced API response times by 40% via query optimization',
-      'Fixed knowledge graph edge deduplication in concurrent collection runs',
-      'Improved error messages and validation across all API endpoints',
+      'Removed all mock/seed data from server routes (marketplace, partners, projects, secrets, and more)',
+      'Collectors rewritten to make real API calls (GitHub, GitLab, Sentry, Datadog, Langfuse, and others)',
+      'Store-backed user authentication with scrypt password hashing and a first-admin setup wizard',
+      'Team invites, self-service password change, and admin password reset',
+      'OSS vs ecosystem tier separation via ENABLE_ENTERPRISE / ENABLE_ECOSYSTEM flags',
+      'Security hardening: auth middleware added across 13 route files; @fastify/helmet headers',
+    ],
+  },
+  {
+    version: 'v0.5.6',
+    date: 'Jul 4, 2026',
+    title: 'Git URL Analysis & Hardening',
+    icon: Shield,
+    color: 'var(--cyan)',
+    latest: false,
+    changes: [
+      'Analyze remote repositories by Git URL with shallow clone and automatic cleanup',
+      'New dashboard findings and health endpoints backed by real data',
+      'Security fixes: command-injection and path-traversal hardening, TOCTOU race fix',
+      'Demo credentials disabled in production unless explicitly allowed',
+      'Graph provider and parser pipeline resilience fixes for large repositories',
+    ],
+  },
+  {
+    version: 'v0.5.0 – v0.5.5',
+    date: 'Jul 2–3, 2026',
+    title: 'Marketing Site, APIs & OpenAPI',
+    icon: Code,
+    color: 'var(--green)',
+    latest: false,
+    changes: [
+      'Marketing website with a dark glassmorphism design system',
+      'Marketplace and Partner REST APIs (store-backed, no seed data)',
+      'OpenAPI 3.1 specification and Swagger UI at /api/docs',
+      'GraphQL resolvers wired to live analysis data',
+      'Website test suite and CI build verification',
+      'EasyPanel one-click deploy configuration',
     ],
   },
   {
     version: 'v0.4.0',
-    date: 'June 2026',
-    title: 'Enterprise Dashboard',
+    date: 'Jul 1, 2026',
+    title: 'Enterprise Collectors, Analyzers & Reasoning',
     icon: Rocket,
-    color: 'var(--cyan)',
-    latest: false,
-    changes: [
-      'Enterprise landing and pricing pages',
-      '45+ dashboard pages covering all analysis domains',
-      '160+ fully-typed REST API endpoints',
-      'Real-time analysis progress with WebSocket streaming',
-      'Custom dashboard builder with drag-and-drop widgets',
-      'Executive summary PDF export with trend analysis',
-    ],
-  },
-  {
-    version: 'v0.3.0',
-    date: 'June 2026',
-    title: 'Enterprise Features',
-    icon: Shield,
-    color: 'var(--green)',
-    latest: false,
-    changes: [
-      'SSO via SAML 2.0 and OIDC with auto-provisioning',
-      'Role-based access control (RBAC) with custom roles and policies',
-      'Audit logging for all data access and configuration changes',
-      'Workspace isolation for multi-tenant deployments',
-      'Scheduled analysis runs with cron-based configuration',
-      'Webhook integrations for Slack, Teams, PagerDuty, and Jira',
-    ],
-  },
-  {
-    version: 'v0.2.0',
-    date: 'June 2026',
-    title: 'Foundation',
-    icon: Database,
     color: 'var(--amber)',
     latest: false,
     changes: [
-      '14 data collectors — Git, GitHub, npm, Docker, Kubernetes, Terraform, and more',
-      '13 analyzers — code quality, dependency risk, architecture, AI pipeline, cost',
-      'Knowledge graph with 30+ entity types and relationship mapping',
-      'Multi-agent reasoning engine with specialist debate protocol',
-      'Evidence-based recommendation system with business-impact scoring',
-      'CLI tool for local analysis and CI/CD integration',
+      'Expanded to 14 data collectors with enterprise integrations',
+      'Expanded to 13 analyzers with 89+ rules',
+      '19-specialist multi-agent reasoning engine with a Custom Specialist SDK',
+      '138 REST endpoints across 30 route files, plus GraphQL and multi-tenant routes',
+      'CLI grew to 25 commands; MCP server to 42 tools',
     ],
   },
   {
-    version: 'v0.1.0',
-    date: 'June 2026',
-    title: 'Initial Release',
+    version: 'v0.1.0 – v0.3.0',
+    date: 'Jun 2026',
+    title: 'Foundation',
     icon: Server,
     color: 'var(--red)',
     latest: false,
     changes: [
-      'Core TypeScript type system with strict domain modeling',
-      'Basic static analysis for TypeScript and JavaScript projects',
-      'Git history collector with commit, branch, and contributor analysis',
-      'Dependency graph builder with vulnerability scanning',
-      'PostgreSQL-backed storage with migration framework',
-      'Docker Compose development environment',
+      'Core type system, dual-backend knowledge graph (SQLite + PostgreSQL/Apache AGE)',
+      'Collector, parser, analyzer, reasoning, policy, and presentation packages',
+      'CLI, MCP server, and Fastify REST API applications',
+      'Full-text search (FTS5), notifications, batch analysis, audit trail, and analytics',
+      'SARIF v2.1.0 and HTML/JSON/Markdown report generation',
     ],
   },
 ];
@@ -143,13 +143,21 @@ export default function ChangelogPage() {
             style={{
               color: 'var(--text-secondary)',
               fontSize: '1.15rem',
-              maxWidth: 520,
+              maxWidth: 560,
               marginInline: 'auto',
               marginTop: 'var(--space-lg)',
             }}
           >
-            Every feature, fix, and improvement — tracked and documented. See how Recurrsive
-            evolves sprint by sprint.
+            Highlights from each release. These mirror the{' '}
+            <a
+              href="https://github.com/Talomia/Recurrsive/blob/main/CHANGELOG.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}
+            >
+              CHANGELOG.md
+            </a>{' '}
+            in the repository, which is the authoritative source.
           </p>
         </div>
       </section>
@@ -295,7 +303,7 @@ export default function ChangelogPage() {
       <section className="section" style={{ background: 'var(--bg-secondary)' }}>
         <div className="container" style={{ textAlign: 'center' }}>
           <h2 style={{ marginBottom: 'var(--space-md)' }}>
-            Want to <span className="text-gradient">Contribute</span>?
+            Full <span className="text-gradient">History</span>
           </h2>
           <p
             style={{
@@ -306,20 +314,25 @@ export default function ChangelogPage() {
               marginBottom: 'var(--space-xl)',
             }}
           >
-            Recurrsive is open source under Apache 2.0. Check out the repo, open an issue, or submit
-            a pull request.
+            Recurrsive is open source under Apache 2.0. Read the complete changelog and follow
+            development in the repository.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
             <a
-              href="https://github.com/Talomia/Recurrsive"
+              href="https://github.com/Talomia/Recurrsive/blob/main/CHANGELOG.md"
               className="btn btn-primary btn-lg"
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Code size={18} /> View on GitHub
+              <ExternalLink size={18} /> Full CHANGELOG
             </a>
-            <a href="/contact" className="btn btn-secondary btn-lg">
-              <Rocket size={18} /> Request a Feature
+            <a
+              href="https://github.com/Talomia/Recurrsive"
+              className="btn btn-secondary btn-lg"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Code size={18} /> View on GitHub
             </a>
           </div>
         </div>

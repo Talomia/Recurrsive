@@ -193,7 +193,7 @@ export default function GettingStartedPage() {
               <span className="comment"># Analyze the current directory</span>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <span className="function">$</span> <span className="keyword">npx</span> recurrsive analyze <span className="string">.</span>
+              <span className="function">$</span> <span className="keyword">npx</span> --package ./apps/cli recurrsive analyze <span className="string">.</span>
             </div>
             <div style={{ marginBottom: 4 }}>
               <span className="comment"># Example output:</span>
@@ -237,7 +237,7 @@ export default function GettingStartedPage() {
               <span className="comment"># Generate an HTML report</span>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <span className="function">$</span> <span className="keyword">npx</span> recurrsive report <span className="keyword">--format</span> <span className="string">html</span>
+              <span className="function">$</span> <span className="keyword">npx</span> --package ./apps/cli recurrsive report <span className="keyword">--format</span> <span className="string">html</span>
             </div>
             <div style={{ marginBottom: 4 }}>
               <span className="comment"># Or launch the interactive dashboard</span>
@@ -291,25 +291,21 @@ export default function GettingStartedPage() {
             </h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            Prefer containers? Run Recurrsive with a single Docker command — no Node.js required on
-            the host.
+            Prefer containers? The repo ships a Docker Compose stack that builds the images locally
+            and runs the full platform — no Node.js required on the host beyond Docker.
           </p>
           <div className="code-block" style={{ marginBottom: 'var(--space-lg)' }}>
             <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Pull and run the latest image</span>
+              <span className="comment"># From the cloned repo, bring up the full stack</span>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <span className="function">$</span> <span className="keyword">docker</span> run -it --rm \{'\n'}
-              {'  '}-v <span className="string">$(pwd):/workspace</span> \{'\n'}
-              {'  '}-p <span className="number">3000</span>:<span className="number">3000</span> \{'\n'}
-              {'  '}<span className="string">ghcr.io/talomia/recurrsive:latest</span> \{'\n'}
-              {'  '}analyze <span className="string">/workspace</span>
+              <span className="function">$</span> <span className="keyword">cd</span> Recurrsive/docker && <span className="keyword">docker</span> compose up -d
             </div>
             <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Or use Docker Compose for the full stack</span>
+              <span className="comment"># API on :3000, dashboard on :3100</span>
             </div>
             <div>
-              <span className="function">$</span> <span className="keyword">docker</span> compose up -d
+              <span className="function">$</span> <span className="keyword">open</span> <span className="string">http://localhost:3100</span>
             </div>
           </div>
           <div
@@ -390,7 +386,7 @@ export default function GettingStartedPage() {
             Need Help?
           </h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: 500, margin: '0 auto var(--space-xl)', lineHeight: 1.7 }}>
-            Join our community on GitHub Discussions or Slack. We&apos;re here to help you get the most out of Recurrsive.
+            Ask questions in GitHub Discussions or open an issue. We&apos;re here to help you get the most out of Recurrsive.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
             <Link href="https://github.com/Talomia/Recurrsive" className="btn btn-primary btn-lg" target="_blank">

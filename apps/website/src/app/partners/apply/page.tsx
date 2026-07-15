@@ -1,102 +1,57 @@
-'use client';
-
-import { useState } from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   Handshake,
-  Send,
-  Check,
   ArrowRight,
-  DollarSign,
-  Users,
   GraduationCap,
   Megaphone,
-  Headphones,
   Rocket,
-  Building2,
-  Loader2,
+  Users,
+  Github,
+  Clock,
+  MessageSquare,
 } from 'lucide-react';
 
-const BENEFITS = [
+export const metadata: Metadata = {
+  title: 'Register Partner Interest',
+  description:
+    'The Recurrsive partner program is not yet open. Register early interest via GitHub or the contact page — no fabricated tiers or revenue-share promises.',
+};
+
+// Honest, non-monetary reasons to get involved early. No revenue-share figures
+// are promised because no program terms exist yet.
+const REASONS = [
   {
-    icon: DollarSign,
-    title: 'Revenue Sharing',
-    description: 'Earn up to 30% revenue share on referred and co-sold deals.',
-    color: 'var(--green)',
+    icon: Rocket,
+    title: 'Shape the Program',
+    description: 'Early interest helps decide what a Recurrsive partner program should actually offer.',
+    color: 'var(--amber)',
   },
   {
     icon: GraduationCap,
-    title: 'Training & Certification',
-    description: 'Free access to certification programs and technical enablement resources.',
+    title: 'Learn the Platform',
+    description: 'Everything is open source today — you can start building expertise before the program launches.',
     color: 'var(--cyan)',
   },
   {
     icon: Megaphone,
-    title: 'Co-Marketing',
-    description: 'Joint case studies, webinars, and events to drive pipeline together.',
+    title: 'Stay in the Loop',
+    description: 'Be among the first to hear when partner onboarding, materials, or co-marketing become available.',
     color: 'var(--purple)',
   },
   {
-    icon: Headphones,
-    title: 'Dedicated Support',
-    description: 'Priority technical support and a dedicated partner manager for Platinum and Gold tiers.',
-    color: 'var(--blue)',
-  },
-  {
-    icon: Rocket,
-    title: 'Early Access',
-    description: 'Preview new features, APIs, and roadmap items before general availability.',
-    color: 'var(--amber)',
-  },
-  {
     icon: Users,
-    title: 'Partner Community',
-    description: 'Connect with other partners, share best practices, and collaborate on joint opportunities.',
-    color: 'var(--red)',
+    title: 'Join the Community',
+    description: 'Connect with maintainers and other builders in GitHub Discussions.',
+    color: 'var(--blue)',
   },
 ];
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '12px 16px',
-  background: 'var(--bg-glass)',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 'var(--radius-md)',
-  color: 'var(--text-primary)',
-  fontSize: '0.92rem',
-  fontFamily: 'var(--font-sans)',
-  outline: 'none',
-  backdropFilter: 'blur(10px)',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: '0.85rem',
-  fontWeight: 600,
-  color: 'var(--text-secondary)',
-  marginBottom: '6px',
-};
-
 export default function PartnerApplyPage() {
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      setSubmitted(true);
-    }, 1200);
-  };
-
   return (
     <div style={{ paddingTop: 'var(--nav-height)' }}>
       {/* Hero */}
-      <section
-        className="section"
-        style={{ position: 'relative', overflow: 'hidden' }}
-      >
+      <section className="section" style={{ position: 'relative', overflow: 'hidden' }}>
         <div
           className="glow-orb glow-purple"
           style={{ width: 500, height: 500, top: -200, right: -100 }}
@@ -110,36 +65,37 @@ export default function PartnerApplyPage() {
             <Handshake size={14} /> Partner Program
           </div>
           <h1 style={{ marginBottom: 'var(--space-md)' }}>
-            Apply to <span className="text-gradient">Partner Program</span>
+            Register <span className="text-gradient">Interest</span>
           </h1>
           <p
             style={{
               fontSize: 'clamp(1rem, 2vw, 1.2rem)',
               color: 'var(--text-secondary)',
-              maxWidth: 600,
-              margin: '0 auto',
+              maxWidth: 640,
+              margin: '0 auto var(--space-lg)',
               lineHeight: 1.7,
             }}
           >
-            Join a growing ecosystem of system integrators, consulting firms, and technology partners
-            delivering engineering intelligence worldwide.
+            The partner program isn&apos;t accepting formal applications yet. Rather than collect a
+            form that goes nowhere, we point you to real channels where you can express interest and
+            hear about updates.
           </p>
+          <span className="badge">
+            <Clock size={13} /> Program not yet open
+          </span>
         </div>
       </section>
 
-      {/* Benefits */}
+      {/* Reasons */}
       <section className="section-sm">
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
             <h2 style={{ marginBottom: 'var(--space-md)' }}>
-              Why <span className="text-gradient">Partner</span> with Us?
+              Why <span className="text-gradient">Get Involved</span> Early?
             </h2>
-            <p style={{ color: 'var(--text-secondary)', maxWidth: 500, margin: '0 auto', fontSize: '1.05rem' }}>
-              Unlock exclusive benefits to grow your practice and deliver more value to your clients.
-            </p>
           </div>
-          <div className="grid-3">
-            {BENEFITS.map((b) => (
+          <div className="grid-4">
+            {REASONS.map((b) => (
               <div key={b.title} className="glass-card">
                 <div
                   style={{
@@ -166,156 +122,50 @@ export default function PartnerApplyPage() {
         </div>
       </section>
 
-      {/* Application Form */}
+      {/* How to register */}
       <section className="section" style={{ background: 'var(--bg-secondary)' }}>
-        <div className="container" style={{ maxWidth: 700 }}>
-          <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
-            <h2 style={{ marginBottom: 'var(--space-md)' }}>
-              Submit Your <span className="text-gradient">Application</span>
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem' }}>
-              We&apos;ll review your application and respond within 5 business days.
-            </p>
-          </div>
-
-          {submitted ? (
-            <div
-              className="glass-card animate-fade-in"
-              style={{
-                textAlign: 'center',
-                padding: 'var(--space-3xl)',
-                border: '1px solid rgba(34, 197, 94, 0.2)',
-              }}
-            >
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: '50%',
-                  background: 'rgba(34, 197, 94, 0.12)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto var(--space-lg)',
-                  border: '1px solid rgba(34, 197, 94, 0.2)',
-                }}
-              >
-                <Check size={32} style={{ color: 'var(--green)' }} />
+        <div className="container" style={{ maxWidth: 720 }}>
+          <div className="glass-card" style={{ padding: 'var(--space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+            <h3 style={{ fontSize: '1.15rem' }}>How to register interest</h3>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+              <MessageSquare size={22} style={{ color: 'var(--text-accent)', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>Start a GitHub Discussion</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.7 }}>
+                  Tell us who you are and how you&apos;d like to partner. This is the fastest way to
+                  reach the maintainers and other community members.
+                </p>
               </div>
-              <h3 style={{ marginBottom: 'var(--space-sm)' }}>Application Submitted!</h3>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)' }}>
-                Thank you for your interest. Our partnerships team will review your application and contact you within 5 business days.
-              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+              <Handshake size={22} style={{ color: 'var(--text-accent)', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>Or use the contact page</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.7 }}>
+                  Prefer not to post publicly? Reach out through the{' '}
+                  <Link href="/contact" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
+                    contact page
+                  </Link>
+                  .
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap', marginTop: 'var(--space-sm)' }}>
+              <a
+                href="https://github.com/Talomia/Recurrsive/discussions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+              >
+                <Github size={16} /> Open a Discussion
+              </a>
               <Link href="/partners" className="btn btn-secondary">
                 Back to Partners <ArrowRight size={16} />
               </Link>
             </div>
-          ) : (
-            <form onSubmit={handleSubmit}>
-              <div className="glass-card" style={{ opacity: submitting ? 0.8 : 1, transition: 'opacity 0.25s' }}>
-                <div className="grid-2" style={{ marginBottom: 'var(--space-lg)' }}>
-                  <div>
-                    <label style={labelStyle}>Company Name *</label>
-                    <input type="text" required placeholder="Acme Corp" style={inputStyle} disabled={submitting} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Website *</label>
-                    <input type="url" required placeholder="https://acme.com" style={inputStyle} disabled={submitting} />
-                  </div>
-                </div>
-
-                <div className="grid-2" style={{ marginBottom: 'var(--space-lg)' }}>
-                  <div>
-                    <label style={labelStyle}>Contact Name *</label>
-                    <input type="text" required placeholder="Jane Smith" style={inputStyle} disabled={submitting} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Email *</label>
-                    <input type="email" required placeholder="jane@acme.com" style={inputStyle} disabled={submitting} />
-                  </div>
-                </div>
-
-                <div className="grid-2" style={{ marginBottom: 'var(--space-lg)' }}>
-                  <div>
-                    <label style={labelStyle}>Company Size *</label>
-                    <select required style={{ ...inputStyle, cursor: submitting ? 'not-allowed' : 'pointer' }} disabled={submitting}>
-                      <option value="">Select size…</option>
-                      <option value="1-10">1–10 employees</option>
-                      <option value="11-50">11–50 employees</option>
-                      <option value="51-200">51–200 employees</option>
-                      <option value="201-1000">201–1,000 employees</option>
-                      <option value="1000+">1,000+ employees</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Partnership Type *</label>
-                    <select required style={{ ...inputStyle, cursor: submitting ? 'not-allowed' : 'pointer' }} disabled={submitting}>
-                      <option value="">Select type…</option>
-                      <option value="si">System Integrator</option>
-                      <option value="consulting">Consulting Firm</option>
-                      <option value="technology">Technology Partner</option>
-                      <option value="cloud">Cloud Provider</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 'var(--space-xl)' }}>
-                  <label style={labelStyle}>Description of Integration / Use Case *</label>
-                  <textarea
-                    required
-                    rows={4}
-                    placeholder="Tell us how you plan to integrate with or deliver Recurrsive to your clients…"
-                    style={{
-                      ...inputStyle,
-                      resize: 'vertical',
-                    }}
-                    disabled={submitting}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="btn btn-primary btn-lg"
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    cursor: submitting ? 'not-allowed' : 'pointer',
-                    opacity: submitting ? 0.75 : 1,
-                  }}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} /> Submitting application...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={18} /> Submit Application
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          )}
+          </div>
         </div>
       </section>
-
-      <style>{`
-        input::placeholder, textarea::placeholder {
-          color: var(--text-tertiary);
-        }
-        input:focus, textarea:focus, select:focus {
-          border-color: var(--border-accent) !important;
-          box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
-        }
-        select option {
-          background: var(--bg-secondary);
-          color: var(--text-primary);
-        }
-      `}</style>
     </div>
   );
 }

@@ -28,7 +28,7 @@ const NAV_ITEMS = [
     items: [
       { label: 'Features', href: '/product', icon: Sparkles, desc: 'Full-system engineering intelligence' },
       { label: 'Marketplace', href: '/marketplace', icon: Store, desc: 'Analyzers, collectors & more' },
-      { label: 'Cloud', href: '/cloud', icon: Cloud, desc: 'Managed SaaS deployment' },
+      { label: 'Deployment', href: '/cloud', icon: Cloud, desc: 'Self-host with Docker Compose' },
     ],
   },
   { label: 'Pricing', href: '/pricing' },
@@ -285,7 +285,7 @@ export function Navbar() {
           >
             GitHub
           </Link>
-          <Link href="/cloud" className="btn btn-primary btn-sm">
+          <Link href="/docs/getting-started" className="btn btn-primary btn-sm">
             Get Started
           </Link>
         </div>
@@ -367,7 +367,7 @@ export function Navbar() {
             <Link href="https://github.com/Talomia/Recurrsive" className="btn btn-secondary" target="_blank">
               GitHub
             </Link>
-            <Link href="/cloud" className="btn btn-primary">
+            <Link href="/docs/getting-started" className="btn btn-primary">
               Get Started
             </Link>
           </div>

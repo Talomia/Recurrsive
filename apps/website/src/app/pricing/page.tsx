@@ -1,13 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
-  Check, X, ArrowRight, Sparkles, Shield, Cloud,
-  HelpCircle, Minus,
+  Check, X, ArrowRight, Sparkles, HelpCircle,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: 'Simple, transparent pricing. No per-seat or per-repo charges. Free open-source tier, enterprise, and managed cloud.',
+  description: 'Recurrsive is free and open source under Apache 2.0. Self-host the full platform at no cost. Enterprise support is available on request.',
 };
 
 const PLANS = [
@@ -15,118 +14,84 @@ const PLANS = [
     name: 'Open Source',
     price: 'Free',
     period: 'forever',
-    desc: 'Full platform for individual teams and open-source projects.',
+    desc: 'The complete platform, free to self-host under the Apache 2.0 license.',
     cta: 'Get Started Free',
     ctaHref: 'https://github.com/Talomia/Recurrsive',
-    ctaStyle: 'btn-secondary',
-    badge: null,
+    ctaStyle: 'btn-primary',
+    badge: 'Apache 2.0',
     features: [
       '14 data collectors',
       '13 built-in analyzers (89+ rules)',
       '19-specialist multi-agent reasoning',
-      'Knowledge graph (SQLite + AGE)',
+      'Knowledge graph (SQLite + Apache AGE)',
       'CLI with 28 commands',
       'MCP Server (42 tools)',
       'REST + WebSocket API',
       'Plugin SDK for custom extensions',
       'SARIF export & reports',
       'Policy engine',
-      'Community support',
+      'SSO, RBAC & audit logging',
+      'Self-host with Docker Compose',
     ],
   },
   {
-    name: 'Enterprise',
-    price: 'Custom',
-    period: 'per org / year',
-    desc: 'Governance, compliance, and security for large organizations.',
-    cta: 'Contact Sales',
+    name: 'Enterprise Support',
+    price: 'Contact us',
+    period: '',
+    desc: 'Optional paid support for organizations that want help running the open-source platform at scale.',
+    cta: 'Contact Us',
     ctaHref: '/contact',
-    ctaStyle: 'btn-primary',
-    badge: 'Most Popular',
+    ctaStyle: 'btn-secondary',
+    badge: null,
     features: [
-      'Everything in Open Source, plus:',
-      'SSO / SAML integration',
-      'Fine-grained RBAC',
-      'Audit logging & compliance reports',
-      'Data masking & PII controls',
-      'Multi-tenant deployments',
-      'Secret management integration',
-      'Air-gapped deployment support',
-      'Custom specialist agents',
-      'Priority support & SLA',
-      'Dedicated success manager',
-    ],
-  },
-  {
-    name: 'Cloud',
-    price: '$199',
-    period: 'per org / month',
-    desc: 'Managed infrastructure with zero maintenance overhead.',
-    cta: 'Start Free Trial',
-    ctaHref: '/cloud',
-    ctaStyle: 'btn-primary',
-    badge: 'New',
-    features: [
-      'Everything in Enterprise, plus:',
-      'Fully managed infrastructure',
-      'Continuous synchronization',
-      'Automatic upgrades & patching',
-      'Secure cloud storage',
-      'GPU-backed reasoning',
-      'Executive intelligence dashboards',
-      'Collaboration features',
-      'Multi-region deployment',
-      '99.9% uptime SLA',
-      'Premium support',
+      'Everything in Open Source (same code)',
+      'Deployment & upgrade assistance',
+      'Guidance on SSO / RBAC / multi-tenant setup',
+      'Help writing custom analyzers & policies',
+      'Prioritized bug fixes & feature requests',
+      'Direct line to the maintainers',
     ],
   },
 ];
 
 const COMPARISON = [
-  { feature: 'Collectors', oss: '14', enterprise: '14', cloud: '14' },
-  { feature: 'Analyzers', oss: '13', enterprise: '13 + custom', cloud: '13 + custom' },
-  { feature: 'Multi-agent reasoning', oss: true, enterprise: true, cloud: true },
-  { feature: 'Knowledge graph', oss: 'SQLite', enterprise: 'AGE + SQLite', cloud: 'Managed AGE' },
-  { feature: 'REST API (160+ endpoints)', oss: true, enterprise: true, cloud: true },
-  { feature: 'CLI (28 commands)', oss: true, enterprise: true, cloud: true },
-  { feature: 'MCP Server', oss: true, enterprise: true, cloud: true },
-  { feature: 'Plugin SDK', oss: true, enterprise: true, cloud: true },
-  { feature: 'SSO / SAML', oss: false, enterprise: true, cloud: true },
-  { feature: 'RBAC', oss: 'Basic', enterprise: 'Fine-grained', cloud: 'Fine-grained' },
-  { feature: 'Audit logging', oss: false, enterprise: true, cloud: true },
-  { feature: 'Data masking', oss: false, enterprise: true, cloud: true },
-  { feature: 'Multi-tenant', oss: false, enterprise: true, cloud: true },
-  { feature: 'Air-gapped', oss: false, enterprise: true, cloud: false },
-  { feature: 'GPU reasoning', oss: false, enterprise: false, cloud: true },
-  { feature: 'Managed infrastructure', oss: false, enterprise: false, cloud: true },
-  { feature: 'Auto upgrades', oss: false, enterprise: false, cloud: true },
-  { feature: 'Support', oss: 'Community', enterprise: 'Priority SLA', cloud: 'Premium' },
+  { feature: 'Collectors', oss: '14', enterprise: '14' },
+  { feature: 'Analyzers', oss: '13 + custom', enterprise: '13 + custom' },
+  { feature: 'Multi-agent reasoning', oss: true, enterprise: true },
+  { feature: 'Knowledge graph', oss: 'SQLite / Apache AGE', enterprise: 'SQLite / Apache AGE' },
+  { feature: 'REST API (160+ endpoints)', oss: true, enterprise: true },
+  { feature: 'CLI (28 commands)', oss: true, enterprise: true },
+  { feature: 'MCP Server', oss: true, enterprise: true },
+  { feature: 'Plugin SDK', oss: true, enterprise: true },
+  { feature: 'SSO / SAML', oss: true, enterprise: true },
+  { feature: 'RBAC', oss: true, enterprise: true },
+  { feature: 'Audit logging', oss: true, enterprise: true },
+  { feature: 'Multi-tenant', oss: true, enterprise: true },
+  { feature: 'Self-hosted', oss: true, enterprise: true },
+  { feature: 'Deployment & upgrade help', oss: false, enterprise: true },
+  { feature: 'Prioritized support', oss: 'Community', enterprise: 'Direct' },
 ];
 
 const FAQS = [
   {
-    q: 'Why no per-seat pricing?',
-    a: 'Engineering intelligence gets more valuable when more people use it. Per-seat pricing creates adoption friction and encourages organizations to limit access. We want every engineer to benefit.',
+    q: 'Is Recurrsive really free?',
+    a: 'Yes. The entire platform is licensed under Apache 2.0 and free to use, self-host, and modify — including features often reserved for paid tiers elsewhere, like SSO, RBAC, and audit logging. There is no proprietary core.',
   },
   {
-    q: 'Why no per-repository pricing?',
-    a: 'The more systems you connect, the better the cross-cutting insights. Per-repo pricing discourages connecting your full landscape, which defeats the purpose of holistic intelligence.',
+    q: 'Why no per-seat or per-repository pricing?',
+    a: 'The platform is open source and self-hosted, so there is nothing to meter. Connect as many users and repositories as you like — the more of your system you connect, the better the cross-cutting insights.',
   },
   {
-    q: 'What\'s included in the free tier?',
-    a: 'Everything you need: 14 collectors, 13 analyzers, multi-agent reasoning, CLI, MCP server, REST API, Plugin SDK, and full policy engine. Apache 2.0 licensed, free forever.',
+    q: 'What is "Enterprise Support"?',
+    a: 'It is optional, paid help for running the same open-source software — deployment assistance, configuration guidance, and prioritized fixes. It does not unlock any features; everything is already in the open-source release. Contact us to discuss scope and pricing.',
   },
   {
-    q: 'Can I try Enterprise features?',
-    a: 'Yes! Contact us for a 30-day enterprise trial. We\'ll help you set up SSO, RBAC, audit logging, and multi-tenant deployments in your environment.',
+    q: 'Is there a managed cloud I can pay for?',
+    a: 'Not yet. A hosted, managed version is on the roadmap but is not available today. For now, self-hosting with Docker Compose is the way to run Recurrsive.',
   },
   {
-    q: 'How does Cloud pricing scale?',
-    a: 'Pricing is based on Decision Scope: organizational scale, history depth, and reasoning depth. The $199/mo starter covers small to mid-sized teams. Contact us for Growth and Enterprise cloud tiers.',
-  },
-  {
-    q: 'Do you offer discounts for startups?',
-    a: 'Yes! Early-stage startups (under $5M funding, under 50 employees) qualify for our Startup Program: 50% off Cloud for the first year.',
+    q: 'What do I need to self-host?',
+    a: 'Node.js 20+, pnpm, and optionally Docker. The Docker Compose stack brings up PostgreSQL (with Apache AGE), the API server, and the dashboard. See the Getting Started and Deployment guides.',
   },
 ];
 
@@ -144,22 +109,22 @@ export default function PricingPage() {
         <div className="glow-orb glow-purple" style={{ width: 500, height: 500, top: -150, left: '50%', transform: 'translateX(-50%)' }} />
         <div className="container" style={{ position: 'relative' }}>
           <span className="badge badge-accent animate-fade-in">
-            <Sparkles size={14} /> No Per-Seat Pricing
+            <Sparkles size={14} /> Free & Open Source
           </span>
           <h1 style={{ marginTop: 'var(--space-lg)', marginBottom: 'var(--space-md)' }} className="animate-fade-in stagger-1">
-            Simple, <span className="text-gradient">Transparent</span> Pricing
+            Simple, <span className="text-gradient">Honest</span> Pricing
           </h1>
-          <p className="text-secondary animate-fade-in stagger-2" style={{ fontSize: '1.15rem', maxWidth: 600, margin: '0 auto' }}>
-            Pay by Decision Scope, not by seat or repository.
-            More users and more systems connected means better intelligence for everyone.
+          <p className="text-secondary animate-fade-in stagger-2" style={{ fontSize: '1.15rem', maxWidth: 620, margin: '0 auto' }}>
+            The whole platform is free under Apache 2.0. Self-host it at no cost.
+            Paid support is available if you want a hand running it.
           </p>
         </div>
       </section>
 
       {/* Pricing Cards */}
       <section style={{ paddingBottom: 'var(--space-4xl)' }}>
-        <div className="container">
-          <div className="grid-3">
+        <div className="container" style={{ maxWidth: 900 }}>
+          <div className="grid-2">
             {PLANS.map((plan) => (
               <div
                 key={plan.name}
@@ -168,8 +133,8 @@ export default function PricingPage() {
                   display: 'flex',
                   flexDirection: 'column',
                   position: 'relative',
-                  border: plan.badge === 'Most Popular' ? '1px solid var(--border-accent)' : undefined,
-                  boxShadow: plan.badge === 'Most Popular' ? 'var(--shadow-glow)' : undefined,
+                  border: plan.badge ? '1px solid var(--border-accent)' : undefined,
+                  boxShadow: plan.badge ? 'var(--shadow-glow)' : undefined,
                 }}
               >
                 {plan.badge && (
@@ -192,7 +157,7 @@ export default function PricingPage() {
                 <h3 style={{ fontSize: '1.2rem', marginBottom: 'var(--space-sm)' }}>{plan.name}</h3>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: 'var(--space-sm)' }}>
                   <span style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>{plan.price}</span>
-                  <span className="text-secondary" style={{ fontSize: '0.9rem' }}>/ {plan.period}</span>
+                  {plan.period && <span className="text-secondary" style={{ fontSize: '0.9rem' }}>/ {plan.period}</span>}
                 </div>
                 <p className="text-secondary" style={{ fontSize: '0.9rem', marginBottom: 'var(--space-xl)', lineHeight: 1.6 }}>
                   {plan.desc}
@@ -228,10 +193,13 @@ export default function PricingPage() {
       {/* Comparison Table */}
       <section className="section" style={{ background: 'var(--bg-secondary)' }}>
         <div className="container">
-          <h2 style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
+          <h2 style={{ textAlign: 'center', marginBottom: 'var(--space-md)' }}>
             Feature <span className="text-gradient">Comparison</span>
           </h2>
-          <div style={{ overflowX: 'auto' }}>
+          <p className="text-secondary" style={{ textAlign: 'center', maxWidth: 560, margin: '0 auto var(--space-3xl)' }}>
+            Same software either way — Enterprise Support only adds people, not features.
+          </p>
+          <div style={{ overflowX: 'auto', maxWidth: 760, margin: '0 auto' }}>
             <table
               style={{
                 width: '100%',
@@ -243,8 +211,7 @@ export default function PricingPage() {
                 <tr>
                   <th style={{ textAlign: 'left', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600 }}>Feature</th>
                   <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600 }}>Open Source</th>
-                  <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600, color: 'var(--text-accent)' }}>Enterprise</th>
-                  <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600 }}>Cloud</th>
+                  <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-medium)', fontWeight: 600, color: 'var(--text-accent)' }}>Enterprise Support</th>
                 </tr>
               </thead>
               <tbody>
@@ -253,7 +220,6 @@ export default function PricingPage() {
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>{row.feature}</td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', textAlign: 'center' }}><CellValue value={row.oss} /></td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', textAlign: 'center' }}><CellValue value={row.enterprise} /></td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)', textAlign: 'center' }}><CellValue value={row.cloud} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -287,7 +253,7 @@ export default function PricingPage() {
         <div className="container">
           <h2 style={{ marginBottom: 'var(--space-md)' }}>Still have questions?</h2>
           <p className="text-secondary" style={{ marginBottom: 'var(--space-xl)', fontSize: '1.05rem' }}>
-            Our team is happy to help you find the right plan for your organization.
+            Reach out and we&apos;ll help you get Recurrsive running for your team.
           </p>
           <Link href="/contact" className="btn btn-primary btn-lg">
             Contact Us <ArrowRight size={18} />
