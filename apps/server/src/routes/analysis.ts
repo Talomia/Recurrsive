@@ -89,8 +89,11 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         state.markAnalysisError(message);
-        return reply.status(500).send({
-          error: 'Clone failed',
+        // An invalid/unsupported gitUrl is a client input error (400); an actual
+        // clone failure (network, missing repo) is a server-side 500.
+        const isInputError = /only http|not a valid|invalid.*url|must be a/i.test(message);
+        return reply.status(isInputError ? 400 : 500).send({
+          error: isInputError ? 'Bad request' : 'Clone failed',
           message,
         });
       }

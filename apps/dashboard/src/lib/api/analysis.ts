@@ -241,21 +241,36 @@ export interface AnalysisResult {
 }
 
 /**
+ * True when a repository string is a remote git URL (vs. a local filesystem path
+ * on the server, e.g. a mounted repo under /app).
+ */
+function isGitUrl(repository: string): boolean {
+  return /^https?:\/\//i.test(repository) ||
+    repository.startsWith('git@') ||
+    repository.includes('github.com') ||
+    repository.includes('gitlab.com');
+}
+
+/**
  * Trigger a single-project analysis via `POST /api/v1/analyze`.
  *
- * @param gitUrl - The repository URL to analyze.
+ * @param repository - The repository to analyze: a remote git URL (cloned by the
+ *   server) or a local filesystem path (analyzed in place). The correct request
+ *   field (`gitUrl` vs `path`) is chosen automatically — sending a local path as
+ *   `gitUrl` would make the server try to clone it and fail.
  * @param projectId - The project the results belong to. REQUIRED for results to
  *   surface on that project's pages — the server persists the analysis cache and
  *   writes back the project's health under this id. Omitting it lands the results
  *   in the implicit 'default' bucket where no project page reads them.
  */
 export async function triggerAnalysis(
-  gitUrl: string,
+  repository: string,
   projectId?: string,
 ): Promise<AnalysisResult> {
+  const target = isGitUrl(repository) ? { gitUrl: repository } : { path: repository };
   return await apiFetch<AnalysisResult>('/api/v1/analyze', {
     method: 'POST',
-    body: JSON.stringify({ gitUrl, ...(projectId ? { projectId } : {}) }),
+    body: JSON.stringify({ ...target, ...(projectId ? { projectId } : {}) }),
     headers: { 'Content-Type': 'application/json' },
     unwrap: false,
   });
