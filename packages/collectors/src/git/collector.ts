@@ -144,6 +144,10 @@ export class GitCollector implements Collector {
    */
   constructor(rootPath: string) {
     this.rootPath = path.resolve(rootPath);
+    // Create the git client eagerly so validate() works as a standalone
+    // pre-check before initialize() is called (initialize() recreates it if a
+    // custom rootPath override changes the path).
+    this.git = simpleGit(this.rootPath);
   }
 
   // -----------------------------------------------------------------------
@@ -196,7 +200,8 @@ export class GitCollector implements Collector {
           errors.push(`'${this.rootPath}' is not a git repository`);
         }
       } catch (err: unknown) {
-        errors.push(`Unable to verify git repository at '${this.rootPath}'`);
+        const detail = err instanceof Error ? err.message : String(err);
+        errors.push(`Unable to verify git repository at '${this.rootPath}': ${detail}`);
       }
     }
 

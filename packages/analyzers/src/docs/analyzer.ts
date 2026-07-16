@@ -204,19 +204,43 @@ export class DocsAnalyzer implements Analyzer {
     const files = await ctx.graph.getEntities('file');
     const repos = await ctx.graph.getEntities('repository');
     const modules = await ctx.graph.getEntities('module');
+    const documents = await ctx.graph.getEntities('document');
 
-    const readmeNames = new Set(
-      files
-        .filter((f) => /^readme(\.(md|txt|rst))?$/i.test(f.name))
-        .map((f) => f.properties['directory'] as string | undefined ?? ''),
-    );
+    const isReadmeName = (n: string | undefined): boolean =>
+      !!n && /^readme(\.(md|txt|rst))?$/i.test(n);
+    const baseName = (p: string): string => p.split('/').pop() ?? p;
+    const dirOf = (p: string): string => {
+      const i = p.lastIndexOf('/');
+      return i === -1 ? '' : p.slice(0, i);
+    };
 
-    // Check top-level README
-    const hasTopLevelReadme = files.some(
-      (f) => /^readme(\.(md|txt|rst))?$/i.test(f.name) &&
-        (f.properties['is_root'] === true ||
-         !(f.properties['directory'] as string | undefined)?.includes('/')),
-    );
+    // A README may be collected as a `file` entity (by name) OR — for markdown —
+    // as a `document` entity (named by its title, with the filename in `path`).
+    // Consider both so a real README is never falsely reported as missing.
+    const readmeNames = new Set<string>();
+    for (const f of files) {
+      if (isReadmeName(f.name)) {
+        readmeNames.add((f.properties['directory'] as string | undefined) ?? '');
+      }
+    }
+    for (const d of documents) {
+      const p = (d.properties['path'] ?? d.properties['file_path']) as string | undefined;
+      if (p && isReadmeName(baseName(p))) {
+        readmeNames.add(dirOf(p));
+      }
+    }
+
+    // Check top-level README (a file at root, or a top-level README document).
+    const hasTopLevelReadme =
+      files.some(
+        (f) => isReadmeName(f.name) &&
+          (f.properties['is_root'] === true ||
+           !((f.properties['directory'] as string | undefined) ?? '').includes('/')),
+      ) ||
+      documents.some((d) => {
+        const p = (d.properties['path'] ?? d.properties['file_path']) as string | undefined;
+        return !!p && isReadmeName(baseName(p)) && dirOf(p) === '';
+      });
 
     if (!hasTopLevelReadme && (repos.length > 0 || files.length > 0)) {
       findings.push(
