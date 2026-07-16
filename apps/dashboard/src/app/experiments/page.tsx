@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Header from "@/components/header";
+import EmptyState from "@/components/ui/empty-state";
+import LoadingSkeleton from "@/components/loading-skeleton";
+import { useToast } from "@/components/ui/toast";
 import { getExperiments, createExperiment } from "@/lib/api";
 import type { DashboardExperiment } from "@/lib/api";
 import {
@@ -301,6 +304,7 @@ function formatDuration(start: string, end: string): string {
 const EXPERIMENT_TYPES = ['A/B test', 'canary', 'feature-flag'] as const;
 
 export default function ExperimentsPage() {
+  const { toast } = useToast();
   const [experiments, setExperiments] = useState<DashboardExperiment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -332,14 +336,17 @@ export default function ExperimentsPage() {
         hypothesis: newHypothesis.trim() || undefined,
         variants,
       });
+      const name = newName.trim();
       setShowCreate(false);
       setNewName('');
       setNewHypothesis('');
       setNewType(EXPERIMENT_TYPES[0]);
       const data = await getExperiments();
       setExperiments(data);
+      toast(`Experiment "${name}" created.`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create experiment');
+      toast('Failed to create experiment. Please try again.', 'error');
     } finally {
       setCreating(false);
     }
@@ -366,9 +373,7 @@ export default function ExperimentsPage() {
           title="Experiments"
           subtitle="Loading experiment data…"
         />
-        <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-        </div>
+        <LoadingSkeleton variant="card" count={3} />
       </div>
     );
   }
@@ -539,6 +544,18 @@ export default function ExperimentsPage() {
               <ExperimentCard key={exp.id} experiment={exp} />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Empty state — no experiments at all */}
+      {!error && experiments.length === 0 && (
+        <div className="glass-card">
+          <EmptyState
+            icon={FlaskConical}
+            title="No experiments yet"
+            description="Create an experiment to test a hypothesis with A/B tests, canary rollouts, or feature flags and compare variant outcomes."
+            action={{ label: 'New Experiment', onClick: () => setShowCreate(true), icon: Plus }}
+          />
         </div>
       )}
     </div>

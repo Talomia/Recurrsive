@@ -3,10 +3,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink, Loader2 } from "lucide-react";
+import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink, Lightbulb } from "lucide-react";
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
+import EmptyState from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/error-state";
+import LoadingSkeleton from "@/components/loading-skeleton";
 import { getOpportunities, type Opportunity } from "@/lib/api";
 import clsx from "clsx";
 
@@ -50,6 +53,9 @@ const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low"]
 
 export default function OpportunitiesPage() {
   const searchParams = useSearchParams();
+  // Key the fetch on the active project so switching projects (a query-string
+  // change) actually refetches instead of showing the previous project's data.
+  const projectId = searchParams.get("projectId");
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
@@ -58,10 +64,13 @@ export default function OpportunitiesPage() {
   const [severityFilter, setSeverityFilter] = useState<string>("All Severities");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // Fetch opportunities from API on mount
+  // Fetch opportunities from API, re-running when the active project changes.
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     getOpportunities()
       .then((data) => {
         if (!cancelled) {
@@ -70,13 +79,13 @@ export default function OpportunitiesPage() {
         }
       })
       .catch(() => {
-        if (!cancelled) setError('Failed to load opportunities.');
+        if (!cancelled) setError('Failed to load opportunities. The analysis server may be unreachable.');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [projectId, reloadKey]);
 
   const filtered = useMemo(() => {
     let result = opportunities;
@@ -114,9 +123,25 @@ export default function OpportunitiesPage() {
           title="Opportunities"
           subtitle="AI-discovered improvement opportunities across your codebase"
         />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
+        <div className="flex-1 p-6">
+          <LoadingSkeleton variant="list" count={6} />
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-screen">
+        <Header
+          title="Opportunities"
+          subtitle="Couldn't load opportunities"
+        />
+        <ErrorState
+          title="Failed to load opportunities"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       </div>
     );
   }
@@ -128,10 +153,18 @@ export default function OpportunitiesPage() {
           title="Opportunities"
           subtitle="AI-discovered improvement opportunities across your codebase"
         />
-        <div className="flex-1 flex items-center justify-center flex-col gap-2">
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <p className="text-text-muted text-lg">No opportunities found</p>
-        </div>
+        {opportunities.length === 0 ? (
+          <EmptyState
+            icon={Lightbulb}
+            title="No opportunities yet"
+            description="Run an analysis on your project to discover improvement opportunities across security, performance, cost, and architecture."
+            action={{ label: 'Go to Projects', href: '/projects' }}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center flex-col gap-2">
+            <p className="text-text-muted text-lg">No opportunities match your filters</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -151,9 +184,9 @@ export default function OpportunitiesPage() {
         subtitle="AI-discovered improvement opportunities across your codebase"
       />
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
         {/* ── Left Panel: List ────────────────────────── */}
-        <div className="w-[380px] shrink-0 border-r border-border flex flex-col">
+        <div className="w-full lg:w-[380px] lg:shrink-0 border-b lg:border-b-0 lg:border-r border-border flex flex-col max-h-[45vh] lg:max-h-none">
           {/* Search + filter */}
           <div className="p-4 border-b border-border space-y-3">
             <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 border border-white/5 focus-within:border-accent-blue/40 transition-colors">

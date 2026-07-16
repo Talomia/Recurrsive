@@ -7,7 +7,6 @@ import {
   Loader2,
   ChevronRight,
   ShieldAlert,
-  AlertTriangle,
   AlertCircle,
   CheckCircle2,
   EyeOff,
@@ -18,6 +17,8 @@ import {
 } from 'lucide-react';
 import Header from '@/components/header';
 import ErrorBanner from '@/components/error-banner';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import { useToast } from '@/components/ui/toast';
 import { apiFetch } from '@/lib/api/client';
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string; 
 export default function FindingDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { toast } = useToast();
 
   const [finding, setFinding] = useState<Finding | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,8 +108,10 @@ export default function FindingDetailPage() {
         body: JSON.stringify({ status: 'resolved' }),
       });
       setFinding((prev) => prev ? { ...prev, status: 'resolved' } : prev);
+      toast('Finding marked as resolved.', 'success');
     } catch {
       setError('Failed to resolve finding.');
+      toast('Failed to resolve finding. Please try again.', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -121,8 +125,10 @@ export default function FindingDetailPage() {
         body: JSON.stringify({ status: 'suppressed' }),
       });
       setFinding((prev) => prev ? { ...prev, status: 'suppressed' } : prev);
+      toast('Finding suppressed.', 'info');
     } catch {
       setError('Failed to suppress finding.');
+      toast('Failed to suppress finding. Please try again.', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -136,11 +142,14 @@ export default function FindingDetailPage() {
         method: 'PATCH',
         body: JSON.stringify({ assignee: assignInput.trim() }),
       });
-      setFinding((prev) => prev ? { ...prev, assignee: assignInput.trim() } : prev);
+      const assignee = assignInput.trim();
+      setFinding((prev) => prev ? { ...prev, assignee } : prev);
       setShowAssign(false);
       setAssignInput('');
+      toast(`Finding assigned to ${assignee}.`, 'success');
     } catch {
       setError('Failed to assign finding.');
+      toast('Failed to assign finding. Please try again.', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -150,11 +159,9 @@ export default function FindingDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col gap-6 p-6">
         <Header title="Finding Detail" subtitle="Loading…" />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-        </div>
+        <LoadingSkeleton variant="list" count={4} />
       </div>
     );
   }
@@ -286,16 +293,18 @@ export default function FindingDetailPage() {
             {finding.related_opportunities.map((opp) => {
               const oppSev = SEVERITY_STYLES[opp.severity] ?? SEVERITY_STYLES.medium!;
               return (
-                <div
+                <Link
                   key={opp.id}
-                  className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] transition-all"
+                  href={`/opportunities/${encodeURIComponent(opp.id)}`}
+                  className="group flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] hover:border-white/10 transition-all"
                 >
                   <span className={`h-2 w-2 rounded-full shrink-0 ${oppSev.dot}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">{opp.title}</p>
+                    <p className="text-sm font-medium text-text-primary truncate group-hover:text-accent-blue transition-colors">{opp.title}</p>
                   </div>
                   <span className="text-xs text-text-muted tabular-nums">{Math.round(opp.confidence * 100)}%</span>
-                </div>
+                  <ChevronRight className="h-4 w-4 text-text-muted shrink-0 group-hover:text-text-secondary transition-colors" aria-hidden="true" />
+                </Link>
               );
             })}
           </div>

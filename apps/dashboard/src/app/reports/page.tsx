@@ -1,6 +1,8 @@
 import Header from "@/components/header";
 import { FileText, Download, Calendar, BarChart3, FileJson, Code2, Shield, Clock } from "lucide-react";
 import { getReportUrl, getReportsAnalysisHistory } from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
+import ErrorState from "@/components/ui/error-state";
 
 // ---------------------------------------------------------------------------
 // Report format definitions
@@ -41,30 +43,14 @@ const REPORT_FORMATS = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
-}
-
 export default async function ReportsPage() {
   let history: Awaited<ReturnType<typeof getReportsAnalysisHistory>> = [];
+  let historyError: string | null = null;
   try {
     history = await getReportsAnalysisHistory();
-  } catch {
-    // Will use fallback
+  } catch (err) {
+    // Distinguish a real failure from a genuinely empty history below.
+    historyError = err instanceof Error ? err.message : "Failed to load analysis history";
   }
 
   return (
@@ -117,7 +103,15 @@ export default async function ReportsPage() {
             )}
           </h3>
 
-          {history.length === 0 ? (
+          {historyError ? (
+            <div className="glass-card">
+              <ErrorState
+                title="Failed to load analysis history"
+                message={historyError}
+                compact
+              />
+            </div>
+          ) : history.length === 0 ? (
             <div className="glass-card p-8 text-center">
               <Clock className="h-10 w-10 mx-auto text-text-muted mb-3" aria-hidden="true" />
               <p className="text-sm text-text-secondary mb-1">No analysis history yet</p>
@@ -134,7 +128,7 @@ export default async function ReportsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-semibold text-text-primary">
-                        Analysis Report &mdash; {formatDate(entry.completedAt)}
+                        Analysis Report &mdash; {formatDateTime(entry.completedAt)}
                       </h4>
                       <p className="mt-1 text-xs text-text-secondary leading-relaxed">
                         {entry.findingCount} findings, {entry.opportunityCount} opportunities
@@ -142,7 +136,7 @@ export default async function ReportsPage() {
                       <div className="mt-3 flex items-center gap-4">
                         <div className="flex items-center gap-1.5 text-xs text-text-muted">
                           <Calendar className="h-3 w-3" aria-hidden="true" />
-                          {formatDate(entry.startedAt)}
+                          {formatDateTime(entry.startedAt)}
                         </div>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           entry.status === "success"

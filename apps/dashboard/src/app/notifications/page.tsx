@@ -165,7 +165,7 @@ export default async function NotificationsPage() {
             </p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10">

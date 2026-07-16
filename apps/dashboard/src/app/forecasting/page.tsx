@@ -18,7 +18,9 @@ import {
   type WhatIfResult,
   type ConfidenceData,
 } from '@/lib/api';
+import Header from '@/components/header';
 import ErrorBanner from '@/components/error-banner';
+import LoadingSkeleton from '@/components/loading-skeleton';
 
 // ---------------------------------------------------------------------------
 // Tabs
@@ -263,8 +265,13 @@ export default function ForecastingPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header
+          title="Forecasting & Intelligence"
+          subtitle="Health trajectory, what-if analysis, evolution tracking, and confidence calibration."
+        />
+        <LoadingSkeleton variant="card" count={4} />
+        <LoadingSkeleton variant="chart" />
       </div>
     );
   }
@@ -272,13 +279,10 @@ export default function ForecastingPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Brain className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          Forecasting & Intelligence
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">Health trajectory, what-if analysis, evolution tracking, and confidence calibration.</p>
-      </div>
+      <Header
+        title="Forecasting & Intelligence"
+        subtitle="Health trajectory, what-if analysis, evolution tracking, and confidence calibration."
+      />
 
       {/* Tabs */}
       <div
@@ -514,6 +518,7 @@ export default function ForecastingPage() {
                           <BarChart3 className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
                           <h3 className="text-lg font-semibold text-text-primary">Calibration Curve</h3>
                         </div>
+                        <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead><tr className="text-left text-text-tertiary text-xs uppercase">
                             <th className="pb-3">Predicted Range</th><th className="pb-3">Count</th><th className="pb-3">Actual Rate</th><th className="pb-3">Deviation</th><th className="pb-3">Calibration</th>
@@ -538,6 +543,7 @@ export default function ForecastingPage() {
                             ))}
                           </tbody>
                         </table>
+                        </div>
                       </div>
 
                       {/* Per-Analyzer */}

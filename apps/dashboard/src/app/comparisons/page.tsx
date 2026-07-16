@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { getAnalysisRuns, getComparisonData } from "@/lib/api";
 import type { AnalysisRun, ComparisonData } from "@/lib/api";
+import LoadingSkeleton from "@/components/loading-skeleton";
 
 // ---------------------------------------------------------------------------
 // Delta display
@@ -226,9 +227,7 @@ export default function ComparisonsPage() {
     return (
       <div className="flex flex-col gap-6 p-6">
         <Header title="Analysis Comparisons" subtitle="Loading analysis runs…" />
-        <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-        </div>
+        <LoadingSkeleton variant="card" count={4} />
       </div>
     );
   }

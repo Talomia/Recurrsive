@@ -19,6 +19,7 @@ import {
   getTimelineSnapshots,
   getTimelineTrends,
 } from "@/lib/api";
+import ErrorState from "@/components/ui/error-state";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -135,14 +136,16 @@ export default async function TimelinePage() {
   let history: Awaited<ReturnType<typeof getTimelineHistory>> = [];
   let snapshots: Awaited<ReturnType<typeof getTimelineSnapshots>> = [];
   let trends: Awaited<ReturnType<typeof getTimelineTrends>> = { series: [], total: 0 };
+  let loadError: string | null = null;
   try {
     [history, snapshots, trends] = await Promise.all([
       getTimelineHistory(),
       getTimelineSnapshots(),
       getTimelineTrends(),
     ]);
-  } catch {
-    // Will use fallback values
+  } catch (err) {
+    // Distinguish a real failure from a genuinely empty timeline below.
+    loadError = err instanceof Error ? err.message : "Failed to load timeline data";
   }
 
   const hasData = history.length > 0 || snapshots.length > 0;
@@ -170,8 +173,18 @@ export default async function TimelinePage() {
       />
 
       <div className="flex-1 p-6 space-y-6 stagger-children">
+        {/* ── Error State ──────────────────────────────────── */}
+        {loadError && (
+          <div className="glass-card">
+            <ErrorState
+              title="Failed to load timeline"
+              message={loadError}
+            />
+          </div>
+        )}
+
         {/* ── Empty State ──────────────────────────────────── */}
-        {!hasData && (
+        {!loadError && !hasData && (
           <div className="glass-card p-12 flex flex-col items-center text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-blue/20 to-accent-purple/20 border border-accent-blue/20 mb-6">
               <Terminal className="h-8 w-8 text-accent-blue" />

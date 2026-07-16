@@ -6,8 +6,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { FlaskConical, Play, AlertTriangle, TrendingUp, Clock, Zap, Loader2 } from 'lucide-react';
+import { FlaskConical, Play, AlertTriangle, TrendingUp, Clock, Zap } from 'lucide-react';
 import Header from '@/components/header';
+import EmptyState from '@/components/ui/empty-state';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import { useToast } from '@/components/ui/toast';
 import { getSimulations, createSimulation } from '@/lib/api';
 import type { SimulationScenario } from '@/lib/api';
 // Types reuse SimulationScenario from api.ts
@@ -35,6 +38,7 @@ function RiskDot({ level }: { level: string }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function SimulationPage() {
+  const { toast } = useToast();
   const [simulations, setSimulations] = useState<Simulation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Simulation | null>(null);
@@ -61,8 +65,10 @@ export default function SimulationPage() {
       const data = await getSimulations();
       setSimulations(data);
       if (data.length > 0) setSelected(data[0]);
+      toast(`${newType} simulation launched.`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create simulation');
+      toast('Failed to launch simulation. Please try again.', 'error');
     } finally {
       setCreating(false);
     }
@@ -70,8 +76,10 @@ export default function SimulationPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Simulation" subtitle="Run what-if simulations on your codebase" />
+        <LoadingSkeleton variant="card" count={4} />
+        <LoadingSkeleton variant="table" count={5} />
       </div>
     );
   }
@@ -102,26 +110,43 @@ export default function SimulationPage() {
           <Clock className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
           <h2 className="text-lg font-semibold text-text-primary">Simulations</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-text-tertiary text-xs uppercase">
-              <th scope="col" className="pb-3">Name</th><th scope="col" className="pb-3">Type</th><th scope="col" className="pb-3">Status</th><th scope="col" className="pb-3">Risk</th><th scope="col" className="pb-3">Impact</th><th scope="col" className="pb-3">Duration</th><th scope="col" className="pb-3" />
-            </tr></thead>
-            <tbody className="divide-y divide-white/5">
-              {simulations.map(s => (
-                <tr key={s.id} className="hover:bg-white/5 cursor-pointer" onClick={() => setSelected(s)}>
-                  <td className="py-3 text-text-primary font-medium">{s.name}</td>
-                  <td className="py-3 text-text-secondary">{s.type}</td>
-                  <td className="py-3"><StatusBadge status={s.status} /></td>
-                  <td className="py-3"><div className="flex items-center gap-1.5"><RiskDot level={s.riskLevel} /><span className="text-text-secondary capitalize">{s.riskLevel}</span></div></td>
-                  <td className="py-3 text-text-primary font-semibold">{s.impactScore}</td>
-                  <td className="py-3 text-text-secondary">{s.duration}</td>
-                  <td className="py-3"><Play className="w-4 h-4 text-text-tertiary" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {simulations.length === 0 ? (
+          <EmptyState
+            icon={FlaskConical}
+            title="No simulations yet"
+            description="Launch a simulation below to model how changes would impact your codebase — with impact scores, risk levels, and an event timeline."
+            compact
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-text-tertiary text-xs uppercase">
+                <th scope="col" className="pb-3">Name</th><th scope="col" className="pb-3">Type</th><th scope="col" className="pb-3">Status</th><th scope="col" className="pb-3">Risk</th><th scope="col" className="pb-3">Impact</th><th scope="col" className="pb-3">Duration</th><th scope="col" className="pb-3" />
+              </tr></thead>
+              <tbody className="divide-y divide-white/5">
+                {simulations.map(s => (
+                  <tr
+                    key={s.id}
+                    className="hover:bg-white/5 cursor-pointer focus-visible:outline-none focus-visible:bg-white/5"
+                    onClick={() => setSelected(s)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(s); } }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View timeline for ${s.name}`}
+                  >
+                    <td className="py-3 text-text-primary font-medium">{s.name}</td>
+                    <td className="py-3 text-text-secondary">{s.type}</td>
+                    <td className="py-3"><StatusBadge status={s.status} /></td>
+                    <td className="py-3"><div className="flex items-center gap-1.5"><RiskDot level={s.riskLevel} /><span className="text-text-secondary capitalize">{s.riskLevel}</span></div></td>
+                    <td className="py-3 text-text-primary font-semibold">{s.impactScore}</td>
+                    <td className="py-3 text-text-secondary">{s.duration}</td>
+                    <td className="py-3"><Play className="w-4 h-4 text-text-tertiary" aria-hidden="true" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Selected Detail + Timeline */}

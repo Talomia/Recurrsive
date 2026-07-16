@@ -1,5 +1,7 @@
 import Header from "@/components/header";
 import { getSnapshots } from "@/lib/api";
+import EmptyState from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/error-state";
 import {
   Camera,
   ChevronDown,
@@ -54,10 +56,12 @@ function formatDate(iso: string): string {
 
 export default async function SnapshotsPage() {
   let snapshots: Awaited<ReturnType<typeof getSnapshots>> = [];
+  let loadError: string | null = null;
   try {
     snapshots = await getSnapshots();
-  } catch {
-    // Will use fallback
+  } catch (err) {
+    // Distinguish a real failure from a genuinely empty snapshot list below.
+    loadError = err instanceof Error ? err.message : "Failed to load snapshots";
   }
 
   return (
@@ -101,16 +105,20 @@ export default async function SnapshotsPage() {
           </span>
         </div>
 
-        {snapshots.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="rounded-2xl bg-blue-500/10 p-4 mb-4">
-              <Camera className="h-8 w-8 text-blue-400" />
-            </div>
-            <h3 className="text-sm font-medium text-text-primary mb-1">No Snapshots Yet</h3>
-            <p className="text-xs text-text-muted max-w-xs">
-              Run an analysis to capture your first project snapshot.
-            </p>
+        {loadError ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02]">
+            <ErrorState
+              title="Failed to load snapshots"
+              message={loadError}
+            />
           </div>
+        ) : snapshots.length === 0 ? (
+          <EmptyState
+            icon={Camera}
+            title="No snapshots yet"
+            description="Run an analysis to capture your first project snapshot. Snapshots track how your health score and findings evolve over time."
+            action={{ label: 'Go to Projects', href: '/projects' }}
+          />
         ) : (
           <div className="relative pl-6 space-y-4">
             {/* Vertical timeline line */}

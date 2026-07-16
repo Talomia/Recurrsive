@@ -1,5 +1,6 @@
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
+import EmptyState from "@/components/ui/empty-state";
 import { getPolicies, getComplianceReport } from "@/lib/api";
 import type { PolicySet } from "@/lib/api";
 import {
@@ -230,19 +231,13 @@ export default async function PoliciesPage() {
           </span>
         </div>
 
-        {policies.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="rounded-2xl bg-blue-500/10 p-4 mb-4">
-              <Shield className="h-8 w-8 text-blue-400" />
-            </div>
-            <h3 className="text-sm font-medium text-text-primary mb-1">
-              No Policies Configured
-            </h3>
-            <p className="text-xs text-text-muted max-w-xs">
-              Policy sets define governance rules for engineering opportunities.
-              Run an analysis to see built-in policies in action.
-            </p>
-          </div>
+        {policies.length === 0 && !error ? (
+          <EmptyState
+            icon={Shield}
+            title="No policies configured"
+            description="Policy sets define governance rules for engineering opportunities. Run an analysis to see built-in policies in action."
+            action={{ label: 'Go to Projects', href: '/projects' }}
+          />
         ) : (
           <div className="space-y-3 stagger-children">
             {policies.map((ps) => (

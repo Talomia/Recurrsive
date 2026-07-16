@@ -6,13 +6,14 @@ import {
   Zap,
   AlertCircle,
   CheckCircle2,
-  XCircle,
   FileText,
   Target,
   Layers,
   ArrowRight,
 } from "lucide-react";
 import { getOpportunity } from "@/lib/api";
+import { formatDate } from "@/lib/format";
+import OpportunityActions from "./opportunity-actions";
 
 // ---------------------------------------------------------------------------
 // Metric helpers
@@ -174,11 +175,7 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
         {/* ── Date info ───────────────────────────────── */}
         <div className="flex items-center gap-4 text-xs text-text-muted pt-2 border-t border-white/5">
           <span>
-            Discovered: {new Date(opportunity.createdAt).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            })}
+            Discovered: {formatDate(opportunity.createdAt)}
           </span>
           <span className="h-1 w-1 rounded-full bg-white/20" />
           <span>ID: {opportunity.id}</span>
@@ -328,25 +325,7 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
       )}
 
       {/* ── Action Buttons ───────────────────────────── */}
-      <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] border border-white/5 p-5">
-        <div className="text-sm text-text-muted">
-          Review this opportunity and take action
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
-          >
-            <XCircle className="h-4 w-4" />
-            Dismiss
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-2 text-sm font-medium text-green-400 hover:bg-green-500/20 transition-colors"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            Accept
-          </button>
-        </div>
-      </div>
+      <OpportunityActions opportunityId={opportunity.id} />
     </div>
   );
 }

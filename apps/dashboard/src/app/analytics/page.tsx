@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/header";
 import ErrorBanner from "@/components/error-banner";
+import EmptyState from "@/components/ui/empty-state";
+import LoadingSkeleton from "@/components/loading-skeleton";
 import { getAnalyticsSummary, getAnalyticsCategories, getFindingsSummary, getFindings } from "@/lib/api";
 import type { AnalyticsSummary, AnalyticsCategory, Finding } from "@/lib/api";
 import {
@@ -20,7 +22,6 @@ import {
   BarChart3,
   Layers,
   ChevronRight,
-  ArrowRight,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -302,9 +303,8 @@ export default function AnalyticsPage() {
           title="Analytics & Trends"
           subtitle="Loading analytics data…"
         />
-        <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-        </div>
+        <LoadingSkeleton variant="card" count={4} />
+        <LoadingSkeleton variant="chart" />
       </div>
     );
   }
@@ -586,21 +586,13 @@ export default function AnalyticsPage() {
                   })}
                 </div>
               ) : (
-                <div className="glass-card p-12 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10 mx-auto mb-5">
-                    <Sparkles className="h-7 w-7 text-text-muted" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-text-primary mb-2">No insights generated yet</h3>
-                  <p className="text-sm text-text-secondary max-w-md mx-auto mb-6">
-                    Insights are generated from analysis findings. Run an analysis on your project to discover patterns and recommendations.
-                  </p>
-                  <Link
-                    href="/projects"
-                    className="inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/20 px-4 py-2.5 text-sm font-medium text-blue-400 hover:bg-accent-blue/20 transition-colors"
-                  >
-                    Go to Projects
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
+                <div className="glass-card">
+                  <EmptyState
+                    icon={Sparkles}
+                    title="No insights generated yet"
+                    description="Insights are generated from analysis findings. Run an analysis on your project to discover patterns and recommendations."
+                    action={{ label: 'Go to Projects', href: '/projects' }}
+                  />
                 </div>
               )}
 

@@ -2,6 +2,7 @@ import Header from "@/components/header";
 import { Search, ArrowRight } from "lucide-react";
 import { searchGraphEntities, getGraphStats } from "@/lib/api";
 import type { GraphEntity } from "@/lib/api";
+import ErrorState from "@/components/ui/error-state";
 import Link from "next/link";
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   // Perform search if query provided
   let results: GraphEntity[] = [];
+  let searchError: string | null = null;
   if (query.trim()) {
     try {
       results = await searchGraphEntities(
@@ -59,8 +61,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         typeFilter || undefined,
         50,
       );
-    } catch {
-      // Will use fallback empty results
+    } catch (err) {
+      // Distinguish a request failure from a genuinely empty result set.
+      searchError = err instanceof Error ? err.message : "Search request failed";
     }
   }
 
@@ -133,7 +136,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
       {/* Results */}
       {query.trim() ? (
-        results.length > 0 ? (
+        searchError ? (
+          <ErrorState
+            title="Search failed"
+            message={searchError}
+          />
+        ) : results.length > 0 ? (
           <div className="space-y-1">
             <p className="text-sm text-text-muted mb-3">
               Found <span className="text-text-primary font-medium">{results.length}</span>{" "}
