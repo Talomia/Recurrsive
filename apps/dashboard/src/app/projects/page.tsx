@@ -31,6 +31,11 @@ import type { Project } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
 import Header from '@/components/header';
 import { useActiveProject } from '@/components/active-project-context';
+import { useToast } from '@/components/ui/toast';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import EmptyState from '@/components/ui/empty-state';
+import ErrorBanner from '@/components/error-banner';
+import LoadingSkeleton from '@/components/loading-skeleton';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -70,26 +75,6 @@ function LanguageBadge({ language }: { language: string }) {
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[language] ?? 'bg-gray-500/20 text-gray-400'}`}>
       {language}
     </span>
-  );
-}
-
-/** Success/info toast banner */
-function Toast({ message, type = 'success', onDismiss }: { message: string; type?: 'success' | 'info' | 'error'; onDismiss: () => void }) {
-  const colors = {
-    success: 'bg-green-500/10 border-green-500/20 text-green-400',
-    info: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-    error: 'bg-red-500/10 border-red-500/20 text-red-400',
-  };
-
-  return (
-    <div className={`rounded-xl p-4 text-sm flex items-center justify-between border ${colors[type]} animate-fade-in`}>
-      <div className="flex items-center gap-2">
-        {type === 'success' && <CheckCircle2 className="w-4 h-4" />}
-        {type === 'info' && <Sparkles className="w-4 h-4" />}
-        <span>{message}</span>
-      </div>
-      <button onClick={onDismiss} className="opacity-60 hover:opacity-100 transition-opacity ml-4">✕</button>
-    </div>
   );
 }
 
@@ -174,44 +159,33 @@ function GettingStartedGuide({ projectCount, onAnalyzeAll }: { projectCount: num
 // Empty state — shown when no projects exist
 // ---------------------------------------------------------------------------
 
-function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
+function ProjectsEmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
-    <div className="rounded-2xl p-10 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-      <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl mb-4"
-        style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15))' }}>
-        <FolderGit2 className="w-8 h-8 text-blue-400" />
-      </div>
-      <h3 className="text-lg font-bold text-text-primary mb-2">No projects yet</h3>
-      <p className="text-sm text-text-secondary max-w-md mx-auto mb-6">
-        Create your first project to start analyzing your codebase. Recurrsive will scan your repository for
-        architecture insights, security findings, and improvement opportunities.
-      </p>
-      <button
-        onClick={onCreateClick}
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
-        style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}
+    <div className="rounded-2xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+      <EmptyState
+        icon={FolderGit2}
+        title="No projects yet"
+        description="Create your first project to start analyzing your codebase. Recurrsive will scan your repository for architecture insights, security findings, and improvement opportunities."
+        action={{ label: 'Create Your First Project', onClick: onCreateClick, icon: Plus }}
       >
-        <Plus className="w-4 h-4" />
-        Create Your First Project
-      </button>
-
-      <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-white/5">
-        <div className="text-center">
-          <ShieldAlert className="w-5 h-5 mx-auto mb-2 text-amber-400" />
-          <p className="text-xs font-medium text-text-primary">Security Findings</p>
-          <p className="text-[10px] text-text-muted mt-0.5">Detect vulnerabilities</p>
+        <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-white/5 max-w-xl w-full">
+          <div className="text-center">
+            <ShieldAlert className="w-5 h-5 mx-auto mb-2 text-amber-400" />
+            <p className="text-xs font-medium text-text-primary">Security Findings</p>
+            <p className="text-[10px] text-text-muted mt-0.5">Detect vulnerabilities</p>
+          </div>
+          <div className="text-center">
+            <Network className="w-5 h-5 mx-auto mb-2 text-blue-400" />
+            <p className="text-xs font-medium text-text-primary">System Map</p>
+            <p className="text-[10px] text-text-muted mt-0.5">Visualize architecture</p>
+          </div>
+          <div className="text-center">
+            <BarChart3 className="w-5 h-5 mx-auto mb-2 text-green-400" />
+            <p className="text-xs font-medium text-text-primary">Health Score</p>
+            <p className="text-[10px] text-text-muted mt-0.5">Track quality over time</p>
+          </div>
         </div>
-        <div className="text-center">
-          <Network className="w-5 h-5 mx-auto mb-2 text-blue-400" />
-          <p className="text-xs font-medium text-text-primary">System Map</p>
-          <p className="text-[10px] text-text-muted mt-0.5">Visualize architecture</p>
-        </div>
-        <div className="text-center">
-          <BarChart3 className="w-5 h-5 mx-auto mb-2 text-green-400" />
-          <p className="text-xs font-medium text-text-primary">Health Score</p>
-          <p className="text-[10px] text-text-muted mt-0.5">Track quality over time</p>
-        </div>
-      </div>
+      </EmptyState>
     </div>
   );
 }
@@ -263,58 +237,68 @@ function ProjectQuickLinks({ project }: { project: Project }) {
 
 export default function ProjectsPage() {
   const { refresh: refreshActiveProjects } = useActiveProject();
+  const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newRepo, setNewRepo] = useState('');
+  const [creating, setCreating] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'health' | 'updated'>('updated');
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
+  const loadProjects = useCallback(() => {
+    setLoading(true);
+    setError(null);
     getProjects()
       .then(setProjects)
-      .catch(() => { setError('Failed to load projects.'); })
+      .catch(() => { setError('Failed to load projects. The analysis server may be unreachable.'); })
       .finally(() => setLoading(false));
   }, []);
 
-  // Auto-dismiss toast after 5s
   useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 5000);
-    return () => clearTimeout(t);
-  }, [toast]);
+    loadProjects();
+  }, [loadProjects]);
 
   const createProject = async () => {
-    if (!newName || !newRepo) return;
+    if (!newName.trim() || !newRepo.trim()) return;
+    setCreating(true);
     try {
       const data = await apiFetch<Project>('/api/v1/projects', {
         method: 'POST',
-        body: JSON.stringify({ name: newName, repository: newRepo }),
+        body: JSON.stringify({ name: newName.trim(), repository: newRepo.trim() }),
       });
       setProjects(prev => [...prev, data]);
       setNewName('');
       setNewRepo('');
       setShowCreate(false);
-      setToast({ message: `Project "${data.name}" created! Click "Analyze" to run your first analysis.`, type: 'success' });
+      toast(`Project "${data.name}" created. Click "Analyze" to run your first analysis.`, 'success');
       // Keep the global project switcher (sidebar/header) in sync.
       void refreshActiveProjects();
     } catch {
-      setError('Failed to create project.');
+      toast('Failed to create project. Please try again.', 'error');
+    } finally {
+      setCreating(false);
     }
   };
 
-  const deleteProject = async (id: string) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await apiFetch(`/api/v1/projects/${encodeURIComponent(id)}`, { method: 'DELETE', unwrap: false });
-      setProjects(prev => prev.filter(p => p.id !== id));
-      setToast({ message: 'Project deleted.', type: 'info' });
+      await apiFetch(`/api/v1/projects/${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', unwrap: false });
+      setProjects(prev => prev.filter(p => p.id !== deleteTarget.id));
+      toast(`Project "${deleteTarget.name}" deleted.`, 'info');
+      setDeleteTarget(null);
       // Keep the global project switcher (sidebar/header) in sync.
       void refreshActiveProjects();
     } catch {
-      setError('Failed to delete project.');
+      toast('Failed to delete project. Please try again.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -322,9 +306,9 @@ export default function ProjectsPage() {
     setAnalyzingIds(prev => new Set(prev).add(project.id));
     try {
       await triggerAnalysis(project.repository);
-      setToast({ message: `Analysis started for "${project.name}". Check the Overview page for progress.`, type: 'success' });
+      toast(`Analysis started for "${project.name}". Check the Overview page for progress.`, 'success');
     } catch {
-      setToast({ message: `Failed to start analysis for "${project.name}".`, type: 'error' });
+      toast(`Failed to start analysis for "${project.name}".`, 'error');
     } finally {
       setAnalyzingIds(prev => {
         const next = new Set(prev);
@@ -332,18 +316,18 @@ export default function ProjectsPage() {
         return next;
       });
     }
-  }, []);
+  }, [toast]);
 
   const analyzeAll = useCallback(async () => {
     const repos = projects.map(p => p.repository);
     if (repos.length === 0) return;
     try {
       await createBatchRun({ projects: repos });
-      setToast({ message: `Batch analysis started for ${repos.length} project${repos.length !== 1 ? 's' : ''}. Check the Batch page for progress.`, type: 'success' });
+      toast(`Batch analysis started for ${repos.length} project${repos.length !== 1 ? 's' : ''}. Check the Batch page for progress.`, 'success');
     } catch {
-      setToast({ message: 'Failed to start batch analysis.', type: 'error' });
+      toast('Failed to start batch analysis.', 'error');
     }
-  }, [projects]);
+  }, [projects, toast]);
 
   const sorted = [...projects].sort((a, b) => {
     if (sortBy === 'name') return a.name.localeCompare(b.name);
@@ -355,8 +339,9 @@ export default function ProjectsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6 p-6">
+        <Header title="Projects" subtitle="Manage your registered repositories and trigger analyses" />
+        <LoadingSkeleton variant="list" count={4} />
       </div>
     );
   }
@@ -386,20 +371,17 @@ export default function ProjectsPage() {
           </button>
       </div>
 
-      {/* Toast */}
-      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
-
       {/* Error */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400">✕</button>
-        </div>
+        <ErrorBanner message={error} onRetry={loadProjects} onDismiss={() => setError(null)} />
       )}
 
       {/* Create form */}
       {showCreate && (
-        <div className="glass-card rounded-2xl p-5">
+        <form
+          className="glass-card rounded-2xl p-5"
+          onSubmit={(e) => { e.preventDefault(); void createProject(); }}
+        >
           <h2 className="text-base font-semibold text-text-primary mb-3">Create New Project</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
@@ -407,7 +389,9 @@ export default function ProjectsPage() {
               aria-label="Project Name"
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              className="px-3 py-2.5 rounded-lg text-sm"
+              disabled={creating}
+              autoFocus
+              className="px-3 py-2.5 rounded-lg text-sm disabled:opacity-60"
               style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}
             />
             <input
@@ -415,22 +399,34 @@ export default function ProjectsPage() {
               aria-label="Repository URL"
               value={newRepo}
               onChange={e => setNewRepo(e.target.value)}
-              className="px-3 py-2.5 rounded-lg text-sm"
+              disabled={creating}
+              className="px-3 py-2.5 rounded-lg text-sm disabled:opacity-60"
               style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}
             />
           </div>
           <div className="flex justify-end gap-2 mt-3">
-            <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">Cancel</button>
             <button
-              onClick={createProject}
-              disabled={!newName || !newRepo}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:scale-[1.02]"
-              style={{ background: newName && newRepo ? 'var(--color-accent)' : 'var(--color-border)', opacity: newName && newRepo ? 1 : 0.5 }}
+              type="button"
+              onClick={() => setShowCreate(false)}
+              disabled={creating}
+              className="px-4 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-60"
             >
-              Create
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!newName.trim() || !newRepo.trim() || creating}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:scale-[1.02] disabled:hover:scale-100"
+              style={{
+                background: newName.trim() && newRepo.trim() ? 'var(--color-accent)' : 'var(--color-border)',
+                opacity: newName.trim() && newRepo.trim() && !creating ? 1 : 0.5,
+              }}
+            >
+              {creating && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+              {creating ? 'Creating…' : 'Create'}
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {/* Getting Started Guide — shown when projects exist but none analyzed */}
@@ -464,7 +460,7 @@ export default function ProjectsPage() {
 
       {/* Project List */}
       <div className="space-y-3">
-        {sorted.length === 0 && <EmptyState onCreateClick={() => setShowCreate(true)} />}
+        {sorted.length === 0 && !error && <ProjectsEmptyState onCreateClick={() => setShowCreate(true)} />}
 
         {sorted.map(project => {
           const isAnalyzing = analyzingIds.has(project.id);
@@ -512,7 +508,7 @@ export default function ProjectsPage() {
                   <button
                     onClick={() => analyzeProject(project)}
                     disabled={isAnalyzing}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:scale-[1.02] ${
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:scale-[1.02] disabled:opacity-70 ${
                       neverAnalyzed
                         ? 'text-white'
                         : 'text-text-secondary hover:text-text-primary'
@@ -523,13 +519,14 @@ export default function ProjectsPage() {
                         : 'var(--color-base)',
                     }}
                     title="Run analysis"
+                    aria-label={`${neverAnalyzed ? 'Analyze' : 'Re-analyze'} ${project.name}`}
                   >
                     {isAnalyzing ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                     ) : (
-                      <Play className="w-4 h-4" />
+                      <Play className="w-4 h-4" aria-hidden="true" />
                     )}
-                    {neverAnalyzed ? 'Analyze' : 'Re-analyze'}
+                    {isAnalyzing ? 'Starting…' : neverAnalyzed ? 'Analyze' : 'Re-analyze'}
                   </button>
                   <a
                     href={project.repository}
@@ -538,19 +535,27 @@ export default function ProjectsPage() {
                     className="p-2 rounded-lg transition-all hover:opacity-80"
                     style={{ background: 'var(--color-base)' }}
                     title="Open repository"
+                    aria-label={`Open repository for ${project.name} in a new tab`}
                   >
-                    <ExternalLink className="w-4 h-4 text-text-tertiary" />
+                    <ExternalLink className="w-4 h-4 text-text-tertiary" aria-hidden="true" />
                   </a>
-                  <button className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }} title="Settings">
-                    <Settings className="w-4 h-4 text-text-tertiary" />
-                  </button>
+                  <Link
+                    href={`/projects/${encodeURIComponent(project.id)}`}
+                    className="p-2 rounded-lg transition-all hover:opacity-80"
+                    style={{ background: 'var(--color-base)' }}
+                    title="Project settings"
+                    aria-label={`Settings for ${project.name}`}
+                  >
+                    <Settings className="w-4 h-4 text-text-tertiary" aria-hidden="true" />
+                  </Link>
                   <button
-                    onClick={() => deleteProject(project.id)}
+                    onClick={() => setDeleteTarget(project)}
                     className="p-2 rounded-lg transition-all hover:opacity-80"
                     style={{ background: 'var(--color-base)' }}
                     title="Delete project"
+                    aria-label={`Delete ${project.name}`}
                   >
-                    <Trash2 className="w-4 h-4 text-red-400" />
+                    <Trash2 className="w-4 h-4 text-red-400" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -561,6 +566,24 @@ export default function ProjectsPage() {
           );
         })}
       </div>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete project"
+        destructive
+        loading={deleting}
+        confirmLabel="Delete"
+        message={
+          <>
+            Are you sure you want to delete{' '}
+            <span className="font-semibold text-text-primary">{deleteTarget?.name}</span>? This removes
+            the project and its analysis history. This action cannot be undone.
+          </>
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
     </div>
   );
 }

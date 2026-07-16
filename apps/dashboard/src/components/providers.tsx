@@ -14,15 +14,18 @@ import { AuthProvider } from '@/lib/auth-context';
 import { AuthGuard } from '@/components/auth-guard';
 import { ActiveProjectProvider } from '@/components/active-project-context';
 import { AssistantProvider } from '@/components/assistant-context';
+import { ToastProvider } from '@/components/ui/toast';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <AuthProvider>
-      <AuthGuard>
-        <AssistantProvider>
-          <ActiveProjectProvider>{children}</ActiveProjectProvider>
-        </AssistantProvider>
-      </AuthGuard>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AuthGuard>
+          <AssistantProvider>
+            <ActiveProjectProvider>{children}</ActiveProjectProvider>
+          </AssistantProvider>
+        </AuthGuard>
+      </AuthProvider>
+    </ToastProvider>
   );
 }

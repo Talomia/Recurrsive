@@ -13,6 +13,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api/client';
+import { Loader2 } from 'lucide-react';
 
 
 
@@ -128,16 +129,17 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-200"
+              disabled={loading || !username.trim() || !password}
+              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2 disabled:cursor-not-allowed"
               style={{
-                background: loading
+                background: loading || !username.trim() || !password
                   ? 'var(--color-border)'
                   : 'linear-gradient(135deg, var(--color-accent), var(--color-accent-secondary))',
-                opacity: loading ? 0.6 : 1,
+                opacity: loading || !username.trim() || !password ? 0.6 : 1,
               }}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
         </div>

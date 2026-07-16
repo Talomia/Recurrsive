@@ -3,8 +3,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff, ArrowRight } from "lucide-react";
+import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff } from "lucide-react";
 import Header from "@/components/header";
+import EmptyState from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/error-state";
+import LoadingSkeleton from "@/components/loading-skeleton";
 import { getFindingsPage, type FindingsPageData } from "@/lib/api";
 import clsx from "clsx";
 
@@ -39,6 +42,7 @@ export default function FindingsPage() {
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("All Severities");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,23 +55,9 @@ export default function FindingsPage() {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load findings");
       });
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [projectId, reloadKey]);
 
-  if (error) {
-    return (
-      <div className="flex flex-col gap-6 p-6">
-        <Header title="Security Findings" subtitle="Couldn't load findings" />
-        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-5 py-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-400 flex-none" />
-          <div>
-            <p className="text-sm font-medium text-red-400">Failed to load findings</p>
-            <p className="text-xs text-text-muted mt-0.5 font-mono">{error}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // NOTE: all hooks must run unconditionally before any early return.
   const filtered = useMemo(() => {
     if (!data) return [];
     let result = data.findings;
@@ -91,13 +81,24 @@ export default function FindingsPage() {
     return result;
   }, [data, search, severityFilter, statusFilter]);
 
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <Header title="Security Findings" subtitle="Couldn't load findings" />
+        <ErrorState
+          title="Failed to load findings"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+    );
+  }
+
   if (!data) {
     return (
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col gap-6 p-6">
         <Header title="Security Findings" subtitle="Loading findings data…" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="h-8 w-8 rounded-full border-2 border-accent-blue border-t-transparent animate-spin" />
-        </div>
+        <LoadingSkeleton variant="table" count={6} />
       </div>
     );
   }
@@ -237,22 +238,12 @@ export default function FindingsPage() {
           </tbody>
         </table>
         {filtered.length === 0 && data.stats.total === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10 mb-5">
-              <ShieldAlert className="h-7 w-7 text-text-muted" />
-            </div>
-            <h3 className="text-lg font-semibold text-text-primary mb-2">No findings yet</h3>
-            <p className="text-sm text-text-secondary max-w-md mb-6">
-              Run an analysis on your project to discover security findings, code quality issues, and improvement opportunities.
-            </p>
-            <Link
-              href="/projects"
-              className="inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/20 px-4 py-2.5 text-sm font-medium text-blue-400 hover:bg-accent-blue/20 transition-colors"
-            >
-              Go to Projects
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
+          <EmptyState
+            icon={ShieldAlert}
+            title="No findings yet"
+            description="Run an analysis on your project to discover security findings, code quality issues, and improvement opportunities."
+            action={{ label: 'Go to Projects', href: '/projects' }}
+          />
         )}
         {filtered.length === 0 && data.stats.total > 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">

@@ -301,7 +301,7 @@ export default function SetupPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-200"
+              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2"
               style={{
                 background: submitting
                   ? 'var(--color-border)'
@@ -309,6 +309,7 @@ export default function SetupPage() {
                 opacity: submitting ? 0.6 : 1,
               }}
             >
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               {submitting ? 'Creating account…' : 'Create Admin Account'}
             </button>
           </form>
