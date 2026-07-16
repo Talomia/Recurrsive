@@ -398,7 +398,7 @@ function buildResolvers(): Record<string, ResolverFn> {
           const liveAnalyzers = ran.map((name) => ({
             id: generateId(),
             name: name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            version: '0.5.7',
+            version: '0.6.0',
             ruleCount: name.length * 2 + 5, // deterministic from name length
           }));
           return liveAnalyzers.map((a) => selectFields(a as unknown as Record<string, unknown>, fields));

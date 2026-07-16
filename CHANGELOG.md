@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-16
+
+Product-wide honesty and correctness pass. The platform now presents only values it can
+genuinely compute; where a value cannot be derived (no analysis yet, no LLM key, insufficient
+history) it says so explicitly instead of fabricating a number. No backward compatibility was
+retained (pre-release, no production data).
+
+### Security
+
+- **Removed the demo-user backdoor.** Deleted the hardcoded `admin/admin` (and analyst/viewer)
+  accounts and the `ALLOW_DEMO_USERS` flag; login authenticates only real store-backed users.
+  First admin is created via `POST /api/v1/setup` (only when no users exist). The shipped
+  `easypanel.json` no longer enables demo users and forces a real `JWT_SECRET`.
+- JWT verification now validates the `alg` header; tokens carry a `jti` and can be revoked
+  (`POST /api/v1/auth/logout`). Password minimums (≥8) enforced consistently incl. first admin.
+- `/api/v1/health` is now public so liveness probes work.
+
+### Changed — honesty
+
+- **No fabricated metrics.** Removed the synthesizer prompt that instructed the LLM to invent
+  quantitative impact; opportunity impact is evidence-derived and model-generated projections
+  are clearly labeled estimates with assumptions. Removed hardcoded ROI/savings claims from
+  analyzer findings.
+- **One canonical health score** (severity-weighted). Projects with no analysis report
+  `not_analyzed` (null) instead of a fabricated 50/70/100. Removed fabricated uptime/latency
+  from the health dashboard and the invented tech-debt dollar figures.
+- Forecasting requires ≥2 real snapshots (else `insufficient_data`); what-if impact derives
+  from actual findings. Analytics resolution rate reflects real opportunity lifecycle.
+- Multi-agent reasoning: consensus reflects real inter-agent agreement (not average
+  self-confidence), all hypotheses are debated, and specialists reason over actual evidence.
+- Analysis fails honestly on a non-git/empty path; reasoning without an LLM key is reported
+  as unavailable rather than silently succeeding with zero output.
+- Removed the UX analyzer (its rules keyed on properties nothing produced / misclassified
+  backend code); the platform now ships **12 analyzers**. Counts reconciled across docs and site.
+
+### Changed — website & marketplace
+
+- Removed all fabricated social proof: fictional founders/customers/testimonials/blog, false
+  SOC 2 / ISO 27001 / PCI / Stripe claims, and the fake cloud console and billing pages.
+- Marketplace and partners are real, API-backed, and start empty; marketplace read endpoints
+  are public. Removed the seeded fake plugin catalog. Cloud/pricing pages are honest about
+  self-hosting vs. not-yet-available managed offerings.
+
+### Fixed — clients
+
+- CLI: fixed the broken login (response-envelope mismatch), corrected wrong endpoint paths,
+  honest error messages (401 vs 404 vs offline), config written to the file the loader reads,
+  lossless snapshot export/import, and a first-run `setup` command.
+- MCP: authenticate every server call; corrected wrong routes and the `what_if` payload; fixed
+  dependency/impact tools; findings-based health; real `compare_analyses` drift diff.
+- Dashboard: unified auth state (no redirect loops; setup/invite auto-login), removed fabricated
+  overview metrics, real AI assistant, real project scoping, honest error-vs-empty states.
+
 ## [0.5.8] - 2026-07-08
 
 ### Changed

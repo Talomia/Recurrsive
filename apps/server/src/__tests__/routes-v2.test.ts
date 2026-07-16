@@ -165,7 +165,7 @@ vi.mock('@recurrsive/core', () => ({
   }),
   generateId: vi.fn().mockReturnValue('test-id-123'),
   nowISO: vi.fn().mockReturnValue('2024-06-15T00:00:00.000Z'),
-  VERSION: '0.5.7',
+  VERSION: '0.6.0',
 }));
 
 import { createServer } from '../index.js';
