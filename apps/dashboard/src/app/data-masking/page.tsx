@@ -6,11 +6,13 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Eye, Shield, Lock, Fingerprint, AlertTriangle, Loader2 } from 'lucide-react';
+import { Eye, Shield, Lock, Fingerprint, AlertTriangle } from 'lucide-react';
 import type { DashboardMaskingPolicy, DashboardPiiDistribution, DashboardMaskingStrategy } from '@/lib/api';
 import { getMaskingPolicies, getPiiDistribution, getMaskingStrategies } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
 import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import { useToast } from '@/components/ui/toast';
 
 // Default sample text for the PII scanner
 const SAMPLE_TEXT = `{
@@ -48,6 +50,7 @@ function StrategyBadge({ strategy }: { strategy: string }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function DataMaskingPage() {
+  const { toast } = useToast();
   const [showScanner, setShowScanner] = useState(false);
   const [scanInput, setScanInput] = useState(SAMPLE_TEXT);
   const [scanOutput, setScanOutput] = useState<string | null>(null);
@@ -74,8 +77,9 @@ export default function DataMaskingPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Data Masking & PII Controls" subtitle="Configure masking policies, audit PII exposure, and test data protection rules" />
+        <LoadingSkeleton variant="table" count={5} />
       </div>
     );
   }
@@ -222,8 +226,10 @@ export default function DataMaskingPage() {
                     body: JSON.stringify({ text: scanInput, strategy: 'redact' }),
                   });
                   setScanOutput(result.masked);
+                  toast('Masking scan complete.', 'success');
                 } catch {
                   setScanOutput('[Error: could not reach masking API]');
+                  toast('Could not reach the masking API.', 'error');
                 } finally {
                   setScanning(false);
                 }

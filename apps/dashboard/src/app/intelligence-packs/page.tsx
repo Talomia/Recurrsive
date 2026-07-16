@@ -8,10 +8,16 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Package, Shield, Heart, DollarSign, Container, Brain, Loader2, Star, Download } from 'lucide-react';
+import { Package, Shield, Heart, DollarSign, Container, Brain, Star, Download } from 'lucide-react';
 import type { DashboardIntelligencePack } from '@/lib/api';
 import { getIntelligencePacks, getMarketplaceExtensions } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
+import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import EmptyState from '@/components/ui/empty-state';
+import ErrorState from '@/components/ui/error-state';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -39,56 +45,107 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function IntelligencePacksPage() {
+  const { toast } = useToast();
   const [packs, setPacks] = useState<DashboardIntelligencePack[]>([]);
   const [marketplaceMeta, setMarketplaceMeta] = useState<Record<string, MarketplaceMeta>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [uninstallTarget, setUninstallTarget] = useState<DashboardIntelligencePack | null>(null);
+  const [uninstalling, setUninstalling] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      // Fetch both detailed pack data and marketplace metadata in parallel
-      const [packData, mktRes] = await Promise.all([
-        getIntelligencePacks(),
-        getMarketplaceExtensions({ category: 'intelligence-pack' }),
-      ]);
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      getIntelligencePacks(),
+      getMarketplaceExtensions({ category: 'intelligence-pack' }),
+    ])
+      .then(([packData, mktRes]) => {
+        // Build a lookup of marketplace metadata keyed by pack name
+        const meta: Record<string, MarketplaceMeta> = {};
+        for (const ext of mktRes.data) {
+          meta[ext.name] = { stars: ext.stars ?? 0, downloads: ext.downloads ?? 0, verified: ext.verified ?? false };
+        }
+        setMarketplaceMeta(meta);
+        setPacks(packData);
+        setExpanded(packData[0]?.id ?? null);
+      })
+      .catch(() => { setError('Failed to load intelligence packs. The API may be unavailable.'); })
+      .finally(() => setLoading(false));
+  };
 
-      // Build a lookup of marketplace metadata keyed by pack name
-      const meta: Record<string, MarketplaceMeta> = {};
-      for (const ext of mktRes.data) {
-        meta[ext.name] = { stars: ext.stars ?? 0, downloads: ext.downloads ?? 0, verified: ext.verified ?? false };
-      }
-      setMarketplaceMeta(meta);
-      setPacks(packData);
-      setExpanded(packData[0]?.id ?? null);
-    }
-    load().catch(() => { setError('Failed to load intelligence packs. API may be unavailable.'); }).finally(() => setLoading(false));
-  }, []);
+  useEffect(() => { load(); }, []);
 
-  const toggleInstall = async (id: string) => {
-    const pack = packs.find(p => p.id === id);
-    if (!pack) return;
-    const action = pack.status === 'installed' ? 'uninstall' : 'install';
+  // Install applies state only on success; on failure we surface an error and
+  // do NOT flip the UI (no optimistic fallback that hides failures).
+  const installPack = async (pack: DashboardIntelligencePack) => {
     try {
-      await apiFetch(`/api/v1/intelligence-packs/${id}/${action}`, {
+      await apiFetch(`/api/v1/intelligence-packs/${pack.id}/install`, {
         method: 'POST',
         unwrap: false,
       });
-      setPacks(prev => prev.map(p =>
-        p.id === id ? { ...p, status: p.status === 'installed' ? 'available' : 'installed' } : p
-      ));
+      setPacks(prev => prev.map(p => p.id === pack.id ? { ...p, status: 'installed' } : p));
+      toast(`${pack.name} installed.`, 'success');
     } catch {
-      // Optimistic fallback — still toggle locally
-      setPacks(prev => prev.map(p =>
-        p.id === id ? { ...p, status: p.status === 'installed' ? 'available' : 'installed' } : p
-      ));
+      toast(`Failed to install ${pack.name}.`, 'error');
     }
+  };
+
+  const confirmUninstall = async () => {
+    if (!uninstallTarget) return;
+    const pack = uninstallTarget;
+    setUninstalling(true);
+    try {
+      await apiFetch(`/api/v1/intelligence-packs/${pack.id}/uninstall`, {
+        method: 'POST',
+        unwrap: false,
+      });
+      setPacks(prev => prev.map(p => p.id === pack.id ? { ...p, status: 'available' } : p));
+      toast(`${pack.name} uninstalled.`, 'info');
+      setUninstallTarget(null);
+    } catch {
+      toast(`Failed to uninstall ${pack.name}.`, 'error');
+    } finally {
+      setUninstalling(false);
+    }
+  };
+
+  const handlePackAction = (pack: DashboardIntelligencePack) => {
+    if (pack.status === 'installed') setUninstallTarget(pack);
+    else void installPack(pack);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Intelligence Packs" subtitle="Domain-specific analyzers, rules, and compliance frameworks" />
+        <LoadingSkeleton variant="list" count={3} />
+      </div>
+    );
+  }
+
+  // A real fetch failure — show an error with retry, never a misleading "empty".
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="Intelligence Packs" subtitle="Domain-specific analyzers, rules, and compliance frameworks" />
+        <ErrorState message={error} onRetry={load} />
+      </div>
+    );
+  }
+
+  // Genuinely empty result (request succeeded, no packs available).
+  if (packs.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Header title="Intelligence Packs" subtitle="Domain-specific analyzers, rules, and compliance frameworks" />
+        <EmptyState
+          icon={Package}
+          title="No intelligence packs available"
+          description="Domain-specific analyzers, rules, and compliance frameworks will appear here when they become available in the marketplace."
+          action={{ label: 'Browse Marketplace', href: '/marketplace' }}
+        />
       </div>
     );
   }
@@ -96,21 +153,7 @@ export default function IntelligencePacksPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Package className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          Intelligence Packs
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">Domain-specific analyzers, rules, and compliance frameworks.</p>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400">✕</button>
-        </div>
-      )}
+      <Header title="Intelligence Packs" subtitle="Domain-specific analyzers, rules, and compliance frameworks" />
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -140,7 +183,15 @@ export default function IntelligencePacksPage() {
           return (
             <div key={pack.id} className="rounded-2xl overflow-hidden" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
               {/* Card Header */}
-              <div className="flex items-center gap-4 p-5 cursor-pointer" onClick={() => setExpanded(isExpanded ? null : pack.id)}>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
+                aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${pack.name} details`}
+                className="flex items-center gap-4 p-5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/50"
+                onClick={() => setExpanded(isExpanded ? null : pack.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(isExpanded ? null : pack.id); } }}
+              >
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-base)' }}>
                   <Icon className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
                 </div>
@@ -163,7 +214,8 @@ export default function IntelligencePacksPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-text-tertiary">{pack.totalRules} rules</span>
-                  <button onClick={e => { e.stopPropagation(); toggleInstall(pack.id); }}
+                  <button onClick={e => { e.stopPropagation(); handlePackAction(pack); }}
+                    aria-label={`${pack.status === 'installed' ? 'Uninstall' : 'Install'} ${pack.name}`}
                     className="px-4 py-1.5 rounded-lg text-xs font-medium transition-all"
                     style={{
                       background: pack.status === 'installed' ? 'var(--color-base)' : 'var(--color-accent)',
@@ -221,6 +273,24 @@ export default function IntelligencePacksPage() {
           );
         })}
       </div>
+
+      {/* Uninstall confirmation */}
+      <ConfirmDialog
+        open={uninstallTarget !== null}
+        title="Uninstall pack"
+        destructive
+        loading={uninstalling}
+        confirmLabel="Uninstall"
+        message={
+          <>
+            Uninstall{' '}
+            <span className="font-semibold text-text-primary">{uninstallTarget?.name}</span>? Its analyzers and
+            rules will no longer run. You can reinstall it later.
+          </>
+        }
+        onConfirm={confirmUninstall}
+        onCancel={() => { if (!uninstalling) setUninstallTarget(null); }}
+      />
     </div>
   );
 }

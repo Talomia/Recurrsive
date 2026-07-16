@@ -6,8 +6,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Key, Lock, RefreshCcw, Shield, AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
+import { Lock, RefreshCcw, Shield, AlertTriangle, Trash2, Plus } from 'lucide-react';
 import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
+import { formatDateTime } from '@/lib/format';
 import type { DashboardSecret, DashboardAuditEntry } from '@/lib/api';
 import { getSecrets, getSecretAuditLog, createSecret, deleteSecret, rotateSecret } from '@/lib/api';
 
@@ -42,6 +46,7 @@ function ActionBadge({ action }: { action: string }) {
 }
 
 export default function SecretsPage() {
+  const { toast } = useToast();
   const [secrets, setSecrets] = useState<DashboardSecret[]>([]);
   const [audit, setAudit] = useState<DashboardAuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +56,8 @@ export default function SecretsPage() {
   const [newValue, setNewValue] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newTags, setNewTags] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<DashboardSecret | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const reloadData = async () => {
     const [s, a] = await Promise.all([getSecrets(), getSecretAuditLog()]);
@@ -75,28 +82,39 @@ export default function SecretsPage() {
       setNewDescription('');
       setNewTags('');
       await reloadData();
+      toast('Secret created.', 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create secret');
+      toast('Failed to create secret.', 'error');
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
       setError(null);
-      await deleteSecret(id);
+      await deleteSecret(deleteTarget.id);
       await reloadData();
+      toast(`Secret "${deleteTarget.key}" deleted.`, 'info');
+      setDeleteTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete secret');
+      toast('Failed to delete secret.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handleRotate = async (id: string) => {
+  const handleRotate = async (id: string, key: string) => {
     try {
       setError(null);
       await rotateSecret(id);
       await reloadData();
+      toast(`Secret "${key}" rotated.`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rotate secret');
+      toast('Failed to rotate secret.', 'error');
     }
   };
 
@@ -104,8 +122,9 @@ export default function SecretsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Secrets & Credentials" subtitle="Manage API keys, tokens, and sensitive configuration" />
+        <LoadingSkeleton variant="table" count={5} />
       </div>
     );
   }
@@ -208,11 +227,11 @@ export default function SecretsPage() {
                   <td className="py-3 text-text-tertiary text-xs">{secret.usedBy.join(', ')}</td>
                   <td className="py-3">
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => handleRotate(secret.id)} className="p-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }} title="Rotate secret">
-                        <RefreshCcw className="w-3.5 h-3.5 text-text-tertiary" />
+                      <button onClick={() => handleRotate(secret.id, secret.key)} className="p-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }} title="Rotate secret" aria-label={`Rotate secret ${secret.key}`}>
+                        <RefreshCcw className="w-3.5 h-3.5 text-text-tertiary" aria-hidden="true" />
                       </button>
-                      <button onClick={() => handleDelete(secret.id)} className="p-1.5 rounded-lg transition-all hover:opacity-80 hover:bg-red-500/10" style={{ background: 'var(--color-base)' }} title="Delete secret">
-                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      <button onClick={() => setDeleteTarget(secret)} className="p-1.5 rounded-lg transition-all hover:opacity-80 hover:bg-red-500/10" style={{ background: 'var(--color-base)' }} title="Delete secret" aria-label={`Delete secret ${secret.key}`}>
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" aria-hidden="true" />
                       </button>
                     </div>
                   </td>
@@ -237,12 +256,30 @@ export default function SecretsPage() {
               </div>
               <div className="flex items-center gap-4 text-xs text-text-tertiary">
                 <span>{entry.actor}</span>
-                <span>{new Date(entry.timestamp).toLocaleString()}</span>
+                <span>{formatDateTime(entry.timestamp)}</span>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete secret"
+        destructive
+        loading={deleting}
+        confirmLabel="Delete"
+        message={
+          <>
+            Are you sure you want to delete{' '}
+            <span className="font-semibold text-text-primary font-mono">{deleteTarget?.key}</span>? Any service
+            using this secret will lose access. This action cannot be undone.
+          </>
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
     </div>
   );
 }

@@ -6,9 +6,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Cloud, BarChart3, Users, Award, Rocket, Globe, Loader2 } from 'lucide-react';
+import { BarChart3, Users, Award, Rocket, Globe } from 'lucide-react';
 import type { CloudBenchmark, CloudLearnedPattern, CloudPartner, CloudServiceTier } from '@/lib/api';
 import { getCloudBenchmarks, getCloudPatterns, getCloudPartners, getCloudServices } from '@/lib/api';
+import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -57,8 +59,9 @@ export default function CloudPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Recurrsive Cloud" subtitle="Industry benchmarks, collective intelligence, partner ecosystem, and managed services" />
+        <LoadingSkeleton variant="card" count={4} />
       </div>
     );
   }
@@ -66,13 +69,7 @@ export default function CloudPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Cloud className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          Recurrsive Cloud
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">Industry benchmarks, collective intelligence, partner ecosystem, and managed services.</p>
-      </div>
+      <Header title="Recurrsive Cloud" subtitle="Industry benchmarks, collective intelligence, partner ecosystem, and managed services" />
 
       {/* Error */}
       {error && (
@@ -140,22 +137,24 @@ export default function CloudPage() {
             <Award className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
             <h3 className="text-lg font-semibold text-text-primary">Learned Patterns</h3>
           </div>
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-text-tertiary text-xs uppercase">
-              <th className="pb-3">Pattern</th><th className="pb-3">Category</th><th className="pb-3">Occurrences</th><th className="pb-3">Success Rate</th><th className="pb-3">Last Seen</th>
-            </tr></thead>
-            <tbody className="divide-y divide-white/5">
-              {patterns.map(p => (
-                <tr key={p.id}>
-                  <td className="py-3 text-text-primary font-medium">{p.name}</td>
-                  <td className="py-3"><span className="px-2 py-0.5 rounded-full text-xs border bg-blue-500/20 text-blue-400 border-blue-500/30">{p.category}</span></td>
-                  <td className="py-3 text-text-primary font-semibold">{p.occurrences}</td>
-                  <td className="py-3"><span className={p.successRate >= 90 ? 'text-green-400' : 'text-yellow-400'}>{p.successRate}%</span></td>
-                  <td className="py-3 text-text-secondary">{p.lastSeen}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-text-tertiary text-xs uppercase">
+                <th className="pb-3">Pattern</th><th className="pb-3">Category</th><th className="pb-3">Occurrences</th><th className="pb-3">Success Rate</th><th className="pb-3">Last Seen</th>
+              </tr></thead>
+              <tbody className="divide-y divide-white/5">
+                {patterns.map(p => (
+                  <tr key={p.id}>
+                    <td className="py-3 text-text-primary font-medium">{p.name}</td>
+                    <td className="py-3"><span className="px-2 py-0.5 rounded-full text-xs border bg-blue-500/20 text-blue-400 border-blue-500/30">{p.category}</span></td>
+                    <td className="py-3 text-text-primary font-semibold">{p.occurrences}</td>
+                    <td className="py-3"><span className={p.successRate >= 90 ? 'text-green-400' : 'text-yellow-400'}>{p.successRate}%</span></td>
+                    <td className="py-3 text-text-secondary">{p.lastSeen}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -197,10 +196,11 @@ export default function CloudPage() {
                   </li>
                 ))}
               </ul>
-              <button className="mt-4 w-full py-2 rounded-lg text-sm font-medium"
-                style={{ background: s.highlighted ? 'var(--color-accent)' : 'var(--color-base)', color: s.highlighted ? '#fff' : 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
-                {s.name === 'Enterprise' ? 'Contact Sales' : 'Get Started'}
-              </button>
+              <p className="mt-4 text-xs text-text-tertiary text-center">
+                {s.name === 'Enterprise'
+                  ? 'Contact your Recurrsive account team for Enterprise onboarding.'
+                  : 'Contact your Recurrsive account team to enable this tier.'}
+              </p>
             </div>
           ))}
         </div>

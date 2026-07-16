@@ -10,11 +10,10 @@
 
 'use client';
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import {
   Mail,
   Plus,
-  Loader2,
   Trash2,
   X,
   Copy,
@@ -24,6 +23,11 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth-context';
+import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
+import { formatDate } from '@/lib/format';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -78,20 +82,11 @@ function statusBadge(status: string) {
   );
 }
 
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
-}
-
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function InvitesPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +96,11 @@ export default function InvitesPage() {
   const [form, setForm] = useState<NewInviteForm>(EMPTY_FORM);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  // Cancel confirmation
+  const [cancelTarget, setCancelTarget] = useState<Invite | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   // Copied link state
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -121,6 +121,24 @@ export default function InvitesPage() {
 
   useEffect(() => { fetchInvites(); }, []);
 
+  // Move focus into the create modal when it opens.
+  useEffect(() => {
+    if (showCreate) {
+      const t = setTimeout(() => emailInputRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [showCreate]);
+
+  // Escape closes the create modal.
+  useEffect(() => {
+    if (!showCreate) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setShowCreate(false); setCreateError(null); }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [showCreate]);
+
   // ── Create invite ────────────────────────────────────────────────────────
 
   async function handleCreate(e: FormEvent) {
@@ -132,11 +150,14 @@ export default function InvitesPage() {
         method: 'POST',
         body: JSON.stringify(form),
       });
+      const invitedEmail = form.email;
       setShowCreate(false);
       setForm(EMPTY_FORM);
       await fetchInvites();
+      toast(`Invite sent to ${invitedEmail}.`, 'success');
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create invite');
+      toast('Failed to create invite.', 'error');
     } finally {
       setCreateLoading(false);
     }
@@ -144,12 +165,19 @@ export default function InvitesPage() {
 
   // ── Cancel invite ────────────────────────────────────────────────────────
 
-  async function handleCancel(id: string) {
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    setCancelling(true);
     try {
-      await apiFetch(`/api/v1/invites/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/v1/invites/${cancelTarget.id}`, { method: 'DELETE' });
       await fetchInvites();
+      toast(`Invite for ${cancelTarget.email} cancelled.`, 'info');
+      setCancelTarget(null);
     } catch {
       setError('Failed to cancel invite.');
+      toast('Failed to cancel invite.', 'error');
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -161,8 +189,9 @@ export default function InvitesPage() {
       await navigator.clipboard.writeText(link);
       setCopiedId(invite.id);
       setTimeout(() => setCopiedId(null), 2000);
+      toast('Invite link copied to clipboard.', 'success');
     } catch {
-      // Fallback
+      toast('Could not copy link. Copy it manually.', 'error');
     }
   }
 
@@ -187,19 +216,11 @@ export default function InvitesPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-               style={{ background: 'linear-gradient(135deg, var(--color-accent), var(--color-accent-secondary))' }}>
-            <Mail className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-text-primary">Team Invites</h1>
-            <p className="text-sm text-text-secondary">
-              {invites.length} total · {pendingCount} pending
-            </p>
-          </div>
-        </div>
+      <Header
+        title="Team Invites"
+        subtitle={`${invites.length} total · ${pendingCount} pending`}
+      />
+      <div className="flex items-center justify-end">
         <button
           onClick={() => setShowCreate(true)}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all duration-200"
@@ -219,9 +240,7 @@ export default function InvitesPage() {
 
       {/* ── Loading ────────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-text-tertiary" />
-        </div>
+        <LoadingSkeleton variant="table" count={4} />
       ) : invites.length === 0 ? (
         <div className="rounded-2xl p-12 text-center"
              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -240,6 +259,7 @@ export default function InvitesPage() {
         /* ── Invites Table ────────────────────────────────────────────────── */
         <div className="rounded-2xl overflow-hidden"
              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
@@ -259,8 +279,8 @@ export default function InvitesPage() {
                   <td className="px-4 py-3 text-text-primary font-medium">{inv.email}</td>
                   <td className="px-4 py-3">{roleBadge(inv.role)}</td>
                   <td className="px-4 py-3">{statusBadge(inv.status)}</td>
-                  <td className="px-4 py-3 text-text-secondary">{fmtDate(inv.createdAt)}</td>
-                  <td className="px-4 py-3 text-text-secondary">{fmtDate(inv.expiresAt)}</td>
+                  <td className="px-4 py-3 text-text-secondary">{formatDate(inv.createdAt)}</td>
+                  <td className="px-4 py-3 text-text-secondary">{formatDate(inv.expiresAt)}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       {inv.status === 'pending' && (
@@ -269,15 +289,17 @@ export default function InvitesPage() {
                             onClick={() => copyInviteLink(inv)}
                             className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-text-secondary hover:text-text-primary"
                             title="Copy invite link"
+                            aria-label={`Copy invite link for ${inv.email}`}
                           >
-                            {copiedId === inv.id ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                            {copiedId === inv.id ? <CheckCircle2 className="w-4 h-4 text-green-400" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
                           </button>
                           <button
-                            onClick={() => handleCancel(inv.id)}
+                            onClick={() => setCancelTarget(inv)}
                             className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-text-secondary hover:text-red-400"
                             title="Cancel invite"
+                            aria-label={`Cancel invite for ${inv.email}`}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </button>
                         </>
                       )}
@@ -287,13 +309,15 @@ export default function InvitesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
       {/* ── Create Invite Modal ─────────────────────────────────────────────── */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl p-6"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Invite team member">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowCreate(false); setCreateError(null); }} aria-hidden="true" />
+          <div className="relative w-full max-w-md rounded-2xl p-6"
                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-text-primary">Invite Team Member</h3>
@@ -307,6 +331,7 @@ export default function InvitesPage() {
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Email Address</label>
                 <input
+                  ref={emailInputRef}
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
@@ -364,6 +389,25 @@ export default function InvitesPage() {
           </div>
         </div>
       )}
+
+      {/* ── Cancel Invite Confirmation ──────────────────────────────────────── */}
+      <ConfirmDialog
+        open={cancelTarget !== null}
+        title="Cancel invite"
+        destructive
+        loading={cancelling}
+        confirmLabel="Cancel invite"
+        cancelLabel="Keep invite"
+        message={
+          <>
+            Cancel the pending invite for{' '}
+            <span className="font-semibold text-text-primary">{cancelTarget?.email}</span>? The invite link
+            will stop working immediately.
+          </>
+        }
+        onConfirm={confirmCancel}
+        onCancel={() => { if (!cancelling) setCancelTarget(null); }}
+      />
     </div>
   );
 }

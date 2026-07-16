@@ -6,8 +6,10 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Users, Award, BarChart3, Loader2, ArrowRight, Shield } from 'lucide-react';
+import { Users, Award, Shield } from 'lucide-react';
 import { getPartners, getPartnerCertifications, getPartnerStats } from '@/lib/api/platform';
+import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
 
 interface Partner {
   id: string;
@@ -77,8 +79,9 @@ export default function PartnersPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Partner Program" subtitle="Explore our partner ecosystem, certification tracks, and collaboration opportunities" />
+        <LoadingSkeleton variant="card" count={4} />
       </div>
     );
   }
@@ -86,15 +89,7 @@ export default function PartnersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Users className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          Partner Program
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">
-          Explore our partner ecosystem, certification tracks, and collaboration opportunities.
-        </p>
-      </div>
+      <Header title="Partner Program" subtitle="Explore our partner ecosystem, certification tracks, and collaboration opportunities" />
 
       {/* Error banner */}
       {error && (
@@ -159,7 +154,7 @@ export default function PartnersPage() {
             </div>
           ))}
         </div>
-        {partners.length === 0 && (
+        {partners.length === 0 && !error && (
           <p className="text-sm text-text-tertiary text-center py-8">
             No partners found. Check back soon.
           </p>
@@ -194,16 +189,6 @@ export default function PartnersPage() {
                     {cert.modules} modules · {cert.duration} · {cert.enrolled} enrolled
                   </p>
                 </div>
-                <button
-                  className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                  style={{
-                    background: 'var(--color-base)',
-                    color: 'var(--color-text-secondary)',
-                    border: '1px solid var(--color-border)',
-                  }}
-                >
-                  View
-                </button>
               </div>
             ))}
           </div>
@@ -222,16 +207,11 @@ export default function PartnersPage() {
           <Shield className="w-6 h-6 text-purple-400" />
           <h3 className="text-lg font-semibold text-text-primary">Become a Partner</h3>
         </div>
-        <p className="text-sm text-text-secondary mb-4">
+        <p className="text-sm text-text-secondary">
           Join the Recurrsive partner program to unlock co-selling opportunities, early access to new
-          features, dedicated support, and certification programs for your team.
+          features, dedicated support, and certification programs for your team. Contact your Recurrsive
+          account team to start an application.
         </p>
-        <button
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all"
-          style={{ background: 'var(--color-accent)' }}
-        >
-          Apply Now <ArrowRight className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );

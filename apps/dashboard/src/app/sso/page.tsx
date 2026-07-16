@@ -6,8 +6,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { KeyRound, Users, Shield, Globe, LogIn, Loader2 } from 'lucide-react';
+import { Users, Shield, Globe, LogIn } from 'lucide-react';
 import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
+import { formatDateTime } from '@/lib/format';
 import { getSSOProviders, getSSOSessions, createSsoProvider, deleteSsoProvider, revokeSsoSession } from '@/lib/api';
 import type { SSOProvider, SSOSession } from '@/lib/api';
 
@@ -25,7 +29,12 @@ function ProviderIcon({ type }: { type: string }) {
   return <Globe className={`w-5 h-5 ${colors[type] ?? 'text-gray-400'}`} />;
 }
 
+type ConfirmTarget =
+  | { kind: 'provider'; id: string; label: string }
+  | { kind: 'session'; id: string; label: string };
+
 export default function SSOPage() {
+  const { toast } = useToast();
   const [providers, setProviders] = useState<SSOProvider[]>([]);
   const [sessions, setSessions] = useState<SSOSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +43,8 @@ export default function SSOPage() {
   const [newDomain, setNewDomain] = useState('');
   const [newType, setNewType] = useState<string>('okta');
   const [error, setError] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     Promise.all([getSSOProviders(), getSSOSessions()])
@@ -65,35 +76,41 @@ export default function SSOPage() {
       setNewDomain('');
       setNewType('okta');
       await reloadData();
+      toast('SSO provider configured.', 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create SSO provider');
+      toast('Failed to create SSO provider.', 'error');
     }
   };
 
-  const handleDeleteProvider = async (id: string) => {
+  const handleConfirm = async () => {
+    if (!confirmTarget) return;
+    setConfirming(true);
     try {
       setError(null);
-      await deleteSsoProvider(id);
+      if (confirmTarget.kind === 'provider') {
+        await deleteSsoProvider(confirmTarget.id);
+        toast(`Provider "${confirmTarget.label}" deleted.`, 'info');
+      } else {
+        await revokeSsoSession(confirmTarget.id);
+        toast(`Session for ${confirmTarget.label} revoked.`, 'info');
+      }
       await reloadData();
+      setConfirmTarget(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete SSO provider');
-    }
-  };
-
-  const handleRevokeSession = async (id: string) => {
-    try {
-      setError(null);
-      await revokeSsoSession(id);
-      await reloadData();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to revoke session');
+      const fallback = confirmTarget.kind === 'provider' ? 'Failed to delete SSO provider' : 'Failed to revoke session';
+      setError(e instanceof Error ? e.message : fallback);
+      toast(fallback + '.', 'error');
+    } finally {
+      setConfirming(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Single Sign-On" subtitle="Configure identity providers for SSO authentication" />
+        <LoadingSkeleton variant="list" count={3} />
       </div>
     );
   }
@@ -165,8 +182,8 @@ export default function SSOPage() {
               </div>
               <div className="flex items-center gap-4 text-xs text-text-tertiary">
                 <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {provider.usersCount} users</span>
-                {provider.lastSync && <span>Synced {new Date(provider.lastSync).toLocaleTimeString()}</span>}
-                <button onClick={() => handleDeleteProvider(provider.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
+                {provider.lastSync && <span>Synced {formatDateTime(provider.lastSync)}</span>}
+                <button onClick={() => setConfirmTarget({ kind: 'provider', id: provider.id, label: provider.name })} className="text-xs text-red-400 hover:text-red-300 transition-colors" aria-label={`Delete provider ${provider.name}`}>Delete</button>
               </div>
             </div>
           ))}
@@ -200,14 +217,14 @@ export default function SSOPage() {
                   </td>
                   <td className="py-3 text-text-secondary text-xs">{session.provider}</td>
                   <td className="py-3 text-text-tertiary font-mono text-xs">{session.ip}</td>
-                  <td className="py-3 text-text-tertiary text-xs">{new Date(session.loginAt).toLocaleTimeString()}</td>
-                  <td className="py-3 text-text-tertiary text-xs">{new Date(session.expiresAt).toLocaleTimeString()}</td>
+                  <td className="py-3 text-text-tertiary text-xs">{formatDateTime(session.loginAt)}</td>
+                  <td className="py-3 text-text-tertiary text-xs">{formatDateTime(session.expiresAt)}</td>
                   <td className="py-3">
                     <span className={`inline-block w-2 h-2 rounded-full ${session.active ? 'bg-green-400' : 'bg-gray-500'}`} />
                   </td>
                   <td className="py-3">
                     {session.active && (
-                      <button onClick={() => handleRevokeSession(session.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Revoke</button>
+                      <button onClick={() => setConfirmTarget({ kind: 'session', id: session.id, label: session.user })} className="text-xs text-red-400 hover:text-red-300 transition-colors" aria-label={`Revoke session for ${session.user}`}>Revoke</button>
                     )}
                   </td>
                 </tr>
@@ -216,6 +233,32 @@ export default function SSOPage() {
           </table>
         </div>
       </div>
+
+      {/* Destructive confirmation (provider delete / session revoke) */}
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        title={confirmTarget?.kind === 'session' ? 'Revoke session' : 'Delete provider'}
+        destructive
+        loading={confirming}
+        confirmLabel={confirmTarget?.kind === 'session' ? 'Revoke' : 'Delete'}
+        message={
+          confirmTarget?.kind === 'session' ? (
+            <>
+              Revoke the active session for{' '}
+              <span className="font-semibold text-text-primary">{confirmTarget?.label}</span>? They will be
+              signed out immediately.
+            </>
+          ) : (
+            <>
+              Delete SSO provider{' '}
+              <span className="font-semibold text-text-primary">{confirmTarget?.label}</span>? Users will no
+              longer be able to sign in through it. This action cannot be undone.
+            </>
+          )
+        }
+        onConfirm={handleConfirm}
+        onCancel={() => { if (!confirming) setConfirmTarget(null); }}
+      />
     </div>
   );
 }

@@ -6,9 +6,13 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Target, TrendingUp, CheckCircle, XCircle, BarChart3, Brain, Loader2 } from 'lucide-react';
+import { Target, TrendingUp, CheckCircle, XCircle, BarChart3, Brain, Play } from 'lucide-react';
 import { getConfidenceData } from '@/lib/api';
 import type { ConfidenceData } from '@/lib/api';
+import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import EmptyState from '@/components/ui/empty-state';
+import ErrorState from '@/components/ui/error-state';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -65,32 +69,41 @@ export default function ConfidencePage() {
   const [view, setView] = useState<'overview' | 'predictions'>('overview');
   const [data, setData] = useState<ConfidenceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError(null);
     getConfidenceData()
       .then(setData)
       .catch(() => {
-        /* API unavailable – set proper empty state */
-        setData({
-          brierScore: 0,
-          brierTrend: 0,
-          calibration: [],
-          analyzerAccuracy: [],
-          recentPredictions: [],
-          totalPredictions: 0,
-          accuracy: 0,
-        });
+        // A real fetch failure — surface it as an error, never as "no data".
+        setError('Failed to load confidence data. The analysis server may be unreachable.');
       })
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  if (loading || !data) {
+  useEffect(() => { load(); }, []);
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Confidence Calibration" subtitle="Measure how well our predictions match reality" />
+        <LoadingSkeleton variant="card" count={4} />
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="Confidence Calibration" subtitle="Measure how well our predictions match reality" />
+        <ErrorState message={error} onRetry={load} />
+      </div>
+    );
+  }
+
+  if (!data) return null;
 
   // Derive display data from API response
   const brierScore = data.brierScore ?? 0;
@@ -116,18 +129,13 @@ export default function ConfidencePage() {
   if (totalPredictions === 0 && calibration.length === 0 && analyzers.length === 0) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Target className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-            Confidence Calibration
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">Measure how well our predictions match reality.</p>
-        </div>
-        <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-          <Target className="w-12 h-12 mx-auto text-text-tertiary mb-4" />
-          <h3 className="text-lg font-medium text-text-primary mb-2">No Confidence Data Yet</h3>
-          <p className="text-text-secondary text-sm">Run an analysis to start tracking prediction accuracy and calibration metrics.</p>
-        </div>
+        <Header title="Confidence Calibration" subtitle="Measure how well our predictions match reality" />
+        <EmptyState
+          icon={Target}
+          title="No confidence data yet"
+          description="Run an analysis to start tracking prediction accuracy and calibration metrics. Once predictions have known outcomes, this page shows how well-calibrated they are."
+          action={{ label: 'Run an Analysis', href: '/projects', icon: Play }}
+        />
       </div>
     );
   }
@@ -135,13 +143,7 @@ export default function ConfidencePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Target className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          Confidence Calibration
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">Measure how well our predictions match reality.</p>
-      </div>
+      <Header title="Confidence Calibration" subtitle="Measure how well our predictions match reality" />
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -187,30 +189,32 @@ export default function ConfidencePage() {
               <BarChart3 className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
               <h3 className="text-lg font-semibold text-text-primary">Calibration Curve</h3>
             </div>
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-text-tertiary text-xs uppercase">
-                <th className="pb-3">Predicted Range</th><th className="pb-3">Count</th><th className="pb-3">Actual Rate</th><th className="pb-3">Deviation</th><th className="pb-3">Calibration</th>
-              </tr></thead>
-              <tbody className="divide-y divide-white/5">
-                {calibration.map(b => (
-                  <tr key={b.predicted}>
-                    <td className="py-2 text-text-primary font-medium">{b.predicted}</td>
-                    <td className="py-2 text-text-secondary">{b.count}</td>
-                    <td className="py-2 text-text-primary">{(b.actualRate * 100).toFixed(0)}%</td>
-                    <td className="py-2">
-                      <span className={Math.abs(b.deviation) <= 0.03 ? 'text-green-400' : 'text-yellow-400'}>
-                        {b.deviation > 0 ? '+' : ''}{(b.deviation * 100).toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="py-2">
-                      <div className="w-20 h-2 rounded-full" style={{ background: 'var(--color-base)' }}>
-                        <div className="h-2 rounded-full bg-green-400" style={{ width: `${Math.max(5, 100 - Math.abs(b.deviation) * 1000)}%` }} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-text-tertiary text-xs uppercase">
+                  <th className="pb-3">Predicted Range</th><th className="pb-3">Count</th><th className="pb-3">Actual Rate</th><th className="pb-3">Deviation</th><th className="pb-3">Calibration</th>
+                </tr></thead>
+                <tbody className="divide-y divide-white/5">
+                  {calibration.map(b => (
+                    <tr key={b.predicted}>
+                      <td className="py-2 text-text-primary font-medium">{b.predicted}</td>
+                      <td className="py-2 text-text-secondary">{b.count}</td>
+                      <td className="py-2 text-text-primary">{(b.actualRate * 100).toFixed(0)}%</td>
+                      <td className="py-2">
+                        <span className={Math.abs(b.deviation) <= 0.03 ? 'text-green-400' : 'text-yellow-400'}>
+                          {b.deviation > 0 ? '+' : ''}{(b.deviation * 100).toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="py-2">
+                        <div className="w-20 h-2 rounded-full" style={{ background: 'var(--color-base)' }}>
+                          <div className="h-2 rounded-full bg-green-400" style={{ width: `${Math.max(5, 100 - Math.abs(b.deviation) * 1000)}%` }} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Per-Analyzer */}

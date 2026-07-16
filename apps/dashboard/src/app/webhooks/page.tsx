@@ -7,6 +7,10 @@
 
 import { useState, useEffect } from 'react';
 import Header from "@/components/header";
+import LoadingSkeleton from "@/components/loading-skeleton";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
+import { formatDate } from "@/lib/format";
 import { getWebhooks, getWebhookEvents, createWebhook, deleteWebhook, testWebhook } from "@/lib/api";
 import type { WebhookRegistration, WebhookEvent } from "@/lib/api";
 import {
@@ -19,7 +23,6 @@ import {
   Plus,
   Radio,
   Zap,
-  Loader2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -44,13 +47,9 @@ function getEventColor(event: string) {
 // Webhook Card
 // ---------------------------------------------------------------------------
 
-function WebhookCard({ webhook, onTest, onDelete }: { webhook: WebhookRegistration; onTest: (id: string) => void; onDelete: (id: string) => void }) {
+function WebhookCard({ webhook, onTest, onDelete }: { webhook: WebhookRegistration; onTest: (id: string) => void; onDelete: (webhook: WebhookRegistration) => void }) {
 
-  const createdDate = new Date(webhook.created_at).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const createdDate = formatDate(webhook.created_at);
 
   return (
     <div className="group rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden transition-all hover:border-white/15 hover:bg-white/[0.04]">
@@ -135,16 +134,18 @@ function WebhookCard({ webhook, onTest, onDelete }: { webhook: WebhookRegistrati
             onClick={() => onTest(webhook.id)}
             className="flex items-center gap-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors"
             title="Send test event"
+            aria-label={`Send test event to ${webhook.url}`}
           >
-            <Send className="h-3.5 w-3.5" />
+            <Send className="h-3.5 w-3.5" aria-hidden="true" />
             Test
           </button>
           <button
-            onClick={() => onDelete(webhook.id)}
+            onClick={() => onDelete(webhook)}
             className="flex items-center justify-center rounded-lg bg-white/5 border border-white/10 p-1.5 text-text-muted hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-colors"
             title="Delete webhook"
+            aria-label={`Delete webhook ${webhook.url}`}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -171,6 +172,7 @@ const ALL_EVENTS = [
 // ---------------------------------------------------------------------------
 
 export default function WebhooksPage() {
+  const { toast } = useToast();
   const [webhooks, setWebhooks] = useState<WebhookRegistration[]>([]);
   const [events, setEvents] = useState<WebhookEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,6 +181,8 @@ export default function WebhooksPage() {
   const [newUrl, setNewUrl] = useState('');
   const [newEvents, setNewEvents] = useState<string[]>([]);
   const [newSecret, setNewSecret] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<WebhookRegistration | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const reloadData = async () => {
     const [wh, ev] = await Promise.all([getWebhooks(), getWebhookEvents()]);
@@ -207,18 +211,27 @@ export default function WebhooksPage() {
       setNewEvents([]);
       setNewSecret('');
       await reloadData();
+      toast('Webhook registered.', 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create webhook');
+      toast('Failed to register webhook.', 'error');
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
       setError(null);
-      await deleteWebhook(id);
+      await deleteWebhook(deleteTarget.id);
       await reloadData();
+      toast('Webhook deleted.', 'info');
+      setDeleteTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete webhook');
+      toast('Failed to delete webhook.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -227,15 +240,18 @@ export default function WebhooksPage() {
       setError(null);
       await testWebhook(id);
       await reloadData();
+      toast('Test event sent.', 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to test webhook');
+      toast('Failed to send test event.', 'error');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="flex flex-col gap-6 p-6">
+        <Header title="Webhook Integrations" subtitle="Manage webhook endpoints for real-time event notifications" />
+        <LoadingSkeleton variant="list" count={3} />
       </div>
     );
   }
@@ -372,7 +388,7 @@ export default function WebhooksPage() {
         ) : (
           <div className="space-y-3 stagger-children">
             {webhooks.map((wh) => (
-              <WebhookCard key={wh.id} webhook={wh} onTest={handleTest} onDelete={handleDelete} />
+              <WebhookCard key={wh.id} webhook={wh} onTest={handleTest} onDelete={setDeleteTarget} />
             ))}
           </div>
         )}
@@ -415,6 +431,24 @@ export default function WebhooksPage() {
           })}
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete webhook"
+        destructive
+        loading={deleting}
+        confirmLabel="Delete"
+        message={
+          <>
+            Delete the webhook for{' '}
+            <span className="font-semibold text-text-primary font-mono break-all">{deleteTarget?.url}</span>?
+            It will stop receiving event notifications. This action cannot be undone.
+          </>
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
     </div>
   );
 }

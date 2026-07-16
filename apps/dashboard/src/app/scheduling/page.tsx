@@ -8,6 +8,10 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, Play, Pause, Download, FileText, Trash2, Zap } from 'lucide-react';
 import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
+import { formatDateTime } from '@/lib/format';
 import {
   getSchedules, getScheduleHistory,
   createSchedule, toggleSchedule as toggleScheduleApi,
@@ -56,6 +60,7 @@ function getCountdown(target: string): string {
 }
 
 export default function SchedulingPage() {
+  const { toast } = useToast();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [history, setHistory] = useState<RunHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +70,8 @@ export default function SchedulingPage() {
   const [newFormat, setNewFormat] = useState('pdf');
   const [error, setError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Schedule | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const refetchData = async () => {
     const [sched, hist] = await Promise.all([getSchedules(), getScheduleHistory()]);
@@ -86,48 +93,62 @@ export default function SchedulingPage() {
       setNewCron('');
       setNewFormat('pdf');
       await refetchData();
+      toast('Schedule created.', 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create schedule');
+      toast('Failed to create schedule.', 'error');
     } finally {
       setMutating(false);
     }
   };
 
-  const handleToggle = async (id: string) => {
+  const handleToggle = async (schedule: Schedule) => {
     setError(null);
+    const resuming = schedule.status !== 'active';
     try {
-      await toggleScheduleApi(id);
+      await toggleScheduleApi(schedule.id);
       await refetchData();
+      toast(resuming ? `Schedule "${schedule.name}" resumed.` : `Schedule "${schedule.name}" paused.`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to toggle schedule');
+      toast('Failed to update schedule.', 'error');
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Delete schedule "${name}"?`)) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     setError(null);
     try {
-      await deleteSchedule(id);
+      await deleteSchedule(deleteTarget.id);
       await refetchData();
+      toast(`Schedule "${deleteTarget.name}" deleted.`, 'info');
+      setDeleteTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete schedule');
+      toast('Failed to delete schedule.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handleRunNow = async (id: string) => {
+  const handleRunNow = async (id: string, name: string) => {
     setError(null);
     try {
       await runScheduleNow(id);
       await refetchData();
+      toast(`Run started for "${name}".`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to trigger run');
+      toast('Failed to trigger run.', 'error');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Scheduling" subtitle="Manage recurring analysis schedules and view run history" />
+        <LoadingSkeleton variant="list" count={4} />
       </div>
     );
   }
@@ -203,14 +224,14 @@ export default function SchedulingPage() {
                   <p className="text-xs text-text-tertiary">Next run</p>
                   <p className="text-sm font-semibold text-text-primary">{getCountdown(schedule.nextRun)}</p>
                 </div>
-                <button onClick={() => handleRunNow(schedule.id)} title="Run Now" className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                  <Zap className="w-4 h-4 text-blue-400" />
+                <button onClick={() => handleRunNow(schedule.id, schedule.name)} title="Run Now" aria-label={`Run ${schedule.name} now`} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
+                  <Zap className="w-4 h-4 text-blue-400" aria-hidden="true" />
                 </button>
-                <button onClick={() => handleToggle(schedule.id)} title={schedule.status === 'active' ? 'Pause' : 'Resume'} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                  {schedule.status === 'active' ? <Pause className="w-4 h-4 text-yellow-400" /> : <Play className="w-4 h-4 text-green-400" />}
+                <button onClick={() => handleToggle(schedule)} title={schedule.status === 'active' ? 'Pause' : 'Resume'} aria-label={`${schedule.status === 'active' ? 'Pause' : 'Resume'} ${schedule.name}`} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
+                  {schedule.status === 'active' ? <Pause className="w-4 h-4 text-yellow-400" aria-hidden="true" /> : <Play className="w-4 h-4 text-green-400" aria-hidden="true" />}
                 </button>
-                <button onClick={() => handleDelete(schedule.id, schedule.name)} title="Delete" className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                  <Trash2 className="w-4 h-4 text-red-400" />
+                <button onClick={() => setDeleteTarget(schedule)} title="Delete" aria-label={`Delete ${schedule.name}`} className="p-2 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
+                  <Trash2 className="w-4 h-4 text-red-400" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -240,14 +261,23 @@ export default function SchedulingPage() {
                 <tr key={run.id} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
                   <td className="py-3 text-text-primary">{run.scheduleName}</td>
                   <td className="py-3"><RunStatusBadge status={run.status} /></td>
-                  <td className="py-3 text-text-tertiary text-xs">{new Date(run.startedAt).toLocaleString()}</td>
-                  <td className="py-3 text-text-tertiary text-xs">{run.completedAt ? new Date(run.completedAt).toLocaleString() : '—'}</td>
+                  <td className="py-3 text-text-tertiary text-xs">{formatDateTime(run.startedAt)}</td>
+                  <td className="py-3 text-text-tertiary text-xs">{run.completedAt ? formatDateTime(run.completedAt) : '—'}</td>
                   <td className="py-3 text-text-secondary text-xs">{run.fileSize}</td>
                   <td className="py-3">
-                    {run.status === 'success' && (
-                      <button className="p-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: 'var(--color-base)' }}>
-                        <Download className="w-3.5 h-3.5 text-text-tertiary" />
-                      </button>
+                    {run.status === 'success' && run.downloadUrl && (
+                      <a
+                        href={run.downloadUrl}
+                        download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex p-1.5 rounded-lg transition-all hover:opacity-80"
+                        style={{ background: 'var(--color-base)' }}
+                        title="Download report"
+                        aria-label={`Download report for ${run.scheduleName}`}
+                      >
+                        <Download className="w-3.5 h-3.5 text-text-tertiary" aria-hidden="true" />
+                      </a>
                     )}
                   </td>
                 </tr>
@@ -256,6 +286,24 @@ export default function SchedulingPage() {
           </table>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete schedule"
+        destructive
+        loading={deleting}
+        confirmLabel="Delete"
+        message={
+          <>
+            Delete schedule{' '}
+            <span className="font-semibold text-text-primary">{deleteTarget?.name}</span>? It will stop
+            generating reports. This action cannot be undone.
+          </>
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
     </div>
   );
 }

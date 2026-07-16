@@ -7,8 +7,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Package, Download, Power, Shield, Star, Search } from 'lucide-react';
+import { Package, Download, Power, Shield, Star, Search, Trash2 } from 'lucide-react';
 import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import EmptyState from '@/components/ui/empty-state';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
 import {
   getInstalledPlugins,
   getMarketplacePlugins,
@@ -49,6 +53,9 @@ export default function PluginsPage() {
   const [filterType, setFilterType] = useState<string>('all');
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [uninstallTarget, setUninstallTarget] = useState<InstalledPlugin | null>(null);
+  const [uninstalling, setUninstalling] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     async function load() {
@@ -88,28 +95,38 @@ export default function PluginsPage() {
   const handleToggle = async (id: string) => {
     markBusy(id, true);
     setError(null);
+    const plugin = installed.find(p => p.id === id);
     try {
       const updated = await apiTogglePlugin(id);
       setInstalled(prev =>
         prev.map(p => p.id === id ? { ...p, enabled: updated.enabled } : p),
       );
+      toast(`${plugin?.name ?? 'Plugin'} ${updated.enabled ? 'enabled' : 'disabled'}.`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to toggle plugin');
+      toast(`Failed to ${plugin?.enabled ? 'disable' : 'enable'} ${plugin?.name ?? 'plugin'}.`, 'error');
     } finally {
       markBusy(id, false);
     }
   };
 
-  const handleUninstall = async (id: string) => {
+  const confirmUninstall = async () => {
+    if (!uninstallTarget) return;
+    const { id, name } = uninstallTarget;
+    setUninstalling(true);
     markBusy(id, true);
     setError(null);
     try {
       await apiUninstallPlugin(id);
       setInstalled(prev => prev.filter(p => p.id !== id));
+      toast(`${name} uninstalled.`, 'info');
+      setUninstallTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to uninstall plugin');
+      toast(`Failed to uninstall ${name}.`, 'error');
     } finally {
       markBusy(id, false);
+      setUninstalling(false);
     }
   };
 
@@ -135,8 +152,10 @@ export default function PluginsPage() {
       ]);
       // Remove from marketplace list
       setMarketplace(prev => prev.filter(p => p.id !== id));
+      toast(`${plugin.name} installed.`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to install plugin');
+      toast('Failed to install plugin.', 'error');
     } finally {
       markBusy(id, false);
     }
@@ -150,8 +169,9 @@ export default function PluginsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Plugins" subtitle="Manage installed plugins and extensions" />
+        <LoadingSkeleton variant="list" count={4} />
       </div>
     );
   }
@@ -174,6 +194,14 @@ export default function PluginsPage() {
         <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
           <Shield className="w-4 h-4" style={{ color: 'var(--color-accent)' }} /> Installed Plugins
         </h2>
+        {installed.length === 0 ? (
+          <EmptyState
+            compact
+            icon={Package}
+            title="No plugins installed"
+            description="Browse the marketplace below to install analyzers, collectors, reporters, and integrations that extend Recurrsive."
+          />
+        ) : (
         <div className="space-y-3">
           {installed.map(plugin => (
             <div key={plugin.id} className="flex items-center justify-between rounded-xl p-4" style={{ background: 'var(--color-base)', border: '1px solid var(--color-border)' }}>
@@ -190,16 +218,17 @@ export default function PluginsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => handleToggle(plugin.id)} disabled={busyIds.has(plugin.id)} className="p-2 rounded-lg transition-all hover:opacity-80 disabled:opacity-40" style={{ background: 'var(--color-surface)' }}>
-                  <Power className={`w-4 h-4 ${plugin.enabled ? 'text-green-400' : 'text-gray-500'}`} />
+                <button onClick={() => handleToggle(plugin.id)} disabled={busyIds.has(plugin.id)} className="p-2 rounded-lg transition-all hover:opacity-80 disabled:opacity-40" style={{ background: 'var(--color-surface)' }} title={plugin.enabled ? 'Disable plugin' : 'Enable plugin'} aria-label={`${plugin.enabled ? 'Disable' : 'Enable'} ${plugin.name}`}>
+                  <Power className={`w-4 h-4 ${plugin.enabled ? 'text-green-400' : 'text-gray-500'}`} aria-hidden="true" />
                 </button>
-                <button onClick={() => handleUninstall(plugin.id)} disabled={busyIds.has(plugin.id)} className="p-2 rounded-lg transition-all hover:opacity-80 text-red-400 disabled:opacity-40" style={{ background: 'var(--color-surface)' }}>
-                  ✕
+                <button onClick={() => setUninstallTarget(plugin)} disabled={busyIds.has(plugin.id)} className="p-2 rounded-lg transition-all hover:opacity-80 text-red-400 disabled:opacity-40" style={{ background: 'var(--color-surface)' }} title="Uninstall plugin" aria-label={`Uninstall ${plugin.name}`}>
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
             </div>
           ))}
         </div>
+        )}
       </div>
 
       {/* Marketplace */}
@@ -270,6 +299,24 @@ export default function PluginsPage() {
           npm install @recurrsive/plugin-sdk
         </code>
       </div>
+
+      {/* Uninstall confirmation */}
+      <ConfirmDialog
+        open={uninstallTarget !== null}
+        title="Uninstall plugin"
+        destructive
+        loading={uninstalling}
+        confirmLabel="Uninstall"
+        message={
+          <>
+            Uninstall{' '}
+            <span className="font-semibold text-text-primary">{uninstallTarget?.name}</span>? Its analyzers and
+            configuration will be removed. You can reinstall it later from the marketplace.
+          </>
+        }
+        onConfirm={confirmUninstall}
+        onCancel={() => { if (!uninstalling) setUninstallTarget(null); }}
+      />
     </div>
   );
 }

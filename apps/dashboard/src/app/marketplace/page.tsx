@@ -7,12 +7,16 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Package, Search, Download, Star, Filter, Loader2, Shield, Heart, DollarSign, Container, Brain } from 'lucide-react';
+import { Package, Search, Download, Star, Filter, Shield, Heart, DollarSign, Container, Brain } from 'lucide-react';
 import { getMarketplaceExtensions, getMarketplaceCategories, getMarketplaceStats } from '@/lib/api/platform';
 import { getIntelligencePacks } from '@/lib/api';
 import type { DashboardIntelligencePack } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
 import ErrorBanner from '@/components/error-banner';
+import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,6 +82,7 @@ function StatusBadge({ status }: { status: string }) {
 // ---------------------------------------------------------------------------
 
 export default function MarketplacePage() {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<Tab>('Extensions');
 
   // Extensions state
@@ -96,6 +101,8 @@ export default function MarketplacePage() {
   const [packsLoading, setPacksLoading] = useState(false);
   const [packsError, setPacksError] = useState<string | null>(null);
   const [packsLoaded, setPacksLoaded] = useState(false);
+  const [uninstallTarget, setUninstallTarget] = useState<DashboardIntelligencePack | null>(null);
+  const [uninstalling, setUninstalling] = useState(false);
 
   // Load extensions
   useEffect(() => {
@@ -142,23 +149,43 @@ export default function MarketplacePage() {
     })();
   }, [activeTab, packsLoaded]);
 
-  const toggleInstall = async (id: string) => {
-    const pack = packs.find(p => p.id === id);
-    if (!pack) return;
-    const action = pack.status === 'installed' ? 'uninstall' : 'install';
+  // Install applies state only on success; on failure we toast an error and do
+  // NOT flip the UI (no optimistic fallback that hides failures).
+  const installPack = async (pack: DashboardIntelligencePack) => {
     try {
-      await apiFetch(`/api/v1/intelligence-packs/${id}/${action}`, {
+      await apiFetch(`/api/v1/intelligence-packs/${pack.id}/install`, {
         method: 'POST',
         unwrap: false,
       });
-      setPacks(prev => prev.map(p =>
-        p.id === id ? { ...p, status: p.status === 'installed' ? 'available' : 'installed' } : p
-      ));
+      setPacks(prev => prev.map(p => p.id === pack.id ? { ...p, status: 'installed' } : p));
+      toast(`${pack.name} installed.`, 'success');
     } catch {
-      setPacks(prev => prev.map(p =>
-        p.id === id ? { ...p, status: p.status === 'installed' ? 'available' : 'installed' } : p
-      ));
+      toast(`Failed to install ${pack.name}.`, 'error');
     }
+  };
+
+  const confirmUninstall = async () => {
+    if (!uninstallTarget) return;
+    const pack = uninstallTarget;
+    setUninstalling(true);
+    try {
+      await apiFetch(`/api/v1/intelligence-packs/${pack.id}/uninstall`, {
+        method: 'POST',
+        unwrap: false,
+      });
+      setPacks(prev => prev.map(p => p.id === pack.id ? { ...p, status: 'available' } : p));
+      toast(`${pack.name} uninstalled.`, 'info');
+      setUninstallTarget(null);
+    } catch {
+      toast(`Failed to uninstall ${pack.name}.`, 'error');
+    } finally {
+      setUninstalling(false);
+    }
+  };
+
+  const handlePackAction = (pack: DashboardIntelligencePack) => {
+    if (pack.status === 'installed') setUninstallTarget(pack);
+    else void installPack(pack);
   };
 
   const filtered = extensions.filter((ext) => {
@@ -171,8 +198,9 @@ export default function MarketplacePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Marketplace" subtitle="Discover and install extensions to enhance your Recurrsive experience" />
+        <LoadingSkeleton variant="card" count={4} />
       </div>
     );
   }
@@ -180,15 +208,7 @@ export default function MarketplacePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Package className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
-          Marketplace
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">
-          Discover and install extensions to enhance your Recurrsive experience.
-        </p>
-      </div>
+      <Header title="Marketplace" subtitle="Discover and install extensions to enhance your Recurrsive experience" />
 
       {/* Tabs */}
       <div
@@ -354,11 +374,7 @@ export default function MarketplacePage() {
       {/* Intelligence Packs Tab */}
       {activeTab === 'Intelligence Packs' && (
         <div role="tabpanel" aria-label="Intelligence Packs" className="space-y-6">
-          {packsLoading && (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
-            </div>
-          )}
+          {packsLoading && <LoadingSkeleton variant="list" count={3} />}
 
           {packsError && <ErrorBanner message={packsError} onDismiss={() => setPacksError(null)} />}
 
@@ -392,7 +408,15 @@ export default function MarketplacePage() {
                   return (
                     <div key={pack.id} className="rounded-2xl overflow-hidden" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                       {/* Card Header */}
-                      <div className="flex items-center gap-4 p-5 cursor-pointer" onClick={() => setExpanded(isExpanded ? null : pack.id)}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={isExpanded}
+                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${pack.name} details`}
+                        className="flex items-center gap-4 p-5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/50"
+                        onClick={() => setExpanded(isExpanded ? null : pack.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(isExpanded ? null : pack.id); } }}
+                      >
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-base)' }}>
                           <Icon className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
                         </div>
@@ -415,7 +439,8 @@ export default function MarketplacePage() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm text-text-tertiary">{pack.totalRules} rules</span>
-                          <button onClick={e => { e.stopPropagation(); toggleInstall(pack.id); }}
+                          <button onClick={e => { e.stopPropagation(); handlePackAction(pack); }}
+                            aria-label={`${pack.status === 'installed' ? 'Uninstall' : 'Install'} ${pack.name}`}
                             className="px-4 py-1.5 rounded-lg text-xs font-medium transition-all"
                             style={{
                               background: pack.status === 'installed' ? 'var(--color-base)' : 'var(--color-accent)',
@@ -475,6 +500,24 @@ export default function MarketplacePage() {
           )}
         </div>
       )}
+
+      {/* Uninstall confirmation */}
+      <ConfirmDialog
+        open={uninstallTarget !== null}
+        title="Uninstall pack"
+        destructive
+        loading={uninstalling}
+        confirmLabel="Uninstall"
+        message={
+          <>
+            Uninstall{' '}
+            <span className="font-semibold text-text-primary">{uninstallTarget?.name}</span>? Its analyzers and
+            rules will no longer run. You can reinstall it later.
+          </>
+        }
+        onConfirm={confirmUninstall}
+        onCancel={() => { if (!uninstalling) setUninstallTarget(null); }}
+      />
     </div>
   );
 }

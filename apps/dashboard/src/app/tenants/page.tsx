@@ -6,8 +6,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Building2, Users, CreditCard, Shield, BarChart3, Loader2 } from 'lucide-react';
+import { Building2, Users, CreditCard, Shield, BarChart3 } from 'lucide-react';
 import Header from '@/components/header';
+import LoadingSkeleton from '@/components/loading-skeleton';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useToast } from '@/components/ui/toast';
+import { formatDate } from '@/lib/format';
 import { getTenants, createTenant, deleteTenant } from '@/lib/api';
 import type { DashboardTenant } from '@/lib/api';
 
@@ -57,12 +61,15 @@ function QuotaBar({ label, used, max }: { label: string; used: number; max: numb
 }
 
 export default function TenantsPage() {
+  const { toast } = useToast();
   const [tenants, setTenants] = useState<DashboardTenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTier, setNewTier] = useState<string>('free');
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DashboardTenant | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleCreate = async () => {
     try {
@@ -74,19 +81,28 @@ export default function TenantsPage() {
       setNewTier('free');
       const data = await getTenants();
       setTenants(data);
+      toast('Tenant created.', 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create tenant');
+      toast('Failed to create tenant.', 'error');
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
       setError(null);
-      await deleteTenant(id);
+      await deleteTenant(deleteTarget.id);
       const data = await getTenants();
       setTenants(data);
+      toast(`Tenant "${deleteTarget.name}" deleted.`, 'info');
+      setDeleteTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete tenant');
+      toast('Failed to delete tenant.', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -99,8 +115,9 @@ export default function TenantsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      <div className="space-y-6">
+        <Header title="Multi-Tenant Management" subtitle="Manage tenants, tiers, and resource quotas" />
+        <LoadingSkeleton variant="list" count={4} />
       </div>
     );
   }
@@ -179,9 +196,9 @@ export default function TenantsPage() {
                   <TierBadge tier={tenant.tier} />
                   <StatusBadge status={tenant.status} />
                 </div>
-                <p className="text-xs text-text-tertiary mt-0.5">{tenant.slug} · {tenant.owner} · Created {new Date(tenant.createdAt).toLocaleDateString()}</p>
+                <p className="text-xs text-text-tertiary mt-0.5">{tenant.slug} · {tenant.owner} · Created {formatDate(tenant.createdAt)}</p>
               </div>
-              <button onClick={() => handleDelete(tenant.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded" title="Delete tenant">Delete</button>
+              <button onClick={() => setDeleteTarget(tenant)} className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded" title="Delete tenant" aria-label={`Delete tenant ${tenant.name}`}>Delete</button>
             </div>
             <div className="flex items-center gap-6">
               <QuotaBar label="Projects" used={tenant.quotas.projects.used} max={tenant.quotas.projects.max} />
@@ -220,6 +237,24 @@ export default function TenantsPage() {
           </table>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete tenant"
+        destructive
+        loading={deleting}
+        confirmLabel="Delete"
+        message={
+          <>
+            Are you sure you want to delete{' '}
+            <span className="font-semibold text-text-primary">{deleteTarget?.name}</span>? This removes the
+            tenant and its associated quotas. This action cannot be undone.
+          </>
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
     </div>
   );
 }
