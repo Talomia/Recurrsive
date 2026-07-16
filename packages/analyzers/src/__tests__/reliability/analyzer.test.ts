@@ -1,9 +1,12 @@
 /**
  * Tests for ReliabilityAnalyzer.
  *
- * Covers all 7 rules: single point of failure, missing retries,
- * missing timeouts, no circuit breaker, missing health checks,
- * no graceful shutdown, and error swallowing.
+ * Covers the 3 rules that evaluate produced data: single point of failure,
+ * missing health checks, and no graceful shutdown. Also asserts that the
+ * removed rules (missing retries, missing timeouts, no circuit breaker, error
+ * swallowing) no longer fire on inputs that previously triggered them —
+ * their required data (external-call relationships against function entities,
+ * and empty-catch/error-swallowed markers) is never produced.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -239,16 +242,16 @@ describe('ReliabilityAnalyzer', () => {
     });
   });
 
-  // ── Rule 2: Missing Retries ────────────────────────────────────────
+  // ── Removed rules: retries / timeouts / circuit breaker ───────────
+  // These required a function entity to carry an external-call relationship
+  // (uses_model/queries_table/reads_from/writes_to/routes_to). Those are never
+  // produced against `function` entities, so the rules could never fire.
 
-  describe('missing retries', () => {
-    it('detects functions calling external services without retry', async () => {
+  describe('missing retries / timeouts / circuit breaker (removed)', () => {
+    it('does not flag a function that uses a model but has no retry/timeout', async () => {
       const fn = makeEntity({ type: 'function', name: 'callAPI' });
       const modelId = nextId();
-
-      const rels = [
-        makeRel({ type: 'uses_model', source_id: fn.id, target_id: modelId }),
-      ];
+      const rels = [makeRel({ type: 'uses_model', source_id: fn.id, target_id: modelId })];
 
       const ctx = makeContext(
         { function: [fn] },
@@ -256,167 +259,11 @@ describe('ReliabilityAnalyzer', () => {
       );
 
       const findings = await analyzer.analyze(ctx);
-
-      const retryFindings = findings.filter((f) => f.title.includes('Missing retry logic'));
-      expect(retryFindings).toHaveLength(1);
-      expect(retryFindings[0]!.severity).toBe('medium');
-      expect(retryFindings[0]!.title).toContain('callAPI');
+      expect(findings.filter((f) => f.title.includes('Missing retry logic'))).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Missing timeout'))).toHaveLength(0);
     });
 
-    it('skips functions with has_retry property', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'resilientCall',
-        properties: { has_retry: true },
-      });
-      const modelId = nextId();
-
-      const rels = [
-        makeRel({ type: 'uses_model', source_id: fn.id, target_id: modelId }),
-      ];
-
-      const ctx = makeContext(
-        { function: [fn] },
-        (id, dir) => (id === fn.id && dir === 'out' ? rels : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const retryFindings = findings.filter((f) => f.title.includes('Missing retry logic'));
-      expect(retryFindings).toHaveLength(0);
-    });
-
-    it('skips functions tagged with retry', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'retryableCall',
-        tags: ['retry'],
-      });
-      const modelId = nextId();
-
-      const rels = [
-        makeRel({ type: 'uses_model', source_id: fn.id, target_id: modelId }),
-      ];
-
-      const ctx = makeContext(
-        { function: [fn] },
-        (id, dir) => (id === fn.id && dir === 'out' ? rels : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const retryFindings = findings.filter((f) => f.title.includes('Missing retry logic'));
-      expect(retryFindings).toHaveLength(0);
-    });
-
-    it('skips functions without external calls', async () => {
-      const fn = makeEntity({ type: 'function', name: 'pureFunction' });
-
-      const rels = [
-        makeRel({ type: 'calls', source_id: fn.id, target_id: nextId() }),
-      ];
-
-      const ctx = makeContext(
-        { function: [fn] },
-        (id, dir) => (id === fn.id && dir === 'out' ? rels : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const retryFindings = findings.filter((f) => f.title.includes('Missing retry logic'));
-      expect(retryFindings).toHaveLength(0);
-    });
-  });
-
-  // ── Rule 3: Missing Timeouts ───────────────────────────────────────
-
-  describe('missing timeouts', () => {
-    it('detects network calls without timeout', async () => {
-      const fn = makeEntity({ type: 'function', name: 'fetchData' });
-      const serviceId = nextId();
-
-      const rels = [
-        makeRel({ type: 'routes_to', source_id: fn.id, target_id: serviceId }),
-      ];
-
-      const ctx = makeContext(
-        { function: [fn] },
-        (id, dir) => (id === fn.id && dir === 'out' ? rels : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const timeoutFindings = findings.filter((f) => f.title.includes('Missing timeout'));
-      expect(timeoutFindings).toHaveLength(1);
-      expect(timeoutFindings[0]!.severity).toBe('high');
-      expect(timeoutFindings[0]!.title).toContain('fetchData');
-    });
-
-    it('skips functions with has_timeout property', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'safeFetch',
-        properties: { has_timeout: true },
-      });
-      const serviceId = nextId();
-
-      const rels = [
-        makeRel({ type: 'routes_to', source_id: fn.id, target_id: serviceId }),
-      ];
-
-      const ctx = makeContext(
-        { function: [fn] },
-        (id, dir) => (id === fn.id && dir === 'out' ? rels : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const timeoutFindings = findings.filter((f) => f.title.includes('Missing timeout'));
-      expect(timeoutFindings).toHaveLength(0);
-    });
-
-    it('skips functions tagged with timeout', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'timedCall',
-        tags: ['timeout'],
-      });
-      const serviceId = nextId();
-
-      const rels = [
-        makeRel({ type: 'routes_to', source_id: fn.id, target_id: serviceId }),
-      ];
-
-      const ctx = makeContext(
-        { function: [fn] },
-        (id, dir) => (id === fn.id && dir === 'out' ? rels : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const timeoutFindings = findings.filter((f) => f.title.includes('Missing timeout'));
-      expect(timeoutFindings).toHaveLength(0);
-    });
-
-    it('skips functions without network calls', async () => {
-      const fn = makeEntity({ type: 'function', name: 'localCalc' });
-
-      const ctx = makeContext(
-        { function: [fn] },
-        () => [],
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const timeoutFindings = findings.filter((f) => f.title.includes('Missing timeout'));
-      expect(timeoutFindings).toHaveLength(0);
-    });
-  });
-
-  // ── Rule 4: No Circuit Breaker ─────────────────────────────────────
-
-  describe('no circuit breaker', () => {
-    it('detects multiple external callers without circuit breaker', async () => {
+    it('does not flag multiple external callers with no circuit breaker', async () => {
       const fn1 = makeEntity({ type: 'function', name: 'callExternal1' });
       const fn2 = makeEntity({ type: 'function', name: 'callExternal2' });
       const modelId = nextId();
@@ -424,12 +271,8 @@ describe('ReliabilityAnalyzer', () => {
 
       const relsFn: GetRelsFn = (id, dir) => {
         if (dir === 'out') {
-          if (id === fn1.id) {
-            return [makeRel({ type: 'uses_model', source_id: fn1.id, target_id: modelId })];
-          }
-          if (id === fn2.id) {
-            return [makeRel({ type: 'routes_to', source_id: fn2.id, target_id: serviceId })];
-          }
+          if (id === fn1.id) return [makeRel({ type: 'uses_model', source_id: fn1.id, target_id: modelId })];
+          if (id === fn2.id) return [makeRel({ type: 'routes_to', source_id: fn2.id, target_id: serviceId })];
         }
         return [];
       };
@@ -437,63 +280,11 @@ describe('ReliabilityAnalyzer', () => {
       const ctx = makeContext({ function: [fn1, fn2] }, relsFn);
 
       const findings = await analyzer.analyze(ctx);
-
-      const cbFindings = findings.filter((f) => f.title.includes('No circuit breaker'));
-      expect(cbFindings).toHaveLength(1);
-      expect(cbFindings[0]!.severity).toBe('medium');
-    });
-
-    it('skips when circuit breaker tag is present on any caller', async () => {
-      const fn1 = makeEntity({
-        type: 'function',
-        name: 'protectedCall',
-        tags: ['circuit-breaker'],
-      });
-      const fn2 = makeEntity({ type: 'function', name: 'otherCall' });
-      const modelId = nextId();
-      const serviceId = nextId();
-
-      const relsFn: GetRelsFn = (id, dir) => {
-        if (dir === 'out') {
-          if (id === fn1.id) {
-            return [makeRel({ type: 'uses_model', source_id: fn1.id, target_id: modelId })];
-          }
-          if (id === fn2.id) {
-            return [makeRel({ type: 'routes_to', source_id: fn2.id, target_id: serviceId })];
-          }
-        }
-        return [];
-      };
-
-      const ctx = makeContext({ function: [fn1, fn2] }, relsFn);
-
-      const findings = await analyzer.analyze(ctx);
-
-      const cbFindings = findings.filter((f) => f.title.includes('No circuit breaker'));
-      expect(cbFindings).toHaveLength(0);
-    });
-
-    it('skips when fewer than 2 external callers', async () => {
-      const fn1 = makeEntity({ type: 'function', name: 'singleCaller' });
-      const modelId = nextId();
-
-      const relsFn: GetRelsFn = (id, dir) => {
-        if (dir === 'out' && id === fn1.id) {
-          return [makeRel({ type: 'uses_model', source_id: fn1.id, target_id: modelId })];
-        }
-        return [];
-      };
-
-      const ctx = makeContext({ function: [fn1] }, relsFn);
-
-      const findings = await analyzer.analyze(ctx);
-
-      const cbFindings = findings.filter((f) => f.title.includes('No circuit breaker'));
-      expect(cbFindings).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('No circuit breaker'))).toHaveLength(0);
     });
   });
 
-  // ── Rule 5: Missing Health Checks ──────────────────────────────────
+  // ── Rule 2: Missing Health Checks ──────────────────────────────────
 
   describe('missing health checks', () => {
     it('detects service with >2 endpoints but no health check', async () => {
@@ -589,7 +380,7 @@ describe('ReliabilityAnalyzer', () => {
     });
   });
 
-  // ── Rule 6: No Graceful Shutdown ───────────────────────────────────
+  // ── Rule 3: No Graceful Shutdown ───────────────────────────────────
 
   describe('no graceful shutdown', () => {
     it('detects service without shutdown handler', async () => {
@@ -672,10 +463,12 @@ describe('ReliabilityAnalyzer', () => {
     });
   });
 
-  // ── Rule 7: Error Swallowing ───────────────────────────────────────
+  // ── Removed rule: Error Swallowing ─────────────────────────────
+  // Gated solely on has_empty_catch/swallows_errors properties and
+  // empty-catch/error-swallowed tags that no parser emits — permanently dead.
 
-  describe('error swallowing', () => {
-    it('detects functions with has_empty_catch property', async () => {
+  describe('error swallowing (removed)', () => {
+    it('does not flag a function even when marked has_empty_catch', async () => {
       const fn = makeEntity({
         type: 'function',
         name: 'riskyHandler',
@@ -684,66 +477,7 @@ describe('ReliabilityAnalyzer', () => {
       const ctx = makeContext({ function: [fn] });
 
       const findings = await analyzer.analyze(ctx);
-
-      const errFindings = findings.filter((f) => f.title.includes('Error swallowing'));
-      expect(errFindings).toHaveLength(1);
-      expect(errFindings[0]!.severity).toBe('high');
-      expect(errFindings[0]!.title).toContain('riskyHandler');
-    });
-
-    it('detects functions with swallows_errors property', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'silentFailer',
-        properties: { swallows_errors: true },
-      });
-      const ctx = makeContext({ function: [fn] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const errFindings = findings.filter((f) => f.title.includes('Error swallowing'));
-      expect(errFindings).toHaveLength(1);
-    });
-
-    it('detects functions tagged empty-catch', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'badCatch',
-        tags: ['empty-catch'],
-      });
-      const ctx = makeContext({ function: [fn] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const errFindings = findings.filter((f) => f.title.includes('Error swallowing'));
-      expect(errFindings).toHaveLength(1);
-    });
-
-    it('detects functions tagged error-swallowed', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'ignoredError',
-        tags: ['error-swallowed'],
-      });
-      const ctx = makeContext({ function: [fn] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const errFindings = findings.filter((f) => f.title.includes('Error swallowing'));
-      expect(errFindings).toHaveLength(1);
-    });
-
-    it('produces no finding for functions with proper error handling', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'goodHandler',
-      });
-      const ctx = makeContext({ function: [fn] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const errFindings = findings.filter((f) => f.title.includes('Error swallowing'));
-      expect(errFindings).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Error swallowing'))).toHaveLength(0);
     });
   });
 

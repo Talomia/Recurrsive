@@ -40,12 +40,23 @@ export const EXPECTED_TIMESTAMPS = ['created_at', 'updated_at'];
  * and data access anti-patterns.
  *
  * ### Rules
- * 1. **Missing indexes** — tables queried without corresponding indexes.
- * 2. **Schema anti-patterns** — tables without primary keys or foreign keys.
- * 3. **Unused tables** — tables with no relationships pointing to them.
- * 4. **Wide tables** — tables with more than 20 property columns.
- * 5. **Missing timestamps** — tables without `created_at` / `updated_at`.
- * 6. **Inconsistent naming** — mixed naming conventions across tables.
+ * 1. **Schema anti-patterns** — tables without primary keys.
+ * 2. **Wide tables** — tables with more than 20 property columns.
+ * 3. **Missing timestamps** — tables without `created_at` / `updated_at`.
+ * 4. **Inconsistent naming** — mixed naming conventions across tables.
+ *
+ * ### Removed rules (producer/consumer contract mismatch)
+ * - "Missing indexes" required `index` and `query` entities that no collector
+ *   produces, so it could never fire.
+ * - "Unused tables" required `queries_table`/`reads_from`/`writes_to` usage
+ *   relationships that are never produced; it therefore flagged every table
+ *   not on the receiving end of a foreign key as "unused" — a systematic false
+ *   positive.
+ * - The "missing foreign keys" sub-check of schema anti-patterns was removed:
+ *   the database collector only creates a `references` relationship for columns
+ *   that *are* foreign keys, so "references another table but has no foreign
+ *   key" was contradictory and always false-positived (it read
+ *   `has_foreign_keys`, which is never set).
  *
  * @example
  * ```ts
@@ -70,25 +81,19 @@ export class DataAnalyzer implements Analyzer {
     const findings: Finding[] = [];
 
     const [
-      missingIndexes,
       schemaAntiPatterns,
-      unusedTables,
       wideTables,
       missingTimestamps,
       inconsistentNaming,
     ] = await Promise.all([
-      this.detectMissingIndexes(ctx),
       this.detectSchemaAntiPatterns(ctx),
-      this.detectUnusedTables(ctx),
       this.detectWideTables(ctx),
       this.detectMissingTimestamps(ctx),
       this.detectInconsistentNaming(ctx),
     ]);
 
     findings.push(
-      ...missingIndexes,
       ...schemaAntiPatterns,
-      ...unusedTables,
       ...wideTables,
       ...missingTimestamps,
       ...inconsistentNaming,
@@ -231,82 +236,16 @@ export class DataAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 1: Missing Indexes ─────────────────────────────────────────
+  // ── Rule 1: Schema Anti-Patterns ────────────────────────────────────
 
   /**
-   * Detect tables that are queried but lack corresponding indexes.
+   * Detect tables without primary keys.
    *
-   * @param ctx - Analysis context.
-   * @returns Findings for missing indexes.
-   */
-  private async detectMissingIndexes(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const tables = await ctx.graph.getEntities('table');
-    const indexes = await ctx.graph.getEntities('index');
-    const queries = await ctx.graph.getEntities('query');
-
-    // Build set of tables that have indexes
-    const indexedTableIds = new Set<string>();
-    for (const idx of indexes) {
-      const rels = await ctx.graph.getRelationships(idx.id, 'out');
-      for (const rel of rels) {
-        indexedTableIds.add(rel.target_id);
-      }
-      // Also check properties for table references
-      const tableName = idx.properties['table'] as string | undefined;
-      if (tableName) {
-        const matchingTable = tables.find((t) => t.name === tableName);
-        if (matchingTable) indexedTableIds.add(matchingTable.id);
-      }
-    }
-
-    // Find tables that are queried but not indexed
-    for (const query of queries) {
-      const rels = await ctx.graph.getRelationships(query.id, 'out');
-      const queriedTableIds = rels
-        .filter((r) => r.type === 'queries_table' || r.type === 'reads_from')
-        .map((r) => r.target_id);
-
-      for (const tableId of queriedTableIds) {
-        if (indexedTableIds.has(tableId)) continue;
-
-        const table = tables.find((t) => t.id === tableId);
-        if (!table) continue;
-
-        const loc = locationFromEntity(query);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing index for queried table: ${table.name}`,
-            description: `Table '${table.name}' is queried by '${query.name}' but has no index defined. This can lead to full table scans and slow query performance at scale.`,
-            severity: 'medium',
-            category: 'data',
-            evidence: [
-              createEvidence({
-                type: 'metric',
-                source: this.id,
-                description: `Table queried without index`,
-                entity_ids: [table.id, query.id],
-                confidence: 0.8,
-                data: { table: table.name, query: query.name },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix: `Add appropriate indexes to table '${table.name}' based on the query patterns. Analyze slow query logs to identify optimal index columns.`,
-            confidence: 0.75,
-            tags: ['missing-index', 'data', 'performance', 'database'],
-          }),
-        );
-      }
-    }
-
-    return findings;
-  }
-
-  // ── Rule 2: Schema Anti-Patterns ────────────────────────────────────
-
-  /**
-   * Detect tables without primary keys or missing foreign keys.
+   * The database collector populates `has_primary_key` from parsed schema
+   * definitions, so this rule evaluates real data. The former "missing foreign
+   * keys" sub-check was removed because the collector only produces a
+   * `references` relationship for columns that are foreign keys, making the
+   * check self-contradictory (and it read `has_foreign_keys`, never set).
    *
    * @param ctx - Analysis context.
    * @returns Findings for schema anti-patterns.
@@ -347,105 +286,12 @@ export class DataAnalyzer implements Analyzer {
           }),
         );
       }
-
-      // Check for missing foreign keys on tables that reference others
-      const rels = await ctx.graph.getRelationships(table.id, 'out');
-      const referencesOtherTables = rels.some(
-        (r) => r.type === 'references' || r.type === 'depends_on',
-      );
-
-      const hasForeignKeys =
-        table.properties['has_foreign_keys'] === true ||
-        table.properties['foreign_keys'] != null ||
-        table.tags.includes('has-foreign-keys');
-
-      if (referencesOtherTables && !hasForeignKeys) {
-        const loc = locationFromEntity(table);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing foreign keys: ${table.name}`,
-            description: `Table '${table.name}' references other tables but has no foreign key constraints. Foreign keys enforce referential integrity and prevent orphaned data.`,
-            severity: 'medium',
-            category: 'data',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'Table references other tables without foreign key constraints',
-                entity_ids: [table.id],
-                confidence: 0.7,
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix: `Add foreign key constraints to table '${table.name}' for columns that reference other tables. This ensures referential integrity at the database level.`,
-            confidence: 0.7,
-            tags: ['missing-foreign-key', 'data', 'schema-anti-pattern'],
-          }),
-        );
-      }
     }
 
     return findings;
   }
 
-  // ── Rule 3: Unused Tables ───────────────────────────────────────────
-
-  /**
-   * Detect tables with no inbound relationships (not queried, read, or
-   * referenced by any other entity).
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for unused tables.
-   */
-  private async detectUnusedTables(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const tables = await ctx.graph.getEntities('table');
-
-    for (const table of tables) {
-      const inboundRels = await ctx.graph.getRelationships(table.id, 'in');
-
-      // Filter to meaningful usage relationships
-      const usageRels = inboundRels.filter(
-        (r) =>
-          r.type === 'queries_table' ||
-          r.type === 'reads_from' ||
-          r.type === 'writes_to' ||
-          r.type === 'references',
-      );
-
-      if (usageRels.length === 0) {
-        const loc = locationFromEntity(table);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Unused table: ${table.name}`,
-            description: `Table '${table.name}' has no entities reading from, writing to, or referencing it. It may be a relic of a past migration or an orphaned schema object.`,
-            severity: 'low',
-            category: 'data',
-            evidence: [
-              createEvidence({
-                type: 'metric',
-                source: this.id,
-                description: 'No inbound usage relationships detected',
-                entity_ids: [table.id],
-                confidence: 0.65,
-                data: { inbound_relationship_count: 0 },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix: `Verify whether table '${table.name}' is still needed. If not, create a migration to drop it. If it is used via raw SQL, ensure the query is tracked in the graph.`,
-            confidence: 0.6,
-            tags: ['unused-table', 'data', 'cleanup'],
-          }),
-        );
-      }
-    }
-
-    return findings;
-  }
-
-  // ── Rule 4: Wide Tables ─────────────────────────────────────────────
+  // ── Rule 2: Wide Tables ─────────────────────────────────────────────
 
   /**
    * Detect tables with too many columns (> WIDE_TABLE_THRESHOLD).
@@ -495,7 +341,7 @@ export class DataAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 5: Missing Timestamps ──────────────────────────────────────
+  // ── Rule 3: Missing Timestamps ──────────────────────────────────────
 
   /**
    * Detect tables without standard `created_at` / `updated_at` columns.
@@ -565,7 +411,7 @@ export class DataAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 6: Inconsistent Naming ─────────────────────────────────────
+  // ── Rule 4: Inconsistent Naming ─────────────────────────────────────
 
   /**
    * Detect inconsistent naming conventions across tables (e.g. mixing

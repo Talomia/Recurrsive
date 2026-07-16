@@ -220,52 +220,81 @@ export class DebateProtocol {
       const toChallenge = otherHypotheses.slice(0, MAX_CHALLENGES_PER_SPECIALIST);
 
       for (const hypothesis of toChallenge) {
+        logger.debug(
+          `${specialist.name} challenging "${hypothesis.title}" ` +
+          `(proposed by ${hypothesis.proposed_by})`,
+        );
+
+        const context = contextByHypothesis.get(hypothesis.id);
+
+        // Step 1 — challenge. If generating the challenge fails, we record
+        // NEITHER a challenge nor a response, so the per-hypothesis
+        // challenge/response arrays stay length-aligned.
+        let challengeText: string;
         try {
-          logger.debug(
-            `${specialist.name} challenging "${hypothesis.title}" ` +
-            `(proposed by ${hypothesis.proposed_by})`,
+          challengeText = await specialist.challenge(hypothesis, this.llm, context);
+        } catch (err) {
+          logger.warn(
+            `Challenge failed for "${hypothesis.title}": ` +
+            `${err instanceof Error ? err.message : String(err)}`,
           );
+          continue;
+        }
 
-          const context = contextByHypothesis.get(hypothesis.id);
-          const challengeText = await specialist.challenge(
-            hypothesis,
-            this.llm,
-            context,
-          );
+        const challenge: DebateChallenge = {
+          challenger: specialist.role,
+          hypothesis_id: hypothesis.id,
+          challenge: challengeText,
+          evidence: `Challenge from ${specialist.name} applying ${specialist.cognitiveFramework}`,
+        };
+        challenges.push(challenge);
 
-          const challenge: DebateChallenge = {
-            challenger: specialist.role,
-            hypothesis_id: hypothesis.id,
-            challenge: challengeText,
-            evidence: `Challenge from ${specialist.name} applying ${specialist.cognitiveFramework}`,
-          };
-          challenges.push(challenge);
-
-          // Now the proposer defends
-          const proposer = specialistMap.get(hypothesis.proposed_by);
-          if (proposer) {
+        // Step 2 — defense. Every recorded challenge gets EXACTLY ONE recorded
+        // response, so the k-th challenge for a hypothesis always pairs with
+        // the k-th response for that hypothesis (relied on by agreementRatio
+        // and the synthesizer's provenance). If the defense LLM call throws, or
+        // no proposer is available, we push a placeholder that leaves the
+        // hypothesis's confidence unchanged — a transient failure must never
+        // silently shift the pairing or fabricate a concession.
+        const proposer = specialistMap.get(hypothesis.proposed_by);
+        let response: DebateResponse;
+        if (proposer) {
+          try {
             const defense = await proposer.defend(
               hypothesis,
               challengeText,
               this.llm,
               context,
             );
-
-            const response: DebateResponse = {
+            response = {
               defender: hypothesis.proposed_by,
               hypothesis_id: hypothesis.id,
               response: defense.response,
               revised_confidence: defense.revised_confidence,
             };
-            responses.push(response);
+          } catch (err) {
+            logger.warn(
+              `Defense failed for "${hypothesis.title}": ` +
+              `${err instanceof Error ? err.message : String(err)}`,
+            );
+            response = {
+              defender: hypothesis.proposed_by,
+              hypothesis_id: hypothesis.id,
+              response:
+                `Defense unavailable — the defender could not respond ` +
+                `(error: ${err instanceof Error ? err.message : String(err)}).`,
+              revised_confidence: hypothesis.confidence,
+            };
           }
-        } catch (err) {
-          logger.warn(
-            `Challenge/defense failed for "${hypothesis.title}": ` +
-            `${err instanceof Error ? err.message : String(err)}`,
-          );
-          // Continue debate even if individual exchanges fail
+        } else {
+          response = {
+            defender: hypothesis.proposed_by,
+            hypothesis_id: hypothesis.id,
+            response: '(no defender available to respond to this challenge)',
+            revised_confidence: hypothesis.confidence,
+          };
         }
+        responses.push(response);
       }
     }
 
@@ -376,6 +405,9 @@ export class DebateProtocol {
     const DISSENT_CONFIDENCE = 0.5;
     // Pair each challenge with the defense it provoked (k-th challenge for a
     // hypothesis ↔ k-th response for that hypothesis, as pushed in order).
+    // executeRound guarantees one response per challenge (a placeholder is
+    // recorded if a defense fails), so these arrays stay aligned; the
+    // `revised === undefined` fallback below remains as defensive robustness.
     let total = 0;
     let withstood = 0;
 

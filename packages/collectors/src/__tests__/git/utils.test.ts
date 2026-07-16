@@ -11,6 +11,7 @@ import {
   detectLanguage,
   isBinaryFile,
   isSourceFile,
+  isLockfile,
   parsePackageJson,
   parsePyprojectToml,
   parseGoMod,
@@ -231,6 +232,36 @@ describe('Git Utils', () => {
 
     it('handles paths with directories', () => {
       expect(isBinaryFile('assets/images/logo.png')).toBe(true);
+    });
+  });
+
+  // ── isLockfile ────────────────────────────────────────────────────────
+
+  describe('isLockfile', () => {
+    it('recognizes JS/TS lockfiles', () => {
+      expect(isLockfile('package-lock.json')).toBe(true);
+      expect(isLockfile('yarn.lock')).toBe(true);
+      expect(isLockfile('pnpm-lock.yaml')).toBe(true);
+      expect(isLockfile('bun.lockb')).toBe(true);
+    });
+
+    it('recognizes lockfiles from other ecosystems', () => {
+      expect(isLockfile('Gemfile.lock')).toBe(true);
+      expect(isLockfile('poetry.lock')).toBe(true);
+      expect(isLockfile('composer.lock')).toBe(true);
+      expect(isLockfile('Cargo.lock')).toBe(true);
+      expect(isLockfile('go.sum')).toBe(true);
+    });
+
+    it('matches case-insensitively and handles directories', () => {
+      expect(isLockfile('nested/dir/YARN.LOCK')).toBe(true);
+      expect(isLockfile('backend/poetry.lock')).toBe(true);
+    });
+
+    it('returns false for non-lockfiles', () => {
+      expect(isLockfile('package.json')).toBe(false);
+      expect(isLockfile('index.ts')).toBe(false);
+      expect(isLockfile('some.lock')).toBe(false);
     });
   });
 

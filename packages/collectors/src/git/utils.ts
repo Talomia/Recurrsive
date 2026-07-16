@@ -282,6 +282,42 @@ export function isSourceFile(filePath: string): boolean {
 }
 
 /**
+ * Dependency lockfiles that pin exact resolved versions. These are worth
+ * tracking as `file` entities so analyzers can reason about lockfile presence
+ * (e.g. the "missing lockfile" supply-chain check), even though some of them
+ * (`*.lock`, `bun.lockb`) are otherwise classified as binary/non-source.
+ */
+const LOCKFILE_NAMES: ReadonlySet<string> = new Set<string>([
+  'package-lock.json',
+  'npm-shrinkwrap.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'bun.lockb',
+  'bun.lock',
+  'gemfile.lock',
+  'poetry.lock',
+  'pdm.lock',
+  'pipfile.lock',
+  'composer.lock',
+  'cargo.lock',
+  'go.sum',
+]);
+
+/**
+ * Check whether a file is a dependency lockfile.
+ *
+ * Matching is case-insensitive on the basename so `Gemfile.lock` and
+ * `Cargo.lock` are recognised regardless of platform casing.
+ *
+ * @param filePath - The file path to check.
+ * @returns `true` if the file is a recognised dependency lockfile.
+ */
+export function isLockfile(filePath: string): boolean {
+  const basename = (filePath.split('/').pop() ?? filePath).toLowerCase();
+  return LOCKFILE_NAMES.has(basename);
+}
+
+/**
  * Check whether a file is a binary (non-text) file.
  *
  * @param filePath - The file path to check.

@@ -38,6 +38,7 @@ import {
   detectLanguage,
   isSourceFile,
   isBinaryFile,
+  isLockfile,
   parsePackageJson,
   parsePyprojectToml,
   parseGoMod,
@@ -339,8 +340,10 @@ export class GitCollector implements Collector {
           }
           await walk(absolutePath, relativePath);
         } else if (entry.isFile()) {
-          // Skip binary files
-          if (isBinaryFile(relativePath)) {
+          // Skip binary files — but keep dependency lockfiles, which some
+          // package managers ship with a binary-looking extension (e.g.
+          // yarn.lock, bun.lockb) yet must be visible for supply-chain checks.
+          if (isBinaryFile(relativePath) && !isLockfile(relativePath)) {
             continue;
           }
 
@@ -556,7 +559,7 @@ export class GitCollector implements Collector {
    *
    * Creates:
    * - 1 `repository` entity
-   * - 1 `file` entity per source file
+   * - 1 `file` entity per source, config, lockfile, or security-policy file
    * - 1 `dependency` entity per dependency
    *
    * @param files - Discovered files.
@@ -622,6 +625,13 @@ export class GitCollector implements Collector {
       }
 
       const language = detectLanguage(file.path);
+      const fileTags: string[] = language !== 'Unknown' ? [language.toLowerCase()] : [];
+      if (isLockfile(file.path)) {
+        fileTags.push('lockfile');
+      }
+      if (file.name.toLowerCase() === 'security.md') {
+        fileTags.push('security-policy');
+      }
       entities.push({
         id: generateId(),
         type: 'file',
@@ -640,8 +650,9 @@ export class GitCollector implements Collector {
           size_bytes: file.sizeBytes,
           repo_id: repoId,
           is_source: isSourceFile(file.path),
+          is_lockfile: isLockfile(file.path),
         },
-        tags: language !== 'Unknown' ? [language.toLowerCase()] : [],
+        tags: fileTags,
         created_at: now,
         updated_at: now,
         last_seen_at: now,
@@ -770,6 +781,19 @@ export class GitCollector implements Collector {
    */
   private isConfigFile(filePath: string): boolean {
     const basename = filePath.split('/').pop() ?? filePath;
+
+    // Dependency lockfiles must be tracked so supply-chain analyzers can
+    // reason about their presence.
+    if (isLockfile(filePath)) {
+      return true;
+    }
+
+    // Security policy files (SECURITY.md) are recognised case-insensitively so
+    // the "missing security policy" check can evaluate real repositories.
+    if (basename.toLowerCase() === 'security.md') {
+      return true;
+    }
+
     const configFiles = new Set([
       'package.json',
       'tsconfig.json',

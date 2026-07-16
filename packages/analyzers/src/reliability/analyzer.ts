@@ -12,7 +12,6 @@ import type {
   Analyzer,
   AnalysisContext,
   Finding,
-  Entity,
 } from '@recurrsive/core';
 import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
 
@@ -20,13 +19,23 @@ import { createFinding, createEvidence, locationFromEntity } from '../base/helpe
  * Analyzes the knowledge graph for reliability and resilience issues.
  *
  * ### Rules
- * 1. Single point of failure — critical paths with no redundancy
- * 2. Missing retries — external API calls without retry logic
- * 3. Missing timeouts — network calls without timeout configuration
- * 4. No circuit breaker — external service calls without circuit breaker patterns
- * 5. Missing health checks — services without health check endpoints
- * 6. No graceful shutdown — missing shutdown handlers
- * 7. Error swallowing — catch blocks that don't log or re-throw
+ * 1. Single point of failure — critical infra/deployment resources with no
+ *    redundancy (evaluated only when such entities and their dependents exist)
+ * 2. Missing health checks — services without health check endpoints
+ * 3. No graceful shutdown — missing shutdown handlers
+ *
+ * ### Removed rules (producer/consumer contract mismatch)
+ * "Missing retries", "Missing timeouts", and "No circuit breaker" each required
+ * a function to have an external-call relationship (`uses_model`,
+ * `queries_table`, `reads_from`, `writes_to`, `routes_to`) attached to the
+ * function entity. Those relationships are never produced against `function`
+ * entities (`queries_table`/`reads_from`/`writes_to` are not produced at all),
+ * so the rules' preconditions never held and they could never fire.
+ * "Error swallowing" gated solely on `has_empty_catch`/`swallows_errors`
+ * markers and `empty-catch`/`error-swallowed` tags that no parser emits, so it
+ * was permanently dead. Health-check and graceful-shutdown detection are kept
+ * because they fall back to name/path heuristics over produced endpoint and
+ * function entities.
  */
 export class ReliabilityAnalyzer implements Analyzer {
   readonly id = 'reliability.resilience';
@@ -43,26 +52,13 @@ export class ReliabilityAnalyzer implements Analyzer {
   async analyze(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
 
-    const [spof, retries, timeouts, circuitBreaker, healthChecks, shutdown, errorSwallowing] =
-      await Promise.all([
-        this.detectSinglePointOfFailure(ctx),
-        this.detectMissingRetries(ctx),
-        this.detectMissingTimeouts(ctx),
-        this.detectNoCircuitBreaker(ctx),
-        this.detectMissingHealthChecks(ctx),
-        this.detectNoGracefulShutdown(ctx),
-        this.detectErrorSwallowing(ctx),
-      ]);
+    const [spof, healthChecks, shutdown] = await Promise.all([
+      this.detectSinglePointOfFailure(ctx),
+      this.detectMissingHealthChecks(ctx),
+      this.detectNoGracefulShutdown(ctx),
+    ]);
 
-    findings.push(
-      ...spof,
-      ...retries,
-      ...timeouts,
-      ...circuitBreaker,
-      ...healthChecks,
-      ...shutdown,
-      ...errorSwallowing,
-    );
+    findings.push(...spof, ...healthChecks, ...shutdown);
 
     return findings;
   }
@@ -199,193 +195,7 @@ export class ReliabilityAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 2: Missing Retries ────────────────────────────────────────
-
-  /**
-   * Detect external API calls without retry logic.
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for missing retries.
-   */
-  private async detectMissingRetries(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
-
-    for (const fn of functions) {
-      const outRels = await ctx.graph.getRelationships(fn.id, 'out');
-      const callsExternal = outRels.some(
-        (r) =>
-          r.type === 'uses_model' ||
-          r.type === 'queries_table' ||
-          r.type === 'reads_from' ||
-          r.type === 'writes_to' ||
-          r.type === 'routes_to',
-      );
-
-      if (!callsExternal) continue;
-
-      const hasRetry =
-        fn.properties['has_retry'] === true ||
-        fn.tags.includes('retry') ||
-        fn.tags.includes('retryable') ||
-        fn.tags.includes('with-retry');
-
-      if (!hasRetry) {
-        const loc = locationFromEntity(fn);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing retry logic: ${fn.name}`,
-            description: `Function '${fn.name}' makes external calls without retry logic. Transient failures (network timeouts, rate limits, 5xx errors) will cause immediate failure instead of graceful recovery.`,
-            severity: 'medium',
-            category: 'reliability',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'External call without retry logic',
-                entity_ids: [fn.id],
-                confidence: 0.75,
-                data: { has_retry: hasRetry },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Add retry logic with exponential backoff and jitter. Use libraries like p-retry or implement a retry wrapper with configurable max attempts and delay.',
-            confidence: 0.7,
-            tags: ['missing-retry', 'reliability', 'resilience'],
-          }),
-        );
-      }
-    }
-
-    return findings;
-  }
-
-  // ── Rule 3: Missing Timeouts ───────────────────────────────────────
-
-  /**
-   * Detect network calls without timeout configuration.
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for missing timeouts.
-   */
-  private async detectMissingTimeouts(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
-
-    for (const fn of functions) {
-      const outRels = await ctx.graph.getRelationships(fn.id, 'out');
-      const makesNetworkCall = outRels.some(
-        (r) =>
-          r.type === 'uses_model' ||
-          r.type === 'routes_to' ||
-          r.type === 'reads_from' ||
-          r.type === 'queries_table',
-      );
-
-      if (!makesNetworkCall) continue;
-
-      const hasTimeout =
-        fn.properties['has_timeout'] === true ||
-        fn.tags.includes('timeout') ||
-        fn.tags.includes('with-timeout');
-
-      if (!hasTimeout) {
-        const loc = locationFromEntity(fn);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing timeout: ${fn.name}`,
-            description: `Function '${fn.name}' makes network calls without a timeout. Without timeouts, a hung upstream service can block resources indefinitely, leading to cascading failures.`,
-            severity: 'high',
-            category: 'reliability',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'Network call without timeout configuration',
-                entity_ids: [fn.id],
-                confidence: 0.8,
-                data: { has_timeout: hasTimeout },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Configure explicit timeouts for all network calls. Use AbortController for fetch, timeout options in HTTP clients, and statement_timeout for database queries.',
-            confidence: 0.75,
-            tags: ['missing-timeout', 'reliability', 'network'],
-          }),
-        );
-      }
-    }
-
-    return findings;
-  }
-
-  // ── Rule 4: No Circuit Breaker ─────────────────────────────────────
-
-  /**
-   * Detect external service calls without circuit breaker patterns.
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for missing circuit breakers.
-   */
-  private async detectNoCircuitBreaker(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
-
-    // Gather all functions that call external services
-    const externalCallers: Entity[] = [];
-    for (const fn of functions) {
-      const outRels = await ctx.graph.getRelationships(fn.id, 'out');
-      const callsExternal = outRels.some(
-        (r) => r.type === 'uses_model' || r.type === 'routes_to',
-      );
-      if (callsExternal) externalCallers.push(fn);
-    }
-
-    if (externalCallers.length < 2) return findings;
-
-    // Check for circuit breaker patterns at the function or module level
-    const hasCircuitBreaker = externalCallers.some(
-      (fn) =>
-        fn.properties['has_circuit_breaker'] === true ||
-        fn.tags.includes('circuit-breaker') ||
-        fn.tags.includes('bulkhead'),
-    );
-
-    if (!hasCircuitBreaker) {
-      findings.push(
-        createFinding({
-          analyzer_id: this.id,
-          title: 'No circuit breaker pattern detected',
-          description: `${externalCallers.length} functions call external services without circuit breaker patterns. When an external service degrades, continued requests will queue up and exhaust resources.`,
-          severity: 'medium',
-          category: 'reliability',
-          evidence: [
-            createEvidence({
-              type: 'code',
-              source: this.id,
-              description: `${externalCallers.length} external callers, no circuit breaker`,
-              entity_ids: externalCallers.map((f) => f.id),
-              confidence: 0.7,
-              data: { external_caller_count: externalCallers.length },
-            }),
-          ],
-          locations: [],
-          suggested_fix:
-            'Implement the circuit breaker pattern using a library like opossum (Node.js). Configure failure thresholds, open/half-open/closed states, and fallback responses.',
-          confidence: 0.7,
-          tags: ['circuit-breaker', 'reliability', 'resilience'],
-        }),
-      );
-    }
-
-    return findings;
-  }
-
-  // ── Rule 5: Missing Health Checks ──────────────────────────────────
+  // ── Rule 2: Missing Health Checks ──────────────────────────────────
 
   /**
    * Detect services without health check endpoints.
@@ -474,7 +284,7 @@ export class ReliabilityAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 6: No Graceful Shutdown ───────────────────────────────────
+  // ── Rule 3: No Graceful Shutdown ───────────────────────────────────
 
   /**
    * Detect services without graceful shutdown handlers.
@@ -527,57 +337,6 @@ export class ReliabilityAnalyzer implements Analyzer {
           tags: ['graceful-shutdown', 'reliability', 'deployment'],
         }),
       );
-    }
-
-    return findings;
-  }
-
-  // ── Rule 7: Error Swallowing ───────────────────────────────────────
-
-  /**
-   * Detect catch blocks that don't log or re-throw errors.
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for swallowed errors.
-   */
-  private async detectErrorSwallowing(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
-
-    for (const fn of functions) {
-      const swallowsErrors =
-        fn.properties['has_empty_catch'] === true ||
-        fn.properties['swallows_errors'] === true ||
-        fn.tags.includes('empty-catch') ||
-        fn.tags.includes('error-swallowed');
-
-      if (swallowsErrors) {
-        const loc = locationFromEntity(fn);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Error swallowing: ${fn.name}`,
-            description: `Function '${fn.name}' has a catch block that doesn't log, report, or re-throw the error. Swallowed errors create silent failures that are extremely difficult to diagnose in production.`,
-            severity: 'high',
-            category: 'reliability',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'Empty or silent catch block detected',
-                entity_ids: [fn.id],
-                confidence: 0.85,
-                data: { has_empty_catch: true },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'At minimum, log the error with context. Better: re-throw wrapped in a domain-specific error. Best: use structured error handling with monitoring integration.',
-            confidence: 0.85,
-            tags: ['error-swallowing', 'reliability', 'error-handling'],
-          }),
-        );
-      }
     }
 
     return findings;

@@ -1,15 +1,17 @@
 /**
  * Tests for SecurityAnalyzer.
  *
- * Covers all 8 rules: hardcoded secrets, PII in prompts,
- * unsafe deserialization, missing input validation, permissive
- * CORS, missing authentication, dependency vulnerabilities,
- * and SQL injection risk.
+ * Covers the 3 rules that evaluate produced data: PII in prompts, missing
+ * input validation (mutation endpoints), and missing authentication. Also
+ * asserts that the removed rules (hardcoded secrets, unsafe deserialization,
+ * permissive CORS, dependency vulnerabilities, SQL injection) no longer fire
+ * on inputs that previously triggered them — none of the data they required is
+ * produced by any parser or collector.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SecurityAnalyzer } from '../../security/analyzer.js';
-import type { AnalysisContext, Entity, Relationship, Finding } from '@recurrsive/core';
+import type { AnalysisContext, Entity, Relationship } from '@recurrsive/core';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,19 +39,6 @@ function makeEntity(overrides: Partial<Entity> & Pick<Entity, 'type' | 'name'>):
   };
 }
 
-function makeRel(overrides: Partial<Relationship> & Pick<Relationship, 'type' | 'source_id' | 'target_id'>): Relationship {
-  return {
-    id: nextId(),
-    properties: {},
-    confidence: 1,
-    source: 'test',
-    created_at: NOW,
-    updated_at: NOW,
-    ...overrides,
-  };
-}
-
-type GetEntitiesFn = (type: string) => Entity[];
 type GetRelsFn = (id: string, dir: string) => Relationship[];
 
 function makeContext(
@@ -105,125 +94,78 @@ describe('SecurityAnalyzer', () => {
     expect(analyzer.categories).toContain('security');
   });
 
-  // ── Rule 1: Hardcoded Secrets ────────────────────────────────────────
+  // ── Removed rules (producer/consumer contract mismatch) ──────────────
+  // Each of these required data no parser or collector produces, so they could
+  // only false-positive or sit dead. They were removed; the former inputs must
+  // now produce nothing.
 
-  describe('hardcoded secrets', () => {
-    it('detects secret entities tagged as hardcoded', async () => {
-      const secret = makeEntity({
-        type: 'secret',
-        name: 'DB_PASSWORD',
-        tags: ['hardcoded'],
-      });
-      const ctx = makeContext({ secret: [secret], file: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      expect(findings).toHaveLength(1);
-      expect(findings[0]!.title).toContain('Hardcoded secret');
-      expect(findings[0]!.title).toContain('DB_PASSWORD');
-      expect(findings[0]!.severity).toBe('critical');
-    });
-
-    it('detects secret entities with storage=source_code property', async () => {
-      const secret = makeEntity({
-        type: 'secret',
-        name: 'API_TOKEN',
-        properties: { storage: 'source_code' },
-      });
-      const ctx = makeContext({ secret: [secret], file: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const secretFindings = findings.filter((f) => f.title.includes('Hardcoded secret'));
-      expect(secretFindings).toHaveLength(1);
-    });
-
-    it('detects AWS access keys in file content', async () => {
+  describe('removed rules produce no findings', () => {
+    it('does not flag hardcoded secrets (secret entities / file content not produced)', async () => {
+      const secret = makeEntity({ type: 'secret', name: 'DB_PASSWORD', tags: ['hardcoded'] });
       const file = makeEntity({
         type: 'file',
         name: 'config.ts',
         properties: { content: 'const key = "AKIAIOSFODNN7EXAMPLE";' },
       });
-      const ctx = makeContext({ file: [file], secret: [] });
+      const ctx = makeContext({ secret: [secret], file: [file] });
 
       const findings = await analyzer.analyze(ctx);
 
-      const awsFindings = findings.filter((f) => f.title.includes('AWS Access Key'));
-      expect(awsFindings).toHaveLength(1);
-      expect(awsFindings[0]!.severity).toBe('critical');
-    });
-
-    it('detects generic API keys in file content', async () => {
-      const file = makeEntity({
-        type: 'file',
-        name: 'service.ts',
-        properties: { content: 'const api_key = "abcdefghij1234567890xyzw";' },
-      });
-      const ctx = makeContext({ file: [file], secret: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const apiFindings = findings.filter((f) => f.title.includes('Generic API Key'));
-      expect(apiFindings).toHaveLength(1);
-    });
-
-    it('detects private keys in file content', async () => {
-      const file = makeEntity({
-        type: 'file',
-        name: 'key.pem',
-        properties: { content: '-----BEGIN RSA PRIVATE KEY-----\nMIIE...' },
-      });
-      const ctx = makeContext({ file: [file], secret: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const pkFindings = findings.filter((f) => f.title.includes('Private Key'));
-      expect(pkFindings).toHaveLength(1);
-    });
-
-    it('detects GitHub tokens in file content', async () => {
-      const file = makeEntity({
-        type: 'file',
-        name: 'deploy.ts',
-        properties: { content: 'const token = ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij;' },
-      });
-      const ctx = makeContext({ file: [file], secret: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const ghFindings = findings.filter((f) => f.title.includes('GitHub Token'));
-      expect(ghFindings).toHaveLength(1);
-    });
-
-    it('skips non-source files (lock, images, .env.example)', async () => {
-      const files = [
-        makeEntity({ type: 'file', name: 'yarn.lock', properties: { content: 'secret = "supersecretpassword123"' } }),
-        makeEntity({ type: 'file', name: 'logo.png', properties: { content: 'secret = "supersecretpassword123"' } }),
-        makeEntity({ type: 'file', name: '.env.example', properties: { content: 'secret = "supersecretpassword123"' } }),
-      ];
-      const ctx = makeContext({ file: files, secret: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      // Lock and image files are skipped; .env.example is skipped
+      expect(findings.filter((f) => f.title.includes('Hardcoded secret'))).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('AWS Access Key'))).toHaveLength(0);
       expect(findings).toHaveLength(0);
     });
 
-    it('produces no findings for clean files', async () => {
+    it('does not flag unsafe deserialization (markers / file content not produced)', async () => {
+      const fn = makeEntity({ type: 'function', name: 'dangerousEval', properties: { uses_eval: true } });
       const file = makeEntity({
         type: 'file',
-        name: 'clean.ts',
-        properties: { content: 'const x = process.env.API_KEY;' },
+        name: 'dynamic.js',
+        properties: { content: 'const result = eval(userInput);' },
       });
-      const ctx = makeContext({ file: [file], secret: [] });
+      const ctx = makeContext({ function: [fn], file: [file] });
 
       const findings = await analyzer.analyze(ctx);
 
-      expect(findings).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Unsafe deserialization'))).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Unsafe code execution'))).toHaveLength(0);
+    });
+
+    it('does not flag permissive CORS (config cors_origin not produced)', async () => {
+      const config = makeEntity({ type: 'config', name: 'server-config', properties: { cors_origin: '*' } });
+      const ctx = makeContext({ config: [config] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('Permissive CORS'))).toHaveLength(0);
+    });
+
+    it('does not flag dependency vulnerabilities (markers not produced; real CVE check lives in DependencyAnalyzer)', async () => {
+      const dep = makeEntity({ type: 'dependency', name: 'lodash', properties: { has_vulnerability: true } });
+      const ctx = makeContext({ dependency: [dep] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('Vulnerable dependency'))).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Outdated dependency'))).toHaveLength(0);
+    });
+
+    it('does not flag SQL injection (query entities / markers not produced)', async () => {
+      const query = makeEntity({
+        type: 'query',
+        name: 'getUserByName',
+        properties: { uses_string_concatenation: true },
+      });
+      const fn = makeEntity({ type: 'function', name: 'buildUserQuery', tags: ['sql-concatenation'] });
+      const ctx = makeContext({ query: [query], function: [fn] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('SQL injection'))).toHaveLength(0);
     });
   });
 
-  // ── Rule 2: PII in Prompts ──────────────────────────────────────────
+  // ── Rule 1: PII in Prompts ──────────────────────────────────────────
 
   describe('PII in prompts', () => {
     it('detects email addresses in prompt templates', async () => {
@@ -284,71 +226,10 @@ describe('SecurityAnalyzer', () => {
     });
   });
 
-  // ── Rule 3: Unsafe Deserialization ──────────────────────────────────
-
-  describe('unsafe deserialization', () => {
-    it('detects functions using eval()', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'dangerousEval',
-        properties: { uses_eval: true },
-      });
-      const ctx = makeContext({ function: [fn], file: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const evalFindings = findings.filter((f) => f.title.includes('Unsafe deserialization'));
-      expect(evalFindings).toHaveLength(1);
-      expect(evalFindings[0]!.severity).toBe('critical');
-    });
-
-    it('detects functions using Function constructor via tag', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'buildDynamic',
-        tags: ['function-constructor'],
-      });
-      const ctx = makeContext({ function: [fn], file: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const desFindings = findings.filter((f) => f.title.includes('Unsafe deserialization'));
-      expect(desFindings).toHaveLength(1);
-    });
-
-    it('detects eval() in file content', async () => {
-      const file = makeEntity({
-        type: 'file',
-        name: 'dynamic.js',
-        properties: { content: 'const result = eval(userInput);' },
-      });
-      const ctx = makeContext({ function: [], file: [file] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const evalFindings = findings.filter((f) => f.title.includes('Unsafe code execution'));
-      expect(evalFindings).toHaveLength(1);
-    });
-
-    it('detects new Function() in file content', async () => {
-      const file = makeEntity({
-        type: 'file',
-        name: 'executor.js',
-        properties: { content: 'const fn = new Function("return 42");' },
-      });
-      const ctx = makeContext({ function: [], file: [file] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const funcFindings = findings.filter((f) => f.title.includes('Unsafe code execution'));
-      expect(funcFindings).toHaveLength(1);
-    });
-  });
-
-  // ── Rule 4: Missing Input Validation ─────────────────────────────────
+  // ── Rule 2: Missing Input Validation ─────────────────────────────────
 
   describe('missing input validation', () => {
-    it('detects POST endpoints without validation', async () => {
+    it('detects POST endpoints without validation (method property)', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/users',
@@ -361,13 +242,29 @@ describe('SecurityAnalyzer', () => {
       const valFindings = findings.filter((f) => f.title.includes('Missing input validation'));
       expect(valFindings).toHaveLength(1);
       expect(valFindings[0]!.severity).toBe('high');
+      expect(valFindings[0]!.title).toContain('POST /api/users');
+    });
+
+    it('detects POST endpoints via http_method (the property parsers emit)', async () => {
+      const endpoint = makeEntity({
+        type: 'endpoint',
+        name: 'POST /api/users',
+        properties: { http_method: 'POST', path: '/api/users', framework: 'express' },
+      });
+      const ctx = makeContext({ endpoint: [endpoint] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      const valFindings = findings.filter((f) => f.title.includes('Missing input validation'));
+      expect(valFindings).toHaveLength(1);
+      expect(valFindings[0]!.title).toContain('POST /api/users');
     });
 
     it('skips endpoints with validated tag', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/users',
-        properties: { method: 'POST', path: '/api/users' },
+        properties: { http_method: 'POST', path: '/api/users' },
         tags: ['validated'],
       });
       const ctx = makeContext({ endpoint: [endpoint] });
@@ -378,11 +275,25 @@ describe('SecurityAnalyzer', () => {
       expect(valFindings).toHaveLength(0);
     });
 
-    it('skips GET endpoints (non-data methods)', async () => {
+    it('skips GET endpoints (read-only methods must never false-positive)', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/users',
-        properties: { method: 'GET', path: '/api/users' },
+        properties: { http_method: 'GET', path: '/api/users' },
+      });
+      const ctx = makeContext({ endpoint: [endpoint] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      const valFindings = findings.filter((f) => f.title.includes('Missing input validation'));
+      expect(valFindings).toHaveLength(0);
+    });
+
+    it('skips endpoints with an empty/unknown method', async () => {
+      const endpoint = makeEntity({
+        type: 'endpoint',
+        name: '/api/users',
+        properties: { path: '/api/users' },
       });
       const ctx = makeContext({ endpoint: [endpoint] });
 
@@ -396,7 +307,7 @@ describe('SecurityAnalyzer', () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/users/:id',
-        properties: { method: 'DELETE', path: '/api/users/:id' },
+        properties: { http_method: 'DELETE', path: '/api/users/:id' },
       });
       const ctx = makeContext({ endpoint: [endpoint] });
 
@@ -407,75 +318,14 @@ describe('SecurityAnalyzer', () => {
     });
   });
 
-  // ── Rule 5: Permissive CORS ──────────────────────────────────────────
-
-  describe('permissive CORS', () => {
-    it('detects wildcard CORS origin', async () => {
-      const config = makeEntity({
-        type: 'config',
-        name: 'server-config',
-        properties: { cors_origin: '*' },
-      });
-      const ctx = makeContext({ config: [config] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const corsFindings = findings.filter((f) => f.title.includes('Permissive CORS'));
-      expect(corsFindings).toHaveLength(1);
-      expect(corsFindings[0]!.severity).toBe('high');
-    });
-
-    it('detects cors object with origin=*', async () => {
-      const config = makeEntity({
-        type: 'config',
-        name: 'express-config',
-        properties: { cors: { origin: '*' } },
-      });
-      const ctx = makeContext({ config: [config] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const corsFindings = findings.filter((f) => f.title.includes('Permissive CORS'));
-      expect(corsFindings).toHaveLength(1);
-    });
-
-    it('detects CORS wildcard tag', async () => {
-      const config = makeEntity({
-        type: 'config',
-        name: 'tagged-config',
-        tags: ['cors-wildcard'],
-      });
-      const ctx = makeContext({ config: [config] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const corsFindings = findings.filter((f) => f.title.includes('Permissive CORS'));
-      expect(corsFindings).toHaveLength(1);
-    });
-
-    it('produces no finding for restricted CORS', async () => {
-      const config = makeEntity({
-        type: 'config',
-        name: 'secure-config',
-        properties: { cors_origin: 'https://example.com' },
-      });
-      const ctx = makeContext({ config: [config] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const corsFindings = findings.filter((f) => f.title.includes('Permissive CORS'));
-      expect(corsFindings).toHaveLength(0);
-    });
-  });
-
-  // ── Rule 6: Missing Authentication ──────────────────────────────────
+  // ── Rule 3: Missing Authentication ──────────────────────────────────
 
   describe('missing authentication', () => {
-    it('detects endpoints without auth', async () => {
+    it('detects endpoints without auth and resolves the method into the title', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
-        name: '/api/admin',
-        properties: { method: 'GET', path: '/api/admin' },
+        name: 'GET /api/admin',
+        properties: { http_method: 'GET', path: '/api/admin' },
       });
       const ctx = makeContext({ endpoint: [endpoint] });
 
@@ -484,13 +334,15 @@ describe('SecurityAnalyzer', () => {
       const authFindings = findings.filter((f) => f.title.includes('Missing authentication'));
       expect(authFindings).toHaveLength(1);
       expect(authFindings[0]!.severity).toBe('high');
+      // Method must be resolved from http_method, not rendered as empty.
+      expect(authFindings[0]!.title).toContain('GET /api/admin');
     });
 
     it('skips public endpoints like /health', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/health',
-        properties: { method: 'GET', path: '/health' },
+        properties: { http_method: 'GET', path: '/health' },
       });
       const ctx = makeContext({ endpoint: [endpoint] });
 
@@ -504,7 +356,7 @@ describe('SecurityAnalyzer', () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/docs',
-        properties: { method: 'GET', path: '/api/docs' },
+        properties: { http_method: 'GET', path: '/api/docs' },
         tags: ['public'],
       });
       const ctx = makeContext({ endpoint: [endpoint] });
@@ -519,7 +371,7 @@ describe('SecurityAnalyzer', () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/data',
-        properties: { method: 'GET', path: '/api/data', authenticated: true },
+        properties: { http_method: 'GET', path: '/api/data', authenticated: true },
       });
       const ctx = makeContext({ endpoint: [endpoint] });
 
@@ -527,133 +379,6 @@ describe('SecurityAnalyzer', () => {
 
       const authFindings = findings.filter((f) => f.title.includes('Missing authentication'));
       expect(authFindings).toHaveLength(0);
-    });
-  });
-
-  // ── Rule 7: Dependency Vulnerabilities ───────────────────────────────
-
-  describe('dependency vulnerabilities', () => {
-    it('detects dependencies with has_vulnerability property', async () => {
-      const dep = makeEntity({
-        type: 'dependency',
-        name: 'lodash',
-        properties: { has_vulnerability: true },
-      });
-      const ctx = makeContext({ dependency: [dep] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const vulnFindings = findings.filter((f) => f.title.includes('Vulnerable dependency'));
-      expect(vulnFindings).toHaveLength(1);
-      expect(vulnFindings[0]!.severity).toBe('critical');
-    });
-
-    it('reports vulnerability count from vulnerabilities array', async () => {
-      const dep = makeEntity({
-        type: 'dependency',
-        name: 'express',
-        properties: { vulnerabilities: ['CVE-2024-001', 'CVE-2024-002'] },
-      });
-      const ctx = makeContext({ dependency: [dep] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const vulnFindings = findings.filter((f) => f.title.includes('Vulnerable dependency'));
-      expect(vulnFindings).toHaveLength(1);
-      expect(vulnFindings[0]!.description).toContain('2');
-    });
-
-    it('detects outdated dependencies', async () => {
-      const dep = makeEntity({
-        type: 'dependency',
-        name: 'moment',
-        tags: ['deprecated'],
-      });
-      const ctx = makeContext({ dependency: [dep] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const outdatedFindings = findings.filter((f) => f.title.includes('Outdated dependency'));
-      expect(outdatedFindings).toHaveLength(1);
-      expect(outdatedFindings[0]!.severity).toBe('low');
-    });
-
-    it('does not double-report vulnerable+outdated deps', async () => {
-      const dep = makeEntity({
-        type: 'dependency',
-        name: 'old-and-vuln',
-        tags: ['vulnerable', 'outdated'],
-      });
-      const ctx = makeContext({ dependency: [dep] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      // Should only get 'Vulnerable' (not also 'Outdated')
-      const vulnFindings = findings.filter((f) => f.title.includes('Vulnerable'));
-      const outdatedFindings = findings.filter((f) => f.title.includes('Outdated'));
-      expect(vulnFindings).toHaveLength(1);
-      expect(outdatedFindings).toHaveLength(0);
-    });
-  });
-
-  // ── Rule 8: SQL Injection Risk ──────────────────────────────────────
-
-  describe('SQL injection risk', () => {
-    it('detects queries using string concatenation', async () => {
-      const query = makeEntity({
-        type: 'query',
-        name: 'getUserByName',
-        properties: { uses_string_concatenation: true },
-      });
-      const ctx = makeContext({ query: [query], function: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const sqlFindings = findings.filter((f) => f.title.includes('SQL injection risk'));
-      expect(sqlFindings).toHaveLength(1);
-      expect(sqlFindings[0]!.severity).toBe('critical');
-    });
-
-    it('skips parameterized queries', async () => {
-      const query = makeEntity({
-        type: 'query',
-        name: 'safeQuery',
-        properties: { uses_string_concatenation: true, parameterized: true },
-      });
-      const ctx = makeContext({ query: [query], function: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const sqlFindings = findings.filter((f) => f.title.includes('SQL injection risk'));
-      expect(sqlFindings).toHaveLength(0);
-    });
-
-    it('detects functions with sql-concatenation tag', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'buildUserQuery',
-        tags: ['sql-concatenation'],
-      });
-      const ctx = makeContext({ query: [], function: [fn], file: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const sqlFindings = findings.filter((f) => f.title.includes('SQL injection risk'));
-      expect(sqlFindings).toHaveLength(1);
-    });
-
-    it('detects queries tagged as dynamic-sql', async () => {
-      const query = makeEntity({
-        type: 'query',
-        name: 'dynamicSearch',
-        tags: ['dynamic-sql'],
-      });
-      const ctx = makeContext({ query: [query], function: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const sqlFindings = findings.filter((f) => f.title.includes('SQL injection risk'));
-      expect(sqlFindings).toHaveLength(1);
     });
   });
 
@@ -667,7 +392,7 @@ describe('SecurityAnalyzer', () => {
 
   // ── initialize and finalize ─────────────────────────────────────────
 
-  it('initialize and finalize are no-ops', async () => {
+  it('initialize is a no-op and finalize is empty on an empty graph', async () => {
     const ctx = makeContext();
     await expect(analyzer.initialize(ctx)).resolves.toBeUndefined();
     const finalized = await analyzer.finalize(ctx);

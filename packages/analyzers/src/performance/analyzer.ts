@@ -468,11 +468,18 @@ export class PerformanceAnalyzer implements Analyzer {
     const endpoints = await ctx.graph.getEntities('endpoint');
 
     for (const endpoint of endpoints) {
-      // Check if this is a list endpoint
-      const method = (endpoint.properties['method'] as string | undefined) ?? '';
+      // Check if this is a list endpoint. Read the method from `method`, falling
+      // back to `http_method` (the property the parsers actually emit). Only
+      // GET endpoints can be list endpoints — an empty/unknown method must not
+      // qualify, so this rule can never fire on mutation endpoints.
+      const method = (
+        (endpoint.properties['method'] as string | undefined) ??
+        (endpoint.properties['http_method'] as string | undefined) ??
+        ''
+      ).toUpperCase();
       const path = (endpoint.properties['path'] as string | undefined) ?? endpoint.name;
       const isListEndpoint =
-        method.toUpperCase() === 'GET' &&
+        method === 'GET' &&
         (/\/\w+s$/.test(path) ||
           endpoint.tags.includes('list') ||
           endpoint.properties['returns_array'] === true);

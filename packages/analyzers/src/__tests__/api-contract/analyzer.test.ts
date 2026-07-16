@@ -1,9 +1,11 @@
 /**
  * Tests for APIContractAnalyzer.
  *
- * Covers all 7 rules: missing descriptions, missing error responses,
- * missing examples, inconsistent naming, missing pagination, missing
- * rate limiting, and breaking change risk.
+ * Covers the 4 rules that evaluate produced endpoint data: inconsistent
+ * naming, missing pagination, missing rate limiting, and breaking change risk.
+ * Also asserts that the removed rules (missing descriptions, missing error
+ * responses, missing examples) no longer fire — parsers never emit
+ * description/summary/responses/status_codes/examples on endpoints.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -98,139 +100,29 @@ describe('APIContractAnalyzer', () => {
     expect(analyzer.description.length).toBeGreaterThan(10);
   });
 
-  // ── Rule 1: Missing API Descriptions ──────────────────────────────────
+  // ── Removed rules: descriptions / error responses / examples ──────
+  // Code extractors emit only http_method, path, and framework on endpoints —
+  // never description/summary/responses/status_codes/examples. These rules
+  // fired on every endpoint and could never be satisfied, so they were removed.
 
-  describe('missing descriptions', () => {
-    it('detects endpoints without description', async () => {
+  describe('missing descriptions / error responses / examples (removed)', () => {
+    it('does not emit documentation-gap findings on a bare parsed endpoint', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users' },
+        name: 'GET /api/users',
+        properties: { http_method: 'GET', path: '/api/users', framework: 'express' },
       });
       const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
 
       const findings = await analyzer.analyze(ctx);
 
-      const descFindings = findings.filter((f) => f.title.includes('Missing API description'));
-      expect(descFindings).toHaveLength(1);
-      expect(descFindings[0]!.severity).toBe('medium');
-    });
-
-    it('does not flag endpoints with description', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users', description: 'List all users' },
-      });
-      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const descFindings = findings.filter((f) => f.title.includes('Missing API description'));
-      expect(descFindings).toHaveLength(0);
-    });
-
-    it('does not flag endpoints with summary', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users', summary: 'Get users' },
-      });
-      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const descFindings = findings.filter((f) => f.title.includes('Missing API description'));
-      expect(descFindings).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Missing API description'))).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Missing error responses'))).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Missing examples'))).toHaveLength(0);
     });
   });
 
-  // ── Rule 2: Missing Error Responses ────────────────────────────────────
-
-  describe('missing error responses', () => {
-    it('detects endpoints without error responses', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'POST', path: '/api/users' },
-      });
-      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const errorFindings = findings.filter((f) => f.title.includes('Missing error responses'));
-      expect(errorFindings).toHaveLength(1);
-      expect(errorFindings[0]!.severity).toBe('medium');
-    });
-
-    it('does not flag endpoints with error status codes in responses', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: {
-          method: 'POST',
-          path: '/api/users',
-          responses: { '200': { description: 'OK' }, '400': { description: 'Bad Request' } },
-        },
-      });
-      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const errorFindings = findings.filter((f) => f.title.includes('Missing error responses'));
-      expect(errorFindings).toHaveLength(0);
-    });
-
-    it('does not flag endpoints with error-responses tag', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users' },
-        tags: ['error-responses'],
-      });
-      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const errorFindings = findings.filter((f) => f.title.includes('Missing error responses'));
-      expect(errorFindings).toHaveLength(0);
-    });
-  });
-
-  // ── Rule 3: Missing Examples ───────────────────────────────────────────
-
-  describe('missing examples', () => {
-    it('detects endpoints without examples', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users' },
-      });
-      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const exampleFindings = findings.filter((f) => f.title.includes('Missing examples'));
-      expect(exampleFindings).toHaveLength(1);
-      expect(exampleFindings[0]!.severity).toBe('low');
-    });
-
-    it('does not flag endpoints with has_examples property', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users', has_examples: true },
-      });
-      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const exampleFindings = findings.filter((f) => f.title.includes('Missing examples'));
-      expect(exampleFindings).toHaveLength(0);
-    });
-  });
-
-  // ── Rule 4: Inconsistent Naming ────────────────────────────────────────
+  // ── Rule 1: Inconsistent Naming ────────────────────────────────────────
 
   describe('inconsistent naming', () => {
     it('detects mixed camelCase and snake_case paths', async () => {
@@ -296,7 +188,7 @@ describe('APIContractAnalyzer', () => {
     });
   });
 
-  // ── Rule 5: Missing Pagination ─────────────────────────────────────────
+  // ── Rule 2: Missing Pagination ─────────────────────────────────────────
 
   describe('missing pagination', () => {
     it('detects list endpoints without pagination', async () => {
@@ -341,9 +233,39 @@ describe('APIContractAnalyzer', () => {
       const pagFindings = findings.filter((f) => f.title.includes('Missing pagination'));
       expect(pagFindings).toHaveLength(1);
     });
+
+    it('resolves the method from http_method (the property parsers emit)', async () => {
+      const endpoint = makeEntity({
+        type: 'endpoint',
+        name: 'GET /api/orders',
+        properties: { http_method: 'GET', path: '/api/orders', framework: 'express' },
+      });
+      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      const pagFindings = findings.filter((f) => f.title.includes('Missing pagination'));
+      expect(pagFindings).toHaveLength(1);
+      // Title must carry the resolved uppercase method, not an empty string.
+      expect(pagFindings[0]!.title).toContain('GET /api/orders');
+    });
+
+    it('does not flag mutation (POST) endpoints even on a plural path', async () => {
+      const endpoint = makeEntity({
+        type: 'endpoint',
+        name: 'POST /api/orders',
+        properties: { http_method: 'POST', path: '/api/orders', framework: 'express' },
+      });
+      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      const pagFindings = findings.filter((f) => f.title.includes('Missing pagination'));
+      expect(pagFindings).toHaveLength(0);
+    });
   });
 
-  // ── Rule 6: Missing Rate Limiting ──────────────────────────────────────
+  // ── Rule 3: Missing Rate Limiting ──────────────────────────────────────
 
   describe('missing rate limiting', () => {
     it('detects missing rate limiting when endpoints exist', async () => {
@@ -396,7 +318,7 @@ describe('APIContractAnalyzer', () => {
     });
   });
 
-  // ── Rule 7: Breaking Change Risk ───────────────────────────────────────
+  // ── Rule 4: Breaking Change Risk ───────────────────────────────────────
 
   describe('breaking change risk', () => {
     it('detects endpoints without versioning (>= 3 endpoints)', async () => {
@@ -462,26 +384,25 @@ describe('APIContractAnalyzer', () => {
     expect(finalized).toEqual([]);
   });
 
-  it('finalize detects majority undocumented endpoints', async () => {
+  it('finalize does not emit an undocumented-ratio finding (rule removed)', async () => {
+    // Endpoints never carry a `description` property, so the old ratio was
+    // always 0% and the finding always fired. The systemic check was removed.
     const endpoints: Entity[] = [];
     for (let i = 0; i < 6; i++) {
       endpoints.push(
         makeEntity({
           type: 'endpoint',
-          name: `/api/resource-${i}`,
-          properties: { method: 'GET', path: `/api/resource-${i}` },
+          name: `GET /api/resource-${i}`,
+          properties: { http_method: 'GET', path: `/api/resource-${i}` },
         }),
       );
     }
-    // Only 1 out of 6 is documented → ratio < 0.3
-    endpoints[0]!.properties['description'] = 'A documented endpoint';
 
     const ctx = makeContext({ endpoint: endpoints });
 
     const finalized = await analyzer.finalize(ctx);
 
-    expect(finalized).toHaveLength(1);
-    expect(finalized[0]!.title).toContain('undocumented');
-    expect(finalized[0]!.severity).toBe('high');
+    expect(finalized.filter((f) => f.title.includes('undocumented'))).toHaveLength(0);
+    expect(finalized).toEqual([]);
   });
 });

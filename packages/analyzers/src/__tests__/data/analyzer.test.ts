@@ -1,9 +1,11 @@
 /**
  * Tests for DataAnalyzer.
  *
- * Covers all 6 rules: missing indexes, schema anti-patterns (no PK,
- * no FK), unused tables, wide tables, missing timestamps, and
- * inconsistent naming.  Also tests finalize().
+ * Covers the 4 rules that evaluate data the database collector actually
+ * produces: schema anti-patterns (no primary key), wide tables, missing
+ * timestamps, and inconsistent naming. Also tests finalize() and asserts that
+ * the removed rules (missing indexes, unused tables, missing foreign keys) no
+ * longer fire on inputs that previously triggered them.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -103,10 +105,12 @@ describe('DataAnalyzer', () => {
     expect(analyzer.categories).toContain('data');
   });
 
-  // ── Rule 1: Missing Indexes ─────────────────────────────────────────
+  // ── Removed rule: Missing Indexes ───────────────────────────────────
+  // No collector produces `index` or `query` entities, so this rule could
+  // never fire. It was removed; the former input must now produce nothing.
 
-  describe('missing indexes', () => {
-    it('detects table queried without an index', async () => {
+  describe('missing indexes (removed)', () => {
+    it('does not emit a missing-index finding even when a query targets an unindexed table', async () => {
       const table = makeEntity({ type: 'table', name: 'users' });
       const query = makeEntity({ type: 'query', name: 'findUserByEmail' });
       const queryRel = makeRel({
@@ -125,70 +129,11 @@ describe('DataAnalyzer', () => {
 
       const findings = await analyzer.analyze(ctx);
       const indexFindings = findings.filter((f) => f.title.includes('Missing index'));
-      expect(indexFindings).toHaveLength(1);
-      expect(indexFindings[0]!.severity).toBe('medium');
-    });
-
-    it('skips when table has an index via relationship', async () => {
-      const table = makeEntity({ type: 'table', name: 'users' });
-      const idx = makeEntity({ type: 'index', name: 'idx_users_email' });
-      const query = makeEntity({ type: 'query', name: 'findUserByEmail' });
-
-      const idxRel = makeRel({ type: 'indexes', source_id: idx.id, target_id: table.id });
-      const queryRel = makeRel({ type: 'queries_table', source_id: query.id, target_id: table.id });
-
-      const ctx = makeContext(
-        { table: [table], index: [idx], query: [query] },
-        (id, dir) => {
-          if (id === idx.id && dir === 'out') return [idxRel];
-          if (id === query.id && dir === 'out') return [queryRel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const indexFindings = findings.filter((f) => f.title.includes('Missing index'));
-      expect(indexFindings).toHaveLength(0);
-    });
-
-    it('skips when table has an index via property', async () => {
-      const table = makeEntity({ type: 'table', name: 'orders' });
-      const idx = makeEntity({
-        type: 'index',
-        name: 'idx_orders_date',
-        properties: { table: 'orders' },
-      });
-      const query = makeEntity({ type: 'query', name: 'getOrdersByDate' });
-      const queryRel = makeRel({ type: 'queries_table', source_id: query.id, target_id: table.id });
-
-      const ctx = makeContext(
-        { table: [table], index: [idx], query: [query] },
-        (id, dir) => {
-          if (id === idx.id && dir === 'out') return [];
-          if (id === query.id && dir === 'out') return [queryRel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const indexFindings = findings.filter((f) => f.title.includes('Missing index'));
-      expect(indexFindings).toHaveLength(0);
-    });
-
-    it('produces no findings when no queries exist', async () => {
-      const table = makeEntity({ type: 'table', name: 'users' });
-
-      const ctx = makeContext(
-        { table: [table], index: [], query: [] },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const indexFindings = findings.filter((f) => f.title.includes('Missing index'));
       expect(indexFindings).toHaveLength(0);
     });
   });
 
-  // ── Rule 2: Schema Anti-Patterns ────────────────────────────────────
+  // ── Rule 1: Schema Anti-Patterns ────────────────────────────────────
 
   describe('schema anti-patterns', () => {
     it('detects table without primary key', async () => {
@@ -239,38 +184,15 @@ describe('DataAnalyzer', () => {
       expect(pkFindings).toHaveLength(0);
     });
 
-    it('detects missing foreign keys on referencing table', async () => {
+    it('does not flag missing foreign keys — the sub-check was removed', async () => {
+      // A table with a foreign-key `references` relationship used to always
+      // false-positive because `has_foreign_keys` is never set by the
+      // collector. The collector only creates a `references` relationship FOR
+      // foreign-key columns, so the check was self-contradictory.
       const table = makeEntity({
         type: 'table',
         name: 'orders',
         properties: { has_primary_key: true },
-      });
-      const otherTable = makeEntity({
-        type: 'table',
-        name: 'users',
-        properties: { has_primary_key: true },
-      });
-      const rel = makeRel({ type: 'references', source_id: table.id, target_id: otherTable.id });
-
-      const ctx = makeContext(
-        { table: [table, otherTable], index: [], query: [] },
-        (id, dir) => {
-          if (id === table.id && dir === 'out') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const fkFindings = findings.filter((f) => f.title.includes('Missing foreign keys'));
-      expect(fkFindings).toHaveLength(1);
-      expect(fkFindings[0]!.severity).toBe('medium');
-    });
-
-    it('skips table with has_foreign_keys property', async () => {
-      const table = makeEntity({
-        type: 'table',
-        name: 'orders',
-        properties: { has_primary_key: true, has_foreign_keys: true },
       });
       const otherTable = makeEntity({
         type: 'table',
@@ -293,10 +215,13 @@ describe('DataAnalyzer', () => {
     });
   });
 
-  // ── Rule 3: Unused Tables ───────────────────────────────────────────
+  // ── Removed rule: Unused Tables ─────────────────────────────────────
+  // Usage relationships (queries_table/reads_from/writes_to) are never
+  // produced, so "unused" could not be determined honestly — the rule flagged
+  // every leaf table. Removed; the former input must now produce nothing.
 
-  describe('unused tables', () => {
-    it('detects table with no inbound usage relationships', async () => {
+  describe('unused tables (removed)', () => {
+    it('does not flag a table with no inbound usage relationships as unused', async () => {
       const table = makeEntity({
         type: 'table',
         name: 'legacy_data',
@@ -310,54 +235,11 @@ describe('DataAnalyzer', () => {
 
       const findings = await analyzer.analyze(ctx);
       const unusedFindings = findings.filter((f) => f.title.includes('Unused table'));
-      expect(unusedFindings).toHaveLength(1);
-      expect(unusedFindings[0]!.severity).toBe('low');
-    });
-
-    it('skips table with queries_table inbound relationship', async () => {
-      const table = makeEntity({
-        type: 'table',
-        name: 'active_table',
-        properties: { has_primary_key: true },
-      });
-      const rel = makeRel({ type: 'queries_table', source_id: nextId(), target_id: table.id });
-
-      const ctx = makeContext(
-        { table: [table], index: [], query: [] },
-        (id, dir) => {
-          if (id === table.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const unusedFindings = findings.filter((f) => f.title.includes('Unused table'));
-      expect(unusedFindings).toHaveLength(0);
-    });
-
-    it('skips table with writes_to inbound relationship', async () => {
-      const table = makeEntity({
-        type: 'table',
-        name: 'write_table',
-        properties: { has_primary_key: true },
-      });
-      const rel = makeRel({ type: 'writes_to', source_id: nextId(), target_id: table.id });
-
-      const ctx = makeContext(
-        { table: [table], index: [], query: [] },
-        (id, dir) => {
-          if (id === table.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const unusedFindings = findings.filter((f) => f.title.includes('Unused table'));
       expect(unusedFindings).toHaveLength(0);
     });
   });
 
-  // ── Rule 4: Wide Tables ─────────────────────────────────────────────
+  // ── Rule 2: Wide Tables ─────────────────────────────────────────────
 
   describe('wide tables', () => {
     it('detects table with more than 20 columns', async () => {
@@ -418,7 +300,7 @@ describe('DataAnalyzer', () => {
     });
   });
 
-  // ── Rule 5: Missing Timestamps ──────────────────────────────────────
+  // ── Rule 3: Missing Timestamps ──────────────────────────────────────
 
   describe('missing timestamps', () => {
     it('detects missing created_at and updated_at columns', async () => {
@@ -524,7 +406,7 @@ describe('DataAnalyzer', () => {
     });
   });
 
-  // ── Rule 6: Inconsistent Naming ─────────────────────────────────────
+  // ── Rule 4: Inconsistent Naming ─────────────────────────────────────
 
   describe('inconsistent naming', () => {
     it('detects mixed naming conventions', async () => {
