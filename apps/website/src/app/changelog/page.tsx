@@ -92,7 +92,7 @@ const releases = [
     latest: false,
     changes: [
       'Expanded to 14 data collectors with enterprise integrations',
-      'Expanded to 13 analyzers with 89+ rules',
+      'Expanded to 12 analyzers with 80+ rules',
       '19-specialist multi-agent reasoning engine with a Custom Specialist SDK',
       '138 REST endpoints across 30 route files, plus GraphQL and multi-tenant routes',
       'CLI grew to 25 commands; MCP server to 42 tools',

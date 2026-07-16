@@ -391,15 +391,26 @@ describe('Error handling', () => {
 describe('Graceful fallback', () => {
   it('returns empty results without a token', async () => {
     vi.restoreAllMocks(); // Remove fetch mock
-    const noTokenConfig: CollectorConfig = {
-      governance: defaultConfig.governance,
-      custom: {},
-    };
-    await collector.initialize(noTokenConfig);
-    const result = await collector.collect();
-    expect(result.entities).toEqual([]);
-    expect(result.relationships).toEqual([]);
-    expect(result.metadata.errors.length).toBeGreaterThan(0);
+    // The collector falls back to process.env.GITHUB_TOKEN; clear the ambient
+    // token (CI environments set one) so this test genuinely runs token-less.
+    const savedToken = process.env['GITHUB_TOKEN'];
+    const savedGhToken = process.env['GH_TOKEN'];
+    delete process.env['GITHUB_TOKEN'];
+    delete process.env['GH_TOKEN'];
+    try {
+      const noTokenConfig: CollectorConfig = {
+        governance: defaultConfig.governance,
+        custom: {},
+      };
+      await collector.initialize(noTokenConfig);
+      const result = await collector.collect();
+      expect(result.entities).toEqual([]);
+      expect(result.relationships).toEqual([]);
+      expect(result.metadata.errors.length).toBeGreaterThan(0);
+    } finally {
+      if (savedToken !== undefined) process.env['GITHUB_TOKEN'] = savedToken;
+      if (savedGhToken !== undefined) process.env['GH_TOKEN'] = savedGhToken;
+    }
   });
 });
 

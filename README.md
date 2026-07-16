@@ -45,7 +45,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 |---|---|
 | 🔍 **Evidence Collection** | Git repos, docs, ADRs, API contracts with PII detection & governance |
 | 🧠 **Knowledge Graph** | Living digital twin — 43 entity types, 43 relationship types |
-| 🔬 **13 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, UX, Product, Dependency, API Contract, AI Runtime |
+| 🔬 **12 Built-in Analyzers** | Architecture, AI, Performance, Cost, Reliability, Security, Data, Docs, Product, Dependency, API Contract, AI Runtime |
 | 🤖 **Multi-Agent Reasoning** | 19 specialist AI agents debate and rank improvement opportunities |
 | 📊 **Opportunity Management** | Prioritized roadmap with evidence, validation plans, rollback plans |
 | 🛡️ **Policy Engine** | Governance rules with recursive descent expression evaluation |
@@ -314,7 +314,7 @@ Recurrsive follows a four-phase pipeline — **Collect → Understand → Reason
 │  Opportunities  ·  Policy  ·  Experiments        │
 ├─────────────────────────────────────────────────┤
 │                 UNDERSTAND                        │
-│  Graph Engine  ·  13 Analyzers  ·  89+ Rules     │
+│  Graph Engine  ·  12 Analyzers  ·  80+ Rules     │
 │  Parsers  ·  AI Pattern Detection                │
 ├─────────────────────────────────────────────────┤
 │                   COLLECT                         │
@@ -332,7 +332,7 @@ recurrsive/
 │   ├── graph/          # Dual-backend knowledge graph — AGE + SQLite
 │   ├── collectors/     # Data ingestion with privacy governance
 │   ├── parsers/        # Tree-sitter + AI pattern detection
-│   ├── analyzers/      # 13 built-in analyzers, 89+ rules
+│   ├── analyzers/      # 12 built-in analyzers, 80+ rules
 │   ├── reasoning/      # Multi-agent debate engine
 │   ├── opportunities/  # Lifecycle + SARIF export
 │   ├── policy/         # Policy engine + 5 built-in policies
@@ -396,7 +396,7 @@ Multi-language code analysis:
 - **Cross-file resolver** for import/dependency tracking
 
 ### `@recurrsive/analyzers`
-13 specialized analyzers with 89+ analysis rules:
+12 specialized analyzers with 80+ analysis rules:
 
 | Analyzer | Focus |
 |----------|-------|

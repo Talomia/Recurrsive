@@ -78,7 +78,7 @@ output:
 ## Step 4: Run Analysis
 
 ```bash
-# Full analysis (all 13 analyzers)
+# Full analysis (all 12 analyzers)
 recurrsive analyze .
 
 # Run specific analyzers only

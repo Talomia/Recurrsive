@@ -233,11 +233,21 @@ describe('Collector Integration', () => {
 
     it('returns empty results without a token (graceful fallback)', async () => {
       vi.restoreAllMocks(); // Remove fetch mock
-      await collector.initialize(config); // No token
-      const result = await collector.collect();
-      expect(result.entities).toEqual([]);
-      expect(result.relationships).toEqual([]);
-      expect(result.metadata.errors.length).toBeGreaterThan(0);
+      // Clear the ambient GITHUB_TOKEN (CI sets one) so this runs token-less.
+      const savedToken = process.env['GITHUB_TOKEN'];
+      const savedGhToken = process.env['GH_TOKEN'];
+      delete process.env['GITHUB_TOKEN'];
+      delete process.env['GH_TOKEN'];
+      try {
+        await collector.initialize(config); // No token
+        const result = await collector.collect();
+        expect(result.entities).toEqual([]);
+        expect(result.relationships).toEqual([]);
+        expect(result.metadata.errors.length).toBeGreaterThan(0);
+      } finally {
+        if (savedToken !== undefined) process.env['GITHUB_TOKEN'] = savedToken;
+        if (savedGhToken !== undefined) process.env['GH_TOKEN'] = savedGhToken;
+      }
     });
   });
 

@@ -15,6 +15,16 @@ vi.mock('../../components/active-project-context', () => ({
   }),
 }));
 
+// Mock useAssistant (AI availability context)
+vi.mock('../../components/assistant-context', () => ({
+  useAssistant: () => ({
+    availability: 'unknown',
+    reason: null,
+    reportStatus: vi.fn(),
+  }),
+  AssistantProvider: ({ children }: { children: unknown }) => children,
+}));
+
 describe('Sidebar', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -85,9 +95,9 @@ describe('Sidebar', () => {
 
   it('renders navigation links as anchor elements', () => {
     render(<Sidebar />);
-    // By default, only expanded section links are visible (10 links)
+    // By default, only expanded section links are visible (12 links)
     const links = screen.getAllByRole('link');
-    expect(links.length).toBe(10);
+    expect(links.length).toBe(12);
   });
 
   it('renders all links when all sections are expanded', () => {
@@ -100,8 +110,9 @@ describe('Sidebar', () => {
     fireEvent.click(adminButton);
 
     const links = screen.getAllByRole('link');
-    // 5 (Intelligence) + 5 (Analysis) + 7 (Operations) + 12 (Administration) = 29 items
-    expect(links.length).toBe(29);
+    // Intelligence + Analysis + Operations + Administration nav links, including
+    // the newly wired confidence/intelligence-packs/invites/partners/cloud pages.
+    expect(links.length).toBe(34);
   });
 });
 

@@ -131,7 +131,7 @@ Recurrsive/
 │   ├── collectors/              # Data ingestion — 14 collectors with PII detection
 │   │                            #   (Git, Docs, Environment, CICD, Database, GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone)
 │   ├── parsers/                 # Code analysis — Tree-sitter + AI pattern detection
-│   ├── analyzers/               # 13 built-in analyzers, 89+ rules
+│   ├── analyzers/               # 12 built-in analyzers, 80+ rules
 │   ├── reasoning/               # Multi-agent reasoning — 19 specialists, debate protocol
 │   ├── opportunities/           # Opportunity lifecycle — SARIF export, roadmap generation
 │   ├── policy/                  # Policy engine — 5 built-in policy sets (16 rules)
@@ -182,8 +182,8 @@ Recurrsive follows a four-phase pipeline where the LLM is **never the source of 
    │   COLLECT     │────▶│  UNDERSTAND   │────▶│    REASON     │────▶│    EVOLVE     │
    │              │     │              │     │              │     │              │
    │ 14 Collectors│     │ Graph Engine │     │ 19 Specialists│     │ CLI · Server │
-   │ Governance   │     │ 13 Analyzers │     │ Debate Proto. │     │ MCP · Dash   │
-   │ PII Detection│     │ 89+ Rules    │     │ Judge · Memory│     │ Reports      │
+   │ Governance   │     │ 12 Analyzers │     │ Debate Proto. │     │ MCP · Dash   │
+   │ PII Detection│     │ 80+ Rules    │     │ Judge · Memory│     │ Reports      │
    └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
 ```
 

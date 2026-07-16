@@ -17,7 +17,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { store } from '../store.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, optionalAuth } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,7 +73,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
    *
    * Query params: category, source, search, sort (downloads|rating|name), limit, offset
    */
-  app.get(`${prefix}/extensions`, { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.get(`${prefix}/extensions`, { preHandler: [optionalAuth] }, async (request, reply) => {
     const query = request.query as {
       category?: ExtensionCategory;
       source?: ExtensionSource;
@@ -148,7 +148,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
    *
    * Get extension detail.
    */
-  app.get(`${prefix}/extensions/:id`, { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.get(`${prefix}/extensions/:id`, { preHandler: [optionalAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const ext = await store.get<MarketplaceExtension>('extensions', id);
     if (!ext) {
@@ -224,7 +224,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
    *
    * List available categories with counts.
    */
-  app.get(`${prefix}/categories`, { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get(`${prefix}/categories`, { preHandler: [optionalAuth] }, async (_request, reply) => {
     const all = (await store.all<MarketplaceExtension>('extensions')).filter((e) => e.status === 'published');
     return reply.send({
       data: [
@@ -241,7 +241,7 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
    *
    * Marketplace statistics.
    */
-  app.get(`${prefix}/stats`, { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get(`${prefix}/stats`, { preHandler: [optionalAuth] }, async (_request, reply) => {
     const all = await store.all<MarketplaceExtension>('extensions');
     const published = all.filter((e) => e.status === 'published');
     const totalDownloads = published.reduce((sum, e) => sum + e.downloads, 0);

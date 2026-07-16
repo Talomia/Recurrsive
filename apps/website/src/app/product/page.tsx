@@ -23,7 +23,7 @@ const PIPELINE_STEPS = [
   {
     icon: Layers,
     title: 'Understand',
-    desc: 'Tree-sitter parsers extract structure from TypeScript, Python, and Go. 13 analyzers with 89+ rules evaluate architecture, performance, security, cost, AI quality, and more.',
+    desc: 'Tree-sitter parsers extract structure from TypeScript, Python, and Go. 12 analyzers with 80+ rules evaluate architecture, performance, security, cost, AI quality, and more.',
     color: '#3b82f6',
   },
   {
@@ -211,7 +211,7 @@ export default function ProductPage() {
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
             <span className="badge badge-accent">
-              <Eye size={14} /> 13 Analyzers · 89+ Rules
+              <Eye size={14} /> 12 Analyzers · 80+ Rules
             </span>
             <h2 style={{ marginTop: 'var(--space-md)' }}>
               Deep Analysis Across <span className="text-gradient">Every Dimension</span>

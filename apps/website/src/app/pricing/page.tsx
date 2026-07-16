@@ -21,7 +21,7 @@ const PLANS = [
     badge: 'Apache 2.0',
     features: [
       '14 data collectors',
-      '13 built-in analyzers (89+ rules)',
+      '12 built-in analyzers (80+ rules)',
       '19-specialist multi-agent reasoning',
       'Knowledge graph (SQLite + Apache AGE)',
       'CLI with 28 commands',

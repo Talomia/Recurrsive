@@ -1651,7 +1651,7 @@ As of v0.5.7, the following deployment surface is implemented:
 | Component | Count | Notes |
 |---|---|---|
 | **REST Endpoints** | 160+ | Across 37 route modules |
-| **Built-in Analyzers** | 13 | 89+ analysis rules |
+| **Built-in Analyzers** | 12 | 80+ analysis rules |
 | **Built-in Collectors** | 14 | Including enterprise integrations (GitHub, GitLab, OpenTelemetry, Langfuse, Arize, Helicone, Cloud Cost, Error Tracking, APM) |
 | **Specialist Agents** | 19 | With Custom Specialist Agent SDK |
 | **CLI Commands** | 25 | Full management and analysis |
@@ -2118,5 +2118,5 @@ The system tracks its own evolution:
 | Version | Date | Author | Changes |
 |---|---|---|---|
 | 1.2.0 | 2026-07-05 | Recurrsive Team | Updated to reflect v0.5.7: all synthetic/mock data removed from production code — SSO uses real SAML parsing, 9 collectors rewritten with real API clients (native fetch), GraphQL seed data removed, scheduling uses real cron parser, CLI simulation wired to server API. All docs aligned, 3,293 tests passing. |
-| 1.1.0 | 2026-07-04 | Recurrsive Team | Updated to reflect v0.5.6: added §11.3 current implementation stats (13 analyzers, 14 collectors, 19 specialists, 160+ endpoints across 37 route modules, 42 MCP tools, 28 CLI commands, 46 dashboard pages, 23 website pages), added EasyPanel and multi-tenant deployment options, added git URL analysis capability, clarified collector implementation status in §7 |
+| 1.1.0 | 2026-07-04 | Recurrsive Team | Updated to reflect v0.5.6: added §11.3 current implementation stats (12 analyzers, 14 collectors, 19 specialists, 160+ endpoints across 37 route modules, 42 MCP tools, 28 CLI commands, 46 dashboard pages, 23 website pages), added EasyPanel and multi-tenant deployment options, added git URL analysis capability, clarified collector implementation status in §7 |
 | 1.0.0 | 2026-06-29 | Recurrsive Team | Initial comprehensive PRD |

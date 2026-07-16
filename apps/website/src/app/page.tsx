@@ -27,7 +27,7 @@ import {
 export const metadata: Metadata = {
   title: 'Recurrsive — Engineering Intelligence Platform',
   description:
-    'Understand your entire software system. 13 analyzers, knowledge graph, ' +
+    'Understand your entire software system. 12 analyzers, knowledge graph, ' +
     'multi-agent reasoning, and evidence-based recommendations ranked by business impact.',
   openGraph: {
     title: 'Recurrsive — Engineering Intelligence Platform',
@@ -228,7 +228,7 @@ export default function HomePage() {
                   <span className="keyword">{'▸'} Discovery</span>{'   '}
                   <span className="string">160+ endpoints</span>{' · '}
                   <span className="string">42 MCP tools</span>{' · '}
-                  <span className="string">13 analyzers</span>
+                  <span className="string">12 analyzers</span>
                 </div>
                 <div>
                   <span className="keyword">{'▸'} Knowledge</span>{'   '}
@@ -466,7 +466,7 @@ export default function HomePage() {
                 step: '01',
                 icon: Layers,
                 title: 'Collect',
-                desc: 'Ingest code, APIs, configs, runtime traces, AI prompts, cost data, and more through 13 specialized analyzers.',
+                desc: 'Ingest code, APIs, configs, runtime traces, AI prompts, cost data, and more through 12 specialized analyzers.',
                 color: 'var(--purple)',
               },
               {

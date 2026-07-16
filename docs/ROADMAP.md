@@ -8,7 +8,7 @@
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
 | Collectors | ✅ Complete | 14 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
-| Analyzers | ✅ Complete | 13 analyzers, 89+ rules (66 base + 8 dependency + 7 API contract + 8 AI runtime), all 13 with cross-cutting finalize() logic |
+| Analyzers | ✅ Complete | 12 analyzers, 80+ rules, all with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (16 rules) |

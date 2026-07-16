@@ -44,7 +44,7 @@ Recurrsive/
 │   ├── graph/                  # Knowledge graph (SQLite/AGE)
 │   ├── collectors/             # Data collectors (14 collectors)
 │   ├── parsers/                # Language parsers (TypeScript, Python, Go)
-│   ├── analyzers/              # 13 analysis engines
+│   ├── analyzers/              # 12 analysis engines
 │   ├── reasoning/              # Multi-agent reasoning engine
 │   ├── opportunities/          # Opportunity management & export
 │   ├── policy/                 # Governance policy engine

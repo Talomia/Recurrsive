@@ -55,7 +55,7 @@ This graph, continuously updated, IS the digital twin.
 | Phase | Package | Status |
 |---|---|---|
 | **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (14 collectors: Git, Docs, Environment, CICD, Database, GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone) |
-| **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (13 analyzers, 89+ rules) |
+| **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (12 analyzers, 80+ rules) |
 | **Reason** | `@recurrsive/reasoning` | ✅ Built (19 specialists, debate protocol) |
 | **Evolve** | `@recurrsive/opportunities` | ✅ Built (lifecycle, SARIF, reports) |
 
@@ -87,7 +87,7 @@ The foundation. Free forever.
 
 - Collectors (Git, docs, AI patterns)
 - Knowledge graph (Apache AGE / SQLite)
-- 13 built-in analyzers
+- 12 built-in analyzers
 - Multi-agent reasoning engine
 - Opportunity management + SARIF export
 - Policy engine
@@ -159,7 +159,7 @@ recurrsive/
 │   ├── graph/              ← Knowledge graph engine
 │   ├── collectors/         ← 14 data collectors
 │   ├── parsers/            ← Code analysis
-│   ├── analyzers/          ← 13 analysis engines
+│   ├── analyzers/          ← 12 analysis engines
 │   ├── reasoning/          ← Multi-agent reasoning
 │   ├── opportunities/      ← Opportunity lifecycle
 │   ├── policy/             ← Policy engine

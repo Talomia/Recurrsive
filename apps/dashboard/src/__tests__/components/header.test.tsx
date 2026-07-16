@@ -37,6 +37,16 @@ vi.mock('@/lib/auth-context', () => ({
   }),
 }));
 
+// Mock useAssistant (AI availability context)
+vi.mock('../../components/assistant-context', () => ({
+  useAssistant: () => ({
+    availability: 'unknown',
+    reason: null,
+    reportStatus: vi.fn(),
+  }),
+  AssistantProvider: ({ children }: { children: unknown }) => children,
+}));
+
 // Mock useActiveProject
 vi.mock('../../components/active-project-context', () => ({
   useActiveProject: () => ({

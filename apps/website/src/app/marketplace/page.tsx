@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 // ── Built-in analyzers (ship with the open-source platform) ──────────────────
-// These are the 13 analyzers included in @recurrsive/analyzers. They are part of
+// These are the 12 analyzers included in @recurrsive/analyzers. They are part of
 // the core install — not marketplace downloads — so no ratings or download counts
 // are shown.
 const BUILT_IN_ANALYZERS = [
@@ -127,7 +127,7 @@ export default function MarketplacePage() {
               lineHeight: 1.7,
             }}
           >
-            Recurrsive ships with 13 built-in analyzers and a Plugin SDK for building your own
+            Recurrsive ships with 12 built-in analyzers and a Plugin SDK for building your own
             collectors, analyzers, policies, and intelligence packs.
           </p>
         </div>

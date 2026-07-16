@@ -901,7 +901,6 @@ const CostAnalyzerConfigSchema = z.object({
 | `security.vulnerabilities` | Security | Dependency vulnerabilities, exposed secrets, injection surfaces, RBAC gaps |
 | `data.schema-quality` | Data | Schema drift, missing validations, unindexed queries, orphaned tables |
 | `docs.completeness` | Documentation | Undocumented exports, stale README, missing API docs, changelog gaps |
-| `ux.quality` | UX | Inconsistent API patterns, missing docs, breaking changes, pagination issues |
 | `product.health` | Product | Stale feature flags, experiment conclusions, unused features |
 | `dependency.health` | Dependency | Version staleness, license compliance, update risk, transitive vulnerabilities |
 | `api-contract.quality` | API Contract | Breaking changes, versioning gaps, OpenAPI compliance, schema drift |
@@ -1839,7 +1838,6 @@ recurrsive/
 │   │   │   ├── security/        # sec-vulnerability
 │   │   │   ├── data/            # data-quality
 │   │   │   ├── docs/            # doc-coverage
-│   │   │   ├── ux/              # ux-api-consistency
 │   │   │   ├── product/         # prod-feature-health
 │   │   │   ├── dependency/      # dependency analysis
 │   │   │   ├── api-contract/    # API contract analysis
