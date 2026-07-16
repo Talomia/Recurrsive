@@ -64,7 +64,7 @@ jobs:
       - name: Generate SARIF Report
         if: always()
         run: |
-          node .recurrsive-tool/apps/cli/dist/bin.js report --format sarif > recurrsive-results.sarif
+          node .recurrsive-tool/apps/cli/dist/bin.js report --format sarif --output recurrsive-results.sarif
 
       - name: Upload SARIF
         if: always()

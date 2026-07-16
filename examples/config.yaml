@@ -2,11 +2,10 @@
 # Recurrsive Configuration
 #
 # Place this file at your project root as one of:
-#   recurrsive.config.yaml
+#   .recurrsive/config.yaml
+#   .recurrsive/config.yml
+#   .recurrsive/config.json
 #   recurrsive.config.json
-#   recurrsive.config.yml
-#   .recurrsiverc.yaml
-#   .recurrsiverc.json
 #
 # All fields have sensible defaults — you only need to set what you
 # want to override.

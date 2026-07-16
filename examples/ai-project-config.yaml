@@ -53,19 +53,11 @@ governance:
     - "**/*.pt"
     - "**/*.safetensors"
 
-# Policies for AI governance
-policies:
-  - name: require-ai-evaluation
-    description: All AI agents must have evaluation metrics
-    severity: high
-    condition: "entity.type == 'ai_agent' && !entity.properties.has_evaluation"
-    message: "AI agent '{{entity.name}}' has no evaluation framework"
-
-  - name: require-cost-tracking
-    description: All LLM API calls must have cost tracking
-    severity: medium
-    condition: "entity.type == 'llm_call' && !entity.properties.cost_tracked"
-    message: "LLM call '{{entity.name}}' lacks cost tracking"
+# Policies — paths to custom policy definition files.
+# The built-in policy sets (security baseline, change management, cost
+# governance, compliance, quality gates) are always active.
+policies: []
+  # - ./policies/ai-governance.json
 
 # Output settings
 output:

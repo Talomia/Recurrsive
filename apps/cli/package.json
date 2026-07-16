@@ -25,16 +25,17 @@
     "lint": "eslint src/"
   },
   "dependencies": {
+    "@recurrsive/analyzers": "workspace:*",
+    "@recurrsive/collectors": "workspace:*",
     "@recurrsive/core": "workspace:*",
     "@recurrsive/graph": "workspace:*",
-    "@recurrsive/collectors": "workspace:*",
-    "@recurrsive/parsers": "workspace:*",
-    "@recurrsive/analyzers": "workspace:*",
-    "@recurrsive/reasoning": "workspace:*",
     "@recurrsive/opportunities": "workspace:*",
+    "@recurrsive/parsers": "workspace:*",
     "@recurrsive/policy": "workspace:*",
     "@recurrsive/presentation": "workspace:*",
-    "commander": "^12.0.0"
+    "@recurrsive/reasoning": "workspace:*",
+    "commander": "^12.0.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
