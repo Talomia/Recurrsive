@@ -450,13 +450,13 @@ describe('registerConfigCommand', () => {
       expect(saveConfig).not.toHaveBeenCalled();
     });
 
-    it('writes config to .recurrsive/config.yaml', async () => {
+    it('writes config to .recurrsive/config.json', async () => {
       const { runSet } = createFakeProgram();
       await runSet('output.format', 'json');
 
       expect(saveConfig).toHaveBeenCalledWith(
         expect.anything(),
-        expect.stringContaining('.recurrsive/config.yaml'),
+        expect.stringContaining('.recurrsive/config.json'),
       );
     });
   });
@@ -474,7 +474,7 @@ describe('registerConfigCommand', () => {
       expect(getDefaultConfig).toHaveBeenCalled();
       expect(saveConfig).toHaveBeenCalledWith(
         defaultCfg,
-        expect.stringContaining('.recurrsive/config.yaml'),
+        expect.stringContaining('.recurrsive/config.json'),
       );
       expect(success).toHaveBeenCalledWith(
         expect.stringContaining('reset to defaults'),
@@ -489,7 +489,7 @@ describe('registerConfigCommand', () => {
       await runReset();
 
       expect(info).toHaveBeenCalledWith(
-        expect.stringContaining('.recurrsive/config.yaml'),
+        expect.stringContaining('.recurrsive/config.json'),
       );
     });
   });

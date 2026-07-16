@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -57,10 +67,12 @@ describe('batch command', () => {
   describe('run', () => {
     it('sends projects to the batch API', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        batch_id: 'batch_001',
-        status: 'pending',
-        projects: [{ path: '/p1', status: 'pending' }],
-        created_at: new Date().toISOString(),
+        data: {
+          batch_id: 'batch_001',
+          status: 'pending',
+          projects: [{ path: '/p1', status: 'pending' }],
+          created_at: new Date().toISOString(),
+        },
       });
 
       const program = createCLI();
@@ -76,9 +88,9 @@ describe('batch command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'batch', 'run', '/p1', '/p2']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'batch', 'run', '/p1', '/p2']),
+      ).rejects.toThrow();
     });
 
     it('rejects more than 10 projects', async () => {
@@ -92,10 +104,12 @@ describe('batch command', () => {
 
     it('outputs JSON with --json flag', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        batch_id: 'batch_002',
-        status: 'pending',
-        projects: [{ path: '/p1', status: 'pending' }],
-        created_at: new Date().toISOString(),
+        data: {
+          batch_id: 'batch_002',
+          status: 'pending',
+          projects: [{ path: '/p1', status: 'pending' }],
+          created_at: new Date().toISOString(),
+        },
       });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -110,10 +124,12 @@ describe('batch command', () => {
   describe('status', () => {
     it('fetches batch status from server', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        batch_id: 'batch_001',
-        status: 'complete',
-        projects: [{ path: '/p1', status: 'complete', findings_count: 5, opportunities_count: 2 }],
-        created_at: new Date().toISOString(),
+        data: {
+          batch_id: 'batch_001',
+          status: 'completed',
+          projects: [{ path: '/p1', status: 'completed' }],
+          created_at: new Date().toISOString(),
+        },
       });
 
       const program = createCLI();
@@ -128,23 +144,24 @@ describe('batch command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'batch', 'status', 'batch_xyz']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'batch', 'status', 'batch_xyz']),
+      ).rejects.toThrow();
     });
   });
 
   describe('history', () => {
     it('fetches batch history from server', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        batches: [
+        data: [
           {
             batch_id: 'batch_001',
-            status: 'complete',
+            status: 'completed',
             projects: [],
             created_at: new Date().toISOString(),
           },
         ],
+        total: 1,
       });
 
       const program = createCLI();
@@ -159,21 +176,22 @@ describe('batch command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'batch', 'history']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'batch', 'history']),
+      ).rejects.toThrow();
     });
 
     it('outputs JSON with --json flag', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        batches: [
+        data: [
           {
             batch_id: 'batch_003',
-            status: 'complete',
+            status: 'completed',
             projects: [],
             created_at: new Date().toISOString(),
           },
         ],
+        total: 1,
       });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 

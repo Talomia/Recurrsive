@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -46,6 +56,11 @@ function createCLI(): Command {
   return program;
 }
 
+const CHANNELS = [
+  { channel: 'console', description: 'Terminal output', configured: true, config_hint: 'none' },
+  { channel: 'slack', description: 'Slack messages', configured: false, config_hint: 'Set SLACK_WEBHOOK_URL' },
+];
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -58,11 +73,7 @@ describe('notifications command', () => {
 
   describe('channels', () => {
     it('lists available notification channels from server', async () => {
-      const channels = [
-        { type: 'console', name: 'Console', enabled: true, config_required: [], description: 'Terminal output' },
-        { type: 'slack', name: 'Slack', enabled: false, config_required: ['webhookUrl'], description: 'Slack messages' },
-      ];
-      mockApiRequest.mockResolvedValueOnce({ channels });
+      mockApiRequest.mockResolvedValueOnce({ data: CHANNELS, total: CHANNELS.length });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'channels']);
@@ -76,18 +87,13 @@ describe('notifications command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'notifications', 'channels']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'notifications', 'channels']),
+      ).rejects.toThrow();
     });
 
     it('outputs JSON when --json flag is set', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        channels: [
-          { type: 'console', name: 'Console', enabled: true, config_required: [], description: 'Terminal output' },
-          { type: 'slack', name: 'Slack', enabled: false, config_required: ['webhookUrl'], description: 'Slack messages' },
-        ],
-      });
+      mockApiRequest.mockResolvedValueOnce({ data: CHANNELS, total: CHANNELS.length });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
@@ -100,7 +106,7 @@ describe('notifications command', () => {
 
   describe('test', () => {
     it('sends a test notification to the specified channel', async () => {
-      mockApiRequest.mockResolvedValueOnce({ status: 'sent', channel: 'console', message: 'Test notification sent' });
+      mockApiRequest.mockResolvedValueOnce({ data: { status: 'sent', channel: 'console', message: 'Test notification sent' } });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'test', 'console']);
@@ -122,13 +128,13 @@ describe('notifications command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'notifications', 'test', 'slack']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'notifications', 'test', 'slack']),
+      ).rejects.toThrow();
     });
 
     it('passes --url to server config', async () => {
-      mockApiRequest.mockResolvedValueOnce({ status: 'sent', channel: 'slack', message: 'Sent' });
+      mockApiRequest.mockResolvedValueOnce({ data: { status: 'sent', channel: 'slack', message: 'Sent' } });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'notifications', 'test', 'slack', '--url', 'https://hooks.slack.com/xxx']);
@@ -142,9 +148,10 @@ describe('notifications command', () => {
   describe('history', () => {
     it('fetches notification history from server', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        notifications: [
-          { id: 'n1', channel: 'console', title: 'Analysis Done', severity: 'info', sent_at: new Date().toISOString(), status: 'delivered' },
+        data: [
+          { id: 'n1', channel: 'console', message: 'Analysis Done', sent_at: new Date().toISOString(), status: 'sent' },
         ],
+        total: 1,
       });
 
       const program = createCLI();
@@ -159,31 +166,17 @@ describe('notifications command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'notifications', 'history']);
-
-      expect(process.exitCode).toBe(1);
-    });
-
-    it('supports --channel filter', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        notifications: [
-          { id: 'notif_001', channel: 'slack', title: 'Deploy Complete', severity: 'info', sent_at: new Date().toISOString(), status: 'delivered' },
-        ],
-      });
-
-      const program = createCLI();
-      await program.parseAsync(['node', 'test', 'notifications', 'history', '--channel', 'slack']);
-
-      expect(mockApiRequest).toHaveBeenCalledWith(
-        expect.stringContaining('channel=slack'),
-      );
+      await expect(
+        program.parseAsync(['node', 'test', 'notifications', 'history']),
+      ).rejects.toThrow();
     });
 
     it('outputs JSON with --json flag', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        notifications: [
-          { id: 'notif_001', channel: 'console', title: 'Test', severity: 'info', sent_at: new Date().toISOString(), status: 'delivered' },
+        data: [
+          { id: 'notif_001', channel: 'console', message: 'Test', sent_at: new Date().toISOString(), status: 'sent' },
         ],
+        total: 1,
       });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 

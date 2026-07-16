@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -57,14 +67,16 @@ describe('analytics command', () => {
   describe('summary', () => {
     it('fetches and displays summary data', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        analysis_runs: 47,
-        total_findings: 312,
-        findings_resolved: 189,
-        resolution_rate: 60.6,
-        avg_health_score: 74.2,
-        trends: [
-          { date: '2026-04-06', findings: 28, resolved: 12, health: 68 },
-        ],
+        data: {
+          analysis_runs: 47,
+          total_findings: 312,
+          findings_resolved: 189,
+          resolution_rate: 60.6,
+          avg_health_score: 74.2,
+          trends: [
+            { date: '2026-04-06', findings: 28, resolved: 12, health: 68 },
+          ],
+        },
       });
 
       const program = createCLI();
@@ -79,19 +91,22 @@ describe('analytics command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'analytics', 'summary']);
-
-      expect(process.exitCode).toBe(1);
+      // reportApiError calls process.exit, which vitest surfaces as a throw.
+      await expect(
+        program.parseAsync(['node', 'test', 'analytics', 'summary']),
+      ).rejects.toThrow();
     });
 
     it('outputs JSON with --json flag', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        analysis_runs: 47,
-        total_findings: 312,
-        findings_resolved: 189,
-        resolution_rate: 60.6,
-        avg_health_score: 74.2,
-        trends: [],
+        data: {
+          analysis_runs: 47,
+          total_findings: 312,
+          findings_resolved: 189,
+          resolution_rate: 60.6,
+          avg_health_score: 74.2,
+          trends: [],
+        },
       });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -106,7 +121,7 @@ describe('analytics command', () => {
   describe('categories', () => {
     it('displays category data', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        categories: [
+        data: [
           { name: 'Performance', count: 68, percentage: 21.8 },
           { name: 'Security', count: 42, percentage: 13.5 },
         ],

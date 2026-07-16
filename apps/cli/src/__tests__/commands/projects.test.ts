@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -55,9 +65,12 @@ describe('projects command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
-    mockApiRequest.mockResolvedValue([
-      { id: 'proj-1', name: 'Web App', health: 85, status: 'active', language: 'TypeScript', lastAnalyzed: '2026-01-01' },
-    ]);
+    mockApiRequest.mockResolvedValue({
+      data: [
+        { id: 'proj-1', name: 'Web App', healthScore: 85, language: 'TypeScript', framework: 'Next', lastAnalysis: '2026-01-01' },
+      ],
+      total: 1,
+    });
   });
 
   it('registers the "projects" command', () => {

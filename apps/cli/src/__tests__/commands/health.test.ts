@@ -212,7 +212,7 @@ describe('registerHealthCommand', () => {
       consoleSpy.mockRestore();
     });
 
-    it('renders an estimated health score when no snapshot exists', async () => {
+    it('reports "not analyzed" (no fabricated score) when no snapshot exists', async () => {
       // No snapshots, no graph
       (existsSync as Mock).mockReturnValue(false);
       (readdir as Mock).mockResolvedValue([]);
@@ -221,8 +221,10 @@ describe('registerHealthCommand', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       await runAction();
 
-      // With no opportunities and no entities, estimated score should be 70
-      expect(progressBar).toHaveBeenCalledWith(70, 100, 40);
+      // No snapshot → no health-score bar; an honest "not analyzed" message instead.
+      expect(progressBar).not.toHaveBeenCalledWith(expect.anything(), 100, 40);
+      const printed = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(printed).toContain('Not analyzed yet');
       consoleSpy.mockRestore();
     });
 
@@ -358,7 +360,8 @@ describe('registerHealthCommand', () => {
       const output = JSON.parse(consoleSpy.mock.calls[0]![0] as string);
       expect(output.snapshot_id).toBeNull();
       expect(output.snapshot_timestamp).toBeNull();
-      expect(output.overall_health).toBe(70); // estimated
+      expect(output.overall_health).toBeNull(); // no analysis → no score
+      expect(output.status).toBe('not_analyzed');
       consoleSpy.mockRestore();
     });
 

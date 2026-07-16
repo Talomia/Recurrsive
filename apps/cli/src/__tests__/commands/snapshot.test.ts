@@ -20,12 +20,16 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 // ---------------------------------------------------------------------------
 
 const {
-  mockQuery,
+  mockGetStats,
+  mockGetEntities,
+  mockGetRelationships,
   mockUpsertEntity,
   mockUpsertRelationship,
   mockDispose,
 } = vi.hoisted(() => ({
-  mockQuery: vi.fn(),
+  mockGetStats: vi.fn(),
+  mockGetEntities: vi.fn(),
+  mockGetRelationships: vi.fn(),
   mockUpsertEntity: vi.fn(),
   mockUpsertRelationship: vi.fn(),
   mockDispose: vi.fn(),
@@ -37,7 +41,9 @@ vi.mock('../../config/loader.js', () => ({
 
 vi.mock('@recurrsive/graph', () => ({
   createGraphClient: vi.fn().mockResolvedValue({
-    query: mockQuery,
+    getStats: mockGetStats,
+    getEntities: mockGetEntities,
+    getRelationships: mockGetRelationships,
     upsertEntity: mockUpsertEntity,
     upsertRelationship: mockUpsertRelationship,
     dispose: mockDispose,
@@ -223,13 +229,20 @@ describe('registerSnapshotCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (loadConfig as Mock).mockResolvedValue(defaultConfigResult);
-    mockQuery.mockImplementation((sql: string) => {
-      if (sql.includes('entities')) return Promise.resolve(sampleEntities);
-      if (sql.includes('relationships')) {
-        return Promise.resolve(sampleRelationships);
-      }
-      return Promise.resolve([]);
+    // Typed graph queries: getStats enumerates types, getEntities/getRelationships
+    // return fully deserialized objects (lossless round-trip).
+    mockGetStats.mockResolvedValue({
+      entityCountsByType: { class: 1, function: 1 },
+      totalEntities: 2,
+      relationshipCountsByType: { calls: 1 },
+      totalRelationships: 1,
     });
+    mockGetEntities.mockImplementation((type: string) =>
+      Promise.resolve(sampleEntities.filter((e) => e.type === type)),
+    );
+    mockGetRelationships.mockImplementation((id: string) =>
+      Promise.resolve(sampleRelationships.filter((r) => r.source_id === id)),
+    );
     mockUpsertEntity.mockImplementation((e: unknown) => Promise.resolve(e));
     mockUpsertRelationship.mockImplementation((r: unknown) =>
       Promise.resolve(r),
@@ -274,12 +287,16 @@ describe('registerSnapshotCommand', () => {
   // ── Snapshot Export ────────────────────────────────────────────────────
 
   describe('snapshot export', () => {
-    it('queries all entities and relationships', async () => {
+    it('queries all entities and relationships via the typed graph API', async () => {
       const { runExport } = createFakeProgram();
       await runExport();
 
-      expect(mockQuery).toHaveBeenCalledWith('SELECT * FROM entities');
-      expect(mockQuery).toHaveBeenCalledWith('SELECT * FROM relationships');
+      // Typed, lossless round-trip: enumerate types via getStats, then read
+      // deserialized entities/relationships (no raw SELECT * JSON strings).
+      expect(mockGetStats).toHaveBeenCalled();
+      expect(mockGetEntities).toHaveBeenCalledWith('class');
+      expect(mockGetEntities).toHaveBeenCalledWith('function');
+      expect(mockGetRelationships).toHaveBeenCalledWith('ent-002', 'out');
     });
 
     it('generates valid JSON file', async () => {
@@ -340,7 +357,12 @@ describe('registerSnapshotCommand', () => {
     });
 
     it('shows error when graph is empty', async () => {
-      mockQuery.mockResolvedValue([]);
+      mockGetStats.mockResolvedValue({
+        entityCountsByType: {},
+        totalEntities: 0,
+        relationshipCountsByType: {},
+        totalRelationships: 0,
+      });
 
       const { runExport } = createFakeProgram();
       await runExport();
@@ -359,7 +381,7 @@ describe('registerSnapshotCommand', () => {
     });
 
     it('disposes client even on error', async () => {
-      mockQuery.mockRejectedValue(new Error('db failure'));
+      mockGetStats.mockRejectedValue(new Error('db failure'));
 
       const { runExport } = createFakeProgram();
       await runExport();

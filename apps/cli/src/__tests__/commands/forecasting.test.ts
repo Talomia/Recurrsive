@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -56,14 +66,14 @@ describe('forecast command', () => {
     vi.clearAllMocks();
     process.exitCode = undefined;
     mockApiRequest.mockResolvedValue({
-      currentHealth: 74,
-      predictedHealth: 79,
-      trend: 'improving',
-      confidenceLow: 72,
-      confidenceHigh: 86,
-      margin: 7,
-      factors: ['Reduced complexity'],
-      weekly: [{ week: 'Week 1', predicted: 76, confidence: '72-80', trend: 'improving' }],
+      data: {
+        currentScore: 74,
+        trend: 'improving',
+        confidence: 0.82,
+        history: [{ date: '2026-06-01', score: 70 }],
+        forecast: [{ date: '2026-07-01', predicted: 79, lowerBound: 72, upperBound: 86 }],
+        targets: [{ target: 80, daysToReach: 20, reachable: true }],
+      },
     });
   });
 
@@ -103,13 +113,29 @@ describe('forecast command', () => {
     expect(opt).toBeDefined();
   });
 
-  it('what-if subcommand supports --json option', async () => {
-    mockApiRequest.mockResolvedValue([
-      { id: 'a1', name: 'Fix critical bugs', impact: 5, effort: 'M', confidence: 85, category: 'Quality' },
-    ]);
+  it('what-if subcommand posts actions and supports --json option', async () => {
+    mockApiRequest.mockResolvedValue({
+      data: {
+        currentScore: 74,
+        projectedScore: 82,
+        totalImpact: 8,
+        actions: [
+          {
+            type: 'fix-critical-findings',
+            description: 'Fix critical findings',
+            impact: { healthScoreDelta: 8, confidence: 0.9, timeToRealize: '7 days', affectedDimensions: ['security'] },
+          },
+        ],
+        summary: { recommendation: 'Prioritize the highest-confidence actions.' },
+      },
+    });
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const program = createCLI();
-    await program.parseAsync(['node', 'test', 'forecast', 'what-if', '--json']);
+    await program.parseAsync(['node', 'test', 'forecast', 'what-if', 'fix-critical-findings', '--json']);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/forecasting/what-if'),
+      expect.objectContaining({ method: 'POST' }),
+    );
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });

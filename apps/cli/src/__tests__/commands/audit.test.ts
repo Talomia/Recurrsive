@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -38,6 +48,20 @@ import { registerAuditCommand } from '../../commands/audit.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function sampleEvent(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'evt_001',
+    timestamp: new Date().toISOString(),
+    userId: 'user_1',
+    username: 'admin',
+    method: 'POST',
+    url: '/api/v1/analyze',
+    statusCode: 202,
+    action: 'write',
+    ...overrides,
+  };
+}
+
 function createCLI(): Command {
   const program = new Command();
   program.exitOverride();
@@ -57,17 +81,7 @@ describe('audit command', () => {
 
   describe('list', () => {
     it('fetches events from the audit API', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        events: [
-          {
-            id: 'evt_001',
-            type: 'analysis',
-            action: 'started',
-            target: '/project',
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
+      mockApiRequest.mockResolvedValueOnce({ data: [sampleEvent()], total: 1 });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'audit', 'list']);
@@ -81,23 +95,13 @@ describe('audit command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'audit', 'list']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'audit', 'list']),
+      ).rejects.toThrow();
     });
 
     it('outputs JSON with --json flag', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        events: [
-          {
-            id: 'evt_001',
-            type: 'analysis',
-            action: 'started',
-            target: '/project',
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
+      mockApiRequest.mockResolvedValueOnce({ data: [sampleEvent()], total: 1 });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();
@@ -108,45 +112,33 @@ describe('audit command', () => {
     });
   });
 
-  describe('search', () => {
-    it('filters events by query', async () => {
+  describe('filter', () => {
+    it('queries the audit endpoint with structured filters', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        events: [
-          {
-            id: 'evt_010',
-            type: 'policy',
-            action: 'updated',
-            target: '/policy/security',
-            timestamp: new Date().toISOString(),
-          },
-        ],
+        data: [sampleEvent({ id: 'evt_010', action: 'admin' })],
+        total: 1,
       });
 
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'audit', 'search', 'policy', '--json']);
+      await program.parseAsync([
+        'node', 'test', 'audit', 'filter', '--action', 'admin', '--json',
+      ]);
 
-      // Mock data contains a policy event — should match
+      // Path should carry the structured filter, not a keyword search route.
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        expect.stringContaining('action=admin'),
+      );
       const output = spy.mock.calls[0]?.[0] as string;
-      const parsed = JSON.parse(output) as Array<{ type: string }>;
-      expect(parsed.some(e => e.type === 'policy')).toBe(true);
+      const parsed = JSON.parse(output) as Array<{ action: string }>;
+      expect(parsed.some((e) => e.action === 'admin')).toBe(true);
       spy.mockRestore();
     });
   });
 
   describe('export', () => {
     it('outputs JSON export', async () => {
-      mockApiRequest.mockResolvedValueOnce({
-        events: [
-          {
-            id: 'evt_001',
-            type: 'analysis',
-            action: 'started',
-            target: '/project',
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
+      mockApiRequest.mockResolvedValueOnce({ data: [sampleEvent()], total: 1 });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();

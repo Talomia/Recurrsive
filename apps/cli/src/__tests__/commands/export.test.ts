@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -66,7 +76,7 @@ describe('export command', () => {
 
   describe('create', () => {
     it('creates an export via API', async () => {
-      mockApiRequest.mockResolvedValueOnce(MOCK_EXPORT);
+      mockApiRequest.mockResolvedValueOnce({ data: MOCK_EXPORT });
 
       const program = createCLI();
       await program.parseAsync(['node', 'test', 'export', 'create', 'findings', '--format', 'json']);
@@ -81,9 +91,9 @@ describe('export command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'export', 'create', 'all']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'export', 'create', 'all']),
+      ).rejects.toThrow();
     });
   });
 
@@ -105,7 +115,7 @@ describe('export command', () => {
 
   describe('--json flag', () => {
     it('outputs JSON for create command', async () => {
-      mockApiRequest.mockResolvedValueOnce(MOCK_EXPORT);
+      mockApiRequest.mockResolvedValueOnce({ data: MOCK_EXPORT });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const program = createCLI();

@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -54,9 +64,12 @@ describe('simulate command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
-    mockApiRequest.mockResolvedValue([
-      { id: 'sim-001', type: 'load-test', status: 'complete', riskLevel: 'MEDIUM', started: '2026-01-01', duration: '5m' },
-    ]);
+    mockApiRequest.mockResolvedValue({
+      data: [
+        { id: 'sim-001', name: 'Load test', type: 'load-test', status: 'completed', results: { riskLevel: 'medium' }, createdAt: '2026-01-01', completedAt: '2026-01-01' },
+      ],
+      total: 1,
+    });
   });
 
   it('registers the "simulate" command', () => {
@@ -86,11 +99,11 @@ describe('simulate command', () => {
     expect(sub).toBeDefined();
   });
 
-  it('run subcommand supports --duration option', () => {
+  it('run subcommand supports --name option', () => {
     const program = createCLI();
     const simulate = program.commands.find((c) => c.name() === 'simulate')!;
     const run = simulate.commands.find((c) => c.name() === 'run')!;
-    const opt = run.options.find((o) => o.long === '--duration');
+    const opt = run.options.find((o) => o.long === '--name');
     expect(opt).toBeDefined();
   });
 

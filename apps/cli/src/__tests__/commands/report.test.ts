@@ -475,8 +475,15 @@ describe('registerReportCommand', () => {
       const { runAction } = createFakeProgram();
       await runAction();
 
-      // Should still generate the report (not exit) since findings exist
-      expect(generateMarkdownReport).toHaveBeenCalled();
+      // Findings-only runs (reasoning did not run) report the real findings
+      // via the internal findings report, NOT the opportunity generator, and
+      // must not exit with an error.
+      expect(generateMarkdownReport).not.toHaveBeenCalled();
+      expect(termError).not.toHaveBeenCalled();
+      expect(processExitSpy).not.toHaveBeenCalledWith(1);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Security Issue'),
+      );
     });
 
     it('generates report with only opportunities (no findings)', async () => {

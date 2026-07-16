@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -75,9 +85,9 @@ describe('experiments command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'experiments', 'list']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'experiments', 'list']),
+      ).rejects.toThrow();
     });
 
     it('supports --status filter', async () => {
@@ -114,10 +124,12 @@ describe('experiments command', () => {
   describe('create', () => {
     it('sends POST to create an experiment', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        id: 'exp_new',
-        name: 'my-experiment',
-        status: 'draft',
-        created_at: new Date().toISOString(),
+        data: {
+          id: 'exp_new',
+          name: 'my-experiment',
+          status: 'draft',
+          created_at: new Date().toISOString(),
+        },
       });
 
       const program = createCLI();
@@ -131,11 +143,13 @@ describe('experiments command', () => {
 
     it('includes hypothesis when provided', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        id: 'exp_new',
-        name: 'my-experiment',
-        hypothesis: 'It will be faster',
-        status: 'draft',
-        created_at: new Date().toISOString(),
+        data: {
+          id: 'exp_new',
+          name: 'my-experiment',
+          hypothesis: 'It will be faster',
+          status: 'draft',
+          created_at: new Date().toISOString(),
+        },
       });
 
       const program = createCLI();
@@ -152,19 +166,21 @@ describe('experiments command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'experiments', 'create', 'my-experiment']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'experiments', 'create', 'my-experiment']),
+      ).rejects.toThrow();
     });
   });
 
   describe('status', () => {
     it('fetches experiment by ID', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        id: 'exp_001',
-        name: 'test-exp',
-        status: 'complete',
-        created_at: new Date().toISOString(),
+        data: {
+          id: 'exp_001',
+          name: 'test-exp',
+          status: 'complete',
+          created_at: new Date().toISOString(),
+        },
       });
 
       const program = createCLI();
@@ -179,17 +195,19 @@ describe('experiments command', () => {
       mockApiRequest.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
       const program = createCLI();
-      await program.parseAsync(['node', 'test', 'experiments', 'status', 'exp_001']);
-
-      expect(process.exitCode).toBe(1);
+      await expect(
+        program.parseAsync(['node', 'test', 'experiments', 'status', 'exp_001']),
+      ).rejects.toThrow();
     });
 
     it('outputs JSON with --json flag', async () => {
       mockApiRequest.mockResolvedValueOnce({
-        id: 'exp_001',
-        name: 'test-exp',
-        status: 'complete',
-        created_at: new Date().toISOString(),
+        data: {
+          id: 'exp_001',
+          name: 'test-exp',
+          status: 'complete',
+          created_at: new Date().toISOString(),
+        },
       });
       const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
 

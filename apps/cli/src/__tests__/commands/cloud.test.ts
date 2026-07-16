@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -27,7 +37,6 @@ vi.mock('../../output/terminal.js', () => ({
   green: (s: string) => s,
   yellow: (s: string) => s,
   red: (s: string) => s,
-  dim: (s: string) => s,
   magenta: (s: string) => s,
   progressBar: vi.fn((_v: number, _m: number, _w: number) => '[████████]'),
   table: vi.fn(),
@@ -54,9 +63,16 @@ describe('cloud command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
-    mockApiRequest.mockResolvedValue([
-      { metric: 'Code Quality', yourScore: 82, industryAvg: 68, percentile: 78 },
-    ]);
+    // Default: a benchmark report envelope.
+    mockApiRequest.mockResolvedValue({
+      data: {
+        industry: 'all',
+        sampleSize: 3,
+        percentiles: { p25: 60, p50: 70, p75: 80, p90: 90 },
+        dimensionAverages: { security: 72 },
+        topImprovementAreas: ['security'],
+      },
+    });
   });
 
   it('registers the "cloud" command', () => {
@@ -68,47 +84,61 @@ describe('cloud command', () => {
   it('has a "benchmarks" subcommand', () => {
     const program = createCLI();
     const cloud = program.commands.find((c) => c.name() === 'cloud')!;
-    const sub = cloud.commands.find((c) => c.name() === 'benchmarks');
-    expect(sub).toBeDefined();
+    expect(cloud.commands.find((c) => c.name() === 'benchmarks')).toBeDefined();
   });
 
   it('has a "patterns" subcommand', () => {
     const program = createCLI();
     const cloud = program.commands.find((c) => c.name() === 'cloud')!;
-    const sub = cloud.commands.find((c) => c.name() === 'patterns');
-    expect(sub).toBeDefined();
+    expect(cloud.commands.find((c) => c.name() === 'patterns')).toBeDefined();
   });
 
   it('has a "partners" subcommand', () => {
     const program = createCLI();
     const cloud = program.commands.find((c) => c.name() === 'cloud')!;
-    const sub = cloud.commands.find((c) => c.name() === 'partners');
-    expect(sub).toBeDefined();
+    expect(cloud.commands.find((c) => c.name() === 'partners')).toBeDefined();
   });
 
-  it('has a "status" subcommand', () => {
+  it('has a "services" subcommand', () => {
     const program = createCLI();
     const cloud = program.commands.find((c) => c.name() === 'cloud')!;
-    const sub = cloud.commands.find((c) => c.name() === 'status');
-    expect(sub).toBeDefined();
+    expect(cloud.commands.find((c) => c.name() === 'services')).toBeDefined();
   });
 
-  it('benchmarks subcommand supports --json option', async () => {
+  it('benchmarks subcommand hits the report endpoint with --json', async () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const program = createCLI();
     await program.parseAsync(['node', 'test', 'cloud', 'benchmarks', '--json']);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/cloud/benchmarks/report'),
+    );
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
 
-  it('status subcommand supports --json option', async () => {
-    mockApiRequest.mockResolvedValue([
-      { service: 'API Gateway', status: 'operational', uptime: '99.99%', latency: '45ms', region: 'us-east-1' },
-    ]);
+  it('services subcommand supports --json option', async () => {
+    mockApiRequest.mockResolvedValue({
+      data: [
+        { id: 'ms-starter', name: 'Starter', description: 'x', tier: 'starter', features: [], priceRange: '$99/mo', sla: '99.5%' },
+      ],
+      total: 1,
+    });
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const program = createCLI();
-    await program.parseAsync(['node', 'test', 'cloud', 'status', '--json']);
+    await program.parseAsync(['node', 'test', 'cloud', 'services', '--json']);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/cloud/services'),
+    );
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  it('partners subcommand hits the /partners endpoint', async () => {
+    mockApiRequest.mockResolvedValue({ data: [], total: 0 });
+    const program = createCLI();
+    await program.parseAsync(['node', 'test', 'cloud', 'partners', '--json']);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/partners'),
+    );
   });
 });

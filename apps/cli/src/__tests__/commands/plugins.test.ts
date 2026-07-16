@@ -15,7 +15,17 @@ const { mockApiRequest } = vi.hoisted(() => ({
 
 vi.mock('../../config.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config.js')>();
-  return { ...actual, apiRequest: mockApiRequest };
+  return {
+    ...actual,
+    apiRequest: mockApiRequest,
+    apiRequestData: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown }>)(...a).then((e) => e?.data),
+    apiRequestList: (...a: unknown[]) =>
+      (mockApiRequest as (...x: unknown[]) => Promise<{ data?: unknown[]; total?: number }>)(...a).then((e) => ({
+        items: e?.data ?? [],
+        total: e?.total ?? (e?.data?.length ?? 0),
+      })),
+  };
 });
 
 vi.mock('../../output/terminal.js', () => ({
@@ -55,9 +65,12 @@ describe('plugins command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
-    mockApiRequest.mockResolvedValue([
-      { id: 'p1', name: 'test-plugin', version: '1.0.0', status: 'active', author: 'Test', updated: '2026-01-01' },
-    ]);
+    mockApiRequest.mockResolvedValue({
+      data: [
+        { id: 'p1', name: 'test-plugin', version: '1.0.0', status: 'enabled', author: 'Test', updatedAt: '2026-01-01', tags: [] },
+      ],
+      total: 1,
+    });
   });
 
   it('registers the "plugins" command', () => {
