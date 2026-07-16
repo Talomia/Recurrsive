@@ -314,7 +314,7 @@ Recurrsive follows a four-phase pipeline — **Collect → Understand → Reason
 │  Opportunities  ·  Policy  ·  Experiments        │
 ├─────────────────────────────────────────────────┤
 │                 UNDERSTAND                        │
-│  Graph Engine  ·  12 Analyzers  ·  80+ Rules     │
+│  Graph Engine  ·  12 Analyzers  ·  50+ Rules     │
 │  Parsers  ·  AI Pattern Detection                │
 ├─────────────────────────────────────────────────┤
 │                   COLLECT                         │
@@ -332,7 +332,7 @@ recurrsive/
 │   ├── graph/          # Dual-backend knowledge graph — AGE + SQLite
 │   ├── collectors/     # Data ingestion with privacy governance
 │   ├── parsers/        # Tree-sitter + AI pattern detection
-│   ├── analyzers/      # 12 built-in analyzers, 80+ rules
+│   ├── analyzers/      # 12 built-in analyzers, 50+ rules
 │   ├── reasoning/      # Multi-agent debate engine
 │   ├── opportunities/  # Lifecycle + SARIF export
 │   ├── policy/         # Policy engine + 5 built-in policies
@@ -396,7 +396,7 @@ Multi-language code analysis:
 - **Cross-file resolver** for import/dependency tracking
 
 ### `@recurrsive/analyzers`
-12 specialized analyzers with 80+ analysis rules:
+12 specialized analyzers with 50+ analysis rules:
 
 | Analyzer | Focus |
 |----------|-------|

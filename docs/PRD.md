@@ -1651,7 +1651,7 @@ As of v0.5.7, the following deployment surface is implemented:
 | Component | Count | Notes |
 |---|---|---|
 | **REST Endpoints** | 160+ | Across 37 route modules |
-| **Built-in Analyzers** | 12 | 80+ analysis rules |
+| **Built-in Analyzers** | 12 | 50+ analysis rules |
 | **Built-in Collectors** | 14 | Including enterprise integrations (GitHub, GitLab, OpenTelemetry, Langfuse, Arize, Helicone, Cloud Cost, Error Tracking, APM) |
 | **Specialist Agents** | 19 | With Custom Specialist Agent SDK |
 | **CLI Commands** | 25 | Full management and analysis |

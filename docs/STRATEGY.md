@@ -55,7 +55,7 @@ This graph, continuously updated, IS the digital twin.
 | Phase | Package | Status |
 |---|---|---|
 | **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (14 collectors: Git, Docs, Environment, CICD, Database, GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone) |
-| **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (12 analyzers, 80+ rules) |
+| **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (12 analyzers, 50+ rules) |
 | **Reason** | `@recurrsive/reasoning` | ✅ Built (19 specialists, debate protocol) |
 | **Evolve** | `@recurrsive/opportunities` | ✅ Built (lifecycle, SARIF, reports) |
 

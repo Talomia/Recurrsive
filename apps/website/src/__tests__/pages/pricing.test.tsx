@@ -56,7 +56,7 @@ describe('Pricing Page', () => {
   it('renders key Open Source features', () => {
     render(<PricingPage />);
     const collectors = screen.getAllByText('14 data collectors');
-    const analyzers = screen.getAllByText('12 built-in analyzers (80+ rules)');
+    const analyzers = screen.getAllByText('12 built-in analyzers (50+ rules)');
     const cli = screen.getAllByText('CLI with 28 commands');
     expect(collectors.length).toBeGreaterThanOrEqual(1);
     expect(analyzers.length).toBeGreaterThanOrEqual(1);

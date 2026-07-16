@@ -1,6 +1,6 @@
 # Recurrsive — Product Roadmap
 
-## Current State (v0.5.7)
+## Current State (v0.6.0)
 
 | Component | Status | Evidence |
 |---|---|---|
@@ -8,7 +8,7 @@
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
 | Collectors | ✅ Complete | 14 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
-| Analyzers | ✅ Complete | 12 analyzers, 80+ rules, all with cross-cutting finalize() logic |
+| Analyzers | ✅ Complete | 12 analyzers, 50+ rules, all with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (16 rules) |

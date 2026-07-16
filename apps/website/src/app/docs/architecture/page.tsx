@@ -42,7 +42,7 @@ const PIPELINE = [
   {
     icon: Eye,
     title: 'Analyze',
-    desc: '12 analyzers with 80+ rules evaluate architecture, performance, security, cost, data quality, documentation, DevOps, API contracts, and more.',
+    desc: '12 analyzers with 50+ rules evaluate architecture, performance, security, cost, data quality, documentation, DevOps, API contracts, and more.',
     color: '#06b6d4',
   },
   {
@@ -63,7 +63,7 @@ const CORE_PACKAGES = [
   { name: '@recurrsive/core', desc: 'Analysis pipeline orchestration and lifecycle management' },
   { name: '@recurrsive/graph', desc: 'Knowledge graph abstraction (AGE + SQLite backends)' },
   { name: '@recurrsive/collectors', desc: '14 built-in data collectors (Git, GitHub, OTEL, etc.)' },
-  { name: '@recurrsive/analyzers', desc: '12 domain analyzers with 80+ analysis rules' },
+  { name: '@recurrsive/analyzers', desc: '12 domain analyzers with 50+ analysis rules' },
   { name: '@recurrsive/reasoning', desc: 'Multi-agent debate engine and specialist framework' },
   { name: '@recurrsive/types', desc: '43 entity types + 43 relationship types (shared schema)' },
   { name: '@recurrsive/sdk', desc: 'Plugin SDK for custom collectors and analyzers' },
@@ -408,7 +408,7 @@ export default function ArchitecturePage() {
               { label: '1. Evidence Collection', desc: 'Collectors ingest raw data from 14 sources and emit typed entities.' },
               { label: '2. Structural Parsing', desc: 'Tree-sitter extracts AST-level structure from source code.' },
               { label: '3. Graph Enrichment', desc: 'Entities and relationships are upserted into the knowledge graph.' },
-              { label: '4. Rule Evaluation', desc: '80+ rules from 12 analyzers evaluate the graph and produce findings.' },
+              { label: '4. Rule Evaluation', desc: '50+ rules from 12 analyzers evaluate the graph and produce findings.' },
               { label: '5. Multi-Agent Debate', desc: '19 specialists reason over findings, fuse evidence, and rank opportunities.' },
               { label: '6. Presentation', desc: 'Prioritized recommendations are delivered via dashboard, API, or CI/CD checks.' },
             ].map((step) => (
