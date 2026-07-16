@@ -80,6 +80,27 @@ async function buildGrounding(projectId?: string): Promise<string> {
  */
 export async function registerAssistantRoutes(app: FastifyInstance): Promise<void> {
   /**
+   * GET /api/v1/assistant/status
+   *
+   * Report assistant availability WITHOUT invoking the model — availability is
+   * determined solely by whether an LLM key is configured. Lets clients show an
+   * honest "online" / "set an LLM key" state on load with no token cost.
+   */
+  app.get('/api/v1/assistant/status', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const llmKey = process.env['RECURRSIVE_LLM_API_KEY'];
+    const configured = Boolean(llmKey && llmKey.trim().length > 0);
+    return reply.status(200).send({
+      data: configured
+        ? { status: 'available' }
+        : {
+            status: 'unavailable',
+            reason: 'no_llm_key',
+            message: 'Configure RECURRSIVE_LLM_API_KEY to enable the assistant.',
+          },
+    });
+  });
+
+  /**
    * POST /api/v1/assistant/chat
    *
    * Body: `{ messages: [{ role, content }], projectId? }`.

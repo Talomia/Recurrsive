@@ -49,26 +49,27 @@ interface HealthForecastData {
 }
 
 interface WhatIfData {
-  status?: 'insufficient_data';
+  status?: 'insufficient_data' | 'not_analyzed' | 'analyzed';
   message?: string;
+  estimate?: boolean;
+  assumption?: string;
   currentScore?: number;
   projectedScore?: number;
   totalImpact?: number;
   actions?: Array<{
+    id?: string;
     type: string;
     description?: string;
     impact?: {
       healthScoreDelta: number;
-      confidence: number;
-      timeToRealize: string;
-      affectedDimensions: string[];
+      findingsResolved: number;
+      basis: string;
     };
   }>;
   summary?: {
     highestImpact?: string | null;
     totalActions?: number;
-    avgConfidence?: number;
-    recommendation?: string;
+    findingsResolved?: number;
   };
 }
 
@@ -197,7 +198,11 @@ export function registerForecastCommand(program: Command): void {
 
       header('What-If Simulation');
 
-      if (data.status === 'insufficient_data' || data.currentScore === undefined) {
+      if (
+        data.status === 'insufficient_data' ||
+        data.status === 'not_analyzed' ||
+        data.currentScore === undefined
+      ) {
         info(
           data.message ??
             'Not enough analysis data to simulate impact. Run `recurrsive analyze` first.',
@@ -207,20 +212,22 @@ export function registerForecastCommand(program: Command): void {
       }
 
       console.log(`  ${bold('Current Health:')} ${progressBar(data.currentScore, 100, 25)}`);
+      if (data.assumption) {
+        console.log(`  ${dim(`Estimate — ${data.assumption}`)}`);
+      }
       console.log('');
 
       header('Actions');
       for (const action of data.actions ?? []) {
         console.log(`  ${cyan('▸')} ${bold(action.description ?? action.type)}`);
         if (action.impact) {
+          const delta = action.impact.healthScoreDelta;
+          const deltaStr = delta >= 0 ? green(`+${delta}`) : `${delta}`;
           console.log(
-            `    Impact: ${green(`+${action.impact.healthScoreDelta}`)}  ` +
-              `${dim(`${Math.round(action.impact.confidence * 100)}% confidence`)}  ` +
-              `${dim(`realizes in ${action.impact.timeToRealize}`)}`,
+            `    Impact: ${deltaStr} health points  ` +
+              `${dim(`${action.impact.findingsResolved} findings resolved`)}  ` +
+              `${dim(`(${action.impact.basis})`)}`,
           );
-          if (action.impact.affectedDimensions.length > 0) {
-            console.log(`    ${dim(`Dimensions: ${action.impact.affectedDimensions.join(', ')}`)}`);
-          }
         }
         console.log('');
       }
@@ -235,9 +242,16 @@ export function registerForecastCommand(program: Command): void {
         console.log('');
       }
 
-      if (data.summary?.recommendation) {
-        info(dim(data.summary.recommendation));
-        console.log('');
+      if (data.summary) {
+        const parts: string[] = [];
+        if (data.summary.highestImpact) parts.push(`highest impact: ${data.summary.highestImpact}`);
+        if (typeof data.summary.findingsResolved === 'number') {
+          parts.push(`${data.summary.findingsResolved} findings resolved in total`);
+        }
+        if (parts.length > 0) {
+          info(dim(parts.join(' · ')));
+          console.log('');
+        }
       }
     });
 }

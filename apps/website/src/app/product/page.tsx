@@ -70,7 +70,6 @@ const ANALYZERS = [
   { name: 'AI', desc: 'AI integration patterns, evaluation coverage, RAG quality', icon: Sparkles },
   { name: 'AI Runtime', desc: 'Prompt quality, token usage, model selection', icon: Brain },
   { name: 'Product', desc: 'Endpoint test coverage, product-surface quality', icon: Layers },
-  { name: 'UX', desc: 'Accessibility and internationalization signals', icon: Eye },
 ];
 
 export default function ProductPage() {

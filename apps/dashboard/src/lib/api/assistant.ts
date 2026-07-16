@@ -60,14 +60,23 @@ export async function sendAssistantChat(
 }
 
 /**
- * Probe assistant availability without generating a real answer, by sending an
- * empty message list. The server returns the status envelope (in particular
- * `unavailable`/`no_llm_key` when no key is set) without invoking the model.
- * Any error/ambiguity resolves to 'error' so the UI can stay neutral.
+ * Probe assistant availability without generating a real answer, via
+ * `GET /api/v1/assistant/status`. The server reports availability from config
+ * only (no model call, no token cost). The status endpoint returns
+ * `{ status: 'available' | 'unavailable', reason? }`; we map 'available' → 'ok'
+ * so the UI's availability state resolves honestly on load. Any transport error
+ * resolves to 'error' so the UI can stay neutral ("Checking…").
  */
-export async function probeAssistant(projectId?: string): Promise<AssistantChatResponse> {
+export async function probeAssistant(): Promise<AssistantChatResponse> {
   try {
-    return await sendAssistantChat([], projectId);
+    const data = await apiFetch<Record<string, unknown>>('/api/v1/assistant/status');
+    const raw = (data?.status as string) ?? 'unavailable';
+    const status: AssistantStatus = raw === 'available' ? 'ok' : 'unavailable';
+    return {
+      status,
+      message: typeof data?.message === 'string' ? data.message : '',
+      reason: typeof data?.reason === 'string' ? data.reason : undefined,
+    };
   } catch {
     return { status: 'error', message: '' };
   }

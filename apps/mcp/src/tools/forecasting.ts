@@ -65,35 +65,39 @@ export function registerForecastTools(server: McpServer): void {
 
   server.tool(
     'what_if_analysis',
-    'Run a what-if impact simulation for a set of hypothetical actions. ' +
-    'Estimates how each action would affect the project health score and ' +
-    'which dimensions are impacted. Each action is an object with a `type` ' +
-    'field. Recognized types (with calibrated impact models) include: ' +
-    'fix-critical-findings, fix-security-issues, add-tests, add-monitoring, ' +
-    'upgrade-dependencies, refactor-architecture, add-documentation, ' +
-    'enable-strict-mode, add-rate-limiting, optimize-performance. Unknown ' +
-    'types fall back to `estimatedImpact` if provided.',
+    'Run a what-if impact simulation. Each action selects a set of the ' +
+    'project\'s CURRENT findings to hypothetically resolve, then recomputes the ' +
+    'health score from the remaining findings — the delta is derived from real ' +
+    'findings, not a fixed model. An action targets findings by: an explicit ' +
+    '`severity` or `category`; a `type` of "fix-critical-findings" / ' +
+    '"fix-high-findings" / "fix-medium-findings" / "fix-low-findings"; or ' +
+    '"fix-security-issues". A type that matches no findings yields a zero delta ' +
+    '(basis: "no_matching_findings").',
     {
       actions: z
         .array(
           z.object({
             type: z
               .string()
-              .describe('Action type, e.g. "fix-critical-findings" or "add-tests".'),
+              .describe('Action type, e.g. "fix-critical-findings" or "fix-security-issues".'),
+            severity: z
+              .enum(['critical', 'high', 'medium', 'low', 'info'])
+              .optional()
+              .describe('Optional: target all findings of this severity.'),
+            category: z
+              .string()
+              .optional()
+              .describe('Optional: target all findings of this category (e.g. "security").'),
             description: z
               .string()
               .optional()
               .describe('Optional human-readable description of the action.'),
-            estimatedImpact: z
-              .number()
-              .optional()
-              .describe('Optional explicit health-score delta for unknown action types.'),
           }),
         )
         .min(1)
         .describe(
           'List of action objects to simulate, e.g. ' +
-          '[{ "type": "add-tests" }, { "type": "fix-security-issues" }].',
+          '[{ "type": "fix-critical-findings" }, { "type": "fix-security-issues" }].',
         ),
     },
     async ({ actions }) => {

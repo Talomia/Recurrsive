@@ -290,7 +290,7 @@ export default function HomePage() {
             {[
               { value: '160+', label: 'API Endpoints', icon: Globe },
               { value: '42', label: 'MCP Tools', icon: Puzzle },
-              { value: '13', label: 'Analyzers', icon: Search },
+              { value: '12', label: 'Analyzers', icon: Search },
               { value: '28', label: 'CLI Commands', icon: Terminal },
             ].map((stat, i) => (
               <div

@@ -39,7 +39,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
     // Derive events from real analysis history using each run's recorded score.
     const history = state.getAnalysisHistory();
     const events = history
-      .filter(h => h.status === 'success' && h.healthScore !== null)
+      .filter(h => h.status === 'success' && typeof h.healthScore === 'number')
       .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
       .map(entry => {
         const score = entry.healthScore!;
@@ -178,7 +178,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
       // Build events from analysis history using each run's recorded score.
       const history = state.getAnalysisHistory();
       const events = history
-        .filter(h => h.status === 'success' && h.healthScore !== null)
+        .filter(h => h.status === 'success' && typeof h.healthScore === 'number')
         .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
         .map(entry => {
           const score = entry.healthScore!;

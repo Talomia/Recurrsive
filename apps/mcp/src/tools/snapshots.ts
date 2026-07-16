@@ -34,7 +34,7 @@ export function registerSnapshotTools(server: McpServer): void {
     async () => {
       try {
         const result = await apiRequest<unknown>('/api/v1/snapshots/export', {
-          method: 'POST',
+          method: 'GET',
         });
 
         return {

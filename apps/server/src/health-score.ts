@@ -30,14 +30,48 @@ export const SEVERITY_WEIGHT: Record<string, number> = {
   info: 0,
 };
 
-/** Maturity dimensions derived from finding categories. */
+/**
+ * Map each finding category (OpportunityCategory) to a maturity dimension.
+ *
+ * Every category a finding can actually carry maps to exactly one dimension so
+ * that no finding is silently dropped from the breakdown and no dimension is
+ * reported that no finding can ever populate (which would fabricate a perfect
+ * score). The maturity `testing` dimension is intentionally omitted: no
+ * analyzer emits a `testing` category, so reporting it would always show a
+ * fabricated 100.
+ */
+const CATEGORY_TO_DIMENSION: Record<string, MaturityScore['dimension']> = {
+  architecture: 'architecture',
+  security: 'security',
+  privacy: 'security',
+  compliance: 'security',
+  reliability: 'reliability',
+  performance: 'operational',
+  cost: 'operational',
+  infrastructure: 'operational',
+  data: 'data',
+  documentation: 'documentation',
+  ai_quality: 'ai',
+  ux: 'product',
+  accessibility: 'product',
+  product: 'product',
+  developer_experience: 'developer_experience',
+};
+
+/**
+ * Maturity dimensions reported by the health score — only dimensions that a
+ * finding category can actually map to (see {@link CATEGORY_TO_DIMENSION}).
+ */
 const DIMENSIONS: MaturityScore['dimension'][] = [
   'architecture',
   'security',
   'reliability',
+  'operational',
   'data',
   'documentation',
-  'testing',
+  'ai',
+  'product',
+  'developer_experience',
 ];
 
 /** Result of a health-score computation for an analyzed project. */
@@ -76,13 +110,18 @@ export function computeHealthScore(
 
   const overall = Math.round(100 * Math.exp(-weightedCount / 200));
 
-  const categoryFindings = new Map<string, number>();
+  // Tally findings per dimension via the category→dimension map so that every
+  // finding contributes to exactly one reported dimension.
+  const dimensionFindings = new Map<string, number>();
   for (const finding of findings) {
-    categoryFindings.set(finding.category, (categoryFindings.get(finding.category) ?? 0) + 1);
+    const dim = CATEGORY_TO_DIMENSION[finding.category];
+    if (dim) {
+      dimensionFindings.set(dim, (dimensionFindings.get(dim) ?? 0) + 1);
+    }
   }
 
   const dimensions: MaturityScore[] = DIMENSIONS.map((dim) => {
-    const count = categoryFindings.get(dim) ?? 0;
+    const count = dimensionFindings.get(dim) ?? 0;
     const score = Math.round(100 * Math.exp(-count / 10));
     return {
       dimension: dim,

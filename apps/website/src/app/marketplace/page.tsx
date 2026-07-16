@@ -41,7 +41,6 @@ const BUILT_IN_ANALYZERS = [
   { name: 'Product', icon: Sparkles, color: '#f97316', description: 'Endpoint test coverage and product-surface quality signals.' },
   { name: 'Reliability', icon: Activity, color: '#06b6d4', description: 'Resilience patterns — retries, timeouts, circuit breakers, health checks.' },
   { name: 'Security', icon: ShieldCheck, color: 'var(--red)', description: 'OWASP-style checks, secret leaks, and insecure configuration.' },
-  { name: 'UX', icon: Eye, color: '#8b5cf6', description: 'Accessibility and internationalization signals across the app surface.' },
 ];
 
 // ── Community extension shape returned by GET /api/v1/marketplace/extensions ──

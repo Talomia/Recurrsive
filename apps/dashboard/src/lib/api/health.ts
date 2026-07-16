@@ -54,18 +54,23 @@ export interface PerformanceMetric {
 
 export interface ServiceStatus {
   name: string;
-  status: "healthy" | "degraded" | "down";
-  latency_ms?: number;
-  uptime_percent?: number;
+  /** Real init-derived status: 'up' once initialized, else 'idle'. */
+  status: "up" | "idle";
   last_check: string;
 }
 
 export interface HealthDashboardData {
-  overall_score: number;
-  api_latency_ms: number;
-  memory_usage_percent: number;
-  cpu_usage_percent: number;
-  uptime_days: number;
+  /** Overall health for the project, or null when not analyzed. */
+  overall_score: number | null;
+  /** Real process memory metrics (no fabricated percentages). */
+  memory: {
+    rss_bytes: number;
+    heap_total_bytes: number;
+    heap_used_bytes: number;
+    usage_percent: number;
+  };
+  /** Real process uptime in seconds. */
+  uptime_seconds: number;
   services: ServiceStatus[];
 }
 
@@ -150,11 +155,9 @@ export async function getHealthDashboard(): Promise<HealthDashboardData> {
     return await apiFetch<HealthDashboardData>("/api/v1/health/dashboard");
   } catch {
     return {
-      overall_score: 0,
-      api_latency_ms: 0,
-      memory_usage_percent: 0,
-      cpu_usage_percent: 0,
-      uptime_days: 0,
+      overall_score: null,
+      memory: { rss_bytes: 0, heap_total_bytes: 0, heap_used_bytes: 0, usage_percent: 0 },
+      uptime_seconds: 0,
       services: [],
     };
   }

@@ -130,7 +130,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
 
       // Trend from the last two successful runs' REAL recorded health scores.
       const history = await state.loadHistoryForProject(projectId);
-      const scored = history.filter((h) => h.status === 'success' && h.healthScore !== null);
+      const scored = history.filter((h) => h.status === 'success' && typeof h.healthScore === 'number');
       let healthTrend: number | null = null;
       if (scored.length >= 2) {
         const prev = scored[scored.length - 2]!.healthScore!;
@@ -268,7 +268,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
    */
   app.get<{ Querystring: { projectId?: string } }>('/api/v1/health-score/history', { preHandler: [authMiddleware] }, async (request, reply) => {
     const history = await state.loadHistoryForProject(request.query.projectId);
-    const scored = history.filter((h) => h.status === 'success' && h.healthScore !== null);
+    const scored = history.filter((h) => h.status === 'success' && typeof h.healthScore === 'number');
 
     const scoreHistory = scored.map((entry) => {
       const score = entry.healthScore!;

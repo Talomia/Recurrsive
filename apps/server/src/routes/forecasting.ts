@@ -60,7 +60,7 @@ function linearRegression(points: Array<{ x: number; y: number }>): {
 async function buildRealTimeline(projectId?: string): Promise<Array<{ date: string; score: number }>> {
   const history = await state.loadHistoryForProject(projectId);
   return history
-    .filter((h) => h.status === 'success' && h.healthScore !== null)
+    .filter((h) => h.status === 'success' && typeof h.healthScore === 'number')
     .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
     .map((entry) => ({
       date: new Date(entry.startedAt).toISOString().split('T')[0]!,
@@ -78,7 +78,6 @@ function findingsRemovedBy(
 
   const severityMatch = /^fix-(critical|high|medium|low)-findings$/.exec(action.type);
   if (severityMatch) return findings.filter((f) => f.severity === severityMatch[1]);
-  if (action.type === 'fix-critical-findings') return findings.filter((f) => f.severity === 'critical');
   if (action.type === 'fix-security-issues') return findings.filter((f) => f.category === 'security');
   return [];
 }
@@ -293,7 +292,7 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
     try {
       const history = await state.loadHistoryForProject(request.query.projectId);
       const successfulRuns = history
-        .filter((h) => h.status === 'success' && h.healthScore !== null)
+        .filter((h) => h.status === 'success' && typeof h.healthScore === 'number')
         .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
 
       interface EvolutionEvent {
