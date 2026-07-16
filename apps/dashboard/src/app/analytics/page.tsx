@@ -579,15 +579,6 @@ export default function AnalyticsPage() {
                               <span className={`text-xs font-bold tabular-nums ${insight.color}`}>{insight.trend}</span>
                             </div>
                             <p className="mt-2 text-sm text-text-secondary leading-relaxed">{insight.description}</p>
-                            <div className="mt-3 flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-text-muted">Confidence</span>
-                                <div className="h-1.5 w-16 rounded-full bg-white/5 overflow-hidden">
-                                  <div className="h-full rounded-full bg-accent-blue" style={{ width: `${insight.confidence}%` }} />
-                                </div>
-                                <span className="text-[10px] font-semibold text-text-secondary tabular-nums">{insight.confidence}%</span>
-                              </div>
-                            </div>
                           </div>
                         </div>
                       </div>

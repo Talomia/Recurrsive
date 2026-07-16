@@ -9,35 +9,57 @@ interface ActiveProjectContextType {
   activeProject: Project | null;
   loading: boolean;
   switchProject: (id: string) => void;
+  /** Re-fetch the project list (call after create/delete). */
+  refresh: () => Promise<void>;
 }
 
 const ActiveProjectContext = createContext<ActiveProjectContextType | undefined>(undefined);
+
+/** localStorage key remembering the last project the user scoped to. */
+const LAST_PROJECT_KEY = 'recurrsive-active-project';
+
+function readLastProject(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(LAST_PROJECT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLastProject(id: string) {
+  try {
+    localStorage.setItem(LAST_PROJECT_KEY, id);
+  } catch {
+    // storage unavailable — non-fatal
+  }
+}
 
 export function ActiveProjectProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
 
-  // Load all projects on mount
-  useEffect(() => {
-    let active = true;
-    getProjects()
-      .then((data) => {
-        if (!active) return;
-        setProjects(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+  // Load (or reload) the project list. Exposed as `refresh` so pages can call
+  // it after creating/deleting a project without a full navigation.
+  const refresh = useCallback(async () => {
+    try {
+      const data = await getProjects();
+      setProjects(data);
+    } catch {
+      // Leave the previous list in place on a transient failure.
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const projectId = searchParams.get('projectId');
 
@@ -52,25 +74,28 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
       const found = projects.find((p) => p.id === projectId || p.slug === projectId);
       if (found) {
         setActiveProject(found);
+        writeLastProject(found.id);
         return;
       }
     }
 
-    // Auto-scoping redirect logic: if there is no query param, or the query param doesn't match any project,
-    // and we are not on a non-scoped route (like /login or /setup), auto-select the first project.
+    // No (matching) query param. Auto-scope on scoped routes only.
     const nonScopedRoutes = ['/login', '/setup', '/invites', '/invite/'];
     const isNonScoped = nonScopedRoutes.some((route) => pathname.startsWith(route));
 
     if (!isNonScoped && !loading) {
-      // Sort alphabetically to guarantee consistent first selector
-      const sorted = [...projects].sort((a, b) => a.name.localeCompare(b.name));
-      const firstProject = sorted[0];
-      if (firstProject) {
+      // Prefer the user's last-active project (persisted) so navigation and
+      // reloads don't silently jump to the alphabetically-first project.
+      const remembered = readLastProject();
+      const target =
+        (remembered && projects.find((p) => p.id === remembered)) ||
+        [...projects].sort((a, b) => a.name.localeCompare(b.name))[0];
+
+      if (target) {
         const current = new URLSearchParams(Array.from(searchParams.entries()));
-        current.set('projectId', firstProject.id);
+        current.set('projectId', target.id);
         const search = current.toString();
         const query = search ? `?${search}` : '';
-        
         // Use router.replace to avoid clogging browser history
         router.replace(`${pathname}${query}`);
       }
@@ -78,6 +103,7 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
   }, [projects, projectId, pathname, loading, router, searchParams]);
 
   const switchProject = useCallback((id: string) => {
+    writeLastProject(id);
     const current = new URLSearchParams(Array.from(searchParams.entries()));
     current.set('projectId', id);
     const search = current.toString();
@@ -86,7 +112,7 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
   }, [pathname, searchParams, router]);
 
   return (
-    <ActiveProjectContext.Provider value={{ projects, activeProject, loading, switchProject }}>
+    <ActiveProjectContext.Provider value={{ projects, activeProject, loading, switchProject, refresh }}>
       {children}
     </ActiveProjectContext.Provider>
   );

@@ -195,16 +195,12 @@ export async function getFinding(id: string): Promise<Finding | null> {
 
 /**
  * Get findings page data with stats and filterable list.
+ *
+ * Throws on failure so the page can distinguish a server error from a
+ * genuinely empty result set (no findings yet).
  */
 export async function getFindingsPage(): Promise<FindingsPageData> {
-  try {
-    return await apiFetch<FindingsPageData>("/api/v1/findings/page");
-  } catch {
-    return {
-      findings: [],
-      stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
-    };
-  }
+  return await apiFetch<FindingsPageData>("/api/v1/findings/page");
 }
 
 /**

@@ -30,6 +30,7 @@ import { getProjects, createBatchRun, triggerAnalysis } from '@/lib/api';
 import type { Project } from '@/lib/api';
 import { apiFetch } from '@/lib/api/client';
 import Header from '@/components/header';
+import { useActiveProject } from '@/components/active-project-context';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -261,6 +262,7 @@ function ProjectQuickLinks({ project }: { project: Project }) {
 // ---------------------------------------------------------------------------
 
 export default function ProjectsPage() {
+  const { refresh: refreshActiveProjects } = useActiveProject();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -297,6 +299,8 @@ export default function ProjectsPage() {
       setNewRepo('');
       setShowCreate(false);
       setToast({ message: `Project "${data.name}" created! Click "Analyze" to run your first analysis.`, type: 'success' });
+      // Keep the global project switcher (sidebar/header) in sync.
+      void refreshActiveProjects();
     } catch {
       setError('Failed to create project.');
     }
@@ -307,6 +311,8 @@ export default function ProjectsPage() {
       await apiFetch(`/api/v1/projects/${encodeURIComponent(id)}`, { method: 'DELETE', unwrap: false });
       setProjects(prev => prev.filter(p => p.id !== id));
       setToast({ message: 'Project deleted.', type: 'info' });
+      // Keep the global project switcher (sidebar/header) in sync.
+      void refreshActiveProjects();
     } catch {
       setError('Failed to delete project.');
     }

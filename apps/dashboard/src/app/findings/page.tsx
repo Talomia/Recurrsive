@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff, ArrowRight } from "lucide-react";
 import Header from "@/components/header";
@@ -28,21 +29,44 @@ const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low"]
 const STATUS_OPTIONS = ["All Statuses", "open", "resolved", "suppressed"] as const;
 
 export default function FindingsPage() {
+  const searchParams = useSearchParams();
+  // Key the fetch on the active project so switching projects (a query-string
+  // change) actually refetches instead of showing the first project's data.
+  const projectId = searchParams.get("projectId");
+
   const [data, setData] = useState<FindingsPageData | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("All Severities");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
 
   useEffect(() => {
     let cancelled = false;
+    setData(null);
+    setError(null);
     getFindingsPage()
-      .then((data) => { if (!cancelled) setData(data); })
-      .catch(() => {
-        /* API unavailable – render empty state */
-        if (!cancelled) setData({ stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0 }, findings: [] as FindingsPageData['findings'] } satisfies FindingsPageData);
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch((err) => {
+        // Distinguish a server error from a genuinely empty result set.
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load findings");
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [projectId]);
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <Header title="Security Findings" subtitle="Couldn't load findings" />
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-5 py-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-400 flex-none" />
+          <div>
+            <p className="text-sm font-medium text-red-400">Failed to load findings</p>
+            <p className="text-xs text-text-muted mt-0.5 font-mono">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const filtered = useMemo(() => {
     if (!data) return [];

@@ -74,27 +74,37 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load settings sections from API (pure mock fallback) and hydrate from localStorage
+  // Load setting section definitions AND the current server-persisted values.
+  // Values come from the server (GET /api/v1/config → data.settings) — never
+  // from localStorage. A 503 (server not initialized) falls back to the section
+  // defaults, which are the server's own defaults.
   useEffect(() => {
-    getSettingsSections()
-      .then((s) => {
+    (async () => {
+      try {
+        const s = await getSettingsSections();
         setSections(s);
         const defaults = buildDefaults(s);
+        let serverValues: Record<string, unknown> = {};
         try {
-          const stored = localStorage.getItem('recurrsive-settings');
-          if (stored) {
-            const parsed = JSON.parse(stored) as Record<string, string | boolean>;
-            setValues({ ...defaults, ...parsed });
-          } else {
-            setValues(defaults);
-          }
+          const cfg = await apiFetch<{ settings?: Record<string, unknown> }>('/api/v1/config');
+          serverValues = cfg?.settings ?? {};
         } catch {
-          // localStorage unavailable or corrupt — use defaults
-          setValues(defaults);
+          // Server not initialized / unreachable — show defaults (still editable).
         }
-      })
-      .catch(() => setError('Failed to load settings.'))
-      .finally(() => setLoading(false));
+        const merged: Record<string, string | boolean> = { ...defaults };
+        for (const key of Object.keys(defaults)) {
+          if (key in serverValues && serverValues[key] != null) {
+            const v = serverValues[key];
+            merged[key] = typeof v === 'boolean' ? v : String(v);
+          }
+        }
+        setValues(merged);
+      } catch {
+        setError('Failed to load settings.');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const handleChange = useCallback((key: string, value: string | boolean) => {
@@ -103,38 +113,34 @@ export default function SettingsPage() {
   }, []);
 
   const handleSave = useCallback(async () => {
+    setError(null);
+    // Coerce number-typed fields to real numbers for the PATCH schema.
+    const numberKeys = new Set(
+      sections.flatMap((s) => s.settings.filter((f) => f.type === 'number').map((f) => f.key)),
+    );
+    const payload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(values)) {
+      payload[k] = numberKeys.has(k) && typeof v === 'string' ? Number(v) : v;
+    }
     try {
-      // Persist to server
       await apiFetch('/api/v1/config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
         unwrap: false,
       });
-      // Also persist to localStorage as fallback
-      localStorage.setItem('recurrsive-settings', JSON.stringify(values));
+      // Only claim success after the server actually accepts the change.
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      // Fall back to localStorage-only persistence
-      try {
-        localStorage.setItem('recurrsive-settings', JSON.stringify(values));
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      } catch {
-        // localStorage unavailable — no-op
-      }
+    } catch (err) {
+      setSaved(false);
+      setError(err instanceof Error ? `Failed to save settings: ${err.message}` : 'Failed to save settings.');
     }
-  }, [values]);
+  }, [values, sections]);
 
   const handleReset = useCallback(() => {
     setValues(buildDefaults(sections));
     setSaved(false);
-    try {
-      localStorage.removeItem('recurrsive-settings');
-    } catch {
-      // no-op
-    }
   }, [sections]);
 
   if (loading) {

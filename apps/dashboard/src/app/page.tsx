@@ -589,7 +589,7 @@ export default function OverviewPage() {
                   />
                   <KPICard
                     title="Total Findings"
-                    value={totalFindings || health.findingCount}
+                    value={String(totalFindings || health.findingCount)}
                     icon="🛡️"
                     gradient="linear-gradient(135deg, #f97316, #ea580c)"
                   />
