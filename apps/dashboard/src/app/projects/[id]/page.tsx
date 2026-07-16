@@ -208,9 +208,11 @@ export default function ProjectDetailPage() {
     setError(null);
     try {
       const isGitUrl = project.repository.includes('github.com') || project.repository.startsWith('git@') || project.repository.startsWith('http');
+      // Scope the analysis to THIS project so its results (cache, history, and
+      // health write-back) land under this project's id — where this page reads.
       const body = isGitUrl
-        ? { gitUrl: project.repository, include_reasoning: true }
-        : { path: project.repository, include_reasoning: true };
+        ? { gitUrl: project.repository, include_reasoning: true, projectId: project.id }
+        : { path: project.repository, include_reasoning: true, projectId: project.id };
 
       await apiFetch('/api/v1/analyze', {
         method: 'POST',

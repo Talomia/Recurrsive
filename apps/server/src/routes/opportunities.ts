@@ -120,7 +120,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    *
    * Update the lifecycle status of an opportunity (accept, reject, etc.).
    */
-  app.patch<{ Params: OpportunityParams; Body: UpdateStatusBody }>(
+  app.patch<{ Params: OpportunityParams; Body: UpdateStatusBody; Querystring: { projectId?: string } }>(
     '/api/v1/opportunities/:id',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
@@ -146,9 +146,8 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
       }
 
 
-      const manager = state.getOpportunities();
       try {
-        const updated = manager.updateStatus(id, status, reason);
+        const updated = await state.setOpportunityStatus(request.query.projectId, id, status, reason);
         return reply.status(200).send({ data: updated });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -166,7 +165,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    *
    * Export all opportunities in the specified format (json, markdown, sarif).
    */
-  app.get<{ Params: ExportParams }>(
+  app.get<{ Params: ExportParams; Querystring: { projectId?: string } }>(
     '/api/v1/opportunities/export/:format',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
@@ -181,7 +180,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
       }
 
 
-      const manager = state.getOpportunities();
+      const manager = await state.loadOpportunitiesForProject(request.query.projectId);
 
       try {
         const exported = manager.export(format as ExportFormat);

@@ -124,3 +124,28 @@ export async function getOpportunity(id: string): Promise<Opportunity | undefine
     return undefined;
   }
 }
+
+/** Lifecycle status accepted by the server's opportunity PATCH. */
+export type OpportunityStatusUpdate =
+  | 'proposed' | 'accepted' | 'rejected' | 'in_progress'
+  | 'implemented' | 'validated' | 'archived';
+
+/**
+ * Update an opportunity's lifecycle status via `PATCH /api/v1/opportunities/:id`.
+ *
+ * The active project scope (`?projectId=`) is appended automatically by the API
+ * client, so the change targets and persists to the correct project. Throws on
+ * failure so the caller can surface an error toast.
+ */
+export async function updateOpportunityStatus(
+  id: string,
+  status: OpportunityStatusUpdate,
+  reason?: string,
+): Promise<void> {
+  await apiFetch(`/api/v1/opportunities/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, ...(reason ? { reason } : {}) }),
+    headers: { "Content-Type": "application/json" },
+    unwrap: false,
+  });
+}

@@ -244,11 +244,18 @@ export interface AnalysisResult {
  * Trigger a single-project analysis via `POST /api/v1/analyze`.
  *
  * @param gitUrl - The repository URL to analyze.
+ * @param projectId - The project the results belong to. REQUIRED for results to
+ *   surface on that project's pages — the server persists the analysis cache and
+ *   writes back the project's health under this id. Omitting it lands the results
+ *   in the implicit 'default' bucket where no project page reads them.
  */
-export async function triggerAnalysis(gitUrl: string): Promise<AnalysisResult> {
+export async function triggerAnalysis(
+  gitUrl: string,
+  projectId?: string,
+): Promise<AnalysisResult> {
   return await apiFetch<AnalysisResult>('/api/v1/analyze', {
     method: 'POST',
-    body: JSON.stringify({ gitUrl }),
+    body: JSON.stringify({ gitUrl, ...(projectId ? { projectId } : {}) }),
     headers: { 'Content-Type': 'application/json' },
     unwrap: false,
   });

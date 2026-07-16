@@ -19,6 +19,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { apiFetch } from './api/client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -225,6 +226,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Best-effort server-side revocation of the current token's jti before we
+    // clear it locally. apiFetch reads the token synchronously (before the
+    // first await), so it captures it ahead of clearStoredToken(). Fire-and-
+    // forget: local sign-out must succeed even if the request fails.
+    void apiFetch('/api/v1/auth/logout', { method: 'POST', unwrap: false }).catch(() => {});
     clearStoredToken();
     setToken(null);
     setUser(null);

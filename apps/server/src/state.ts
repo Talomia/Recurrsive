@@ -1086,6 +1086,47 @@ export class ServerState {
   }
 
   /**
+   * Build the evolution timeline for a SPECIFIC project from its persisted
+   * cache, so timeline endpoints honor `?projectId=` instead of always returning
+   * the in-memory current project (which bled one project's data to every
+   * project's Timeline page).
+   *
+   * @param projectId - Project id, or undefined for the default project.
+   */
+  async getEvolutionTimelineForProject(projectId?: string): Promise<EvolutionTimeline> {
+    const id = projectId ?? DEFAULT_PROJECT_ID;
+    // Use the in-memory timeline only when it belongs to the requested project.
+    if (this._evolutionTimeline && id === this._currentProjectId) {
+      return this._evolutionTimeline;
+    }
+
+    const cache = await this.loadCacheForProject(id);
+    if (!cache) {
+      return { project_id: id, snapshots: [], trends: [] };
+    }
+
+    const snapshot: EvolutionSnapshot = {
+      id: generateId(),
+      timestamp: cache.analyzedAt ?? nowISO(),
+      maturity_scores: [],
+      overall_health: computeHealthScore(cache.findings, cache.opportunities).overall,
+      opportunity_count: cache.opportunities.length,
+      debt_count: cache.opportunities.filter((o) => o.type === 'debt').length,
+      risk_count: cache.opportunities.filter((o) => o.type === 'risk').length,
+      top_opportunities: cache.opportunities.slice(0, 5).map((o) => o.id),
+      changes_since_last: {
+        new_opportunities: cache.opportunities.length,
+        resolved_opportunities: 0,
+        new_risks: cache.opportunities.filter((o) => o.type === 'risk').length,
+        resolved_risks: 0,
+        maturity_changes: [],
+      },
+    };
+
+    return { project_id: id, snapshots: [snapshot], trends: [] };
+  }
+
+  /**
    * Compute the project health score from the in-memory analysis cache.
    *
    * Delegates to the canonical {@link computeHealthScore}. Returns an explicit
@@ -1154,6 +1195,44 @@ export class ServerState {
     }
     const cache = await this.loadCacheForProject(id);
     return new OpportunityManager(cache?.opportunities ?? []);
+  }
+
+  /**
+   * Update an opportunity's lifecycle status for a SPECIFIC project and persist
+   * the change back to that project's analysis cache.
+   *
+   * Fixes two problems with mutating the in-memory current manager: the change
+   * targeted whichever project was analyzed last (not the one being viewed),
+   * and it never survived a restart. Now the correct project's opportunities are
+   * loaded, updated, and written back to the store.
+   *
+   * @param projectId - Project the opportunity belongs to (defaults to the implicit project).
+   * @param id - Opportunity id.
+   * @param status - New lifecycle status.
+   * @param reason - Optional reason recorded with the transition.
+   * @returns The updated opportunity.
+   */
+  async setOpportunityStatus(
+    projectId: string | undefined,
+    id: string,
+    status: Opportunity['status'],
+    reason?: string,
+  ): Promise<Opportunity> {
+    const pid = projectId ?? DEFAULT_PROJECT_ID;
+    const manager = await this.loadOpportunitiesForProject(pid);
+    const updated = manager.updateStatus(id, status, reason);
+
+    // Persist the mutated set back to the project's cache so the change sticks.
+    const cache = await this.loadCacheForProject(pid);
+    if (cache) {
+      cache.opportunities = manager.list();
+      await store.set('analysis_cache', pid, cache);
+      if (pid === this._currentProjectId) {
+        this.analysisCache = cache;
+        this.opportunityManager = manager;
+      }
+    }
+    return updated;
   }
 
   /**

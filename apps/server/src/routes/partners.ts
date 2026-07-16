@@ -18,7 +18,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { store } from '../store.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, optionalAuth } from '../middleware/auth.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -87,7 +87,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    *
    * List all partners with optional filtering.
    */
-  app.get(prefix, { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.get(prefix, { preHandler: [optionalAuth] }, async (request, reply) => {
     const query = request.query as { tier?: PartnerTier; type?: PartnerType; region?: string };
 
     let results = await store.all<Partner>('partners');
@@ -122,7 +122,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    *
    * Get partner detail.
    */
-  app.get(`${prefix}/:id`, { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.get(`${prefix}/:id`, { preHandler: [optionalAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const partner = await store.get<Partner>('partners', id);
     if (!partner) {
@@ -145,7 +145,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
         properties: {
           companyName: { type: 'string', minLength: 1 },
           contactEmail: { type: 'string', format: 'email' },
-          partnerType: { type: 'string', enum: ['technology', 'consulting', 'integration', 'reseller'] },
+          partnerType: { type: 'string', enum: ['system-integrator', 'consulting', 'technology', 'cloud-provider'] },
           description: { type: 'string' },
           website: { type: 'string' },
           contactName: { type: 'string' },
@@ -193,7 +193,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    *
    * List available certification tracks.
    */
-  app.get(`${prefix}/certifications`, { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get(`${prefix}/certifications`, { preHandler: [optionalAuth] }, async (_request, reply) => {
     return reply.send({
       data: await store.all<Certification>('certifications'),
     });
@@ -204,7 +204,7 @@ export async function registerPartnerRoutes(app: FastifyInstance): Promise<void>
    *
    * Partner program statistics.
    */
-  app.get(`${prefix}/stats`, { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get(`${prefix}/stats`, { preHandler: [optionalAuth] }, async (_request, reply) => {
     const all = await store.all<Partner>('partners');
     const totalEngineers = all.reduce((sum, p) => sum + p.certifiedEngineers, 0);
     const totalCustomers = all.reduce((sum, p) => sum + p.customerCount, 0);

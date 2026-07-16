@@ -305,7 +305,7 @@ export default function ProjectsPage() {
   const analyzeProject = useCallback(async (project: Project) => {
     setAnalyzingIds(prev => new Set(prev).add(project.id));
     try {
-      await triggerAnalysis(project.repository);
+      await triggerAnalysis(project.repository, project.id);
       toast(`Analysis started for "${project.name}". Check the Overview page for progress.`, 'success');
     } catch {
       toast(`Failed to start analysis for "${project.name}".`, 'error');

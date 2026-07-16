@@ -26,7 +26,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
    * Return the full evolution timeline for the project, including all
    * snapshots and derived trend series.
    */
-  app.get('/api/v1/timeline', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/timeline', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -34,10 +34,10 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
       });
     }
 
-    const timeline = state.getEvolutionTimeline();
+    const timeline = await state.getEvolutionTimelineForProject(request.query.projectId);
 
     // Derive events from real analysis history using each run's recorded score.
-    const history = state.getAnalysisHistory();
+    const history = await state.loadHistoryForProject(request.query.projectId);
     const events = history
       .filter(h => h.status === 'success' && typeof h.healthScore === 'number')
       .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
@@ -74,7 +74,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
    * (newest first). Each snapshot captures the project's maturity
    * state at a point in time.
    */
-  app.get('/api/v1/timeline/snapshots', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/timeline/snapshots', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -82,7 +82,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
       });
     }
 
-    const timeline = state.getEvolutionTimeline();
+    const timeline = await state.getEvolutionTimelineForProject(request.query.projectId);
     const snapshots = [...timeline.snapshots].reverse();
 
     return reply.status(200).send({
@@ -98,7 +98,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
    * time. Each series contains ordered data points with timestamps
    * and values.
    */
-  app.get('/api/v1/timeline/trends', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/timeline/trends', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -106,7 +106,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
       });
     }
 
-    const timeline = state.getEvolutionTimeline();
+    const timeline = await state.getEvolutionTimelineForProject(request.query.projectId);
 
     // If no pre-computed trends, derive them from snapshots
     if (timeline.trends.length > 0) {
@@ -161,7 +161,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
    * Return timeline events with limit/offset pagination.
    * Events are derived from evolution snapshots and analysis history.
    */
-  app.get<{ Querystring: { limit?: string; offset?: string } }>(
+  app.get<{ Querystring: { limit?: string; offset?: string; projectId?: string } }>(
     '/api/v1/timeline/events',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
@@ -176,7 +176,7 @@ export async function registerTimelineRoutes(app: FastifyInstance): Promise<void
       const offset = Math.max(0, parseInt(request.query.offset ?? '0', 10) || 0);
 
       // Build events from analysis history using each run's recorded score.
-      const history = state.getAnalysisHistory();
+      const history = await state.loadHistoryForProject(request.query.projectId);
       const events = history
         .filter(h => h.status === 'success' && typeof h.healthScore === 'number')
         .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
