@@ -459,7 +459,7 @@ export default function ArchitecturePage() {
                     background: ext.color, marginBottom: 'var(--space-md)',
                   }}
                 />
-                <h4 style={{ fontSize: '0.95rem', marginBottom: 'var(--space-sm)' }}>{ext.title}</h4>
+                <h3 style={{ fontSize: '0.95rem', marginBottom: 'var(--space-sm)' }}>{ext.title}</h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
                   {ext.desc}
                 </p>

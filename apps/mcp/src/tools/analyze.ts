@@ -63,20 +63,6 @@ function formatOpportunitySummary(opp: Opportunity): string {
 }
 
 /**
- * Compute a synthetic health score from graph stats and opportunities.
- *
- * The score is a weighted blend of:
- * - Base score of 100
- * - Penalties for critical/high/medium severity issues
- * - Bonus for low issue density relative to graph size
- *
- * @param opportunities - Current opportunities.
- * @param stats - Graph statistics.
- * @returns A health score between 0 and 100.
- */
-// computeHealthScore is imported from ../health.js
-
-/**
  * Compute per-dimension maturity scores from analyzer findings.
  *
  * Findings — not opportunities — drive the dimension breakdown so that a

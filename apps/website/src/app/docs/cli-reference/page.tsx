@@ -93,7 +93,7 @@ const COMMAND_GROUPS = [
     icon: Shield,
     color: 'var(--green)',
     commands: [
-      { cmd: 'login', desc: 'Authenticate with Recurrsive Cloud', example: 'recurrsive login' },
+      { cmd: 'login', desc: 'Authenticate with a Recurrsive server', example: 'recurrsive login' },
       { cmd: 'logout', desc: 'Log out and clear stored credentials', example: 'recurrsive logout' },
       { cmd: 'whoami', desc: 'Display the currently authenticated user', example: 'recurrsive whoami' },
     ],
@@ -245,13 +245,13 @@ export default function CliReferencePage() {
             style={{
               borderRadius: 'var(--radius-lg)',
               border: '1px solid var(--border-subtle)',
-              overflow: 'hidden',
+              overflowX: 'auto',
             }}
           >
             {/* Header */}
             <div
               style={{
-                display: 'grid', gridTemplateColumns: '1fr 2fr 100px',
+                display: 'grid', gridTemplateColumns: '1fr 2fr 100px', minWidth: 480,
                 gap: 'var(--space-md)', padding: 'var(--space-md) var(--space-lg)',
                 background: 'var(--bg-tertiary)', fontWeight: 700, fontSize: '0.82rem',
                 color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -266,7 +266,7 @@ export default function CliReferencePage() {
               <div
                 key={f.flag}
                 style={{
-                  display: 'grid', gridTemplateColumns: '1fr 2fr 100px',
+                  display: 'grid', gridTemplateColumns: '1fr 2fr 100px', minWidth: 480,
                   gap: 'var(--space-md)', padding: 'var(--space-md) var(--space-lg)',
                   borderTop: '1px solid var(--border-subtle)',
                   background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',

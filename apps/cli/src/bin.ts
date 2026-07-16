@@ -11,7 +11,7 @@
  * @packageDocumentation
  */
 
-import { createProgram } from './index.js';
+import { createProgram, printOverview } from './index.js';
 import { bold, red, dim } from './output/terminal.js';
 
 // Catch unhandled rejections that escape Commander's error handling
@@ -22,6 +22,15 @@ process.on('unhandledRejection', (reason) => {
 });
 
 async function main(): Promise<void> {
+  // With no subcommand or flags at all, show the friendly first-run overview
+  // (what the tool is + a getting-started path) instead of Commander's terse
+  // default help. Explicit `recurrsive --help` still shows the full reference,
+  // and an unknown command still errors with a suggestion.
+  if (process.argv.slice(2).length === 0) {
+    printOverview();
+    return;
+  }
+
   const program = createProgram();
 
   try {

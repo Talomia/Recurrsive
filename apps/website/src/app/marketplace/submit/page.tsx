@@ -352,13 +352,13 @@ export default function MarketplaceSubmitPage() {
                       </div>
                     )}
                     <div style={{ marginBottom: 'var(--space-lg)' }}>
-                      <label style={labelStyle}>Extension Name *</label>
-                      <input type="text" required placeholder="My Awesome Analyzer" style={inputStyle} disabled={submitting} value={form.name} onChange={set('name')} />
+                      <label htmlFor="ext-name" style={labelStyle}>Extension Name *</label>
+                      <input id="ext-name" type="text" required placeholder="My Awesome Analyzer" style={inputStyle} disabled={submitting} value={form.name} onChange={set('name')} />
                     </div>
 
                     <div style={{ marginBottom: 'var(--space-lg)' }}>
-                      <label style={labelStyle}>Category *</label>
-                      <select required style={{ ...inputStyle, cursor: submitting ? 'not-allowed' : 'pointer' }} disabled={submitting} value={form.category} onChange={set('category')}>
+                      <label htmlFor="ext-category" style={labelStyle}>Category *</label>
+                      <select id="ext-category" required style={{ ...inputStyle, cursor: submitting ? 'not-allowed' : 'pointer' }} disabled={submitting} value={form.category} onChange={set('category')}>
                         <option value="">Select category…</option>
                         <option value="analyzer">Analyzer</option>
                         <option value="collector">Collector</option>
@@ -368,8 +368,9 @@ export default function MarketplaceSubmitPage() {
                     </div>
 
                     <div style={{ marginBottom: 'var(--space-lg)' }}>
-                      <label style={labelStyle}>Description *</label>
+                      <label htmlFor="ext-description" style={labelStyle}>Description *</label>
                       <textarea
+                        id="ext-description"
                         required
                         rows={4}
                         placeholder="Describe what your extension does, what problems it solves, and key features…"
@@ -381,8 +382,9 @@ export default function MarketplaceSubmitPage() {
                     </div>
 
                     <div style={{ marginBottom: 'var(--space-lg)' }}>
-                      <label style={labelStyle}>Repository URL *</label>
+                      <label htmlFor="ext-repository" style={labelStyle}>Repository URL *</label>
                       <input
+                        id="ext-repository"
                         type="url"
                         required
                         placeholder="https://github.com/your-org/your-extension"
@@ -395,12 +397,12 @@ export default function MarketplaceSubmitPage() {
 
                     <div className="grid-2" style={{ marginBottom: 'var(--space-xl)' }}>
                       <div>
-                        <label style={labelStyle}>Author *</label>
-                        <input type="text" required placeholder="Your Name or Org" style={inputStyle} disabled={submitting} value={form.author} onChange={set('author')} />
+                        <label htmlFor="ext-author" style={labelStyle}>Author *</label>
+                        <input id="ext-author" type="text" required placeholder="Your Name or Org" style={inputStyle} disabled={submitting} value={form.author} onChange={set('author')} />
                       </div>
                       <div>
-                        <label style={labelStyle}>Version *</label>
-                        <input type="text" required placeholder="1.0.0" style={inputStyle} disabled={submitting} value={form.version} onChange={set('version')} />
+                        <label htmlFor="ext-version" style={labelStyle}>Version *</label>
+                        <input id="ext-version" type="text" required placeholder="1.0.0" style={inputStyle} disabled={submitting} value={form.version} onChange={set('version')} />
                       </div>
                     </div>
 

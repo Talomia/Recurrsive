@@ -358,7 +358,7 @@ export default function GettingStartedPage() {
                 style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', padding: 'var(--space-lg)' }}
               >
                 <item.icon size={24} style={{ color: 'var(--text-accent)', marginBottom: 'var(--space-md)' }} />
-                <h4 style={{ fontSize: '0.95rem', marginBottom: 4 }}>{item.title}</h4>
+                <h3 style={{ fontSize: '0.95rem', marginBottom: 4 }}>{item.title}</h3>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', lineHeight: 1.5, flex: 1 }}>
                   {item.desc}
                 </p>

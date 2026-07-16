@@ -56,7 +56,7 @@ const PLANS = [
 
 const COMPARISON = [
   { feature: 'Collectors', oss: '14', enterprise: '14' },
-  { feature: 'Analyzers', oss: '13 + custom', enterprise: '13 + custom' },
+  { feature: 'Analyzers', oss: '12 + custom', enterprise: '12 + custom' },
   { feature: 'Multi-agent reasoning', oss: true, enterprise: true },
   { feature: 'Knowledge graph', oss: 'SQLite / Apache AGE', enterprise: 'SQLite / Apache AGE' },
   { feature: 'REST API (160+ endpoints)', oss: true, enterprise: true },

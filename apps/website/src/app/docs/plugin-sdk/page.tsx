@@ -197,11 +197,11 @@ export default function PluginSdkPage() {
           </p>
           <div className="grid-2">
             <div className="glass-card">
-              <h4 style={{ marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.15rem', marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Network size={18} style={{ color: 'var(--blue)' }} />
                 Entity Types
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--cyan)' }}>43</span>
-              </h4>
+              </h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {['File', 'Function', 'Class', 'Module', 'Package', 'API', 'Route', 'Query', 'Migration', 'Deployment', 'Pipeline', 'Test', 'Config'].map((t) => (
                   <span
@@ -219,11 +219,11 @@ export default function PluginSdkPage() {
               </div>
             </div>
             <div className="glass-card">
-              <h4 style={{ marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.15rem', marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Layers size={18} style={{ color: 'var(--purple)' }} />
                 Relationship Types
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--cyan)' }}>43</span>
-              </h4>
+              </h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {['IMPORTS', 'CALLS', 'EXTENDS', 'IMPLEMENTS', 'DEPENDS_ON', 'OWNS', 'DEPLOYS', 'TESTS', 'ROUTES_TO', 'QUERIES', 'MIGRATES', 'CONFIGURES'].map((t) => (
                   <span

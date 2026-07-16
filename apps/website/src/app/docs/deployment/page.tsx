@@ -17,7 +17,7 @@ import {
 export const metadata: Metadata = {
   title: 'Deployment Guide — Recurrsive Docs',
   description:
-    'Deploy Recurrsive in production with Docker Compose, Kubernetes, or Recurrsive Cloud. Includes environment config and monitoring.',
+    'Deploy Recurrsive in production with Docker Compose or Kubernetes. Includes environment config, PostgreSQL/Apache AGE setup, reverse-proxy, and monitoring.',
 };
 
 const ENV_VARS = [
@@ -58,8 +58,8 @@ export default function DeploymentPage() {
               lineHeight: 1.7,
             }}
           >
-            Deploy Recurrsive in production with Docker Compose, Kubernetes, or let us handle
-            infrastructure with Recurrsive Cloud.
+            Deploy Recurrsive in production on your own infrastructure with Docker Compose or
+            Kubernetes. It is fully self-hosted — there is no managed cloud to sign up for.
           </p>
         </div>
       </section>
@@ -119,12 +119,12 @@ export default function DeploymentPage() {
             style={{
               borderRadius: 'var(--radius-lg)',
               border: '1px solid var(--border-subtle)',
-              overflow: 'hidden',
+              overflowX: 'auto',
             }}
           >
             <div
               style={{
-                display: 'grid', gridTemplateColumns: '180px 60px 1fr',
+                display: 'grid', gridTemplateColumns: '180px 60px 1fr', minWidth: 520,
                 gap: 'var(--space-md)', padding: 'var(--space-md) var(--space-lg)',
                 background: 'var(--bg-tertiary)', fontWeight: 700, fontSize: '0.78rem',
                 color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -138,7 +138,7 @@ export default function DeploymentPage() {
               <div
                 key={v.name}
                 style={{
-                  display: 'grid', gridTemplateColumns: '180px 60px 1fr',
+                  display: 'grid', gridTemplateColumns: '180px 60px 1fr', minWidth: 520,
                   gap: 'var(--space-md)', padding: 'var(--space-md) var(--space-lg)',
                   borderTop: '1px solid var(--border-subtle)',
                   background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
@@ -271,7 +271,7 @@ export default function DeploymentPage() {
             <div>{'    '}<span className="keyword">proxy_set_header</span> X-Real-IP <span className="string">$remote_addr</span>;</div>
             <div>{'  }'}</div>
             <div style={{ marginTop: 4 }}>{'  '}<span className="keyword">location</span> <span className="string">/</span> {'{'}</div>
-            <div>{'    '}<span className="keyword">proxy_pass</span> <span className="string">http://localhost:3001</span>;</div>
+            <div>{'    '}<span className="keyword">proxy_pass</span> <span className="string">http://localhost:3100</span>;</div>
             <div>{'  }'}</div>
             <div>{'}'}</div>
           </div>
@@ -354,11 +354,12 @@ export default function DeploymentPage() {
             Ready to <span className="text-gradient">Deploy?</span>
           </h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: 500, margin: '0 auto var(--space-xl)', lineHeight: 1.7 }}>
-            Start with Docker Compose for the fastest path, or explore Recurrsive Cloud for managed hosting.
+            Start with Docker Compose for the fastest path, then dive into the architecture to
+            understand how the pieces fit together.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-            <Link href="/cloud" className="btn btn-primary btn-lg">
-              Try Recurrsive Cloud <ArrowRight size={18} />
+            <Link href="/docs/getting-started" className="btn btn-primary btn-lg">
+              Get Started <ArrowRight size={18} />
             </Link>
             <Link href="/docs/architecture" className="btn btn-secondary btn-lg">
               Architecture Guide

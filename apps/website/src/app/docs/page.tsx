@@ -379,10 +379,10 @@ export default function DocsPage() {
               <div className="container">
                 <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
                   <h2 style={{ marginBottom: 'var(--space-md)' }}>
-                    Popular <span className="text-gradient">Guides</span>
+                    Guides by <span className="text-gradient">Topic</span>
                   </h2>
                   <p style={{ color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto', fontSize: '1.05rem' }}>
-                    The most-read guides across our documentation, curated by the community.
+                    Common tasks grouped by area. Each links into the relevant documentation section.
                   </p>
                 </div>
                 <div className="grid-2">
@@ -486,7 +486,7 @@ export default function DocsPage() {
                           marginBottom: 'var(--space-md)',
                         }}
                       />
-                      <h4 style={{ fontSize: '0.95rem', marginBottom: '4px' }}>{section.name}</h4>
+                      <h3 style={{ fontSize: '0.95rem', marginBottom: '4px' }}>{section.name}</h3>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
                         {section.endpoints} endpoints
                       </p>
@@ -561,11 +561,11 @@ export default function DocsPage() {
             Open a GitHub discussion or file an issue. Our team and community are here to help.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="https://github.com/Talomia/Recurrsive" className="btn btn-primary btn-lg" target="_blank">
+            <Link href="https://github.com/Talomia/Recurrsive/discussions" className="btn btn-primary btn-lg" target="_blank" rel="noopener noreferrer">
               <ExternalLink size={18} /> GitHub Discussions
             </Link>
-            <Link href="https://github.com/Talomia/Recurrsive/discussions" className="btn btn-secondary btn-lg" target="_blank">
-              Join Community Discussions <ArrowRight size={18} />
+            <Link href="https://github.com/Talomia/Recurrsive/issues" className="btn btn-secondary btn-lg" target="_blank" rel="noopener noreferrer">
+              File an Issue <ArrowRight size={18} />
             </Link>
           </div>
         </div>

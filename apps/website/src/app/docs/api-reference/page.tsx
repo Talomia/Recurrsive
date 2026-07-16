@@ -154,8 +154,9 @@ export default function ApiReferencePage() {
             <h2 style={{ marginBottom: 'var(--space-md)' }}>
               Endpoint <span className="text-gradient">Groups</span>
             </h2>
-            <p style={{ color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto', fontSize: '1.05rem' }}>
-              160+ endpoints organized into 9 logical groups.
+            <p style={{ color: 'var(--text-secondary)', maxWidth: 520, margin: '0 auto', fontSize: '1.05rem' }}>
+              A selection of the core endpoint groups shown below. The full REST surface spans 160+
+              endpoints — see the OpenAPI spec for the complete list.
             </p>
           </div>
           <div className="grid-3">
@@ -173,7 +174,7 @@ export default function ApiReferencePage() {
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 4 }}>
-                    <h4 style={{ fontSize: '0.95rem' }}>{group.name}</h4>
+                    <h3 style={{ fontSize: '0.95rem' }}>{group.name}</h3>
                     <span
                       style={{
                         fontFamily: 'var(--font-mono)', fontSize: '0.7rem', fontWeight: 600,

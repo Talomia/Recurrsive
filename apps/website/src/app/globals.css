@@ -446,3 +446,40 @@ a:focus-visible {
   box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.25) !important;
 }
 
+/* ── Reduced Motion ───────────────────────────────────────────────────────── */
+/* Respect the visitor's OS-level "reduce motion" preference: disable decorative
+ * animations, looping motion, transforms-on-hover, and smooth scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Ensure content that starts hidden for a staggered entrance stays visible */
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .stagger-1, .stagger-2, .stagger-3,
+  .stagger-4, .stagger-5, .stagger-6 {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+
+  .animate-float {
+    animation: none !important;
+  }
+
+  /* Neutralise lift-on-hover transforms so nothing shifts under the pointer */
+  .glass-card:hover,
+  .btn-primary:hover,
+  .btn:hover {
+    transform: none !important;
+  }
+}
+

@@ -298,8 +298,11 @@ export function registerInitCommand(program: Command): void {
       console.log(`  ${green('1.')} Run your first analysis:`);
       console.log(`     ${bold(cyan('recurrsive analyze'))}`);
       console.log('');
-      console.log(`  ${green('2.')} View discovered opportunities:`);
+      console.log(`  ${green('2.')} Review prioritized opportunities:`);
       console.log(`     ${bold(cyan('recurrsive opportunities'))}`);
+      console.log(
+        `     ${dim('or')} ${cyan('recurrsive report')} ${dim('to generate a shareable report')}`,
+      );
       console.log('');
       console.log(`  ${green('3.')} Check project health:`);
       console.log(`     ${bold(cyan('recurrsive health'))}`);
@@ -313,12 +316,28 @@ export function registerInitCommand(program: Command): void {
       );
       console.log('');
 
+      // Opportunities come from the reasoning engine, which needs an LLM key.
+      // Call this out so the user is not surprised by a findings-only run.
+      info(
+        `Prioritized opportunities require an LLM key — set ${bold('RECURRSIVE_LLM_API_KEY')} ` +
+          `before ${cyan('analyze')} to enable multi-agent reasoning. ` +
+          `Without it you still get findings and a report.`,
+      );
       if (project.aiProviders.length > 0) {
         info(
-          `AI providers detected! Set ${bold('RECURRSIVE_LLM_API_KEY')} ` +
-            `to enable multi-agent reasoning.`,
+          `AI providers detected in this project (${magenta(project.aiProviders.join(', '))}) — ` +
+            `reasoning will pay special attention to them.`,
         );
       }
+      console.log('');
+      console.log(
+        dim('  Using the hosted platform or a team server? Run ') +
+          cyan(bold('recurrsive setup')) +
+          dim(' (first run) or ') +
+          cyan(bold('recurrsive login')) +
+          dim(' to unlock projects, analytics, and forecasting.'),
+      );
+      console.log('');
 
       success('Recurrsive initialized successfully! 🚀');
     });

@@ -404,7 +404,7 @@ export default function HomePage() {
                   <item.icon size={22} style={{ color: item.color }} />
                 </div>
                 <div>
-                  <h4 style={{ marginBottom: 'var(--space-xs)' }}>
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: 'var(--space-xs)' }}>
                     {item.tool}{' '}
                     <span
                       style={{
@@ -415,7 +415,7 @@ export default function HomePage() {
                     >
                       — {item.flaw}
                     </span>
-                  </h4>
+                  </h3>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
                     {item.detail}
                   </p>
@@ -661,7 +661,7 @@ export default function HomePage() {
                     {feature.stat}
                   </span>
                 </div>
-                <h4 style={{ marginBottom: 'var(--space-sm)' }}>{feature.title}</h4>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: 'var(--space-sm)' }}>{feature.title}</h3>
                 <p
                   style={{
                     color: 'var(--text-secondary)',

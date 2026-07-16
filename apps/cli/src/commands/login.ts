@@ -193,6 +193,11 @@ export function registerLoginCommand(program: Command): void {
         const role = user?.role ? ` (${user.role})` : '';
         success(`Logged in as ${bold(user?.username ?? username)}${role}`);
         console.log(dim(`  Token saved to ~/.recurrsive/config`));
+        console.log('');
+        info(
+          `Next: ${cyan('recurrsive projects list')} to see your projects, ` +
+            `or ${cyan('recurrsive whoami')} to confirm your session.`,
+        );
       } catch (err) {
         error(`Connection failed: ${err instanceof Error ? err.message : String(err)}`);
         console.log(dim(`  Is the server running at ${server}?`));
@@ -308,6 +313,10 @@ export function registerLoginCommand(program: Command): void {
           console.log(dim(`  Token saved to ~/.recurrsive/config`));
           console.log('');
           info(
+            `Next: ${cyan('recurrsive projects list')} to view projects, ` +
+              `or ${cyan('recurrsive analyze')} to run a local analysis.`,
+          );
+          info(
             'Additional users are invite-based — an admin creates them via the dashboard or the invites API.',
           );
         } catch (err) {
@@ -383,7 +392,9 @@ export function registerLoginCommand(program: Command): void {
       }
 
       if (!token) {
-        error('Not logged in. Run `recurrsive login` first.');
+        error(
+          'Not logged in. Run `recurrsive login`, or `recurrsive setup` for first-time setup.',
+        );
         process.exit(1);
       }
 

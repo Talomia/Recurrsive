@@ -482,6 +482,59 @@ describe('registerOpportunitiesCommand', () => {
     });
   });
 
+  // ── JSON Output ────────────────────────────────────────────────────────
+
+  describe('--json output', () => {
+    it('prints the filtered list as JSON and skips the human header', async () => {
+      setOpportunities(
+        makeOpportunity({ id: 'opp-json-1' }),
+        makeOpportunity({ id: 'opp-json-2', title: 'Second' }),
+      );
+
+      const { runAction } = createFakeProgram();
+      await runAction({ json: true });
+
+      // Should have printed a JSON array containing both ids...
+      const printed = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      const jsonCall = consoleSpy.mock.calls.find((c) =>
+        String(c[0]).trim().startsWith('['),
+      );
+      expect(jsonCall).toBeDefined();
+      const parsed = JSON.parse(String(jsonCall![0]));
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed).toHaveLength(2);
+      // ...and NOT rendered the human table/header.
+      expect(header).not.toHaveBeenCalled();
+      expect(table).not.toHaveBeenCalled();
+      expect(printed).toContain('opp-json-1');
+    });
+
+    it('emits an empty JSON array when there are no opportunities', async () => {
+      (existsSync as Mock).mockReturnValue(false);
+
+      const { runAction } = createFakeProgram();
+      await runAction({ json: true });
+
+      expect(consoleSpy).toHaveBeenCalledWith('[]');
+      // No human guidance should be printed to stdout in JSON mode.
+      expect(info).not.toHaveBeenCalled();
+    });
+
+    it('prints a single opportunity as JSON with --detail --json', async () => {
+      setOpportunities(makeOpportunity({ id: 'opp-detail-json' }));
+
+      const { runAction } = createFakeProgram();
+      await runAction({ detail: 'opp-detail-json', json: true });
+
+      const jsonCall = consoleSpy.mock.calls.find((c) =>
+        String(c[0]).trim().startsWith('{'),
+      );
+      expect(jsonCall).toBeDefined();
+      const parsed = JSON.parse(String(jsonCall![0]));
+      expect(parsed.id).toBe('opp-detail-json');
+    });
+  });
+
   // ── Filtered List Shows Message ────────────────────────────────────────
 
   describe('filtered results', () => {

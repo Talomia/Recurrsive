@@ -304,7 +304,7 @@ export default function ProductPage() {
             ].map((item) => (
               <div key={item.title} className="glass-card" style={{ textAlign: 'center' }}>
                 <item.icon size={28} style={{ color: 'var(--text-accent)', marginBottom: 'var(--space-md)' }} />
-                <h4 style={{ marginBottom: 4 }}>{item.title}</h4>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: 4 }}>{item.title}</h3>
                 <div
                   style={{
                     fontFamily: 'var(--font-mono)',
@@ -336,7 +336,7 @@ export default function ProductPage() {
             Open source. Apache 2.0. Start analyzing in 5 minutes.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)' }}>
-            <Link href="/cloud" className="btn btn-primary btn-lg">
+            <Link href="/docs/getting-started" className="btn btn-primary btn-lg">
               Get Started <ArrowRight size={18} />
             </Link>
             <Link href="/docs" className="btn btn-secondary btn-lg">
