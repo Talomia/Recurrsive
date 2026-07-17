@@ -22,6 +22,11 @@ interface ReportParams {
   format: string;
 }
 
+interface ReportQuery {
+  /** Project id to scope the report to (defaults to the implicit project). */
+  projectId?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
@@ -38,11 +43,12 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
    * Generate and download a report in the specified format.
    * Supported formats: markdown, html, sarif, json.
    */
-  app.get<{ Params: ReportParams }>(
+  app.get<{ Params: ReportParams; Querystring: ReportQuery }>(
     '/api/v1/reports/:format',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const cache = state.getAnalysisCache();
+      const projectId = request.query.projectId;
+      const cache = await state.loadCacheForProject(projectId);
       if (!cache) {
         return reply.status(404).send({
           error: 'No analysis results available',
@@ -51,7 +57,7 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
       }
 
       const format = request.params.format.toLowerCase();
-      const manager = state.getOpportunities();
+      const manager = await state.loadOpportunitiesForProject(projectId);
       const opportunities = manager.list();
 
       let projectName = 'Recurrsive Project';
