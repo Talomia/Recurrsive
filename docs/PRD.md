@@ -1168,7 +1168,7 @@ Learnings flow back into the system:
 
 ## 7. Evidence Sources — Complete Collector List
 
-Every integration is implemented as a **Collector Plugin** conforming to the `Collector` interface. Below is the complete list of supported and planned sources, organized by category. As of v0.6.0, 14 collectors are implemented (Git, Documentation, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone); of these, the five local collectors (Git, Documentation, Environment, CI/CD, Database) run in the `recurrsive analyze` pipeline while the API-based collectors are library classes not yet wired into the pipeline. The remainder are planned for future releases.
+Every integration is implemented as a **Collector Plugin** conforming to the `Collector` interface. Below is the complete list of supported and planned sources, organized by category. As of v0.6.0, 14 collectors are implemented (Git, Documentation, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone). The five local collectors (Git, Documentation, Environment, CI/CD, Database) run on every `recurrsive analyze` run; GitHub and GitLab run automatically when the analyzed repository's origin is on github.com/gitlab.com and the matching API token (`GITHUB_TOKEN`/`GITLAB_TOKEN`) is present, and are skipped gracefully otherwise. The remaining API-based collectors (OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone) are credential-gated library classes run programmatically. The remainder are planned for future releases.
 
 ### 7.1 Code & Version Control
 
@@ -1652,7 +1652,7 @@ As of v0.6.0, the following deployment surface is implemented:
 |---|---|---|
 | **REST Endpoints** | 160+ | Across 41 route modules |
 | **Built-in Analyzers** | 12 | 50+ analysis rules |
-| **Built-in Collectors** | 14 | Git, Docs, Environment, CI/CD, and Database run in the analysis pipeline; GitHub, GitLab, OpenTelemetry, Langfuse, Arize, Helicone, Cloud Cost, Error Tracking, and APM ship as library collectors (not yet pipeline-wired) |
+| **Built-in Collectors** | 14 | Git, Docs, Environment, CI/CD, and Database run on every analysis; GitHub and GitLab run automatically when a github.com/gitlab.com origin and API token are present; OpenTelemetry, Langfuse, Arize, Helicone, Cloud Cost, Error Tracking, and APM are credential-gated library collectors |
 | **Specialist Agents** | 19 | With Custom Specialist Agent SDK |
 | **CLI Commands** | 29 | Full management and analysis |
 | **MCP Tools** | 42 | Plus 21 prompts and 16 resources |

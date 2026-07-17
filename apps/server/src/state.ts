@@ -15,7 +15,7 @@ import { createGraphClient, type ExtendedGraphClient } from '@recurrsive/graph';
 import { OpportunityManager } from '@recurrsive/opportunities';
 import { AnalyzerRegistry, AnalyzerRunner, createDefaultAnalyzers } from '@recurrsive/analyzers';
 import { ReasoningEngine } from '@recurrsive/reasoning';
-import { GitCollector, DocumentationCollector, EnvironmentCollector, CICDCollector, DatabaseCollector } from '@recurrsive/collectors';
+import { GitCollector, DocumentationCollector, EnvironmentCollector, CICDCollector, DatabaseCollector, GitHubCollector, GitLabCollector } from '@recurrsive/collectors';
 import { ParsingPipeline } from '@recurrsive/parsers';
 import type {
   Finding,
@@ -46,6 +46,36 @@ const logger = createLogger({ context: { component: 'server:state' } });
  * while still keeping analysis cache/history keyed by project in the store.
  */
 export const DEFAULT_PROJECT_ID = 'default';
+
+/**
+ * Normalize a git remote URL to a standard HTTPS form.
+ *
+ * Handles the common remote shapes so downstream collectors receive a URL
+ * they can parse with the WHATWG `URL` API:
+ *   - `git@github.com:owner/repo.git`        → `https://github.com/owner/repo`
+ *   - `ssh://git@github.com/owner/repo.git`  → `https://github.com/owner/repo`
+ *   - `https://github.com/owner/repo.git`    → `https://github.com/owner/repo`
+ *
+ * Unrecognized forms are returned unchanged (callers validate the host).
+ *
+ * @param raw - The raw remote URL from `git remote get-url`.
+ * @returns The normalized URL string.
+ */
+function normalizeGitRemoteUrl(raw: string): string {
+  let url = raw.trim();
+  // scp-like syntax: git@host:owner/repo(.git)
+  const scpMatch = /^[^@]+@([^:]+):(.+)$/.exec(url);
+  if (scpMatch && !url.includes('://')) {
+    url = `https://${scpMatch[1]}/${scpMatch[2]}`;
+  }
+  // ssh://user@host/path → https://host/path
+  url = url.replace(/^ssh:\/\/(?:[^@/]+@)?/, 'https://');
+  // git://host/path → https://host/path
+  url = url.replace(/^git:\/\//, 'https://');
+  // strip trailing .git and any trailing slash
+  url = url.replace(/\.git$/, '').replace(/\/$/, '');
+  return url;
+}
 
 // ---------------------------------------------------------------------------
 // Persistent history helpers (backed by the KV store → PostgreSQL)
@@ -394,6 +424,34 @@ export class ServerState {
   }
 
   /**
+   * Detect the `origin` remote URL of the project's git repository, if any.
+   *
+   * Works for both cloned remote repositories (origin points at the source
+   * URL) and local repositories that have a remote configured. SSH-form
+   * remotes (`git@host:owner/repo.git`) are normalized to HTTPS so downstream
+   * collectors can parse a standard URL. Returns `null` when the project is
+   * not a git repository, has no `origin` remote, or git is unavailable.
+   *
+   * @returns Normalized HTTPS remote URL, or `null`.
+   */
+  private async detectRemoteUrl(): Promise<string | null> {
+    if (!this.projectPath) return null;
+    let raw: string;
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['-C', this.projectPath, 'remote', 'get-url', 'origin'],
+        { timeout: 10_000 },
+      );
+      raw = stdout.trim();
+    } catch {
+      return null; // not a repo, no origin, or git unavailable
+    }
+    if (!raw) return null;
+    return normalizeGitRemoteUrl(raw);
+  }
+
+  /**
    * Mark analysis as starting to prevent race conditions.
    *
    * This should be called synchronously in the route handler BEFORE
@@ -490,6 +548,8 @@ export class ServerState {
     let envCollector: InstanceType<typeof EnvironmentCollector> | null = null;
     let cicdCollector: InstanceType<typeof CICDCollector> | null = null;
     let dbCollector: InstanceType<typeof DatabaseCollector> | null = null;
+    let ghCollector: InstanceType<typeof GitHubCollector> | null = null;
+    let glCollector: InstanceType<typeof GitLabCollector> | null = null;
 
     try {
       // ── Step 0: Clear stale graph data ────────────────────────────────
@@ -638,6 +698,75 @@ export class ServerState {
         try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
       }
       logger.info(`Database: ${dbResult.entities.length} entities`);
+
+      // ── Step 1f: Optional remote collectors (GitHub / GitLab) ────────
+      // Enrich the graph with PRs, issues, reviews, workflows, and
+      // pipelines when the analyzed repository has a recognizable
+      // github.com / gitlab.com origin AND the matching API token is
+      // present in the environment. This step is fully isolated: any
+      // failure (no remote, unsupported host, missing token, API error)
+      // logs a skip reason and never interrupts the core pipeline.
+      this.updateStatus('collecting', 26, 'Checking remote collectors…');
+      try {
+        const remoteUrl = await this.detectRemoteUrl();
+        const remoteGovernance = {
+          masked_fields: [],
+          excluded_patterns: [],
+          pii_detection: false,
+          audit_log: false,
+          retention_days: 90,
+        };
+        let host = '';
+        if (remoteUrl) {
+          try { host = new URL(remoteUrl).hostname.toLowerCase(); } catch { host = ''; }
+        }
+
+        if (!remoteUrl) {
+          logger.info('Remote collectors skipped: no git "origin" remote detected');
+        } else if (host === 'github.com' || host.endsWith('.github.com')) {
+          if (process.env['GITHUB_TOKEN']) {
+            try {
+              ghCollector = new GitHubCollector(remoteUrl);
+              await ghCollector.initialize({ governance: remoteGovernance, custom: {} });
+              const ghResult = await ghCollector.collect();
+              for (const entity of ghResult.entities) {
+                await this.graphClient!.upsertEntity(entity);
+              }
+              for (const rel of ghResult.relationships) {
+                try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
+              }
+              logger.info(`GitHub: ${ghResult.entities.length} entities`);
+            } catch (err) {
+              logger.warn(`GitHub collector skipped: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          } else {
+            logger.info('GitHub collector skipped: GITHUB_TOKEN not set');
+          }
+        } else if (host === 'gitlab.com' || host.endsWith('.gitlab.com')) {
+          if (process.env['GITLAB_TOKEN']) {
+            try {
+              glCollector = new GitLabCollector(remoteUrl);
+              await glCollector.initialize({ governance: remoteGovernance, custom: {} });
+              const glResult = await glCollector.collect();
+              for (const entity of glResult.entities) {
+                await this.graphClient!.upsertEntity(entity);
+              }
+              for (const rel of glResult.relationships) {
+                try { await this.graphClient!.upsertRelationship(rel); } catch { /* skip */ }
+              }
+              logger.info(`GitLab: ${glResult.entities.length} entities`);
+            } catch (err) {
+              logger.warn(`GitLab collector skipped: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          } else {
+            logger.info('GitLab collector skipped: GITLAB_TOKEN not set');
+          }
+        } else {
+          logger.info(`Remote collectors skipped: unsupported host "${host}" (github.com/gitlab.com only)`);
+        }
+      } catch (err) {
+        logger.warn(`Remote collector step skipped: ${err instanceof Error ? err.message : String(err)}`);
+      }
 
       // ── Step 2: Parse source code ──────────────────────────────────────
       this.updateStatus('collecting', 28, 'Parsing source code…');
@@ -944,7 +1073,7 @@ export class ServerState {
       this._analysisLock = false;
 
       // Always dispose collectors to prevent resource leaks
-      const disposals = [collector, docsCollector, envCollector, cicdCollector, dbCollector];
+      const disposals = [collector, docsCollector, envCollector, cicdCollector, dbCollector, ghCollector, glCollector];
       for (const c of disposals) {
         if (c) { try { await c.dispose(); } catch { /* already cleaned up */ } }
       }

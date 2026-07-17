@@ -58,8 +58,10 @@ reasoning:
 # Each collector has a type, enabled flag, and type-specific config.
 #
 # NOTE: collector selection via config is not yet wired into the analysis
-# pipeline — `recurrsive analyze` always runs the built-in local collectors
-# (git, documentation, environment, ci/cd, database). This section is
+# pipeline. `recurrsive analyze` always runs the five local collectors
+# (git, documentation, environment, ci/cd, database), and additionally runs
+# the GitHub/GitLab collectors when the repository's origin is on
+# github.com/gitlab.com and GITHUB_TOKEN/GITLAB_TOKEN is set. This section is
 # validated against the schema and reserved for future use.
 collectors: []
   # - type: git

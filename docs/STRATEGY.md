@@ -54,7 +54,7 @@ This graph, continuously updated, IS the digital twin.
 
 | Phase | Package | Status |
 |---|---|---|
-| **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (14 collector implementations; Git, Docs, Environment, CICD, and Database run in the analysis pipeline — GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone are library collectors, not yet pipeline-wired) |
+| **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (14 collector implementations; Git, Docs, Environment, CICD, and Database run on every analysis, GitHub/GitLab run automatically when a github.com/gitlab.com origin and API token are present — OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone are credential-gated library collectors) |
 | **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (12 analyzers, 50+ rules) |
 | **Reason** | `@recurrsive/reasoning` | ✅ Built (19 specialists, debate protocol) |
 | **Evolve** | `@recurrsive/opportunities` | ✅ Built (lifecycle, SARIF, reports) |

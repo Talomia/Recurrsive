@@ -388,11 +388,15 @@ Pluggable data collection with built-in **PII detection**, field masking, and au
 - **Arize Collector** — ML model monitoring, drift detection, evaluation datasets
 - **Helicone Collector** — LLM cost tracking, usage analytics, rate limiting
 
-> **Note**: The `recurrsive analyze` pipeline (CLI and server) currently runs the five
-> local collectors — Git, Documentation, Environment, CI/CD, and Database. The
-> API-based collectors (GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking,
-> APM, Langfuse, Arize, Helicone) ship as library classes in `@recurrsive/collectors`
-> and can be run programmatically; they are not yet wired into the analysis pipeline.
+> **Note**: The `recurrsive analyze` pipeline (CLI and server) always runs the five
+> local collectors — Git, Documentation, Environment, CI/CD, and Database. It also
+> runs the **GitHub** and **GitLab** collectors automatically when the analyzed
+> repository's `origin` remote is on `github.com`/`gitlab.com` and the matching
+> `GITHUB_TOKEN`/`GITLAB_TOKEN` is set in the environment (they are skipped
+> gracefully otherwise). The remaining API-based collectors (OpenTelemetry, Cloud
+> Cost, Error Tracking, APM, Langfuse, Arize, Helicone) ship as library classes in
+> `@recurrsive/collectors` and are run programmatically with their own endpoint
+> credentials.
 
 ### `@recurrsive/parsers`
 Multi-language code analysis:

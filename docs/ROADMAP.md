@@ -6,7 +6,7 @@
 |---|---|---|
 | Core type system | ✅ Complete | 12 type files, Zod schemas with runtime validation |
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
-| Collectors | ✅ Complete | 14 collector implementations. Git, Doc, Environment, CI/CD, and Database run in the analysis pipeline; GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, and Helicone ship as library collectors (not yet wired into the pipeline) |
+| Collectors | ✅ Complete | 14 collector implementations. Git, Doc, Environment, CI/CD, and Database run on every analysis; GitHub and GitLab run automatically when the repository's origin is on github.com/gitlab.com and `GITHUB_TOKEN`/`GITLAB_TOKEN` is set (skipped gracefully otherwise). OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, and Helicone ship as library collectors (require endpoint credentials; not auto-wired) |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
 | Analyzers | ✅ Complete | 12 analyzers, 50+ rules, all with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |

@@ -2512,11 +2512,11 @@ stateDiagram-v2
 | `LOG_LEVEL` | No | `info` | Log level: `debug`, `info`, `warn`, `error` |
 | `NODE_ENV` | No | `development` | Environment: `development`, `staging`, `production` |
 | `ENCRYPTION_KEY` | Prod | — | 32-byte hex key for config encryption |
-| `GITHUB_TOKEN` | No | — | GitHub personal access token for collectors |
+| `GITHUB_TOKEN` | No | — | GitHub token; enables the GitHub collector during analysis when the repo origin is on github.com |
+| `GITLAB_TOKEN` | No | — | GitLab token; enables the GitLab collector during analysis when the repo origin is on gitlab.com |
 | `SLACK_WEBHOOK_URL` | No | — | Slack notification webhook |
 | `ENABLE_ENTERPRISE` | No | `true` | Set to `false` to disable Tier 2 Enterprise routes (SSO, multi-tenant, secrets, data masking) |
 | `ENABLE_ECOSYSTEM` | No | `true` | Set to `false` to disable Tier 3 Ecosystem routes (cloud, marketplace, partners) |
-| `ALLOW_DEMO_USERS` | No | `false` | Enable demo user accounts in production |
 | `JWT_SECRET` | Prod | `recurrsive-dev-secret` | HMAC-SHA256 secret for JWT signing. **Must** be changed in production. |
 | `DATABASE_PATH` | No | `./data/recurrsive.db` | SQLite database file path (`:memory:` in tests) |
 
