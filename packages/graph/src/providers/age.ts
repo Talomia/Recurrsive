@@ -736,7 +736,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
 
       // Build entity counts query
       const entityParts = EntityTypeSchema.options.map(
-        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM recurrsive."${t}"`,
+        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM ${this.graphName}."${t}"`,
       );
       const entitySql = entityParts.join(' UNION ALL ');
 
@@ -757,7 +757,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
         for (const entityType of EntityTypeSchema.options) {
           try {
             const result = await client.query(
-              `SELECT COUNT(*) AS cnt FROM recurrsive."${entityType}";`,
+              `SELECT COUNT(*) AS cnt FROM ${this.graphName}."${entityType}";`,
             );
             const count = Number(result.rows[0]?.['cnt'] ?? 0);
             if (count > 0) {
@@ -772,7 +772,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
 
       // Build relationship counts query
       const relParts = RelationTypeSchema.options.map(
-        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM recurrsive."${t}"`,
+        (t) => `SELECT '${t}' AS label, COUNT(*) AS cnt FROM ${this.graphName}."${t}"`,
       );
       const relSql = relParts.join(' UNION ALL ');
 
@@ -793,7 +793,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
         for (const relType of RelationTypeSchema.options) {
           try {
             const result = await client.query(
-              `SELECT COUNT(*) AS cnt FROM recurrsive."${relType}";`,
+              `SELECT COUNT(*) AS cnt FROM ${this.graphName}."${relType}";`,
             );
             const count = Number(result.rows[0]?.['cnt'] ?? 0);
             if (count > 0) {
