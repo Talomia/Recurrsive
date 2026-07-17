@@ -69,6 +69,44 @@ function averageConfidenceChange(
 const MAX_CHALLENGES_PER_SPECIALIST = 10;
 
 /**
+ * Maximum number of challenge/defense units evaluated concurrently within a
+ * debate round. The units are independent, so running them in parallel turns
+ * the round's wall-clock from O(units × LLM latency) into roughly
+ * O(units / concurrency × LLM latency). Bounded to keep provider concurrency
+ * (and rate-limit exposure) reasonable.
+ */
+const DEBATE_CONCURRENCY = 5;
+
+/**
+ * Map over `items` running at most `limit` invocations of `fn` concurrently,
+ * preserving input order in the returned results array. Order preservation is
+ * essential here: the debate relies on challenges[i] pairing with responses[i].
+ *
+ * @param items - Work items.
+ * @param limit - Maximum concurrent invocations.
+ * @param fn - Async mapper.
+ * @returns Results in the same order as `items`.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) break;
+      results[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Debate-priority of a hypothesis. Higher-confidence, better-evidenced
  * hypotheses are the ones most worth scrutinising, since they are the ones
  * that will drive downstream opportunities.
@@ -205,7 +243,13 @@ export class DebateProtocol {
     // Build lookup of specialists by role
     const specialistMap = new Map(specialists.map((s) => [s.role, s]));
 
-    // Each specialist challenges hypotheses from OTHER specialists
+    // Each specialist challenges hypotheses proposed by OTHER specialists. The
+    // (specialist, hypothesis) challenge→defense units are independent, so they
+    // are resolved concurrently (bounded) and then collected in the original
+    // deterministic order — preserving the exact challenge/response pairing and
+    // ordering the sequential version produced, at a fraction of the wall-clock.
+    interface ChallengeUnit { specialist: Specialist; hypothesis: Hypothesis; }
+    const units: ChallengeUnit[] = [];
     for (const specialist of specialists) {
       // Find hypotheses proposed by OTHER specialists, ordered by importance so
       // that when we bound the work we scrutinise the highest-stakes claims —
@@ -218,8 +262,18 @@ export class DebateProtocol {
       // select by importance rather than array order. When the set is small,
       // every hypothesis is covered.
       const toChallenge = otherHypotheses.slice(0, MAX_CHALLENGES_PER_SPECIALIST);
-
       for (const hypothesis of toChallenge) {
+        units.push({ specialist, hypothesis });
+      }
+    }
+
+    // Resolve each unit to a challenge/response pair, or null when the challenge
+    // itself failed (in which case NEITHER is recorded, keeping the arrays
+    // length-aligned exactly as the sequential implementation did).
+    const paired = await mapWithConcurrency(
+      units,
+      DEBATE_CONCURRENCY,
+      async ({ specialist, hypothesis }): Promise<{ challenge: DebateChallenge; response: DebateResponse } | null> => {
         logger.debug(
           `${specialist.name} challenging "${hypothesis.title}" ` +
           `(proposed by ${hypothesis.proposed_by})`,
@@ -227,9 +281,8 @@ export class DebateProtocol {
 
         const context = contextByHypothesis.get(hypothesis.id);
 
-        // Step 1 — challenge. If generating the challenge fails, we record
-        // NEITHER a challenge nor a response, so the per-hypothesis
-        // challenge/response arrays stay length-aligned.
+        // Step 1 — challenge. If generating the challenge fails, record neither
+        // a challenge nor a response.
         let challengeText: string;
         try {
           challengeText = await specialist.challenge(hypothesis, this.llm, context);
@@ -238,7 +291,7 @@ export class DebateProtocol {
             `Challenge failed for "${hypothesis.title}": ` +
             `${err instanceof Error ? err.message : String(err)}`,
           );
-          continue;
+          return null;
         }
 
         const challenge: DebateChallenge = {
@@ -247,13 +300,12 @@ export class DebateProtocol {
           challenge: challengeText,
           evidence: `Challenge from ${specialist.name} applying ${specialist.cognitiveFramework}`,
         };
-        challenges.push(challenge);
 
         // Step 2 — defense. Every recorded challenge gets EXACTLY ONE recorded
-        // response, so the k-th challenge for a hypothesis always pairs with
-        // the k-th response for that hypothesis (relied on by agreementRatio
-        // and the synthesizer's provenance). If the defense LLM call throws, or
-        // no proposer is available, we push a placeholder that leaves the
+        // response, so the k-th challenge for a hypothesis always pairs with the
+        // k-th response for that hypothesis (relied on by agreementRatio and the
+        // synthesizer's provenance). If the defense LLM call throws, or no
+        // proposer is available, we record a placeholder that leaves the
         // hypothesis's confidence unchanged — a transient failure must never
         // silently shift the pairing or fabricate a concession.
         const proposer = specialistMap.get(hypothesis.proposed_by);
@@ -294,7 +346,14 @@ export class DebateProtocol {
             revised_confidence: hypothesis.confidence,
           };
         }
-        responses.push(response);
+        return { challenge, response };
+      },
+    );
+
+    for (const unit of paired) {
+      if (unit) {
+        challenges.push(unit.challenge);
+        responses.push(unit.response);
       }
     }
 
