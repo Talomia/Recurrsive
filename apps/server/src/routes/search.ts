@@ -20,6 +20,7 @@ const logger = createLogger({ context: { component: 'server:routes:search' } });
 interface SearchQuery {
   q?: string;
   scope?: string;
+  projectId?: string;
 }
 
 interface SearchItem {
@@ -41,8 +42,8 @@ interface SearchResult {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getSearchableItems(): Promise<SearchItem[]> {
-  const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+async function getSearchableItems(projectId?: string): Promise<SearchItem[]> {
+  const cache = state.isInitialized() ? await state.loadCacheForProject(projectId) : null;
   const items: SearchItem[] = [];
 
   // Add live findings from analysis cache
@@ -72,7 +73,7 @@ async function getSearchableItems(): Promise<SearchItem[]> {
   // Query entities from the knowledge graph
   if (state.isInitialized()) {
     try {
-      const graph = state.getGraph();
+      const graph = await state.getGraph(projectId);
       const stats = await graph.getStats();
       for (const entityType of Object.keys(stats.entityCountsByType)) {
         try {
@@ -97,10 +98,10 @@ async function getSearchableItems(): Promise<SearchItem[]> {
   return items;
 }
 
-async function searchItems(query: string, scope: string): Promise<SearchResult[]> {
+async function searchItems(query: string, scope: string, projectId?: string): Promise<SearchResult[]> {
   const q = query.toLowerCase();
 
-  let items = await getSearchableItems();
+  let items = await getSearchableItems(projectId);
   if (scope !== 'all') {
     // Map plural scope names to singular type names
     const scopeMap: Record<string, string> = {
@@ -157,7 +158,7 @@ export async function registerSearchRoutes(app: FastifyInstance): Promise<void> 
     '/api/v1/search',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const { q, scope = 'all' } = request.query;
+      const { q, scope = 'all', projectId } = request.query;
 
       if (q === undefined || typeof q !== 'string') {
         return reply.status(400).send({
@@ -174,7 +175,7 @@ export async function registerSearchRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      const results = await searchItems(q.trim(), scope);
+      const results = await searchItems(q.trim(), scope, projectId);
 
       logger.debug(`Search for "${q}" (scope=${scope}) returned ${results.length} results`);
 

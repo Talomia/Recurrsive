@@ -30,6 +30,8 @@ vi.mock('pg', () => {
 // We must also mock the migration module to avoid real SQL execution
 vi.mock('../../migrations/001_initial_schema.js', () => ({
   migrate: vi.fn().mockResolvedValue({ applied: true, summary: 'mock' }),
+  DEFAULT_AGE_GRAPH: 'recurrsive',
+  assertSafeGraphName: vi.fn(),
 }));
 
 // ── Import after mocks ──────────────────────────────────────────────────────

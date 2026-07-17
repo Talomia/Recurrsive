@@ -188,7 +188,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
       // project (the graph holds a single project's data). Include them when
       // available; otherwise report just the analysis-derived metric.
       if (state.isInitialized()) {
-        const graph = state.getGraph();
+        const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
         const stats = await graph.getStats();
         const totalEntities = stats.totalEntities;
         const totalRelationships = stats.totalRelationships;

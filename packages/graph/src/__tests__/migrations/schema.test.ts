@@ -10,6 +10,8 @@ import {
   migrate,
   getMigrationStatements,
   MIGRATION_NAME,
+  DEFAULT_AGE_GRAPH,
+  assertSafeGraphName,
 } from '../../migrations/001_initial_schema.js';
 import * as migrationsBarrel from '../../migrations/index.js';
 
@@ -218,5 +220,59 @@ describe('migrations/index barrel export', () => {
 
   it('re-exports MIGRATION_NAME', () => {
     expect(migrationsBarrel.MIGRATION_NAME).toBe(MIGRATION_NAME);
+  });
+});
+
+// ─── Per-project graph name scoping + injection guard ──────────────────────────
+
+describe('per-project AGE graph scoping', () => {
+  describe('assertSafeGraphName', () => {
+    it('accepts safe identifiers', () => {
+      expect(() => assertSafeGraphName('recurrsive')).not.toThrow();
+      expect(() => assertSafeGraphName(DEFAULT_AGE_GRAPH)).not.toThrow();
+      expect(() => assertSafeGraphName('recurrsive_acme_web_ab12cd34')).not.toThrow();
+      expect(() => assertSafeGraphName('_x')).not.toThrow();
+    });
+
+    it('rejects unsafe identifiers (SQL-injection surface)', () => {
+      for (const bad of [
+        'acme-web',                       // hyphen
+        'a b',                            // space
+        "x'); DROP GRAPH; --",            // injection attempt
+        '1graph',                         // leading digit
+        'Recurrsive',                     // uppercase
+        '',                               // empty
+        'x'.repeat(64),                   // too long
+      ]) {
+        expect(() => assertSafeGraphName(bad), `expected "${bad}" to be rejected`).toThrow();
+      }
+    });
+  });
+
+  describe('getMigrationStatements graph name', () => {
+    it('defaults to the "recurrsive" graph', () => {
+      const sql = getMigrationStatements('postgresql_age').join('\n');
+      expect(sql).toContain("create_graph('recurrsive')");
+    });
+
+    it('targets the provided graph name for every graph/label/index statement', () => {
+      const name = 'recurrsive_proj_deadbeef00';
+      const sql = getMigrationStatements('postgresql_age', name).join('\n');
+      expect(sql).toContain(`create_graph('${name}')`);
+      expect(sql).toContain(`create_vlabel('${name}',`);
+      expect(sql).toContain(`create_elabel('${name}',`);
+      expect(sql).toContain(`ON ${name}.`);
+      // Must NOT leak the default graph name when a custom one is requested.
+      expect(sql).not.toContain("create_graph('recurrsive')");
+    });
+
+    it('rejects an unsafe graph name before emitting any SQL', () => {
+      expect(() => getMigrationStatements('postgresql_age', "x'); DROP GRAPH; --")).toThrow();
+    });
+
+    it('ignores graph name for the sqlite provider (table-scoped)', () => {
+      const sql = getMigrationStatements('sqlite', 'anything_here').join('\n');
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS entities');
+    });
   });
 });

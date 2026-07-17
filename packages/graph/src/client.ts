@@ -57,6 +57,15 @@ export interface GraphConfig {
    * (default `true`).
    */
   autoMigrate?: boolean;
+
+  /**
+   * AGE graph (and schema) name for per-project isolation (AGE only). Each
+   * project can use its own graph so their knowledge graphs never mix.
+   * Validated as a safe SQL identifier. Ignored by the SQLite provider, which
+   * isolates per project by database file path instead. Defaults to
+   * `recurrsive`.
+   */
+  graphName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +116,7 @@ export async function createGraphClient(config: GraphConfig): Promise<ExtendedGr
         {
           connectionString: config.connectionString,
           poolSize: config.poolSize,
+          graphName: config.graphName,
         },
         autoMigrate,
       );

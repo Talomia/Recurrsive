@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock all external dependencies
 vi.mock('@recurrsive/graph', () => ({
+  DEFAULT_AGE_GRAPH: 'recurrsive',
   createGraphClient: vi.fn().mockResolvedValue({
     getStats: vi.fn().mockResolvedValue({ entityCount: 0, relationshipCount: 0, entityTypes: {}, relationshipTypes: {} }),
     getEntities: vi.fn().mockResolvedValue([]),
@@ -266,8 +267,8 @@ describe('ServerState', () => {
   // ── Uninitialized Accessor Errors ────────────────────────────────────
 
   describe('uninitialized accessor errors', () => {
-    it('getGraph throws when not initialized', async () => {
-      expect(() => state.getGraph()).toThrow(/not initialized/i);
+    it('getGraph rejects when not initialized', async () => {
+      await expect(state.getGraph()).rejects.toThrow(/not initialized/i);
     });
 
     it('getProjectInfo throws when not initialized', async () => {

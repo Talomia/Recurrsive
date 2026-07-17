@@ -34,6 +34,7 @@ import type { FastifyInstance } from 'fastify';
 // ---------------------------------------------------------------------------
 
 vi.mock('@recurrsive/graph', () => ({
+  DEFAULT_AGE_GRAPH: 'recurrsive',
   createGraphClient: vi.fn().mockResolvedValue({
     getStats: vi.fn().mockResolvedValue({
       entityCount: 42,

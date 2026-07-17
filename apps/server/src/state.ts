@@ -11,7 +11,7 @@
  */
 
 import * as path from 'node:path';
-import { createGraphClient, type ExtendedGraphClient } from '@recurrsive/graph';
+import { createGraphClient, DEFAULT_AGE_GRAPH, type ExtendedGraphClient } from '@recurrsive/graph';
 import { OpportunityManager } from '@recurrsive/opportunities';
 import { AnalyzerRegistry, AnalyzerRunner, createDefaultAnalyzers } from '@recurrsive/analyzers';
 import { ReasoningEngine } from '@recurrsive/reasoning';
@@ -31,6 +31,7 @@ import { createLogger, generateId, nowISO } from '@recurrsive/core';
 import { readFile, mkdir } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import * as crypto from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { store } from './store.js';
@@ -218,6 +219,14 @@ export type WSBroadcast = (event: WSEvent) => void;
  */
 export class ServerState {
   private graphClient: ExtendedGraphClient | null = null;
+  /**
+   * Per-project graph clients. Each project's knowledge graph is physically
+   * isolated (its own AGE graph name, or its own SQLite database), so one
+   * project's analysis can never surface in another's graph. Clients are
+   * created lazily and cached; `graphClient` above always points at the most
+   * recently activated project's client for convenience within runAnalysis.
+   */
+  private graphClients = new Map<string, ExtendedGraphClient>();
   private opportunityManager: OpportunityManager = new OpportunityManager();
   private projectPath: string | null = null;
   private projectInfo: ProjectInfo | null = null;
@@ -273,65 +282,9 @@ export class ServerState {
 
     this.projectPath = projectPath;
 
-    const provider = (process.env['GRAPH_PROVIDER'] ?? 'sqlite') as 'sqlite' | 'postgresql_age';
-    const connectionString = process.env['DATABASE_URL'];
-
-    if (provider === 'postgresql_age' && connectionString) {
-      // Retry connection with exponential backoff — postgres may not be ready
-      // immediately in Docker/container environments.
-      const MAX_RETRIES = 5;
-      let lastError: unknown;
-
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        try {
-          this.graphClient = await createGraphClient({
-            provider: 'postgresql_age',
-            connectionString,
-            autoMigrate: true,
-          });
-          logger.info(`Connected to PostgreSQL/AGE (attempt ${attempt}/${MAX_RETRIES})`);
-          lastError = undefined;
-          break;
-        } catch (err) {
-          lastError = err;
-          const message = err instanceof Error ? err.message : String(err);
-          if (attempt < MAX_RETRIES) {
-            const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s, 8s, 16s
-            logger.warn(
-              `Database connection attempt ${attempt}/${MAX_RETRIES} failed: ${message}. ` +
-              `Retrying in ${delay / 1000}s…`,
-            );
-            await new Promise((resolve) => setTimeout(resolve, delay));
-          }
-        }
-      }
-
-      // If all retries failed, fall back to in-memory SQLite
-      if (lastError) {
-        const message = lastError instanceof Error ? lastError.message : String(lastError);
-        logger.error(
-          `All ${MAX_RETRIES} database connection attempts failed: ${message}. ` +
-          `Falling back to in-memory SQLite.`,
-        );
-        this.graphClient = await createGraphClient({
-          provider: 'sqlite',
-          sqlitePath: ':memory:',
-          autoMigrate: true,
-        });
-      }
-    } else {
-      if (provider === 'postgresql_age' && !connectionString) {
-        logger.warn(
-          'GRAPH_PROVIDER is set to "postgresql_age" but DATABASE_URL is not configured. ' +
-          'Falling back to in-memory SQLite.',
-        );
-      }
-      this.graphClient = await createGraphClient({
-        provider: 'sqlite',
-        sqlitePath: ':memory:',
-        autoMigrate: true,
-      });
-    }
+    // Materialize the default project's graph client (and cache it). Other
+    // projects' clients are created lazily on first use via getGraphForProject.
+    this.graphClient = await this.getGraphForProject(DEFAULT_PROJECT_ID);
 
     this.opportunityManager = new OpportunityManager();
 
@@ -360,6 +313,104 @@ export class ServerState {
     }
 
     logger.info('Server state initialized successfully');
+  }
+
+  /**
+   * Derive the physical graph name for a project.
+   *
+   * The default project uses the clean `recurrsive` graph name — a readable
+   * default for the common single-project case. Every other project gets a
+   * deterministic, collision-resistant, injection-safe name
+   * (`recurrsive_<slug>_<hash>`) that is stable across restarts. (There is no
+   * existing production data to preserve; this is purely a naming choice.)
+   *
+   * @param projectId - Project id (defaults to the implicit project).
+   * @returns A safe AGE graph name.
+   */
+  private graphNameForProject(projectId?: string): string {
+    const id = projectId ?? DEFAULT_PROJECT_ID;
+    if (id === DEFAULT_PROJECT_ID) return DEFAULT_AGE_GRAPH;
+    const slug = id.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30);
+    const hash = crypto.createHash('sha256').update(id).digest('hex').slice(0, 12);
+    return `recurrsive_${slug ? slug + '_' : ''}${hash}`.slice(0, 63);
+  }
+
+  /**
+   * Create a graph client bound to the given physical graph name, honoring the
+   * configured provider (PostgreSQL/AGE in production, SQLite otherwise) with
+   * connection retries and an in-memory SQLite fallback.
+   *
+   * @param graphName - Physical AGE graph name (ignored by SQLite, which
+   *   isolates per project by database instance).
+   * @returns A connected, migrated graph client.
+   */
+  private async createGraphClientForName(graphName: string): Promise<ExtendedGraphClient> {
+    const provider = (process.env['GRAPH_PROVIDER'] ?? 'sqlite') as 'sqlite' | 'postgresql_age';
+    const connectionString = process.env['DATABASE_URL'];
+
+    if (provider === 'postgresql_age' && connectionString) {
+      const MAX_RETRIES = 5;
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const client = await createGraphClient({
+            provider: 'postgresql_age',
+            connectionString,
+            graphName,
+            // Keep per-project pools small so many project graphs don't exhaust
+            // the database's connection limit; the default graph keeps its size.
+            poolSize: graphName === DEFAULT_AGE_GRAPH ? undefined : 4,
+            autoMigrate: true,
+          });
+          logger.info(`Connected to PostgreSQL/AGE graph "${graphName}" (attempt ${attempt}/${MAX_RETRIES})`);
+          return client;
+        } catch (err) {
+          lastError = err;
+          const message = err instanceof Error ? err.message : String(err);
+          if (attempt < MAX_RETRIES) {
+            const delay = Math.pow(2, attempt - 1) * 1000;
+            logger.warn(
+              `Database connection attempt ${attempt}/${MAX_RETRIES} for graph "${graphName}" failed: ` +
+              `${message}. Retrying in ${delay / 1000}s…`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        }
+      }
+      const message = lastError instanceof Error ? lastError.message : String(lastError);
+      logger.error(
+        `All ${MAX_RETRIES} database connection attempts failed for graph "${graphName}": ${message}. ` +
+        `Falling back to in-memory SQLite.`,
+      );
+      return createGraphClient({ provider: 'sqlite', sqlitePath: ':memory:', autoMigrate: true });
+    }
+
+    if (provider === 'postgresql_age' && !connectionString) {
+      logger.warn(
+        'GRAPH_PROVIDER is set to "postgresql_age" but DATABASE_URL is not configured. ' +
+        'Falling back to in-memory SQLite.',
+      );
+    }
+    // SQLite isolates per project by using a distinct client instance (each
+    // ':memory:' database is independent).
+    return createGraphClient({ provider: 'sqlite', sqlitePath: ':memory:', autoMigrate: true });
+  }
+
+  /**
+   * Return the graph client for a project, creating and caching it on first
+   * use. Each project's client is bound to its own physical graph, so their
+   * knowledge graphs are fully isolated.
+   *
+   * @param projectId - Project id (defaults to the implicit project).
+   * @returns The project's graph client.
+   */
+  async getGraphForProject(projectId?: string): Promise<ExtendedGraphClient> {
+    const id = projectId ?? DEFAULT_PROJECT_ID;
+    const existing = this.graphClients.get(id);
+    if (existing) return existing;
+    const client = await this.createGraphClientForName(this.graphNameForProject(id));
+    this.graphClients.set(id, client);
+    return client;
   }
 
   /**
@@ -516,6 +567,10 @@ export class ServerState {
       this._analysisHistory = await loadHistory(activeProjectId);
     }
     this._currentProjectId = activeProjectId;
+
+    // Point the working graph client at this project's isolated graph so the
+    // clear + all entity/relationship writes below land in the right project.
+    this.graphClient = await this.getGraphForProject(activeProjectId);
 
     const runId = generateId();
     const start = Date.now();
@@ -1105,9 +1160,9 @@ export class ServerState {
    * @returns The extended graph client.
    * @throws {Error} If the server has not been initialized.
    */
-  getGraph(): ExtendedGraphClient {
+  async getGraph(projectId?: string): Promise<ExtendedGraphClient> {
     this.assertInitialized();
-    return this.graphClient!;
+    return this.getGraphForProject(projectId);
   }
 
   /**
@@ -1377,10 +1432,13 @@ export class ServerState {
    * Dispose of the server state, releasing all resources.
    */
   async dispose(): Promise<void> {
-    if (this.graphClient) {
-      await this.graphClient.dispose();
-      this.graphClient = null;
+    // Dispose every per-project graph client (this includes the current one,
+    // which is a reference into the same map).
+    for (const client of this.graphClients.values()) {
+      try { await client.dispose(); } catch { /* already cleaned up */ }
     }
+    this.graphClients.clear();
+    this.graphClient = null;
     this.opportunityManager = new OpportunityManager();
     this.projectPath = null;
     this.projectInfo = null;

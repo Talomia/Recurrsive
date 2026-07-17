@@ -49,7 +49,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
    * Return aggregate statistics about the knowledge graph: entity and
    * relationship counts, grouped by type.
    */
-  app.get('/api/v1/graph/stats', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get('/api/v1/graph/stats', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -58,7 +58,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      const graph = state.getGraph();
+      const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
       const stats = await graph.getStats();
 
       return reply.status(200).send({
@@ -101,7 +101,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 500));
 
       try {
-        const graph = state.getGraph();
+        const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
 
         if (type) {
           // Query by type
@@ -191,7 +191,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params;
 
       try {
-        const graph = state.getGraph();
+        const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
         const entity = await graph.getEntity(id);
 
         if (!entity) {
@@ -248,7 +248,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        const graph = state.getGraph();
+        const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
 
         // Verify the entity exists
         const entity = await graph.getEntity(id);
@@ -310,7 +310,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       }
 
       try {
-        const graph = state.getGraph();
+        const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
 
         // Verify the entity exists
         const entity = await graph.getEntity(id);
@@ -371,7 +371,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       const offset = Number.isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
 
       try {
-        const graph = state.getGraph();
+        const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
 
         // Use direct SQL listing if the provider supports it (AGE)
         if ('listRelationships' in graph && typeof graph.listRelationships === 'function') {
@@ -467,7 +467,7 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
       const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 200));
 
       try {
-        const graph = state.getGraph();
+        const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
 
         // Try FTS5 search if the client supports it
         if ('searchEntities' in graph && typeof graph.searchEntities === 'function') {

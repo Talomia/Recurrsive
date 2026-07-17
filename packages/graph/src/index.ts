@@ -55,6 +55,8 @@ export {
   migrate,
   getMigrationStatements,
   MIGRATION_NAME,
+  DEFAULT_AGE_GRAPH,
+  assertSafeGraphName,
   type MigrationProvider,
   type MigrationResult,
 } from './migrations/index.js';

@@ -71,7 +71,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
    * Export the current knowledge graph state as a portable JSON snapshot.
    * Returns a full dump of all entities and relationships with metadata.
    */
-  app.get('/api/v1/snapshots/export', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get('/api/v1/snapshots/export', { preHandler: [authMiddleware] }, async (request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -80,7 +80,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
     }
 
     try {
-      const graph = state.getGraph();
+      const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
       const graphStats = await graph.getStats();
 
       // Fetch all entities by type
@@ -159,7 +159,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
     }
 
     try {
-      const graph = state.getGraph();
+      const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
       let entitiesImported = 0;
       let relationshipsImported = 0;
 

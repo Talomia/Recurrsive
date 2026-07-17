@@ -354,7 +354,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
       }
 
       try {
-        const graph = state.getGraph();
+        const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
         const stats = await graph.getStats();
 
         // Gather all entities

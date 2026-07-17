@@ -14,7 +14,7 @@ import pg from 'pg';
 import type { Entity, EntityType, Relationship } from '@recurrsive/core';
 import { GraphError, EntityTypeSchema, RelationTypeSchema } from '@recurrsive/core';
 import type { GraphClient } from '@recurrsive/core';
-import { migrate } from '../migrations/001_initial_schema.js';
+import { migrate, DEFAULT_AGE_GRAPH, assertSafeGraphName } from '../migrations/001_initial_schema.js';
 
 const { Pool } = pg;
 
@@ -32,6 +32,12 @@ export interface AgeConfig {
   connectionTimeoutMs?: number;
   /** Idle timeout in milliseconds (default `30_000`). */
   idleTimeoutMs?: number;
+  /**
+   * AGE graph (and schema) name this client operates on. Enables per-project
+   * isolation: each project uses its own graph. Validated as a safe SQL
+   * identifier. Defaults to {@link DEFAULT_AGE_GRAPH} (`recurrsive`).
+   */
+  graphName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,12 +320,15 @@ function relationshipToAgeProps(rel: Relationship): string {
  */
 export class AgeGraphClient implements ExtendedGraphClient {
   private readonly pool: pg.Pool;
+  private readonly graphName: string;
   private initialized = false;
 
   /**
    * @param config - AGE connection configuration.
    */
   constructor(config: AgeConfig) {
+    this.graphName = config.graphName ?? DEFAULT_AGE_GRAPH;
+    assertSafeGraphName(this.graphName);
     this.pool = new Pool({
       connectionString: config.connectionString,
       max: config.poolSize ?? 10,
@@ -354,7 +363,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
       await this.prepareConnection(client);
       // Set a per-query timeout to prevent slow Cypher scans from hanging
       await client.query(`SET statement_timeout = '30s';`);
-      const sql = `SELECT * FROM cypher('recurrsive', $$ ${cypher} $$) AS (${returnColumns});`;
+      const sql = `SELECT * FROM cypher('${this.graphName}', $$ ${cypher} $$) AS (${returnColumns});`;
       const result = await client.query(sql);
       return result.rows.map((row: Record<string, unknown>) => {
         const parsed: Record<string, unknown> = {};
@@ -396,6 +405,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
         await migrate(
           async (sql) => { await client.query(sql); },
           'postgresql_age',
+          this.graphName,
         );
       } finally {
         client.release();
