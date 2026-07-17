@@ -137,15 +137,15 @@ Recurrsive/
 │   ├── policy/                  # Policy engine — 5 built-in policy sets (16 rules)
 │   └── presentation/            # Reports — Markdown, HTML, JSON, SARIF + notifications
 ├── apps/                        # Applications (5 apps)
-│   ├── cli/                     # Commander.js CLI — 28 commands
+│   ├── cli/                     # Commander.js CLI — 29 commands
 │   ├── server/                  # Fastify REST API — 160+ endpoints + WebSocket + GraphQL
 │   ├── mcp/                     # MCP server — 42 tools, 16 resources, 21 prompts
-│   ├── dashboard/               # Next.js 16 dashboard — 46 pages
-│   └── website/                 # Marketing website — 23 pages + SEO
+│   ├── dashboard/               # Next.js dashboard — 45 pages
+│   └── website/                 # Marketing website — 21 pages + SEO
 ├── docker/                      # Dockerfiles + docker-compose (4 services)
 ├── docs/                        # Documentation
-│   ├── PRD.md                   # Product Requirements (2,096 lines)
-│   ├── ARCHITECTURE.md          # Technical Architecture (2,304 lines)
+│   ├── PRD.md                   # Product Requirements
+│   ├── ARCHITECTURE.md          # Technical Architecture
 │   ├── STRATEGY.md              # Product Strategy & Business Model
 │   ├── ROADMAP.md               # Phased Roadmap
 │   ├── API.md                   # API Reference (REST, MCP, CLI)

@@ -1168,7 +1168,7 @@ Learnings flow back into the system:
 
 ## 7. Evidence Sources — Complete Collector List
 
-Every integration is implemented as a **Collector Plugin** conforming to the `Collector` interface. Below is the complete list of supported and planned sources, organized by category. As of v0.5.7, 14 collectors are implemented (Git, Documentation, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone); the remainder are planned for future releases.
+Every integration is implemented as a **Collector Plugin** conforming to the `Collector` interface. Below is the complete list of supported and planned sources, organized by category. As of v0.6.0, 14 collectors are implemented (Git, Documentation, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone); of these, the five local collectors (Git, Documentation, Environment, CI/CD, Database) run in the `recurrsive analyze` pipeline while the API-based collectors are library classes not yet wired into the pipeline. The remainder are planned for future releases.
 
 ### 7.1 Code & Version Control
 
@@ -1584,7 +1584,7 @@ Recurrsive supports multiple deployment models to fit different organizational n
 | **GitLab App** | Installed as a GitLab integration | Teams using GitLab, automated MR analysis | Cloud API (managed) |
 | **IDE Extensions** | VS Code, JetBrains, Neovim plugins | Individual developers, real-time feedback | Local models or cloud API |
 | **MCP Server** | Model Context Protocol server for AI assistants | AI-assisted development workflows | Via MCP client |
-| **REST API** | 160+ endpoints across 37 route modules | Custom integrations, dashboards, automation | N/A (API only) |
+| **REST API** | 160+ endpoints across 41 route modules | Custom integrations, dashboards, automation | N/A (API only) |
 | **GraphQL API** | GraphQL API for flexible querying | Complex queries, custom UIs, data exploration | N/A (API only) |
 | **SDK** | TypeScript, Python, Go SDKs | Embedding Recurrsive in other tools | N/A (SDK only) |
 | **Managed Cloud** | Fully managed SaaS with multi-tenant support | Teams wanting zero-ops, fastest onboarding | Managed (customer-isolated) |
@@ -1644,22 +1644,22 @@ Recurrsive supports multiple deployment models to fit different organizational n
 └───────────────────────────────────────────────────────┘
 ```
 
-### 11.3 Current Implementation (v0.5.7)
+### 11.3 Current Implementation (v0.6.0)
 
-As of v0.5.7, the following deployment surface is implemented:
+As of v0.6.0, the following deployment surface is implemented:
 
 | Component | Count | Notes |
 |---|---|---|
-| **REST Endpoints** | 160+ | Across 37 route modules |
+| **REST Endpoints** | 160+ | Across 41 route modules |
 | **Built-in Analyzers** | 12 | 50+ analysis rules |
-| **Built-in Collectors** | 14 | Including enterprise integrations (GitHub, GitLab, OpenTelemetry, Langfuse, Arize, Helicone, Cloud Cost, Error Tracking, APM) |
+| **Built-in Collectors** | 14 | Git, Docs, Environment, CI/CD, and Database run in the analysis pipeline; GitHub, GitLab, OpenTelemetry, Langfuse, Arize, Helicone, Cloud Cost, Error Tracking, and APM ship as library collectors (not yet pipeline-wired) |
 | **Specialist Agents** | 19 | With Custom Specialist Agent SDK |
-| **CLI Commands** | 25 | Full management and analysis |
+| **CLI Commands** | 29 | Full management and analysis |
 | **MCP Tools** | 42 | Plus 21 prompts and 16 resources |
-| **Dashboard Pages** | 40 | Including multi-tenant management, plugins, secrets, SSO, scheduling, simulation, confidence calibration |
-| **Website Pages** | 23 | Marketing site with docs hub, marketplace, cloud, and partner portal |
+| **Dashboard Pages** | 45 | Including multi-tenant management, plugins, secrets, SSO, scheduling, simulation, confidence calibration |
+| **Website Pages** | 21 | Marketing site with docs hub, marketplace, cloud, and partner portal |
 | **Entity Types** | 43 | With 43 relationship types in the knowledge graph |
-| **Policy Sets** | 5 | With 15 built-in rules |
+| **Policy Sets** | 5 | With 16 built-in rules |
 | **Report Formats** | 4 | Markdown, HTML, JSON, SARIF v2.1.0 |
 | **Git URL Analysis** | ✓ | Clone and analyze remote repositories via `POST /api/v1/analyze` with `gitUrl` |
 | **Multi-Tenant Support** | ✓ | Tenant CRUD, tier management, quota tracking |

@@ -56,23 +56,25 @@ reasoning:
 # ── Collectors ──────────────────────────────────────────────────────────────
 # Array of data sources to ingest into the knowledge graph.
 # Each collector has a type, enabled flag, and type-specific config.
-collectors:
-  - type: git
-    enabled: true
-    config:
-      # Maximum number of git commits to analyze for history
-      max_commits: 500
-      # Include file content (increases accuracy but uses more memory)
-      include_content: false
-
-  - type: docs
-    enabled: true
-    config:
-      # Documentation root directory (relative to project root)
-      docs_dir: docs
+#
+# NOTE: collector selection via config is not yet wired into the analysis
+# pipeline — `recurrsive analyze` always runs the built-in local collectors
+# (git, documentation, environment, ci/cd, database). This section is
+# validated against the schema and reserved for future use.
+collectors: []
+  # - type: git
+  #   enabled: true
+  #   config: {}
+  # - type: documentation
+  #   enabled: true
+  #   config: {}
 
 # ── Analyzers ───────────────────────────────────────────────────────────────
-# Control which analyzers run and their individual configuration.
+# Analyzer selection and configuration.
+#
+# NOTE: analyzer selection via config is not yet wired into the CLI — all 12
+# built-in analyzers run by default. To run a subset today, use:
+#   recurrsive analyze --analyzers architecture.structural,security.vulnerabilities
 analyzers:
   # Glob patterns of analyzer IDs to enable ("*" = all)
   enabled:
@@ -80,15 +82,12 @@ analyzers:
 
   # Glob patterns of analyzer IDs to disable (takes precedence over enabled)
   disabled: []
-    # - "ux"      # example: skip UX analyzer
-    # - "product"  # example: skip product analyzer
+    # - "docs.completeness"   # example: skip documentation analyzer
+    # - "product.health"      # example: skip product analyzer
 
-  # Per-analyzer config overrides keyed by analyzer ID
+  # Per-analyzer config overrides keyed by analyzer ID (reserved — not yet
+  # applied by the CLI)
   config: {}
-    # architecture:
-    #   max_circular_depth: 5
-    # security:
-    #   ignore_test_files: true
 
 # ── Data Governance ─────────────────────────────────────────────────────────
 # Privacy-preserving controls for data collection and output.

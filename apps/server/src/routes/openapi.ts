@@ -1,7 +1,8 @@
 /**
  * @module @recurrsive/server/routes/openapi
  *
- * Auto-generated OpenAPI 3.1 specification for the Recurrsive API.
+ * OpenAPI 3.1 specification for the Recurrsive API, maintained alongside
+ * the route modules.
  * Serves the spec at /api/v1/openapi.json and a simple Swagger UI at /api/docs.
  *
  * @packageDocumentation
@@ -60,6 +61,7 @@ const OPENAPI_SPEC = {
     { name: 'Data Masking', description: 'PII detection and data masking' },
     { name: 'Activity', description: 'Activity tracking and statistics' },
     { name: 'Ecosystem', description: 'Ecosystem overview and metrics' },
+    { name: 'Assistant', description: 'AI assistant chat over analysis data' },
   ],
   paths: {
     // -----------------------------------------------------------------------
@@ -140,40 +142,23 @@ const OPENAPI_SPEC = {
             'application/json': {
               schema: {
                 type: 'object',
+                description: 'Either `path` or `gitUrl` is required.',
                 properties: {
-                  path: { type: 'string', description: 'Absolute path to the project' },
-                  analyzers: { type: 'array', items: { type: 'string' }, description: 'Optional analyzer IDs' },
-                  include_reasoning: { type: 'boolean', description: 'Include reasoning in results' },
-                },
-                required: ['path'],
-              },
-            },
-          },
-        },
-        responses: { '202': { description: 'Analysis started' } },
-      },
-    },
-    '/api/v1/analysis': {
-      post: {
-        tags: ['Analysis'],
-        summary: 'Start a new analysis',
-        operationId: 'startAnalysis',
-        requestBody: {
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  path: { type: 'string', description: 'Absolute local path to project' },
+                  path: { type: 'string', description: 'Absolute local path to the project' },
                   gitUrl: { type: 'string', description: 'Git repository URL to clone and analyze' },
-                  analyzers: { type: 'array', items: { type: 'string' }, description: 'Specific analyzers to run' },
+                  analyzers: { type: 'array', items: { type: 'string' }, description: 'Optional analyzer IDs' },
                   include_reasoning: { type: 'boolean', description: 'Include LLM reasoning pass' },
+                  projectId: { type: 'string', description: 'Project id to scope this analysis under' },
                 },
               },
             },
           },
         },
-        responses: { '202': { description: 'Analysis started' }, '409': { description: 'Analysis already in progress' } },
+        responses: {
+          '202': { description: 'Analysis started' },
+          '400': { description: 'Missing or invalid path/gitUrl' },
+          '409': { description: 'Analysis already in progress' },
+        },
       },
     },
     '/api/v1/analysis/status': {
@@ -190,6 +175,20 @@ const OPENAPI_SPEC = {
         summary: 'List analysis history',
         operationId: 'getAnalysisHistory',
         responses: { '200': { description: 'List of past analysis runs' } },
+      },
+    },
+    '/api/v1/analysis/compare': {
+      get: {
+        tags: ['Analysis'],
+        summary: 'Compare current analysis results against a baseline run',
+        operationId: 'compareAnalysis',
+        parameters: [
+          { name: 'baseline', in: 'query', schema: { type: 'integer' }, description: 'Index in history to compare against (default: previous run)' },
+        ],
+        responses: {
+          '200': { description: 'Diff of findings and opportunities' },
+          '503': { description: 'Server not initialized' },
+        },
       },
     },
 
@@ -419,6 +418,19 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Trend data over time' } },
       },
     },
+    '/api/v1/timeline/events': {
+      get: {
+        tags: ['Timeline'],
+        summary: 'List timeline events with pagination',
+        operationId: 'getTimelineEvents',
+        parameters: [
+          { name: 'limit', in: 'query', schema: { type: 'integer' } },
+          { name: 'offset', in: 'query', schema: { type: 'integer' } },
+          { name: 'projectId', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'Timeline events derived from snapshots and analysis history' } },
+      },
+    },
 
     // -----------------------------------------------------------------------
     // Snapshots
@@ -474,6 +486,19 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Activity statistics' } },
       },
     },
+    '/api/v1/activity/feed': {
+      get: {
+        tags: ['Activity'],
+        summary: 'Activity feed with pagination',
+        operationId: 'getActivityFeed',
+        parameters: [
+          { name: 'limit', in: 'query', schema: { type: 'integer' } },
+          { name: 'offset', in: 'query', schema: { type: 'integer' } },
+          { name: 'type', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'Activity feed entries' } },
+      },
+    },
 
     // -----------------------------------------------------------------------
     // Ecosystem
@@ -484,6 +509,58 @@ const OPENAPI_SPEC = {
         summary: 'Ecosystem overview',
         operationId: 'getEcosystemOverview',
         responses: { '200': { description: 'Ecosystem overview data' } },
+      },
+    },
+    '/api/v1/ecosystem/integrations': {
+      get: {
+        tags: ['Ecosystem'],
+        summary: 'List ecosystem integrations',
+        operationId: 'getEcosystemIntegrations',
+        parameters: [
+          { name: 'category', in: 'query', schema: { type: 'string' } },
+          { name: 'status', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'Ecosystem integration list' } },
+      },
+    },
+    '/api/v1/assistant/status': {
+      get: {
+        tags: ['Assistant'],
+        summary: 'Get AI assistant availability status',
+        operationId: 'getAssistantStatus',
+        responses: { '200': { description: 'Assistant status' } },
+      },
+    },
+    '/api/v1/assistant/chat': {
+      post: {
+        tags: ['Assistant'],
+        summary: 'Send a chat message to the AI assistant',
+        operationId: 'assistantChat',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  messages: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        role: { type: 'string' },
+                        content: { type: 'string' },
+                      },
+                      required: ['role', 'content'],
+                    },
+                  },
+                  projectId: { type: 'string' },
+                },
+                required: ['messages'],
+              },
+            },
+          },
+        },
+        responses: { '200': { description: 'Assistant reply' } },
       },
     },
 
@@ -533,6 +610,24 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Project deleted' } },
       },
     },
+    '/api/v1/projects/{id}/findings': {
+      get: {
+        tags: ['Projects'],
+        summary: 'List findings for a project',
+        operationId: 'getProjectFindings',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Project findings' } },
+      },
+    },
+    '/api/v1/projects/{id}/opportunities': {
+      get: {
+        tags: ['Projects'],
+        summary: 'List opportunities for a project',
+        operationId: 'getProjectOpportunities',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Project opportunities' } },
+      },
+    },
     '/api/v1/projects/compare/health': {
       get: {
         tags: ['Projects'],
@@ -551,10 +646,10 @@ const OPENAPI_SPEC = {
         summary: 'Forecast health score trends',
         operationId: 'forecastHealth',
         parameters: [
-          { name: 'horizon', in: 'query', schema: { type: 'integer', default: 30 }, description: 'Forecast horizon in days' },
-          { name: 'history', in: 'query', schema: { type: 'integer', default: 90 }, description: 'Historical days to use' },
+          { name: 'horizon', in: 'query', schema: { type: 'integer', default: 30, maximum: 180 }, description: 'Forecast horizon in days' },
+          { name: 'projectId', in: 'query', schema: { type: 'string' }, description: 'Project to forecast (defaults to the implicit project)' },
         ],
-        responses: { '200': { description: 'Health forecast with trend data' } },
+        responses: { '200': { description: 'Health forecast with trend data (status insufficient_data when fewer than 2 snapshots exist)' } },
       },
     },
     '/api/v1/forecasting/what-if': {
@@ -574,6 +669,18 @@ const OPENAPI_SPEC = {
         summary: 'Get codebase evolution trends',
         operationId: 'getEvolution',
         responses: { '200': { description: 'Evolution trend data' } },
+      },
+    },
+    '/api/v1/forecasting/predictions': {
+      get: {
+        tags: ['Forecasting'],
+        summary: 'Interval predictions from real snapshots',
+        operationId: 'getForecastPredictions',
+        parameters: [
+          { name: 'horizon', in: 'query', schema: { type: 'integer', default: 30, maximum: 90 }, description: 'Prediction horizon in days' },
+          { name: 'projectId', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'Predictions (status insufficient_data when fewer than 2 snapshots exist)' } },
       },
     },
 
@@ -938,6 +1045,15 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Authentication token' } },
       },
     },
+    '/api/v1/auth/logout': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Log out and revoke the current token',
+        operationId: 'logout',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Token revoked' } },
+      },
+    },
     '/api/v1/auth/refresh': {
       post: {
         tags: ['Auth'],
@@ -1012,7 +1128,7 @@ const OPENAPI_SPEC = {
                 type: 'object',
                 properties: {
                   currentPassword: { type: 'string' },
-                  newPassword: { type: 'string', minLength: 6 },
+                  newPassword: { type: 'string', minLength: 8 },
                 },
                 required: ['currentPassword', 'newPassword'],
               },
@@ -1051,7 +1167,7 @@ const OPENAPI_SPEC = {
                 properties: {
                   username: { type: 'string' },
                   email: { type: 'string', format: 'email' },
-                  password: { type: 'string', minLength: 6 },
+                  password: { type: 'string', minLength: 8 },
                   displayName: { type: 'string' },
                 },
                 required: ['username', 'email', 'password'],
@@ -1090,7 +1206,7 @@ const OPENAPI_SPEC = {
                 properties: {
                   username: { type: 'string' },
                   email: { type: 'string', format: 'email' },
-                  password: { type: 'string', minLength: 6 },
+                  password: { type: 'string', minLength: 8 },
                   role: { type: 'string', enum: ['admin', 'analyst', 'viewer'] },
                   displayName: { type: 'string' },
                 },
@@ -1152,7 +1268,7 @@ const OPENAPI_SPEC = {
               schema: {
                 type: 'object',
                 properties: {
-                  password: { type: 'string', minLength: 6 },
+                  password: { type: 'string', minLength: 8 },
                 },
                 required: ['password'],
               },
@@ -1235,7 +1351,7 @@ const OPENAPI_SPEC = {
                 type: 'object',
                 properties: {
                   username: { type: 'string' },
-                  password: { type: 'string', minLength: 6 },
+                  password: { type: 'string', minLength: 8 },
                   displayName: { type: 'string' },
                 },
                 required: ['username', 'password'],
@@ -1371,6 +1487,15 @@ const OPENAPI_SPEC = {
         summary: 'List governance policies',
         operationId: 'getPolicies',
         responses: { '200': { description: 'Policy list' } },
+      },
+    },
+    '/api/v1/policies/{id}': {
+      get: {
+        tags: ['Policies'],
+        summary: 'Get a policy set by ID',
+        operationId: 'getPolicy',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Policy set detail' } },
       },
     },
     '/api/v1/policies/evaluate': {
@@ -1575,6 +1700,23 @@ const OPENAPI_SPEC = {
         summary: 'Get notification delivery history',
         operationId: 'getNotificationHistory',
         responses: { '200': { description: 'Notification history' } },
+      },
+    },
+    '/api/v1/notifications/read-all': {
+      post: {
+        tags: ['Notifications'],
+        summary: 'Mark all notifications as read',
+        operationId: 'markAllNotificationsRead',
+        responses: { '200': { description: 'All notifications marked as read' } },
+      },
+    },
+    '/api/v1/notifications/{id}': {
+      get: {
+        tags: ['Notifications'],
+        summary: 'Get a notification by ID',
+        operationId: 'getNotification',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Notification detail' } },
       },
     },
 
@@ -1799,6 +1941,15 @@ const OPENAPI_SPEC = {
         responses: { '200': { description: 'Current batch status' } },
       },
     },
+    '/api/v1/batch/{id}': {
+      get: {
+        tags: ['Batch'],
+        summary: 'Get a batch run by ID',
+        operationId: 'getBatchRun',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Batch run detail' } },
+      },
+    },
 
     // -----------------------------------------------------------------------
     // Search
@@ -1857,6 +2008,33 @@ const OPENAPI_SPEC = {
         summary: 'Get export history',
         operationId: 'getExportHistory',
         responses: { '200': { description: 'Export history list' } },
+      },
+    },
+    '/api/v1/export/findings/{format}': {
+      get: {
+        tags: ['Export'],
+        summary: 'Download findings in the specified format',
+        operationId: 'exportFindings',
+        parameters: [{ name: 'format', in: 'path', required: true, schema: { type: 'string', enum: ['json', 'csv', 'markdown'] } }],
+        responses: { '200': { description: 'Findings file content' }, '400': { description: 'Invalid format' } },
+      },
+    },
+    '/api/v1/export/graph/{format}': {
+      get: {
+        tags: ['Export'],
+        summary: 'Download the knowledge graph in the specified format',
+        operationId: 'exportGraph',
+        parameters: [{ name: 'format', in: 'path', required: true, schema: { type: 'string', enum: ['json', 'csv', 'markdown'] } }],
+        responses: { '200': { description: 'Graph file content' }, '400': { description: 'Invalid format' } },
+      },
+    },
+    '/api/v1/export/report': {
+      get: {
+        tags: ['Export'],
+        summary: 'Generate a report and return metadata with download URL',
+        operationId: 'exportReport',
+        parameters: [{ name: 'format', in: 'query', schema: { type: 'string', enum: ['json', 'csv', 'markdown'], default: 'markdown' } }],
+        responses: { '200': { description: 'Report metadata' }, '400': { description: 'Invalid format' } },
       },
     },
 

@@ -12,24 +12,21 @@ graph:
   provider: postgresql_age
   connection_string: postgres://recurrsive:password@localhost:5432/recurrsive_graph
 
-# Selective analyzers for enterprise focus areas
+# Selective analyzers for enterprise focus areas.
+# NOTE: analyzer selection via config is not yet wired into the CLI — all 12
+# built-in analyzers run by default. To run a subset today, use:
+#   recurrsive analyze --analyzers architecture.structural,security.vulnerabilities
 analyzers:
   enabled:
-    - architecture
-    - security
-    - reliability
-    - performance
-    - cost
-    - data
-  disabled:
-    - ux      # Not relevant for backend services
-  config:
-    security:
-      severity_threshold: low    # Catch everything
-    reliability:
-      severity_threshold: medium
-    architecture:
-      severity_threshold: medium
+    - architecture.structural
+    - security.vulnerabilities
+    - reliability.resilience
+    - performance.general
+    - cost.optimization
+    - data.schema-quality
+  disabled: []
+  # Per-analyzer config overrides (reserved — not yet applied by the CLI)
+  config: {}
 
 # LLM configuration (enterprise proxy)
 reasoning:

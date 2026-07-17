@@ -6,20 +6,20 @@
 |---|---|---|
 | Core type system | ✅ Complete | 12 type files, Zod schemas with runtime validation |
 | Knowledge graph | ✅ Complete | Dual-backend (AGE/SQLite), 43 entity types, 43 relationship types |
-| Collectors | ✅ Complete | 14 collectors: Git, Doc, Environment, CI/CD, Database, GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, Helicone |
+| Collectors | ✅ Complete | 14 collector implementations. Git, Doc, Environment, CI/CD, and Database run in the analysis pipeline; GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking, APM, Langfuse, Arize, and Helicone ship as library collectors (not yet wired into the pipeline) |
 | Parsers | ✅ Complete | Tree-sitter, TS/Python/Go extractors, AI pattern detection (13 patterns) |
 | Analyzers | ✅ Complete | 12 analyzers, 50+ rules, all with cross-cutting finalize() logic |
 | Reasoning | ✅ Complete | 19 specialist agents, multi-agent debate, synthesis, ranking |
 | Opportunities | ✅ Complete | Full lifecycle, SARIF export, markdown/HTML reports |
 | Policy engine | ✅ Complete | Recursive descent expression parser, 5 policy sets (16 rules) |
 | Presentation | ✅ Complete | Markdown/HTML/JSON/SARIF reports, console/webhook notifications |
-| CLI | ✅ Complete | 28 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export, projects, forecast, plugins, secrets, simulate, cloud, login, logout, whoami) |
+| CLI | ✅ Complete | 29 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export, projects, forecast, plugins, secrets, simulate, cloud, login, setup, logout, whoami) |
 | MCP Server | ✅ Complete | 42 tools, 16 resources, 21 prompts |
 | REST API | ✅ Complete | 160+ endpoints, OpenAPI 3.1 spec, WebSocket streaming, JWT/API key auth, RBAC |
 | Dashboard | ✅ Complete | Next.js, 45 pages (incl. marketplace + partners), grouped sidebar navigation, real-time WebSocket |
 | Website | ✅ Complete | 21 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth (HMAC-SHA256), scrypt password hashing, setup wizard, user CRUD, SSO auto-provisioning, API key management, RBAC (admin/analyst/viewer) |
-| Tests | ✅ Complete | 140 test files, 3,293+ tests across 14 packages, integration tests for full pipeline |
+| Tests | ✅ Complete | 122 test files across 14 packages, integration tests for full pipeline |
 | Tier Separation | ✅ Complete | 3-tier model (OSS/Enterprise/Ecosystem) enforced at runtime via `ENABLE_ENTERPRISE` and `ENABLE_ECOSYSTEM` env vars |
 
 > [!NOTE]
@@ -29,7 +29,7 @@
 > actual analysis state. No mock or synthetic data remains in production code.
 >
 > The 3-tier model (OSS → Enterprise → Ecosystem) is enforced at runtime:
-> - **Tier 1 (OSS)**: 27 route modules, always enabled
+> - **Tier 1 (OSS)**: 33 route modules, always enabled
 > - **Tier 2 (Enterprise)**: SSO, multi-tenant, secrets, data masking — gated by `ENABLE_ENTERPRISE`
 > - **Tier 3 (Ecosystem)**: Cloud, marketplace, partners — gated by `ENABLE_ECOSYSTEM`
 
@@ -56,7 +56,7 @@ Make Recurrsive useful for a single AI engineering team analyzing a single repos
 
 ### Dashboard
 - [x] Connect dashboard to live API (all pages use server API)
-- [x] Add dashboard detail pages (batch/[id], experiments/[id], notifications/[id], opportunities/[id], policies/[id], insights/[id], system-map/[id])
+- [x] Add dashboard detail pages (batch/[id], experiments/[id], findings/[id], notifications/[id], opportunities/[id], policies/[id], projects/[id], system-map/[id])
 - [x] Add real-time WebSocket updates (LiveIndicator, useWebSocket hook)
 - [x] Implement settings persistence
 
@@ -155,7 +155,7 @@ Build organizational engineering memory and explore network effects.
   - Docs: getting-started, API reference, CLI, plugin SDK, deployment, architecture
 - [x] **Marketplace API** — 5 server endpoints (extensions CRUD, categories, stats)
 - [x] **Partner API** — 5 server endpoints (directory, apply, certifications, stats)
-- [x] **OpenAPI 3.1 spec** — Auto-generated spec at /api/v1/openapi.json + Swagger UI at /api/docs
+- [x] **OpenAPI 3.1 spec** — served at /api/v1/openapi.json + Swagger UI at /api/docs
 - [x] **SEO** — sitemap.xml, robots.txt, not-found, loading, error pages
 - [x] **Dashboard wiring** — 9 dashboard pages wired to server APIs with mock fallback
 - [x] **Navigation** — 5 dropdown menus with 17+ quick-access links

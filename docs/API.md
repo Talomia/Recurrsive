@@ -20,7 +20,7 @@ Base URL: `http://localhost:3000`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/openapi.json` | Returns the full OpenAPI 3.1 specification (34 tags, 160+ endpoints) |
+| `GET` | `/api/v1/openapi.json` | Returns the full OpenAPI 3.1 specification (37 tags, 200+ operations) |
 | `GET` | `/api/docs` | Swagger UI interactive documentation page |
 
 ### Analysis
@@ -34,22 +34,27 @@ Base URL: `http://localhost:3000`
 
 #### `POST /api/v1/analyze`
 
-**Body:**
+**Body** (either `path` or `gitUrl` is required):
 ```json
 {
   "path": "/path/to/project",
-  "analyzers": ["architecture", "security"],  // optional, default: all
-  "include_reasoning": true                    // optional, default: false
+  "gitUrl": "https://github.com/org/repo.git",              // alternative to path
+  "analyzers": ["architecture.structural", "security.vulnerabilities"],  // optional, default: all
+  "include_reasoning": true                                  // optional, default: false
 }
 ```
 
-**Response:**
+**Response** (`202 Accepted` — analysis runs asynchronously):
 ```json
 {
-  "run_id": "uuid",
-  "status": "running",
-  "started_at": "2026-01-01T00:00:00Z",
-  "ws": "ws://localhost:3000/ws"
+  "message": "Analysis started",
+  "status": { "phase": "collecting", "progress": 0 },
+  "project": "/path/to/project",
+  "endpoints": {
+    "status": "/api/v1/analysis/status",
+    "history": "/api/v1/analysis/history",
+    "opportunities": "/api/v1/opportunities"
+  }
 }
 ```
 
@@ -361,7 +366,7 @@ The MCP server exposes Recurrsive as an AI tool provider compatible with the [Mo
 
 ---
 
-## CLI Commands (25)
+## CLI Commands (29)
 
 ```bash
 recurrsive init            # Initialize a project for analysis
@@ -389,16 +394,19 @@ recurrsive plugins         # Plugin management (list, marketplace, install)
 recurrsive secrets         # Secret management (list, rotate, audit-log)
 recurrsive simulate        # Simulation engine (list, run, show)
 recurrsive cloud           # Cloud platform (benchmarks, patterns, partners)
+recurrsive setup           # First-run: create the initial admin user on the server
+recurrsive login           # Authenticate against the server
+recurrsive logout          # Clear stored credentials
+recurrsive whoami          # Show the authenticated user
 ```
 
-### Global Flags
+### Common Flags
 
-| Flag | Description |
-|------|-------------|
-| `--config <path>` | Path to config file |
-| `--verbose` | Enable verbose logging |
-| `--json` | Output as JSON |
-| `--no-color` | Disable color output |
+There are no global flags besides `-v, --version`. Flags are defined
+per command — most read commands accept `--json` for machine-readable
+output, and `analyze`/`report` accept `--format <markdown|json|sarif>`
+(plus `html` for `report`). Point the CLI at a server with the
+`RECURRSIVE_SERVER` environment variable (default `http://localhost:3000`).
 
 ---
 
@@ -409,12 +417,13 @@ The API server supports JWT and API key authentication:
 - **JWT tokens** — `Authorization: Bearer <token>` header
 - **API keys** — `X-API-Key: <key>` header
 
-Login with demo credentials to obtain a JWT token:
+There are no built-in or demo accounts. Create the first admin via the setup
+endpoint (below), then log in to obtain a JWT token:
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "admin"}'
+  -d '{"username": "admin", "password": "your-secure-password"}'
 ```
 
 ### Setup (First-Run)
@@ -443,6 +452,7 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
 | Method | Endpoint | Auth Required | Description |
 |--------|----------|:---:|-------------|
 | `POST` | `/api/v1/auth/login` | No | Login with credentials → JWT token |
+| `POST` | `/api/v1/auth/logout` | Yes | Revoke the current token |
 | `POST` | `/api/v1/auth/refresh` | Yes | Refresh JWT token |
 | `GET` | `/api/v1/auth/me` | Yes | Get current user info |
 | `PUT` | `/api/v1/auth/change-password` | Yes | Change own password |
@@ -496,7 +506,7 @@ Health and setup endpoints are excluded from authentication.
 
 ## Rate Limiting
 
-All API endpoints are rate-limited using a token-bucket algorithm. Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. Exceeding the limit returns HTTP 429.
+API endpoints are rate-limited with an in-memory fixed-window limiter (default 100 requests/minute per client). Health-check endpoints, WebSocket upgrades, and localhost connections are exempt. Responses include `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` headers. Exceeding the limit returns HTTP 429.
 
 ## Middleware
 
@@ -505,7 +515,7 @@ All API endpoints are rate-limited using a token-bucket algorithm. Responses inc
 | JWT Auth | HMAC-SHA256 JWT token verification |
 | API Key Auth | SHA-256 hashed API key validation |
 | RBAC | Role-based access control (admin/analyst/viewer) |
-| Rate Limiter | Token-bucket rate limiting with configurable window |
+| Rate Limiter | In-memory fixed-window rate limiting with configurable window |
 | Request Logger | Circular buffer logging (last 500 requests) |
 | Audit Middleware | Auto-capture all requests into audit trail |
 
@@ -532,9 +542,9 @@ All API endpoints are rate-limited using a token-bucket algorithm. Responses inc
 
 **Query Parameters:**
 - `horizon` — Days to forecast (default: 30, max: 180)
-- `history` — Historical days for model fitting (default: 90)
+- `projectId` — Project to forecast (default: the implicit project)
 
-**Response includes:** current score, trend (improving/declining/stable), confidence (R²), forecast with bounds, target estimates.
+Requires at least 2 real analysis snapshots; otherwise returns `status: "insufficient_data"`.
 
 #### `POST /api/v1/forecasting/what-if`
 
@@ -542,13 +552,17 @@ All API endpoints are rate-limited using a token-bucket algorithm. Responses inc
 ```json
 {
   "actions": [
-    { "type": "fix-critical-findings", "description": "Fix all critical security findings" },
-    { "type": "add-tests", "description": "Increase test coverage to 80%" }
+    { "type": "fix-critical-findings", "description": "Fix all critical findings" },
+    { "type": "custom", "severity": "high" },
+    { "type": "custom", "category": "security" }
   ]
 }
 ```
 
-**Supported action types:** `fix-critical-findings`, `add-tests`, `upgrade-dependencies`, `add-monitoring`, `refactor-architecture`, `add-documentation`, `enable-strict-mode`, `fix-security-issues`, `optimize-performance`, `add-rate-limiting`.
+Impact is derived from the real findings each action would remove. An action
+matches findings by its explicit `severity` or `category` field, by a type of
+the form `fix-<critical|high|medium|low>-findings`, or by `fix-security-issues`;
+other action types remove no findings.
 
 ### SSO / SAML
 
@@ -636,9 +650,7 @@ Simulation types: `traffic-replay`, `load-test`, `failure-injection`, `dependenc
 | `GET` | `/api/v1/cloud/benchmarks/report` | Get benchmark report with percentiles |
 | `GET` | `/api/v1/cloud/patterns` | Cross-org learned patterns |
 | `GET` | `/api/v1/cloud/patterns/:id` | Pattern details |
-| `GET` | `/api/v1/cloud/partners` | Partner directory |
-| `GET` | `/api/v1/cloud/partners/:id` | Partner details |
-| `POST` | `/api/v1/cloud/partners/apply` | Apply for partner program |
+| `GET` | `/api/v1/cloud/partners` | Partner directory (see `/api/v1/partners/*` for details and applications) |
 | `GET` | `/api/v1/cloud/services` | Managed service tiers |
 | `GET` | `/api/v1/cloud/info` | Platform info and status |
 

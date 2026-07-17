@@ -58,7 +58,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 | Surface | Count |
 |---------|-------|
 | 📡 Server REST endpoints | 160+ |
-| ⌨️ CLI commands | 28 |
+| ⌨️ CLI commands | 29 |
 | 🔌 MCP tools | 42 |
 | 💬 MCP prompts | 21 |
 | 📦 MCP resources | 16 |
@@ -97,7 +97,7 @@ pnpm build
 pnpm test
 ```
 
-### CLI Usage (28 commands)
+### CLI Usage (29 commands)
 
 ```bash
 # Link the CLI globally (after building)
@@ -129,7 +129,7 @@ recurrsive timeline
 recurrsive report --format html
 
 # Manage configuration
-recurrsive config --list
+recurrsive config view
 
 # Full-text search across the knowledge graph
 recurrsive search "authentication"
@@ -152,7 +152,7 @@ recurrsive notifications test console
 recurrsive notifications history
 
 # Batch analysis across multiple projects
-recurrsive batch run --projects ./proj1 ./proj2
+recurrsive batch run ./proj1 ./proj2
 recurrsive batch status <batch_id>
 recurrsive batch history
 
@@ -161,7 +161,7 @@ recurrsive comparisons list
 recurrsive comparisons diff <run_id_1> <run_id_2>
 
 # Export data
-recurrsive export create --format json
+recurrsive export create all --format json
 recurrsive export history
 ```
 
@@ -338,7 +338,7 @@ recurrsive/
 │   ├── policy/         # Policy engine + 5 built-in policies
 │   └── presentation/   # Reports + notifications + terminal
 ├── apps/
-│   ├── cli/            # Commander.js CLI — 28 commands
+│   ├── cli/            # Commander.js CLI — 29 commands
 │   ├── mcp/            # MCP server — 42 tools, 16 resources, 21 prompts
 │   ├── server/         # Fastify REST + WebSocket + GraphQL API — 160+ endpoints
 │   ├── dashboard/      # Next.js dashboard — 45 pages
@@ -388,10 +388,16 @@ Pluggable data collection with built-in **PII detection**, field masking, and au
 - **Arize Collector** — ML model monitoring, drift detection, evaluation datasets
 - **Helicone Collector** — LLM cost tracking, usage analytics, rate limiting
 
+> **Note**: The `recurrsive analyze` pipeline (CLI and server) currently runs the five
+> local collectors — Git, Documentation, Environment, CI/CD, and Database. The
+> API-based collectors (GitHub, GitLab, OpenTelemetry, Cloud Cost, Error Tracking,
+> APM, Langfuse, Arize, Helicone) ship as library classes in `@recurrsive/collectors`
+> and can be run programmatically; they are not yet wired into the analysis pipeline.
+
 ### `@recurrsive/parsers`
 Multi-language code analysis:
 - **Tree-sitter** parser with graceful WASM fallback
-- **TypeScript** and **Python** extractors
+- **TypeScript**, **Python**, and **Go** extractors
 - **AI Pattern Detector** — 13 pattern types including LLM calls, prompt templates, agent definitions, RAG pipelines, MCP servers
 - **Cross-file resolver** for import/dependency tracking
 
@@ -408,7 +414,6 @@ Multi-language code analysis:
 | Security | Secrets, PII exposure, SQL injection |
 | Data | Missing indexes, schema anti-patterns |
 | Documentation | Missing docs, stale content, API drift |
-| UX | Missing loading/error/empty states |
 | Product | Dead feature flags, missing analytics |
 | Dependency | Outdated deps, CVEs, unpinned versions, missing lockfiles |
 | API Contract | Missing docs, pagination, rate limits, naming inconsistencies |
@@ -448,7 +453,7 @@ Next.js dashboard with **45 pages** providing a full operational UI for the plat
 
 - **Command Palette** (⌘K) — Instant fuzzy navigation to any page, entity, or action
 - **AI Chat Panel** — Conversational interface for natural-language queries against the knowledge graph
-- **Collapsible 4-Section Sidebar** — Organized navigation across Analysis, Intelligence, Administration, and Settings
+- **Collapsible 4-Section Sidebar** — Organized navigation across Intelligence, Analysis, Operations, and Administration
 - **Finding Detail Pages** — Deep-dive views for individual analysis findings with evidence, severity, and remediation guidance
 - **Project Detail Pages** — Per-project dashboards showing health scores, dependency graphs, and opportunity timelines
 
@@ -513,7 +518,7 @@ curl http://localhost:3000/api/v1/webhooks/events
 
 ## Configuration
 
-Create `recurrsive.config.yaml` in your project root (or run `recurrsive init`):
+Run `recurrsive init` (which writes `.recurrsive/config.json`), or create `.recurrsive/config.yaml` in your project root. The loader searches for `.recurrsive/config.json`, `.recurrsive/config.yaml`, `.recurrsive/config.yml`, and `recurrsive.config.json`:
 
 ```yaml
 # Recurrsive Configuration
@@ -529,9 +534,11 @@ graph:
   connection_string: .recurrsive/graph.db  # only needed for custom path
 
 # Analyzers
+# Note: the CLI currently runs all 12 analyzers; use
+# `recurrsive analyze --analyzers <id,id>` to run a subset.
 analyzers:
-  enabled: ["*"]  # glob patterns — '*' enables all
-  disabled: []    # glob patterns to exclude
+  enabled: ["*"]
+  disabled: []
 
 # LLM configuration (for reasoning engine)
 reasoning:

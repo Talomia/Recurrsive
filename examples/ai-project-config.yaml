@@ -11,17 +11,15 @@ project:
 graph:
   provider: sqlite
 
-# Analyzer configuration
+# Analyzer configuration.
+# All 12 built-in analyzers run by default (including ai.quality, ai.runtime,
+# and cost.optimization). Use `recurrsive analyze --analyzers <id,id>` to run
+# a subset.
 analyzers:
   enabled: ["*"]
   disabled: []
-  config:
-    # AI analyzer: detect model sprawl, missing evaluations, etc.
-    ai:
-      severity_threshold: medium
-    # Cost analyzer: track AI API spending
-    cost:
-      severity_threshold: low
+  # Per-analyzer config overrides (reserved — not yet applied by the CLI)
+  config: {}
 
 # LLM configuration for reasoning engine
 reasoning:

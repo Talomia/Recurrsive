@@ -7,10 +7,10 @@ info:
     policy enforcement, and report generation.
 
     NOTE — This static spec documents the core endpoints. The complete
-    auto-generated OpenAPI 3.1 specification (160+ endpoints) is served
-    by the running server at GET /api/v1/openapi.json with interactive
-    Swagger UI at GET /api/docs.
-  version: 0.5.7
+    OpenAPI 3.1 specification (200+ operations) is served by the running
+    server at GET /api/v1/openapi.json with interactive Swagger UI at
+    GET /api/docs.
+  version: 0.6.0
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
@@ -143,18 +143,22 @@ paths:
       summary: Start a new analysis run
       description: >-
         Triggers the full analysis pipeline: collect → parse → analyze → reason.
-        Returns immediately with a run ID; subscribe via WebSocket for progress.
+        Returns 202 immediately; poll /api/v1/analysis/status or subscribe via
+        WebSocket (/ws) for progress.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [path]
+              description: Either `path` or `gitUrl` is required.
               properties:
                 path:
                   type: string
                   description: Absolute path to the project root
+                gitUrl:
+                  type: string
+                  description: Git repository URL to clone and analyze
                 analyzers:
                   type: array
                   items:
@@ -164,27 +168,34 @@ paths:
                   type: boolean
                   default: false
                   description: Whether to run the reasoning engine
+                projectId:
+                  type: string
+                  description: Project id to scope this analysis under
       responses:
-        '200':
-          description: Analysis started
+        '202':
+          description: Analysis started (runs asynchronously)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  run_id:
+                  message:
                     type: string
+                    example: Analysis started
                   status:
+                    type: object
+                    description: Current analysis status snapshot
+                  project:
                     type: string
-                    example: running
-                  started_at:
+                    description: Effective project path being analyzed
+                  gitUrl:
                     type: string
-                    format: date-time
-                  ws:
-                    type: string
-                    example: ws://localhost:3000/ws
+                    description: Git URL when analyzing a cloned repository
+                  endpoints:
+                    type: object
+                    description: Follow-up endpoints (status, history, opportunities)
         '400':
-          description: Missing or invalid project path
+          description: Missing or invalid project path/gitUrl
           content:
             application/json:
               schema:

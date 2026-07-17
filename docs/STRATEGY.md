@@ -54,7 +54,7 @@ This graph, continuously updated, IS the digital twin.
 
 | Phase | Package | Status |
 |---|---|---|
-| **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (14 collectors: Git, Docs, Environment, CICD, Database, GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone) |
+| **Collect** | `@recurrsive/collectors`, `@recurrsive/graph` | ✅ Built (14 collector implementations; Git, Docs, Environment, CICD, and Database run in the analysis pipeline — GitHub, GitLab, OpenTelemetry, CloudCost, ErrorTracking, APM, Langfuse, Arize, Helicone are library collectors, not yet pipeline-wired) |
 | **Understand** | `@recurrsive/parsers`, `@recurrsive/analyzers` | ✅ Built (12 analyzers, 50+ rules) |
 | **Reason** | `@recurrsive/reasoning` | ✅ Built (19 specialists, debate protocol) |
 | **Evolve** | `@recurrsive/opportunities` | ✅ Built (lifecycle, SARIF, reports) |
@@ -91,7 +91,7 @@ The foundation. Free forever.
 - Multi-agent reasoning engine
 - Opportunity management + SARIF export
 - Policy engine
-- CLI (28 commands)
+- CLI (29 commands)
 - MCP Server (42 tools, 21 prompts, 16 resources)
 - REST + WebSocket API
 - Plugin SDK for custom analyzers/collectors
@@ -170,14 +170,15 @@ recurrsive/
 │   ├── mcp/                ← Tier 1 OSS — MCP server for AI assistants
 │   ├── server/             ← Mixed — serves all tiers from one process
 │   │   └── src/routes/
-│   │       ├── analysis.ts         ← Tier 1 (26 route files)
+│   │       ├── analysis.ts         ← Tier 1 (33 route modules)
 │   │       ├── sso.ts              ← Tier 2 Enterprise (gated)
 │   │       ├── multi-tenant.ts     ← Tier 2 Enterprise (gated)
 │   │       ├── secrets.ts          ← Tier 2 Enterprise (gated)
 │   │       ├── data-masking.ts     ← Tier 2 Enterprise (gated)
 │   │       ├── cloud.ts            ← Tier 3 Ecosystem (gated)
 │   │       ├── marketplace.ts      ← Tier 3 Ecosystem (gated)
-│   │       └── partners.ts         ← Tier 3 Ecosystem (gated)
+│   │       ├── partners.ts         ← Tier 3 Ecosystem (gated)
+│   │       └── ecosystem.ts        ← Tier 3 Ecosystem (gated)
 │   │
 │   ├── dashboard/          ← Tier 1 OSS — but includes pages for all tiers
 │   │                         (Enterprise/Cloud pages show "feature unavailable"
