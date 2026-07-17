@@ -13,6 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO, createLogger } from '@recurrsive/core';
 import { generateReport } from '@recurrsive/presentation';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 import { state } from '../state.js';
 
@@ -304,7 +305,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
 
   // Create scheduled report
   app.post('/api/v1/schedules', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -356,7 +357,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
 
   // Update schedule
   app.put<{ Params: { id: string } }>('/api/v1/schedules/:id', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -401,7 +402,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Delete schedule
-  app.delete<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/schedules/:id', { preHandler: [authMiddleware, requireRole('analyst')] }, async (request, reply) => {
     if (!await store.has('schedules', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
     }
@@ -410,7 +411,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Trigger immediate run
-  app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/run', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/run', { preHandler: [authMiddleware, requireRole('analyst')] }, async (request, reply) => {
     const schedule = await store.get<ScheduledReport>('schedules', request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 
@@ -434,7 +435,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Pause/resume schedule
-  app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/toggle', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/schedules/:id/toggle', { preHandler: [authMiddleware, requireRole('analyst')] }, async (request, reply) => {
     const schedule = await store.get<ScheduledReport>('schedules', request.params.id);
     if (!schedule) return reply.status(404).send({ error: 'Not Found', message: 'Schedule not found' });
 

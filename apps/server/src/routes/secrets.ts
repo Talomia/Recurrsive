@@ -13,6 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
 
@@ -126,7 +127,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
 
   // Create secret
   app.post('/api/v1/secrets', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
@@ -178,7 +179,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
 
   // Rotate secret
   app.post<{ Params: { id: string } }>('/api/v1/secrets/:id/rotate', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
@@ -214,7 +215,7 @@ export async function registerSecretRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Delete secret
-  app.delete<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/secrets/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     const secret = await store.get<SecretEntry>('secrets', request.params.id);
     if (!secret) return reply.status(404).send({ error: 'Not Found', message: 'Secret not found' });
 

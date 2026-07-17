@@ -13,6 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -104,7 +105,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
 
   // Create tenant
   app.post('/api/v1/tenants', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
@@ -156,7 +157,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
 
   // Update tenant
   app.put<{ Params: { id: string } }>('/api/v1/tenants/:id', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
@@ -192,7 +193,7 @@ export async function registerMultiTenantRoutes(app: FastifyInstance): Promise<v
   });
 
   // Delete tenant
-  app.delete<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/tenants/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     if (!await store.has('tenants', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
     }

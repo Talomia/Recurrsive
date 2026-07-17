@@ -15,6 +15,7 @@
 import type { FastifyInstance } from 'fastify';
 import { nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -136,7 +137,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Install plugin from marketplace
-  app.post<{ Params: { id: string } }>('/api/v1/plugins/install/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/plugins/install/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     if (await store.has('plugins', request.params.id)) {
       return reply.status(409).send({ error: 'Conflict', message: 'Plugin already installed' });
     }
@@ -170,7 +171,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Uninstall plugin
-  app.delete<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/plugins/installed/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     if (!await store.has('plugins', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
     }
@@ -179,7 +180,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Enable/disable plugin
-  app.post<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/toggle', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/toggle', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     const plugin = await store.get<InstalledPlugin>('plugins', request.params.id);
     if (!plugin) return reply.status(404).send({ error: 'Not Found', message: 'Plugin not installed' });
 
@@ -192,7 +193,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
 
   // Update plugin config
   app.put<{ Params: { id: string } }>('/api/v1/plugins/installed/:id/config', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',

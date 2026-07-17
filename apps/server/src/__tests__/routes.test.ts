@@ -1582,3 +1582,56 @@ describe ('Search Routes', () => {
     expect(body.total).toBe(body.data.length);
   });
 });
+
+// ---------------------------------------------------------------------------
+// RBAC enforcement on mutating routes (regression for viewer/analyst gating)
+// ---------------------------------------------------------------------------
+describe('RBAC enforcement on write routes', () => {
+  const viewerToken = createToken('test-viewer', 'viewer');
+  const analystToken = createToken('test-analyst', 'analyst');
+  const vh = { authorization: `Bearer ${viewerToken}` };
+  const ah = { authorization: `Bearer ${analystToken}` };
+
+  it('blocks a viewer from triggering analysis (analyst required)', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/analyze', headers: vh,
+      payload: { gitUrl: 'https://github.com/octocat/Hello-World.git' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('allows an analyst past the RBAC gate on analysis (reaches the handler)', async () => {
+    // An analyst passes requireRole('analyst'); the request then reaches the
+    // handler, where an out-of-allowlist path is rejected by the path guard.
+    // That proves RBAC did not block the analyst (the denial is not a role error).
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/analyze', headers: ah,
+      payload: { path: '/nonexistent-path-xyz' },
+    });
+    expect(res.payload).not.toContain('role');
+  });
+
+  it('blocks a viewer from writing config (admin required)', async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: '/api/v1/config', headers: vh, payload: { theme: 'dark' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('blocks an analyst from writing config (admin required)', async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: '/api/v1/config', headers: ah, payload: { theme: 'dark' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('blocks a viewer from creating a secret (admin required)', async () => {
+    // Schema-valid body (key/value) so the request passes validation and
+    // reaches the RBAC gate, which must reject a viewer.
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/secrets', headers: vh,
+      payload: { key: 'sim-secret', value: 'y' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});

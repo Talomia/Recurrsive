@@ -12,6 +12,7 @@ import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 import { validateBody, ANALYZE_REQUEST_FIELDS } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 const logger = createLogger({ context: { component: 'server:routes:analysis' } });
 
@@ -49,7 +50,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
    * /api/v1/analysis/status endpoint or WebSocket events.
    */
   app.post<{ Body: AnalyzeBody }>('/api/v1/analyze', {
-    preHandler: [authMiddleware, validateBody(ANALYZE_REQUEST_FIELDS)],
+    preHandler: [authMiddleware, requireRole('analyst'), validateBody(ANALYZE_REQUEST_FIELDS)],
   }, async (request, reply) => {
     const { path: projectPath, gitUrl, analyzers, include_reasoning, projectId } = request.body;
 

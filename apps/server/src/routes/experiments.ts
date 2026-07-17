@@ -10,6 +10,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -94,7 +95,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    * Create a new experiment.
    */
   app.post('/api/v1/experiments', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -165,7 +166,7 @@ export async function registerExperimentRoutes(app: FastifyInstance): Promise<vo
    * Update experiment status (start/complete/abort).
    */
   app.put('/api/v1/experiments/:id/status', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',

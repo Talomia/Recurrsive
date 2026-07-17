@@ -13,6 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { createToken, authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 import { findOrCreateSSOUser } from '../middleware/users.js';
 
@@ -234,7 +235,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
 
   // Create/Update SSO config
   app.put<{ Params: { id: string } }>('/api/v1/sso/providers/:id', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
@@ -277,7 +278,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Delete SSO config
-  app.delete<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     if (!await store.has('sso_configs', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not found' });
     }
@@ -431,7 +432,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Revoke SSO session
-  app.delete<{ Params: { id: string } }>('/api/v1/sso/sessions/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/sso/sessions/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     if (!await store.has('sso_sessions', request.params.id)) {
       return reply.status(404).send({ error: 'Not Found', message: 'Session not found' });
     }

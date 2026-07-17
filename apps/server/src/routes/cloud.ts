@@ -18,6 +18,7 @@ import type { FastifyInstance } from 'fastify';
 import { createRequire } from 'node:module';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 
 const require = createRequire(import.meta.url);
@@ -122,7 +123,7 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
 
   // Submit benchmark data (opt-in)
   app.post('/api/v1/cloud/benchmarks', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',

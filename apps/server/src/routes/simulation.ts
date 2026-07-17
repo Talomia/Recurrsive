@@ -15,6 +15,7 @@ import { generateId, nowISO } from '@recurrsive/core';
 import { state } from '../state.js';
 import { store } from '../store.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 // ---------------------------------------------------------------------------
 // Types — Simulation Engine
@@ -118,7 +119,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
   });
 
   app.post('/api/v1/simulations', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -226,7 +227,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
   });
 
   app.post('/api/v1/pull-requests/generate', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -285,7 +286,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     }
   });
 
-  app.post<{ Params: { id: string } }>('/api/v1/pull-requests/:id/submit', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/pull-requests/:id/submit', { preHandler: [authMiddleware, requireRole('analyst')] }, async (request, reply) => {
     try {
       const pr = await store.get<GeneratedPR>('pull_requests', request.params.id);
       if (!pr) return reply.status(404).send({ error: 'Not Found', message: 'PR not found' });

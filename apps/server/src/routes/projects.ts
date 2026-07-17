@@ -13,6 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -151,7 +152,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
   // Create project
   app.post('/api/v1/projects', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -214,7 +215,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
 
   // Update project
   app.put<{ Params: { id: string } }>('/api/v1/projects/:id', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -258,7 +259,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
   });
 
   // Delete project
-  app.delete<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/projects/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     try {
       if (!await store.has('projects', request.params.id)) {
         return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });

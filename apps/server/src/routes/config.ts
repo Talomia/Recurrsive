@@ -10,6 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 
 /**
@@ -207,7 +208,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * Accepts a JSON body with optional fields to override.
    */
   app.patch('/api/v1/config', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('admin')],
     schema: {
       body: {
         type: 'object',

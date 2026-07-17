@@ -15,6 +15,7 @@ import { generateId, nowISO } from '@recurrsive/core';
 import { store } from '../store.js';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -155,7 +156,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
 
   // Record outcome for a prediction
   app.post<{ Params: { id: string } }>('/api/v1/confidence/predictions/:id/outcome', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -231,7 +232,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
 
   // Create a single prediction
   app.post('/api/v1/confidence/predictions', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
@@ -280,7 +281,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
   });
 
   // Generate predictions from current analysis findings
-  app.post('/api/v1/confidence/predictions/generate', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.post('/api/v1/confidence/predictions/generate', { preHandler: [authMiddleware, requireRole('analyst')] }, async (_request, reply) => {
     const cache = state.isInitialized() ? state.getAnalysisCache() : null;
     const findings = cache?.findings ?? [];
 

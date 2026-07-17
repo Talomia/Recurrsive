@@ -15,6 +15,7 @@
 import type { FastifyInstance } from 'fastify';
 import { store } from '../store.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,7 +55,7 @@ export async function registerIntelligencePackRoutes(app: FastifyInstance): Prom
     return reply.send({ data: pack });
   });
 
-  app.post<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id/install', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id/install', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     const pack = await store.get<IntelligencePack>('intelligence_packs', request.params.id);
     if (!pack) return reply.status(404).send({ error: 'Not Found', message: 'Intelligence pack not found' });
 
@@ -67,7 +68,7 @@ export async function registerIntelligencePackRoutes(app: FastifyInstance): Prom
     return reply.send({ data: pack, message: `${pack.name} installed successfully. ${pack.ruleCount} rules activated.` });
   });
 
-  app.delete<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id/uninstall', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/intelligence-packs/:id/uninstall', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     const pack = await store.get<IntelligencePack>('intelligence_packs', request.params.id);
     if (!pack) return reply.status(404).send({ error: 'Not Found', message: 'Intelligence pack not found' });
 
