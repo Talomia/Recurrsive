@@ -244,11 +244,25 @@ export class Synthesizer {
       return [];
     }
 
-    logger.info(`Synthesizing ${viable.length} hypotheses into opportunities`);
+    // Collapse hypotheses that address the same source finding(s): a multi-agent
+    // debate frequently produces several near-identical hypotheses about one
+    // finding (e.g. five restatements of "missing lockfile"). Synthesizing each
+    // 1:1 yields a noisy, redundant opportunity list. Keep the highest-confidence
+    // representative per source-finding signature — this both de-noises the output
+    // and cuts the number of (expensive) synthesis LLM calls.
+    const deduped = this.dedupeHypotheses(viable);
+    if (deduped.length < viable.length) {
+      logger.info(
+        `Collapsed ${viable.length} viable hypotheses to ${deduped.length} ` +
+        `by shared source findings before synthesis`,
+      );
+    }
+
+    logger.info(`Synthesizing ${deduped.length} hypotheses into opportunities`);
 
     const opportunities: Opportunity[] = [];
 
-    for (const hypothesis of viable) {
+    for (const hypothesis of deduped) {
       try {
         const opportunity = await this.synthesizeOne(
           hypothesis,
@@ -269,6 +283,49 @@ export class Synthesizer {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────
+
+  /**
+   * Deduplicate hypotheses that address the same source finding(s).
+   *
+   * Hypotheses are grouped by the sorted set of `finding_ids` they derive from;
+   * within each group only the highest-confidence hypothesis is kept. Hypotheses
+   * with no source findings fall back to a normalized-title signature so exact
+   * restatements still collapse, while genuinely distinct items are preserved.
+   *
+   * @param hypotheses - Viable (post-debate) hypotheses.
+   * @returns One representative hypothesis per distinct source-finding signature.
+   */
+  private dedupeHypotheses(hypotheses: Hypothesis[]): Hypothesis[] {
+    // Highest confidence first, so the representative kept per group is the strongest.
+    const ordered = [...hypotheses].sort((a, b) => b.confidence - a.confidence);
+    const seen = new Set<string>();
+    const result: Hypothesis[] = [];
+    for (const h of ordered) {
+      const sig = this.hypothesisSignature(h);
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      result.push(h);
+    }
+    return result;
+  }
+
+  /**
+   * Compute a dedup signature for a hypothesis: its sorted source-finding ids,
+   * or a normalized title when it references no findings.
+   */
+  private hypothesisSignature(h: Hypothesis): string {
+    const findingIds = [...(h.finding_ids ?? [])].sort();
+    if (findingIds.length > 0) return `f:${findingIds.join('|')}`;
+    const title = (h.title ?? '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .sort()
+      .join(' ');
+    return `t:${title}`;
+  }
 
   /**
    * Synthesize a single hypothesis into an opportunity.
