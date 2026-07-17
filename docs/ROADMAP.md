@@ -16,8 +16,8 @@
 | CLI | ✅ Complete | 28 commands (analyze, opportunities, health, graph, timeline, report, config, init, search, snapshot, policy, webhooks, notifications, batch, audit, analytics, experiments, comparisons, export, projects, forecast, plugins, secrets, simulate, cloud, login, logout, whoami) |
 | MCP Server | ✅ Complete | 42 tools, 16 resources, 21 prompts |
 | REST API | ✅ Complete | 160+ endpoints, OpenAPI 3.1 spec, WebSocket streaming, JWT/API key auth, RBAC |
-| Dashboard | ✅ Complete | Next.js, 42 pages (incl. marketplace + partners), grouped sidebar navigation, real-time WebSocket |
-| Website | ✅ Complete | 23 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
+| Dashboard | ✅ Complete | Next.js, 45 pages (incl. marketplace + partners), grouped sidebar navigation, real-time WebSocket |
+| Website | ✅ Complete | 21 pages, SEO (sitemap, robots), glassmorphism design, marketplace, cloud, partners, docs |
 | Auth & Security | ✅ Complete | JWT auth (HMAC-SHA256), scrypt password hashing, setup wizard, user CRUD, SSO auto-provisioning, API key management, RBAC (admin/analyst/viewer) |
 | Tests | ✅ Complete | 140 test files, 3,293+ tests across 14 packages, integration tests for full pipeline |
 | Tier Separation | ✅ Complete | 3-tier model (OSS/Enterprise/Ecosystem) enforced at runtime via `ENABLE_ENTERPRISE` and `ENABLE_ECOSYSTEM` env vars |
@@ -140,17 +140,17 @@ Build a platform that others can extend. Open the SDK, enable third-party analyz
 Build organizational engineering memory and explore network effects.
 
 ### Long-Term (Requires scale for full implementation)
-- [x] Anonymized benchmarking *(store-backed patterns with real analysis data)*
-- [x] Cross-organization pattern learning *(store-backed pattern library)*
+- [ ] Anonymized benchmarking *(deferred — needs statistical scale; see Explicitly Deferred)*
+- [ ] Cross-organization pattern learning *(deferred — privacy/trust barrier; see Explicitly Deferred)*
 - [ ] Managed optimization services
 - [x] Partner certification program *(v0.5.0 — partner portal with 3 certification tracks)*
-- [x] Recurrsive Cloud *(v0.5.0 — marketing site with managed cloud pages, pricing, and regions)*
+- [ ] Recurrsive Cloud *(not yet available — marketing "Cloud" page describes self-hosting; no managed control plane, billing, or regions)*
 
 ### Marketing & Ecosystem (v0.5.0)
-- [x] **Marketing website** — 23-page Next.js site with 5 areas:
+- [x] **Marketing website** — 21-page Next.js site with 5 areas:
   - Core: landing, product, pricing, about, blog, contact, changelog
   - Marketplace: browse + submit extensions
-  - Cloud: overview + dashboard + billing
+  - Cloud: overview (self-hosting; managed cloud not yet available)
   - Partners: overview + directory + apply + certification
   - Docs: getting-started, API reference, CLI, plugin SDK, deployment, architecture
 - [x] **Marketplace API** — 5 server endpoints (extensions CRUD, categories, stats)

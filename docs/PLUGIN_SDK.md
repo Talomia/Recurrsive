@@ -214,11 +214,11 @@ import type {
 import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
 
 export class MyAnalyzer implements Analyzer {
-  readonly id = 'my-analyzer.quality';
+  readonly id = 'my-analyzer.dx';
   readonly name = 'My Custom Analyzer';
-  readonly description = 'Detects custom quality issues';
+  readonly description = 'Detects custom developer-experience issues';
   readonly version = '0.1.0';
-  readonly categories = ['quality' as const];
+  readonly categories = ['developer_experience' as const];
 
   async initialize(_ctx: AnalysisContext): Promise<void> {
     // Optional setup — cache config, precompute values, etc.
@@ -235,19 +235,26 @@ export class MyAnalyzer implements Analyzer {
       const hasIssue = /* your detection logic */ false;
 
       if (hasIssue) {
+        const location = locationFromEntity(file);
         findings.push(
           createFinding({
-            title: 'Issue detected in file',
-            description: `Detected a quality issue in ${file.name}.`,
-            severity: 'medium',
-            category: 'quality',
             analyzer_id: this.id,
-            location: locationFromEntity(file),
+            title: 'Issue detected in file',
+            description: `Detected an issue in ${file.name}.`,
+            severity: 'medium',
+            category: 'developer_experience',
             evidence: [
-              createEvidence('File has issue', 0.9, this.id, {
-                file: file.name,
+              createEvidence({
+                type: 'code',
+                source: this.id,
+                description: 'File has issue',
+                entity_ids: [file.id],
+                confidence: 0.9,
               }),
             ],
+            locations: location ? [location] : [],
+            confidence: 0.9,
+            tags: ['developer-experience'],
           }),
         );
       }
