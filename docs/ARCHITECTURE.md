@@ -1,7 +1,7 @@
 # Recurrsive — Architecture Specification
 
-> **Version**: 0.5.7  
-> **Last Updated**: 2026-07-04  
+> **Version**: 0.6.0  
+> **Last Updated**: 2026-07-17  
 > **Status**: Implementation-Complete  
 > **Audience**: Engineers implementing the system
 
@@ -1918,11 +1918,11 @@ recurrsive/
 │   │   ├── src/
 │   │   │   ├── bin.ts        # Server entry point
 │   │   │   ├── index.ts      # Fastify application setup
-│   │   │   ├── routes/       # REST route handlers (37 route files)
+│   │   │   ├── routes/       # REST route handlers (41 route files)
 │   │   │   │   ├── marketplace.ts   # Marketplace extension endpoints
 │   │   │   │   ├── partners.ts      # Partner program endpoints
 │   │   │   │   ├── openapi.ts       # OpenAPI 3.1 spec + Swagger UI
-│   │   │   │   └── ...              # 31 more route files
+│   │   │   │   └── ...              # 38 more route files
 │   │   │   ├── middleware/   # Middleware stack
 │   │   │   │   ├── auth.ts
 │   │   │   │   ├── api-keys.ts
@@ -1953,7 +1953,7 @@ recurrsive/
 │   │
 │   ├── dashboard/            # Next.js dashboard
 │   │   ├── src/
-│   │   │   ├── app/          # App Router pages (46 pages)
+│   │   │   ├── app/          # App Router pages (45 pages)
 │   │   │   ├── components/   # React components
 │   │   │   ├── hooks/        # Custom hooks
 │   │   │   └── lib/          # Utilities
