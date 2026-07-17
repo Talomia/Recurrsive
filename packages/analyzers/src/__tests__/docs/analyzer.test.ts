@@ -161,6 +161,43 @@ describe('DocsAnalyzer', () => {
       expect(readmeFindings).toHaveLength(0);
     });
 
+    it('skips when README is a document sourced from readme.md (no path property)', async () => {
+      // Regression: the Documentation collector emits README as a `document`
+      // titled by heading (e.g. "readme") with the filename only in
+      // source_location.file and empty properties. It must still count.
+      const readmeDoc = makeEntity({
+        type: 'document',
+        name: 'readme',
+        source: 'documentation',
+        source_location: { file: 'readme.md', repository: '/repo' },
+        properties: {},
+      });
+      const file = makeEntity({
+        type: 'file',
+        name: 'index.js',
+        properties: { is_root: true },
+      });
+      const ctx = makeContext({
+        file: [file],
+        repository: [],
+        module: [],
+        function: [],
+        class: [],
+        adr: [],
+        pipeline: [],
+        agent: [],
+        mcp_server: [],
+        document: [readmeDoc],
+        rfc: [],
+        api_contract: [],
+        endpoint: [],
+      });
+
+      const findings = await analyzer.analyze(ctx);
+      const readmeFindings = findings.filter((f) => f.title.includes('Missing project README'));
+      expect(readmeFindings).toHaveLength(0);
+    });
+
     it('detects missing module README', async () => {
       const readme = makeEntity({
         type: 'file',

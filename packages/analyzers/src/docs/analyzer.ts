@@ -217,6 +217,15 @@ export class DocsAnalyzer implements Analyzer {
     // A README may be collected as a `file` entity (by name) OR — for markdown —
     // as a `document` entity (named by its title, with the filename in `path`).
     // Consider both so a real README is never falsely reported as missing.
+    // The filename a `document` entity was sourced from. The Documentation
+    // collector records it under `source_location.file` (e.g. "readme.md")
+    // and titles the entity by heading (e.g. "readme"); `properties.path` is
+    // usually absent. Consider all of these so a real README is never missed.
+    const docFile = (d: (typeof documents)[number]): string | undefined =>
+      (d.properties['path'] as string | undefined) ??
+      (d.properties['file_path'] as string | undefined) ??
+      d.source_location?.file;
+
     const readmeNames = new Set<string>();
     for (const f of files) {
       if (isReadmeName(f.name)) {
@@ -224,9 +233,12 @@ export class DocsAnalyzer implements Analyzer {
       }
     }
     for (const d of documents) {
-      const p = (d.properties['path'] ?? d.properties['file_path']) as string | undefined;
+      const p = docFile(d);
       if (p && isReadmeName(baseName(p))) {
         readmeNames.add(dirOf(p));
+      } else if (!p && isReadmeName(d.name)) {
+        // Titled "readme" with no path info — treat as a root-level README.
+        readmeNames.add('');
       }
     }
 
@@ -238,8 +250,10 @@ export class DocsAnalyzer implements Analyzer {
            !((f.properties['directory'] as string | undefined) ?? '').includes('/')),
       ) ||
       documents.some((d) => {
-        const p = (d.properties['path'] ?? d.properties['file_path']) as string | undefined;
-        return !!p && isReadmeName(baseName(p)) && dirOf(p) === '';
+        const p = docFile(d);
+        if (p) return isReadmeName(baseName(p)) && dirOf(p) === '';
+        // No path recorded → fall back to the title (root-level assumption).
+        return isReadmeName(d.name);
       });
 
     if (!hasTopLevelReadme && (repos.length > 0 || files.length > 0)) {
