@@ -58,9 +58,12 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
 
       const activities: ActivityItem[] = [];
 
-      // 1. Analysis runs
+      // 1. Analysis runs — read persisted history for the project directly from
+      // the store; do NOT gate on in-memory init, or a freshly-started server
+      // reports an empty feed while /analysis/history (which reads the store)
+      // shows the same runs.
       if (!typeFilter || typeFilter === 'analysis') {
-        const history = state.isInitialized() ? await state.loadHistoryForProject(projectId) : [];
+        const history = await state.loadHistoryForProject(projectId);
         for (const entry of history) {
           activities.push({
             id: `activity_analysis_${entry.id}`,
@@ -133,7 +136,7 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
    * and peak activity periods.
    */
   app.get<{ Querystring: { projectId?: string } }>('/api/v1/activity/stats', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const history = state.isInitialized() ? await state.loadHistoryForProject(request.query.projectId) : [];
+    const history = await state.loadHistoryForProject(request.query.projectId);
     const successfulRuns = history.filter(h => h.status === 'success');
     const failedRuns = history.filter(h => h.status === 'failed');
 

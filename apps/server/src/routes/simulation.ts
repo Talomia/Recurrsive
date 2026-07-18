@@ -137,7 +137,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       const id = generateId();
 
       // Compute results from the requested project's analysis data
-      const cache = state.isInitialized() ? await state.loadCacheForProject(request.query.projectId) : null;
+      const cache = await state.loadCacheForProject(request.query.projectId);
       const findings = cache?.findings ?? [];
       // Derive impact score from finding severity distribution
       const criticalCount = findings.filter(f => f.severity === 'critical').length;
@@ -236,7 +236,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     }
 
     try {
-      const cache = state.isInitialized() ? await state.loadCacheForProject(request.query.projectId) : null;
+      const cache = await state.loadCacheForProject(request.query.projectId);
       const findings = cache?.findings ?? [];
 
       const changes = findings.map(f => ({

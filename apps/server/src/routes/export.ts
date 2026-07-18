@@ -58,7 +58,7 @@ const VALID_SCOPES: ExportScope[] = ['findings', 'opportunities', 'health', 'all
 // ---------------------------------------------------------------------------
 
 async function generateContent(format: ExportFormat, scope: ExportScope, projectId?: string): Promise<string> {
-  const cache = state.isInitialized() ? await state.loadCacheForProject(projectId) : null;
+  const cache = await state.loadCacheForProject(projectId);
 
   // Build data from real analysis cache when available
   const findings = cache?.findings.map((f) => ({
@@ -76,7 +76,7 @@ async function generateContent(format: ExportFormat, scope: ExportScope, project
   })) ?? [];
 
   let healthData = { overall_score: null as number | null, dimensions: {} as Record<string, number> };
-  if (state.isInitialized() && cache) {
+  if (cache) {
     try {
       const hs = await state.getHealthScoreForProject(projectId);
       healthData = {
@@ -207,7 +207,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
       }
 
       // Compute actual record count from the requested project's analysis state
-      const cache = state.isInitialized() ? await state.loadCacheForProject(projectId) : null;
+      const cache = await state.loadCacheForProject(projectId);
       const findingsCount = cache?.findings.length ?? 0;
       const opportunitiesCount = cache?.opportunities.length ?? 0;
       const recordCount = scope === 'all'
@@ -506,7 +506,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
       const generatedAt = nowISO();
 
       // Compute record count from the requested project's analysis state
-      const cache = state.isInitialized() ? await state.loadCacheForProject(projectId) : null;
+      const cache = await state.loadCacheForProject(projectId);
       const recordCount = (cache?.findings.length ?? 0) + (cache?.opportunities.length ?? 0) + 1;
 
       const record: ExportRecord = {

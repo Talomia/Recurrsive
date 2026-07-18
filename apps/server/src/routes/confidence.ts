@@ -282,7 +282,7 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
 
   // Generate predictions from the requested project's analysis findings
   app.post<{ Querystring: { projectId?: string } }>('/api/v1/confidence/predictions/generate', { preHandler: [authMiddleware, requireRole('analyst')] }, async (request, reply) => {
-    const cache = state.isInitialized() ? await state.loadCacheForProject(request.query.projectId) : null;
+    const cache = await state.loadCacheForProject(request.query.projectId);
     const findings = cache?.findings ?? [];
 
     let count = 0;

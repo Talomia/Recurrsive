@@ -118,12 +118,15 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    // Brute-force throttle: after LOGIN_MAX_FAILURES failed attempts for this
-    // (ip, username) pair within the window, reject with 429 before touching
-    // the credential check. The global rate limiter is far too generous
-    // (100 req/min) to stop credential stuffing on its own.
+    // Brute-force throttle: after LOGIN_MAX_FAILURES failed attempts against a
+    // given account within the window, reject with 429 before touching the
+    // credential check. Keyed on the username, not the IP: behind the reverse
+    // proxy `request.ip` is derived from X-Forwarded-For and is neither stable
+    // nor trustworthy, and account-scoped lockout is the correct defense
+    // against credential stuffing. A successful login immediately clears the
+    // window, so the temporary lockout is self-healing.
     const now = Date.now();
-    const throttleKey = `${request.ip}|${username.toLowerCase()}`;
+    const throttleKey = username.toLowerCase();
     const throttle = loginThrottleState(throttleKey, now);
     if (throttle.blocked) {
       logger.warn(`Login throttled for '${username}' from ${request.ip}`);

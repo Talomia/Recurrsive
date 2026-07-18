@@ -316,9 +316,12 @@ type ResolverFn = (
   fields: string[],
 ) => unknown | Promise<unknown>;
 
-/** Resolve the analysis cache for an optional `projectId` argument. */
+/**
+ * Resolve the analysis cache for an optional `projectId` argument. Reads the
+ * persisted cache directly from the store, so a freshly-restarted server still
+ * serves the project's data instead of an empty result until re-initialized.
+ */
 async function cacheForArg(args: Record<string, ArgValue>): Promise<{ findings: unknown[]; opportunities: unknown[]; health_score?: unknown } | null> {
-  if (!state.isInitialized()) return null;
   const projectId = typeof args['projectId'] === 'string' ? (args['projectId'] as string) : undefined;
   return (await state.loadCacheForProject(projectId)) as unknown as { findings: unknown[]; opportunities: unknown[]; health_score?: unknown } | null;
 }
