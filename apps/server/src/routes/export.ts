@@ -352,13 +352,6 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
-
       try {
         const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
         const stats = await graph.getStats();

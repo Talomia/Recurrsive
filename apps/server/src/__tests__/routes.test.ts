@@ -36,10 +36,16 @@ vi.mock('@recurrsive/graph', () => ({
       if (id === 'e1') return { id: 'e1', type: 'module', name: 'auth', properties: {} };
       return undefined;
     }),
+    getEntity: vi.fn().mockImplementation(async (id: string) => {
+      if (id === 'e1') return { id: 'e1', type: 'module', name: 'auth', properties: {} };
+      return undefined;
+    }),
     getNeighbors: vi.fn().mockResolvedValue({
       entities: [],
       relationships: [],
     }),
+    search: vi.fn().mockResolvedValue([]),
+    listRelationships: vi.fn().mockResolvedValue({ data: [] }),
     upsertEntity: vi.fn().mockResolvedValue(undefined),
     upsertRelationship: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn().mockResolvedValue(undefined),
@@ -249,14 +255,18 @@ describe ('Analysis endpoints', () => {
 // ---------------------------------------------------------------------------
 
 describe ('Pre-initialization endpoint behavior', () => {
-  it('GET /api/v1/graph/stats returns 503 before init', async () => {
+  it('GET /api/v1/graph/stats serves the persisted graph on demand (no init required)', async () => {
+    // The knowledge graph is persisted per project and connects on demand, so
+    // it is queryable immediately after a restart rather than 503-ing until the
+    // next analysis re-initializes in-process state.
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/stats' });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toHaveProperty('data');
   });
 
-  it ('GET /api/v1/graph/entities returns 503 before init', async () => {
+  it ('GET /api/v1/graph/entities serves the persisted graph on demand', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/entities' });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
   });
 
   it ('GET /api/v1/timeline returns 503 before init', async () => {
@@ -385,25 +395,20 @@ describe('Reports endpoints (require analysis cache)', async () => {
 // ---------------------------------------------------------------------------
 
 describe ('Graph search endpoint', () => {
-  it('GET /api/v1/graph/search returns 503 before initialization', async () => {
+  it('GET /api/v1/graph/search serves the persisted graph on demand', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/search?q=auth' });
-    expect(res.statusCode).toBe(503);
-    const body = JSON.parse(res.payload);
-    expect(body.error).toBe('Server not initialized');
+    expect(res.statusCode).toBe(200);
   });
 
   it ('GET /api/v1/graph/search returns 400 when q is missing', async () => {
-    // Even though 503 takes priority when not initialized, we test
-    // that the route itself exists and handles the missing-q case.
-    // Since the server isn't initialized, we expect 503 first.
+    // Missing-query validation is now the first thing checked — no init gate.
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/search' });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(400);
   });
 
   it ('GET /api/v1/graph/search returns 400 when q is empty string', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/search?q=' });
-    // 503 takes priority over 400 when not initialized
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(400);
   });
 });
 
@@ -411,29 +416,34 @@ describe ('Graph search endpoint', () => {
 // Graph entity detail and neighbors (pre-init)
 // ---------------------------------------------------------------------------
 
-describe('Graph entity detail and neighbors (pre-init)', async () => {
-  it('GET /api/v1/graph/entities/:id returns 503 before init', async () => {
+describe('Graph entity detail and neighbors (on-demand)', async () => {
+  it('GET /api/v1/graph/entities/:id resolves a known entity from the persisted graph', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/entities/e1' });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
   });
 
-  it ('GET /api/v1/graph/entities/:id/neighbors returns 503 before init', async () => {
+  it ('GET /api/v1/graph/entities/:id returns 404 for an unknown entity', async () => {
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/graph/entities/does-not-exist' });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it ('GET /api/v1/graph/entities/:id/neighbors resolves a known entity', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'GET',
       url: '/api/v1/graph/entities/e1/neighbors',
     });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
   });
 
   it ('GET /api/v1/graph/entities/:id/neighbors validates depth range', async () => {
-    // Depth validation is behind the init check, so we get 503 first
+    // Depth validation now runs without an init gate in front of it.
     const res = await app.inject({
       headers: authHeaders,
       method: 'GET',
       url: '/api/v1/graph/entities/e1/neighbors?depth=10',
     });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(400);
   });
 });
 

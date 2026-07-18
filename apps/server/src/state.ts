@@ -1155,13 +1155,18 @@ export class ServerState {
   }
 
   /**
-   * Return the graph client instance.
+   * Return the graph client for a project, connecting on demand.
    *
-   * @returns The extended graph client.
-   * @throws {Error} If the server has not been initialized.
+   * Does NOT require a prior `initialize()`: the graph client is built purely
+   * from environment config (provider + connection string), and the per-project
+   * AGE graph is persisted in PostgreSQL. This lets the knowledge graph be
+   * queried immediately after a restart instead of vanishing until the next
+   * analysis re-initializes in-process state.
+   *
+   * @param projectId - Project id (defaults to the implicit project).
+   * @returns The project's graph client.
    */
   async getGraph(projectId?: string): Promise<ExtendedGraphClient> {
-    this.assertInitialized();
     return this.getGraphForProject(projectId);
   }
 

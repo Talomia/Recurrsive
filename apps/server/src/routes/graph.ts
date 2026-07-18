@@ -50,12 +50,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
    * relationship counts, grouped by type.
    */
   app.get('/api/v1/graph/stats', { preHandler: [authMiddleware] }, async (request, reply) => {
-    if (!state.isInitialized()) {
-      return reply.status(503).send({
-        error: 'Server not initialized',
-        message: 'Run POST /api/v1/analyze first.',
-      });
-    }
 
     try {
       const graph = await state.getGraph((request.query as { projectId?: string } | undefined)?.projectId);
@@ -89,12 +83,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/entities',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
 
       const { type, search, limit: limitStr } = request.query;
       const parsedLimit = limitStr ? parseInt(limitStr, 10) : 50;
@@ -181,12 +169,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/entities/:id',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
 
       const { id } = request.params;
 
@@ -230,12 +212,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/entities/:id/neighbors',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
 
       const { id } = request.params;
       const depth = request.query.depth ? parseInt(request.query.depth, 10) : 1;
@@ -292,12 +268,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/entities/:id/relationships',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
 
       const { id } = request.params;
       const validDirections = ['in', 'out', 'both'] as const;
@@ -357,12 +327,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/relationships',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
 
       const { type, limit: limitStr, offset: offsetStr } = request.query;
       const parsedLimit = limitStr ? parseInt(limitStr, 10) : 50;
@@ -447,12 +411,6 @@ export async function registerGraphRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/graph/search',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      if (!state.isInitialized()) {
-        return reply.status(503).send({
-          error: 'Server not initialized',
-          message: 'Run POST /api/v1/analyze first.',
-        });
-      }
 
       const { q, type, limit: limitStr } = request.query;
 

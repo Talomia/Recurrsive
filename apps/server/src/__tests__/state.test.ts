@@ -267,8 +267,12 @@ describe('ServerState', () => {
   // ── Uninitialized Accessor Errors ────────────────────────────────────
 
   describe('uninitialized accessor errors', () => {
-    it('getGraph rejects when not initialized', async () => {
-      await expect(state.getGraph()).rejects.toThrow(/not initialized/i);
+    it('getGraph connects on demand without requiring initialize()', async () => {
+      // The graph is persisted per project and connects from env config, so it
+      // is reachable after a restart without re-running an analysis.
+      const graph = await state.getGraph();
+      expect(graph).toBeDefined();
+      expect(typeof graph.getStats).toBe('function');
     });
 
     it('getProjectInfo throws when not initialized', async () => {
