@@ -23,6 +23,16 @@ function TierBadge({ tier }: { tier: string }) {
   return <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${c[tier] ?? ''}`}>{tier}</span>;
 }
 
+function EmptyState({ icon: Icon, message }: { icon: typeof BarChart3; message: string }) {
+  return (
+    <div className="rounded-2xl p-10 flex flex-col items-center justify-center gap-3 text-center"
+      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+      <Icon className="w-8 h-8" style={{ color: 'var(--color-text-tertiary)' }} />
+      <p className="text-sm text-text-secondary max-w-sm">{message}</p>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function CloudPage() {
@@ -95,7 +105,10 @@ export default function CloudPage() {
       </div>
 
       {/* Benchmarks */}
-      {activeTab === 'benchmarks' && (
+      {activeTab === 'benchmarks' && benchmarks.length === 0 && (
+        <EmptyState icon={BarChart3} message="No industry benchmark data yet. Benchmarks appear once enough anonymized analyses have been submitted." />
+      )}
+      {activeTab === 'benchmarks' && benchmarks.length > 0 && (
         <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
@@ -131,7 +144,10 @@ export default function CloudPage() {
       )}
 
       {/* Patterns */}
-      {activeTab === 'patterns' && (
+      {activeTab === 'patterns' && patterns.length === 0 && (
+        <EmptyState icon={Award} message="No learned patterns yet. Patterns emerge from aggregated analysis across projects." />
+      )}
+      {activeTab === 'patterns' && patterns.length > 0 && (
         <div className="rounded-2xl p-6" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <div className="flex items-center gap-2 mb-4">
             <Award className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
@@ -159,7 +175,10 @@ export default function CloudPage() {
       )}
 
       {/* Partners */}
-      {activeTab === 'partners' && (
+      {activeTab === 'partners' && partners.length === 0 && (
+        <EmptyState icon={Users} message="No cloud partners are configured yet." />
+      )}
+      {activeTab === 'partners' && partners.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {partners.map(p => (
             <div key={p.id} className="rounded-2xl p-5" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -178,7 +197,10 @@ export default function CloudPage() {
       )}
 
       {/* Services */}
-      {activeTab === 'services' && (
+      {activeTab === 'services' && services.length === 0 && (
+        <EmptyState icon={Globe} message="No managed service tiers are available right now." />
+      )}
+      {activeTab === 'services' && services.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {services.map(s => (
             <div key={s.name} className="rounded-2xl p-6 flex flex-col"

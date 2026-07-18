@@ -79,17 +79,28 @@ export async function apiFetch<T>(
 
   if (fetchOpts.body) headers['Content-Type'] = 'application/json';
   
-  // Scoped project query parameter auto-appending
+  // Scoped project query parameter auto-appending. On the client the active
+  // project comes from the URL; during SSR it comes from the
+  // `x-recurrsive-project-id` request header that middleware derives from the
+  // same URL query — otherwise server-rendered pages ignore `?projectId=`.
   let finalPath = path;
-  if (typeof window !== 'undefined') {
-    const method = fetchOpts.method?.toUpperCase() || 'GET';
-    if (method === 'GET') {
-      const searchParams = new URLSearchParams(window.location.search);
-      const projectId = searchParams.get('projectId');
-      if (projectId && !path.includes('projectId=')) {
-        const separator = path.includes('?') ? '&' : '?';
-        finalPath = `${path}${separator}projectId=${encodeURIComponent(projectId)}`;
+  const method = fetchOpts.method?.toUpperCase() || 'GET';
+  if (method === 'GET' && !path.includes('projectId=')) {
+    let projectId: string | null = null;
+    if (typeof window !== 'undefined') {
+      projectId = new URLSearchParams(window.location.search).get('projectId');
+    } else {
+      try {
+        const { headers: nextHeaders } = await import('next/headers');
+        const hdrs = await nextHeaders();
+        projectId = hdrs.get('x-recurrsive-project-id');
+      } catch {
+        // Outside a request context — no project scoping available.
       }
+    }
+    if (projectId) {
+      const separator = path.includes('?') ? '&' : '?';
+      finalPath = `${path}${separator}projectId=${encodeURIComponent(projectId)}`;
     }
   }
 

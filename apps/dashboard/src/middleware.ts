@@ -71,7 +71,19 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  // Surface the active project as a request header so server-rendered pages can
+  // scope their data fetches. Server components can't read the URL query string
+  // directly from the API client, so without this SSR always hit the default
+  // project regardless of `?projectId=`.
+  const requestHeaders = new Headers(request.headers);
+  const projectId = request.nextUrl.searchParams.get('projectId');
+  if (projectId) {
+    requestHeaders.set('x-recurrsive-project-id', projectId);
+  } else {
+    requestHeaders.delete('x-recurrsive-project-id');
+  }
+
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

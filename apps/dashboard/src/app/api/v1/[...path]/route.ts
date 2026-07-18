@@ -56,6 +56,17 @@ async function handler(
     }
   });
 
+  // Direct browser navigations (e.g. `<a href download>` report/export links)
+  // cannot attach the Bearer token from localStorage, so they arrive with only
+  // the `recurrsive_token` cookie. Promote that cookie to an Authorization
+  // header when none is present, so authenticated downloads don't 401.
+  if (!headers.has('authorization')) {
+    const cookieToken = request.cookies.get('recurrsive_token')?.value;
+    if (cookieToken) {
+      headers.set('authorization', `Bearer ${cookieToken}`);
+    }
+  }
+
   try {
     const response = await fetch(targetUrl.toString(), {
       method: request.method,

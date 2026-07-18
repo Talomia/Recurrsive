@@ -88,6 +88,20 @@ interface LearnedPattern {
 }
 
 // ---------------------------------------------------------------------------
+// Types — Cloud Partners
+// ---------------------------------------------------------------------------
+
+/** A cloud partner integration entry (stored, never seeded). */
+interface CloudPartner {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  integration_level: string;
+  supported_services: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Types — Managed Services
 // ---------------------------------------------------------------------------
 
@@ -264,42 +278,10 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
    * This endpoint returns a cloud-specific view of partner integrations.
    */
   app.get('/api/v1/cloud/partners', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    // Cloud partners are a subset of ecosystem partnerships relevant to cloud services
-    const cloudPartners = [
-      {
-        id: 'cp-aws',
-        name: 'Amazon Web Services',
-        type: 'cloud_provider',
-        status: 'active',
-        integration_level: 'full',
-        supported_services: ['ECS', 'Lambda', 'S3', 'CloudWatch'],
-      },
-      {
-        id: 'cp-gcp',
-        name: 'Google Cloud Platform',
-        type: 'cloud_provider',
-        status: 'active',
-        integration_level: 'full',
-        supported_services: ['Cloud Run', 'Cloud Functions', 'GCS', 'Cloud Monitoring'],
-      },
-      {
-        id: 'cp-azure',
-        name: 'Microsoft Azure',
-        type: 'cloud_provider',
-        status: 'active',
-        integration_level: 'partial',
-        supported_services: ['Container Apps', 'Functions', 'Blob Storage'],
-      },
-      {
-        id: 'cp-datadog',
-        name: 'Datadog',
-        type: 'monitoring',
-        status: 'active',
-        integration_level: 'webhook',
-        supported_services: ['APM', 'Logging', 'Metrics'],
-      },
-    ];
-
+    // Cloud partner integrations are configured via the store — none are
+    // seeded. We do NOT advertise "active" partnerships/integrations with named
+    // vendors that do not exist; the list is empty until real entries are added.
+    const cloudPartners = await store.all<CloudPartner>('cloud_partners');
     return reply.send({ data: cloudPartners });
   });
 }

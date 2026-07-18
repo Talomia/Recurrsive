@@ -36,19 +36,14 @@ export interface DashboardExperiment {
 
 // ─── Analysis Run Comparison Types ───────────────────────────────────────────
 
-export interface AnalysisRunCategory {
-  name: string;
-  count: number;
-}
-
 export interface AnalysisRun {
   id: string;
   label: string;
   date: string;
-  health_score: number;
+  /** Canonical health score for the run (null for failed runs). */
+  health_score: number | null;
   findings: number;
-  resolved: number;
-  categories: AnalysisRunCategory[];
+  opportunities: number;
 }
 
 export interface ComparisonData {
@@ -56,11 +51,7 @@ export interface ComparisonData {
   runB: AnalysisRun;
   health_delta: number;
   findings_delta: number;
-  resolution_rate_a: number;
-  resolution_rate_b: number;
-  resolution_rate_delta: number;
-  new_findings: number;
-  findings_resolved: number;
+  opportunities_delta: number;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -101,7 +92,8 @@ interface ServerAnalysisHistoryEntry {
   findingCount: number;
   opportunityCount: number;
   includeReasoning: boolean;
-  status: 'success' | 'error';
+  healthScore: number | null;
+  status: 'success' | 'failed';
   error: string | null;
 }
 
@@ -109,7 +101,9 @@ interface ServerAnalysisHistoryEntry {
  * Get all analysis runs for comparison selection.
  *
  * Transforms the server's `AnalysisHistoryEntry` shape into the dashboard's
- * `AnalysisRun` shape expected by the comparisons page.
+ * `AnalysisRun` shape. Only fields the server actually records per run are
+ * surfaced — the health score is the canonical one stored with the run, not a
+ * fabricated approximation.
  */
 export async function getAnalysisRuns(): Promise<AnalysisRun[]> {
   try {
@@ -118,40 +112,45 @@ export async function getAnalysisRuns(): Promise<AnalysisRun[]> {
       { unwrap: false },
     );
     const entries = res.data ?? [];
-    return entries.map((entry) => {
-      const date = new Date(entry.startedAt);
-      const label = `Run ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-      // Approximate health score: fewer findings = higher score (cap 0–100)
-      const health_score = Math.max(0, Math.round(100 - entry.findingCount * 1.5));
-      return {
-        id: entry.id,
-        label,
-        date: entry.startedAt,
-        health_score,
-        findings: entry.findingCount,
-        resolved: 0, // Server doesn't track resolved count per run
-        categories: [] as AnalysisRunCategory[],
-      };
-    });
+    return entries
+      .filter((entry) => entry.status === 'success')
+      .map((entry) => {
+        const date = new Date(entry.startedAt);
+        const label = `Run ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+        return {
+          id: entry.id,
+          label,
+          date: entry.startedAt,
+          health_score: entry.healthScore,
+          findings: entry.findingCount,
+          opportunities: entry.opportunityCount,
+        };
+      });
   } catch {
     return [];
   }
 }
 
 /**
- * Get comparison data between two analysis runs.
+ * Compute a comparison between two analysis runs.
+ *
+ * The server's `/analysis/compare` endpoint only diffs the current cache
+ * against a baseline history index, so it cannot compare two arbitrary runs.
+ * Every field needed here — health, findings, opportunities — is already
+ * recorded on each run, so the deltas are computed directly from the two
+ * selected runs instead of inventing data the backend does not track.
  */
-export async function getComparisonData(
-  runAId: string,
-  runBId: string,
-): Promise<ComparisonData | null> {
-  try {
-    return await apiFetch<ComparisonData>(
-      `/api/v1/analysis/compare?run_a=${encodeURIComponent(runAId)}&run_b=${encodeURIComponent(runBId)}`,
-    );
-  } catch {
-    return null;
-  }
+export function getComparisonData(
+  runA: AnalysisRun,
+  runB: AnalysisRun,
+): ComparisonData {
+  return {
+    runA,
+    runB,
+    health_delta: (runB.health_score ?? 0) - (runA.health_score ?? 0),
+    findings_delta: runB.findings - runA.findings,
+    opportunities_delta: runB.opportunities - runA.opportunities,
+  };
 }
 
 /**

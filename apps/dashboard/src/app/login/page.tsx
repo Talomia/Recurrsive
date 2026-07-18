@@ -21,7 +21,14 @@ export default function LoginPage() {
   const { login, loading, error } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') ?? '/';
+  // Only honor same-site relative paths — never an absolute or protocol-relative
+  // URL — so a crafted `?redirect=` can't bounce the user to an external site
+  // after login.
+  const rawRedirect = searchParams.get('redirect');
+  const redirectTo =
+    rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
+      ? rawRedirect
+      : '/';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
