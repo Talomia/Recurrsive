@@ -214,6 +214,39 @@ export function main() { return helper(); }
       expect(result.relationships).toEqual([]);
     });
 
+    it('harvests AI-pattern relationships onto the enclosing function', async () => {
+      const result = await pipeline.parseProject([
+        {
+          path: 'src/generate.ts',
+          content: `
+import OpenAI from 'openai';
+
+export async function generateText(prompt: string) {
+  const client = new OpenAI();
+  const completion = await client.chat.completions.create({
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: prompt }],
+  });
+  return completion.choices[0].message.content;
+}
+          `.trim(),
+          language: 'typescript',
+        },
+      ]);
+
+      // The LLM call sits inside generateText, so a uses_model edge must exist
+      // from the function entity to the model entity (what the AI analyzer
+      // queries) — previously these relationships were dropped entirely.
+      const usesModel = result.relationships.filter((r) => r.type === 'uses_model');
+      expect(usesModel.length).toBeGreaterThan(0);
+
+      const fn = result.entities.find((e) => e.type === 'function' && e.name === 'generateText');
+      expect(fn).toBeDefined();
+      const model = result.entities.find((e) => e.type === 'model');
+      expect(model).toBeDefined();
+      expect(usesModel.some((r) => r.source_id === fn!.id && r.target_id === model!.id)).toBe(true);
+    });
+
     it('generates tags based on entity properties', async () => {
       const result = await pipeline.parseProject([
         {

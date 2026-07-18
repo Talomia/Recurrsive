@@ -16,17 +16,6 @@ import type {
 } from '@recurrsive/core';
 import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
 
-/** Model names considered "cheap" alternatives. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const CHEAP_MODEL_PATTERNS = [
-  /gpt-3\.5/i,
-  /gpt-4o-mini/i,
-  /claude-3-haiku/i,
-  /claude-3\.5-haiku/i,
-  /gemini-flash/i,
-  /mistral-small/i,
-];
-
 /**
  * Analyzes the knowledge graph for cost optimization opportunities
  * in AI/LLM usage.
@@ -34,9 +23,8 @@ export const CHEAP_MODEL_PATTERNS = [
  * ### Rules
  * 1. No token tracking / usage logging
  * 2. Missing semantic caching
- * 3. Unused model configurations
- * 4. Missing batch processing
- * 5. No cost alerts
+ * 3. Missing batch processing
+ * 4. No cost alerts
  */
 export class CostAnalyzer implements Analyzer {
   readonly id = 'cost.optimization';
@@ -56,13 +44,11 @@ export class CostAnalyzer implements Analyzer {
     const [
       noTokenTracking,
       missingSemanticCache,
-      unusedConfigs,
       missingBatch,
       noCostAlerts,
     ] = await Promise.all([
       this.detectNoTokenTracking(ctx),
       this.detectMissingSemanticCaching(ctx),
-      this.detectUnusedModelConfigurations(ctx),
       this.detectMissingBatchProcessing(ctx),
       this.detectNoCostAlerts(ctx),
     ]);
@@ -70,7 +56,6 @@ export class CostAnalyzer implements Analyzer {
     findings.push(
       ...noTokenTracking,
       ...missingSemanticCache,
-      ...unusedConfigs,
       ...missingBatch,
       ...noCostAlerts,
     );
@@ -245,56 +230,7 @@ export class CostAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 3: Unused Model Configurations ────────────────────────────
-
-  /**
-   * Detect model configs that are defined but never referenced.
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for unused model configs.
-   */
-  private async detectUnusedModelConfigurations(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const models = await ctx.graph.getEntities('model');
-
-    for (const model of models) {
-      const inRels = await ctx.graph.getRelationships(model.id, 'in');
-      const isUsed = inRels.some(
-        (r) => r.type === 'uses_model' || r.type === 'references',
-      );
-
-      if (!isUsed) {
-        const loc = locationFromEntity(model);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Unused model configuration: ${model.name}`,
-            description: `Model configuration '${model.name}' is defined but never referenced by any function or agent. It may be dead configuration that should be removed to reduce confusion.`,
-            severity: 'low',
-            category: 'cost',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'Model configuration with no incoming references',
-                entity_ids: [model.id],
-                confidence: 0.8,
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Remove unused model configurations or connect them to actual usage points. If kept for future use, add a comment explaining the intent.',
-            confidence: 0.7,
-            tags: ['unused-config', 'cost', 'cleanup'],
-          }),
-        );
-      }
-    }
-
-    return findings;
-  }
-
-  // ── Rule 4: Missing Batch Processing ───────────────────────────────
+  // ── Rule 3: Missing Batch Processing ───────────────────────────────
 
   /**
    * Detect individual API calls that could be batched together.

@@ -148,6 +148,19 @@ export class ParsingPipeline {
       resolved,
     );
 
+    // ── Step 5: Harvest AI-pattern relationships ────────────────────────
+    // AI patterns (LLM calls, prompt templates, evaluations …) emit their own
+    // relationships (uses_model, has_prompt, evaluates_with). These are keyed
+    // to the *enclosing code entity* — the analyzers query them from function
+    // and agent entities — so resolve each pattern's placeholder file source to
+    // the entity whose source range encloses the pattern.
+    const aiRelationships = this.toAIPatternRelationships(
+      entityMap,
+      graphEntities,
+      parsedFiles,
+    );
+    graphRelationships.push(...aiRelationships);
+
     return { entities: graphEntities, relationships: graphRelationships };
   }
 
@@ -307,6 +320,142 @@ export class ParsingPipeline {
     }
 
     return relationships;
+  }
+
+  /**
+   * Convert AI-pattern relationships into graph {@link Relationship} objects.
+   *
+   * Each AI pattern (an LLM call, prompt template, evaluation, …) reports its
+   * relationships with a placeholder file path as the source — the real source
+   * is the *enclosing code entity* (the function or agent that contains the
+   * call site), which is what the AI analyzers query. This resolves that
+   * placeholder to the tightest entity whose source range encloses the
+   * pattern, and points the edge at the pattern's own generated entity as the
+   * target (e.g. `function --uses_model--> model`).
+   *
+   * Relationships whose enclosing entity cannot be located are skipped rather
+   * than anchored to an invented source.
+   *
+   * @param entityMap     - Map from qualified_name to Entity.
+   * @param graphEntities - All graph entities (for location resolution).
+   * @param parsedFiles   - Parsed files carrying detected AI patterns.
+   * @returns Graph-ready AI-pattern relationships.
+   */
+  private toAIPatternRelationships(
+    entityMap: Map<string, Entity>,
+    graphEntities: Entity[],
+    parsedFiles: ParsedFile[],
+  ): Relationship[] {
+    const relationships: Relationship[] = [];
+    const now = nowISO();
+
+    // Index entities by file for location-containment resolution.
+    const entitiesByFile = new Map<string, Entity[]>();
+    for (const e of graphEntities) {
+      const file = e.source_location?.file;
+      if (!file) continue;
+      const list = entitiesByFile.get(file);
+      if (list) list.push(e);
+      else entitiesByFile.set(file, [e]);
+    }
+
+    for (const pf of parsedFiles) {
+      const fileEntities = entitiesByFile.get(pf.path) ?? [];
+
+      for (const pattern of pf.aiPatterns) {
+        if (pattern.relationships.length === 0) continue;
+
+        // The graph entity this pattern produced is the relationship target.
+        const patternExtracted = pattern.entities[0];
+        const targetEntity = patternExtracted
+          ? entityMap.get(patternExtracted.qualified_name)
+          : undefined;
+        if (!targetEntity) continue;
+
+        const startLine = pattern.source_location.start_line;
+        const endLine = pattern.source_location.end_line;
+        if (startLine === undefined || endLine === undefined) continue;
+
+        const source = this.findEnclosingEntity(
+          fileEntities,
+          startLine,
+          endLine,
+          targetEntity.id,
+        );
+        if (!source) continue;
+
+        for (const rel of pattern.relationships) {
+          // Guard against duplicate and self edges.
+          if (source.id === targetEntity.id) continue;
+          const duplicate = relationships.some(
+            (r) =>
+              r.type === rel.type &&
+              r.source_id === source.id &&
+              r.target_id === targetEntity.id,
+          );
+          if (duplicate) continue;
+
+          relationships.push({
+            id: generateId(),
+            type: rel.type,
+            source_id: source.id,
+            target_id: targetEntity.id,
+            properties: { file: pf.path, ai_pattern: pattern.type },
+            confidence: 0.75,
+            source: 'parser:ai-pattern',
+            created_at: now,
+            updated_at: now,
+          });
+        }
+      }
+    }
+
+    return relationships;
+  }
+
+  /**
+   * Find the entity whose source range most tightly encloses a line span,
+   * used to anchor an AI-pattern call to the code that contains it.
+   *
+   * Skips the target entity itself and any entity occupying the exact same
+   * span (the pattern-generated entities live at the match location), so the
+   * result is a genuine enclosing scope rather than the AI resource node.
+   *
+   * @param candidates - Entities in the same file.
+   * @param startLine  - Pattern span start line.
+   * @param endLine    - Pattern span end line.
+   * @param targetId   - The relationship target to exclude from candidates.
+   * @returns The tightest enclosing entity, or `undefined`.
+   */
+  private findEnclosingEntity(
+    candidates: Entity[],
+    startLine: number,
+    endLine: number,
+    targetId: string,
+  ): Entity | undefined {
+    let best: Entity | undefined;
+    let bestSpan = Number.POSITIVE_INFINITY;
+
+    for (const entity of candidates) {
+      if (entity.id === targetId) continue;
+      const loc = entity.source_location;
+      if (!loc || loc.start_line === undefined || loc.end_line === undefined) continue;
+      const entStart = loc.start_line;
+      const entEnd = loc.end_line;
+
+      // Skip entities occupying the exact same span (the pattern's own nodes).
+      if (entStart === startLine && entEnd === endLine) continue;
+
+      if (entStart <= startLine && entEnd >= endLine) {
+        const span = entEnd - entStart;
+        if (span < bestSpan) {
+          bestSpan = span;
+          best = entity;
+        }
+      }
+    }
+
+    return best;
   }
 
   /**

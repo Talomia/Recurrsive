@@ -295,7 +295,6 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
   it('7. POST /api/v1/webhooks registers a webhook', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -335,7 +334,6 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
     try {
       const res = await app.inject({
-      headers: authHeaders,
         headers: authHeaders,
         method: 'POST',
         url: `/api/v1/webhooks/${webhookId}/test`,
@@ -362,7 +360,6 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
   it ('10. GET /api/v1/webhooks/:id/deliveries returns delivery history', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'GET',
       url: `/api/v1/webhooks/${webhookId}/deliveries`,
     });
@@ -376,7 +373,6 @@ describe('Flow: Webhook Lifecycle (register → list → test → deliveries →
 
   it ('11. DELETE /api/v1/webhooks/:id removes the webhook', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'DELETE',
       url: `/api/v1/webhooks/${webhookId}`,
@@ -505,7 +501,6 @@ describe('Flow: Config + Notifications (config → features → channels → tes
   it ('19. POST /api/v1/notifications/test sends a test notification', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: { channel: 'console' },
@@ -547,7 +542,6 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', as
 
   it('21. POST /api/v1/experiments creates a new experiment', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
@@ -595,7 +589,6 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', as
   it ('24. PUT /api/v1/experiments/:id/status starts the experiment', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${experimentId}/status`,
       payload: { status: 'running' },
@@ -609,7 +602,6 @@ describe('Flow: Experiment lifecycle (create → get → update → verify)', as
 
   it ('25. PUT /api/v1/experiments/:id/status completes the experiment', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${experimentId}/status`,
@@ -641,7 +633,6 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', async (
     const token = createToken('integ-admin', 'admin');
 
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit',
       headers: { Authorization: `Bearer ${token}` },
@@ -658,7 +649,6 @@ describe('Flow: Audit + Analytics (audit events → analytics summary)', async (
     const token = createToken('integ-admin', 'admin');
 
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit/stats',
       headers: { Authorization: `Bearer ${token}` },

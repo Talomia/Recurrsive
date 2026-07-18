@@ -238,59 +238,6 @@ describe('CostAnalyzer', () => {
     });
   });
 
-  // ── Rule 3: Unused Model Configurations ────────────────────────────
-
-  describe('unused model configurations', () => {
-    it('detects model with no incoming references', async () => {
-      const model = makeEntity({ type: 'model', name: 'gpt-4-turbo' });
-
-      const ctx = makeContext(
-        { model: [model], function: [], cost_metric: [], prompt: [], alert: [] },
-        () => [],
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const unusedFindings = findings.filter((f) => f.title.includes('Unused model configuration'));
-      expect(unusedFindings).toHaveLength(1);
-      expect(unusedFindings[0]!.severity).toBe('low');
-    });
-
-    it('skips model that has uses_model reference', async () => {
-      const model = makeEntity({ type: 'model', name: 'gpt-4-turbo' });
-      const fn = makeEntity({ type: 'function', name: 'caller' });
-      const rel = makeRel({ type: 'uses_model', source_id: fn.id, target_id: model.id });
-
-      const ctx = makeContext(
-        { model: [model], function: [fn], cost_metric: [], prompt: [], alert: [] },
-        (id, dir) => {
-          if (id === model.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const unusedFindings = findings.filter((f) => f.title.includes('Unused model configuration'));
-      expect(unusedFindings).toHaveLength(0);
-    });
-
-    it('skips model that has a references relationship', async () => {
-      const model = makeEntity({ type: 'model', name: 'claude-3-sonnet' });
-      const rel = makeRel({ type: 'references', source_id: nextId(), target_id: model.id });
-
-      const ctx = makeContext(
-        { model: [model], function: [], cost_metric: [], prompt: [], alert: [] },
-        (id, dir) => {
-          if (id === model.id && dir === 'in') return [rel];
-          return [];
-        },
-      );
-
-      const findings = await analyzer.analyze(ctx);
-      const unusedFindings = findings.filter((f) => f.title.includes('Unused model configuration'));
-      expect(unusedFindings).toHaveLength(0);
-    });
-  });
-
   // ── Rule 4: Missing Batch Processing ───────────────────────────────
 
   describe('missing batch processing', () => {

@@ -728,7 +728,22 @@ export class AIPatternDetector {
       let match: RegExpExecArray | null;
       while ((match = re.exec(source)) !== null) {
         const location = loc(source, match, filePath);
-        results.push(builder(match, p, location));
+        const pattern = builder(match, p, location);
+        // Surface the matched source text as `content` (and `template` on
+        // prompt entities) so content-scanning analyzers — prompt-injection,
+        // secret-in-prompt, oversized-prompt checks — operate on the real
+        // matched text instead of an empty string. The entities otherwise
+        // carried only an opaque `pattern` field the analyzers never read.
+        const matchedText = match[0];
+        for (const entity of pattern.entities) {
+          if (entity.properties['content'] === undefined) {
+            entity.properties['content'] = matchedText;
+          }
+          if (entity.type === 'prompt' && entity.properties['template'] === undefined) {
+            entity.properties['template'] = matchedText;
+          }
+        }
+        results.push(pattern);
       }
     }
     return results;

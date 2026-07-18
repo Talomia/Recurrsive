@@ -2179,7 +2179,6 @@ describe ('Password change endpoint', () => {
 
   it ('PUT /api/v1/auth/change-password succeeds with correct current password', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: { authorization: `Bearer ${userToken}` },
       method: 'PUT',
       url: '/api/v1/auth/change-password',
@@ -2195,7 +2194,6 @@ describe ('Password change endpoint', () => {
 
   it ('PUT /api/v1/auth/change-password fails with wrong current password', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: { authorization: `Bearer ${userToken}` },
       method: 'PUT',
       url: '/api/v1/auth/change-password',
@@ -2212,7 +2210,6 @@ describe ('Password change endpoint', () => {
 
   it ('PUT /api/v1/auth/change-password rejects short new password', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: { authorization: `Bearer ${userToken}` },
       method: 'PUT',
       url: '/api/v1/auth/change-password',

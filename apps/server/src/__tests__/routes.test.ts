@@ -710,7 +710,6 @@ describe ('Webhook endpoints', () => {
   it ('POST /api/v1/webhooks creates a webhook with valid data', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -731,7 +730,6 @@ describe ('Webhook endpoints', () => {
   it ('POST /api/v1/webhooks returns 400 for missing url', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -747,7 +745,6 @@ describe ('Webhook endpoints', () => {
   it ('POST /api/v1/webhooks returns 400 for missing events', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
       payload: {
@@ -762,7 +759,6 @@ describe ('Webhook endpoints', () => {
 
   it ('POST /api/v1/webhooks returns 400 for invalid event types', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks',
@@ -798,7 +794,6 @@ describe ('Webhook endpoints', () => {
   it ('DELETE /api/v1/webhooks/:id returns 404 for unknown ID', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'DELETE',
       url: '/api/v1/webhooks/wh_nonexistent',
     });
@@ -809,7 +804,6 @@ describe ('Webhook endpoints', () => {
 
   it ('POST /api/v1/webhooks/:id/test returns 404 for unknown ID', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/webhooks/wh_nonexistent/test',
@@ -822,7 +816,6 @@ describe ('Webhook endpoints', () => {
   it ('PATCH /api/v1/webhooks/:id returns 404 for unknown ID', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/webhooks/wh_nonexistent',
       payload: { active: false },
@@ -834,7 +827,6 @@ describe ('Webhook endpoints', () => {
 
   it ('GET /api/v1/webhooks/:id/deliveries returns 404 for unknown ID', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'GET',
       url: '/api/v1/webhooks/wh_nonexistent/deliveries',
@@ -900,7 +892,6 @@ describe ('Config endpoints', () => {
   it ('PATCH /api/v1/config returns 200 with valid overrides', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { severityThreshold: 'high' },
@@ -916,7 +907,6 @@ describe ('Config endpoints', () => {
   it ('PATCH /api/v1/config returns 400 for invalid severityThreshold value', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { severityThreshold: 'extreme' },
@@ -928,7 +918,6 @@ describe ('Config endpoints', () => {
 
   it ('PATCH /api/v1/config returns 400 for invalid reportFormat value', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
@@ -942,7 +931,6 @@ describe ('Config endpoints', () => {
   it ('PATCH /api/v1/config returns 400 for invalid analyzer IDs', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
       payload: { enabledAnalyzers: ['nonexistent.analyzer'] },
@@ -955,7 +943,6 @@ describe ('Config endpoints', () => {
 
   it ('PATCH /api/v1/config accepts graphProvider as any string', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PATCH',
       url: '/api/v1/config',
@@ -1000,7 +987,6 @@ describe ('Notification endpoints', () => {
   it ('POST /api/v1/notifications/test sends a test notification', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: { channel: 'console' },
@@ -1015,7 +1001,6 @@ describe ('Notification endpoints', () => {
   it ('POST /api/v1/notifications/test returns 400 for missing channel', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
       payload: {},
@@ -1028,7 +1013,6 @@ describe ('Notification endpoints', () => {
 
   it ('POST /api/v1/notifications/test returns 400 for invalid channel', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/notifications/test',
@@ -1172,7 +1156,6 @@ describe ('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit',
       headers: { Authorization: `Bearer ${token}` },
@@ -1189,7 +1172,6 @@ describe ('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit?limit=3',
       headers: { Authorization: `Bearer ${token}` },
@@ -1204,7 +1186,6 @@ describe ('Audit Routes', () => {
     const token = createToken('test-admin', 'admin');
 
     const res = await app.inject({
-      headers: authHeaders,
       method: 'GET',
       url: '/api/v1/audit/stats',
       headers: { Authorization: `Bearer ${token}` },
@@ -1300,7 +1281,6 @@ describe ('Experiment Routes', () => {
   it ('POST /api/v1/experiments creates a new experiment', async () => {
     const res = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: {
@@ -1328,7 +1308,6 @@ describe ('Experiment Routes', () => {
 
   it ('POST /api/v1/experiments validates required fields', async () => {
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
@@ -1367,7 +1346,6 @@ describe ('Experiment Routes', () => {
     // Create an experiment first
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: { name: 'Status Update Test', hypothesis: 'Testing status updates' },
@@ -1375,7 +1353,6 @@ describe ('Experiment Routes', () => {
     const expId = JSON.parse(createRes.payload).data.id;
 
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${expId}/status`,
