@@ -1328,6 +1328,24 @@ export class ServerState {
     return { overall: result.overall, dimensions: result.dimensions, status: 'analyzed' };
   }
 
+  /**
+   * Compute the health score for a SPECIFIC project from its persisted cache,
+   * so endpoints that honor `?projectId=` do not fall back to whichever project
+   * happens to be loaded in memory. Uses the canonical {@link computeHealthScore}.
+   *
+   * @param projectId - Project id, or undefined for the default project.
+   */
+  async getHealthScoreForProject(
+    projectId?: string,
+  ): Promise<{ overall: number | null; dimensions: MaturityScore[]; status: 'analyzed' | 'not_analyzed' }> {
+    const cache = await this.loadCacheForProject(projectId);
+    if (!cache) {
+      return { overall: null, dimensions: [], status: 'not_analyzed' };
+    }
+    const result = computeHealthScore(cache.findings, cache.opportunities);
+    return { overall: result.overall, dimensions: result.dimensions, status: 'analyzed' };
+  }
+
   /** Project id the in-memory state currently represents. */
   getCurrentProjectId(): string {
     return this._currentProjectId;

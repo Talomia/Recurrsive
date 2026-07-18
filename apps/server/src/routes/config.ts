@@ -18,7 +18,7 @@ import { store } from '../store.js';
  *
  * Used by the features endpoint to enumerate available analyzers.
  */
-const ALL_ANALYZER_IDS = [
+export const ALL_ANALYZER_IDS = [
   'architecture.structural',
   'ai.quality',
   'performance.general',
@@ -34,7 +34,7 @@ const ALL_ANALYZER_IDS = [
 /**
  * All collector names in the platform.
  */
-const ALL_COLLECTOR_IDS = [
+export const ALL_COLLECTOR_IDS = [
   'git',
   'documentation',
   'environment',

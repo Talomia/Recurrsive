@@ -1393,7 +1393,6 @@ describe ('Experiment Routes', () => {
     // Create an experiment first
     const createRes = await app.inject({
       headers: authHeaders,
-      headers: authHeaders,
       method: 'POST',
       url: '/api/v1/experiments',
       payload: { name: 'Validate Status Test', hypothesis: 'Testing validation' },
@@ -1401,7 +1400,6 @@ describe ('Experiment Routes', () => {
     const expId = JSON.parse(createRes.payload).data.id;
 
     const res = await app.inject({
-      headers: authHeaders,
       headers: authHeaders,
       method: 'PUT',
       url: `/api/v1/experiments/${expId}/status`,

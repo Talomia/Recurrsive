@@ -41,6 +41,8 @@ interface ExportRecord {
   download_url: string;
   record_count: number;
   generated_at: string;
+  /** Project the export was generated for; download regenerates from this project. */
+  project_id?: string;
   filters?: Record<string, string>;
 }
 
@@ -55,8 +57,8 @@ const VALID_SCOPES: ExportScope[] = ['findings', 'opportunities', 'health', 'all
 // Content generators — uses real state data when available
 // ---------------------------------------------------------------------------
 
-function generateContent(format: ExportFormat, scope: ExportScope): string {
-  const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+async function generateContent(format: ExportFormat, scope: ExportScope, projectId?: string): Promise<string> {
+  const cache = state.isInitialized() ? await state.loadCacheForProject(projectId) : null;
 
   // Build data from real analysis cache when available
   const findings = cache?.findings.map((f) => ({
@@ -76,7 +78,7 @@ function generateContent(format: ExportFormat, scope: ExportScope): string {
   let healthData = { overall_score: null as number | null, dimensions: {} as Record<string, number> };
   if (state.isInitialized() && cache) {
     try {
-      const hs = state.getHealthScore();
+      const hs = await state.getHealthScoreForProject(projectId);
       healthData = {
         overall_score: hs.overall,
         dimensions: Object.fromEntries(
@@ -181,11 +183,12 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    *
    * Create a new data export.
    */
-  app.post<{ Body: ExportRequest }>(
+  app.post<{ Body: ExportRequest; Querystring: { projectId?: string } }>(
     '/api/v1/export',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { format, scope, filters } = request.body ?? ({} as ExportRequest);
+      const projectId = request.query.projectId;
 
       if (!format || !VALID_FORMATS.includes(format)) {
         return reply.status(400).send({
@@ -203,8 +206,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      // Compute actual record count from analysis state
-      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+      // Compute actual record count from the requested project's analysis state
+      const cache = state.isInitialized() ? await state.loadCacheForProject(projectId) : null;
       const findingsCount = cache?.findings.length ?? 0;
       const opportunitiesCount = cache?.opportunities.length ?? 0;
       const recordCount = scope === 'all'
@@ -224,6 +227,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         download_url: `/api/v1/export/${exportId}/download`,
         record_count: recordCount,
         generated_at: nowISO(),
+        ...(projectId ? { project_id: projectId } : {}),
         filters: filters as Record<string, string> | undefined,
       };
 
@@ -253,7 +257,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      const content = generateContent(record.format, record.scope);
+      const content = await generateContent(record.format, record.scope, record.project_id);
 
       const contentTypes: Record<ExportFormat, string> = {
         json: 'application/json; charset=utf-8',
@@ -292,7 +296,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    * formats: `json`, `csv`, `markdown`. The dashboard's report page
    * uses these for one-click download buttons.
    */
-  app.get<{ Params: { format: string } }>(
+  app.get<{ Params: { format: string }; Querystring: { projectId?: string } }>(
     '/api/v1/export/findings/:format',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
@@ -306,7 +310,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         });
       }
 
-      const content = generateContent(format as ExportFormat, 'findings');
+      const content = await generateContent(format as ExportFormat, 'findings', request.query.projectId);
       const ext = format === 'markdown' ? 'md' : format;
 
       const contentTypes: Record<string, string> = {
@@ -483,11 +487,12 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    * Generate a comprehensive report and return metadata with download URL.
    * Accepts optional `format` query param (json, csv, markdown; default: markdown).
    */
-  app.get<{ Querystring: { format?: string } }>(
+  app.get<{ Querystring: { format?: string; projectId?: string } }>(
     '/api/v1/export/report',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const format = (request.query.format ?? 'markdown') as ExportFormat;
+      const projectId = request.query.projectId;
 
       if (!VALID_FORMATS.includes(format)) {
         return reply.status(400).send({
@@ -500,8 +505,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
       const exportId = `rpt_${generateId().slice(0, 8)}`;
       const generatedAt = nowISO();
 
-      // Compute record count from analysis state
-      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+      // Compute record count from the requested project's analysis state
+      const cache = state.isInitialized() ? await state.loadCacheForProject(projectId) : null;
       const recordCount = (cache?.findings.length ?? 0) + (cache?.opportunities.length ?? 0) + 1;
 
       const record: ExportRecord = {
@@ -512,6 +517,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
         download_url: `/api/v1/export/${exportId}/download`,
         record_count: recordCount,
         generated_at: generatedAt,
+        ...(projectId ? { project_id: projectId } : {}),
       };
 
       await store.set<ExportRecord>('exports', exportId, record);

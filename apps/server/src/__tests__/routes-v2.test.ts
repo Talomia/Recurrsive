@@ -590,6 +590,38 @@ describe ('GraphQL endpoints', () => {
       expect(f.severity).toBe('low');
     }
   });
+
+  it ('collectors query returns exactly the real built-in collectors', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/graphql',
+      payload: { query: '{ collectors { id name type version } }' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    const ids = (body.data.collectors as Array<{ id: string }>).map((c) => c.id).sort();
+    // The real platform ships these five collectors — no fabricated catalog.
+    expect(ids).toEqual(['cicd', 'database', 'documentation', 'environment', 'git']);
+  });
+
+  it ('analyzers query exposes only real fields (no fabricated ruleCount)', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/graphql',
+      payload: { query: '{ analyzers { id name version } }' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(Array.isArray(body.data.analyzers)).toBe(true);
+    expect(body.data.analyzers.length).toBeGreaterThan(0);
+    for (const a of body.data.analyzers) {
+      expect(a).not.toHaveProperty('ruleCount');
+      expect(a).toHaveProperty('id');
+      expect(a).toHaveProperty('version');
+    }
+  });
 });
 
 // ===========================================================================

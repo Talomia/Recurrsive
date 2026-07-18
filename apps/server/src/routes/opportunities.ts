@@ -153,6 +153,15 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.error('Failed to update opportunity status', { error: message, id });
+        // Distinguish a missing opportunity (404) from a rejected state
+        // transition (400) — collapsing both to 404 mislabeled a valid client
+        // error and hid the real reason from the caller.
+        if (message.startsWith('Invalid status transition')) {
+          return reply.status(400).send({
+            error: 'Bad request',
+            message,
+          });
+        }
         return reply.status(404).send({
           error: 'Not found',
           message,

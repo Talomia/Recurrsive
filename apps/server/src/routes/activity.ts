@@ -38,13 +38,14 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
    * - offset: pagination offset (default: 0)
    * - type: filter by activity type (analysis, config, user, system)
    */
-  app.get<{ Querystring: { limit?: string; offset?: string; type?: string } }>(
+  app.get<{ Querystring: { limit?: string; offset?: string; type?: string; projectId?: string } }>(
     '/api/v1/activity/feed',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const limit = Math.min(200, Math.max(1, parseInt(request.query.limit ?? '50', 10) || 50));
       const offset = Math.max(0, parseInt(request.query.offset ?? '0', 10) || 0);
       const typeFilter = request.query.type;
+      const projectId = request.query.projectId;
 
       interface ActivityItem {
         id: string;
@@ -59,7 +60,7 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
 
       // 1. Analysis runs
       if (!typeFilter || typeFilter === 'analysis') {
-        const history = state.isInitialized() ? state.getAnalysisHistory() : [];
+        const history = state.isInitialized() ? await state.loadHistoryForProject(projectId) : [];
         for (const entry of history) {
           activities.push({
             id: `activity_analysis_${entry.id}`,
@@ -131,8 +132,8 @@ export async function registerActivityRoutes(app: FastifyInstance): Promise<void
    * Return activity statistics: counts by type, recent activity rate,
    * and peak activity periods.
    */
-  app.get('/api/v1/activity/stats', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const history = state.isInitialized() ? state.getAnalysisHistory() : [];
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/activity/stats', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const history = state.isInitialized() ? await state.loadHistoryForProject(request.query.projectId) : [];
     const successfulRuns = history.filter(h => h.status === 'success');
     const failedRuns = history.filter(h => h.status === 'failed');
 
