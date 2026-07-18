@@ -19,27 +19,33 @@ import { apiRequest } from '../api.js';
 // ---------------------------------------------------------------------------
 
 interface Trend {
-  period: string;
-  health_score: number;
-  opportunities: number;
-  resolved: number;
+  date: string;
   findings: number;
+  resolved: number;
+  health: number;
 }
 
 interface Dimension {
-  name: string;
+  dimension: string;
   score: number;
-  trend: string;
+  trend?: string;
 }
 
-interface AnalyticsSummaryResponse {
+/** Body of `GET /api/v1/analytics/summary` (unwrapped from its `data` envelope). */
+interface AnalyticsSummary {
+  analysis_runs: number;
+  total_findings: number;
+  findings_resolved: number;
+  resolution_rate: number;
+  avg_health_score: number | null;
   trends: Trend[];
-  topCategories: unknown[];
 }
 
-interface HealthScoreResponse {
-  score: number;
+/** Body of `GET /api/v1/health-score` (unwrapped from its `data` envelope). */
+interface HealthScore {
+  overall: number | null;
   dimensions: Dimension[];
+  status: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,19 +69,21 @@ export function registerAnalyticsResources(server: McpServer): void {
       mimeType: 'text/markdown',
     },
     async (uri) => {
+      let summary: AnalyticsSummary | null = null;
       let trends: Trend[] = [];
       let dimensions: Dimension[] = [];
 
       try {
-        const summary = await apiRequest<AnalyticsSummaryResponse>('/api/v1/analytics/summary');
-        trends = summary.trends ?? [];
+        const res = await apiRequest<{ data: AnalyticsSummary }>('/api/v1/analytics/summary');
+        summary = res.data ?? null;
+        trends = summary?.trends ?? [];
       } catch {
         // API unavailable — fall back to empty trends
       }
 
       try {
-        const healthData = await apiRequest<HealthScoreResponse>('/api/v1/health-score');
-        dimensions = healthData.dimensions ?? [];
+        const res = await apiRequest<{ data: HealthScore }>('/api/v1/health-score');
+        dimensions = res.data?.dimensions ?? [];
       } catch {
         // API unavailable — fall back to empty dimensions
       }
@@ -90,31 +98,33 @@ export function registerAnalyticsResources(server: McpServer): void {
         };
       }
 
-      const latestScore = trends.length > 0 ? trends[trends.length - 1]!.health_score : 0;
-      const previousScore = trends.length > 0 ? trends[0]!.health_score : 0;
+      const latestScore = trends.length > 0
+        ? trends[trends.length - 1]!.health
+        : (summary?.avg_health_score ?? 0);
+      const previousScore = trends.length > 0 ? trends[0]!.health : latestScore;
       const scoreDelta = latestScore - previousScore;
-      const totalResolved = trends.reduce((sum, t) => sum + t.resolved, 0);
-      const totalFindings = trends.length > 0 ? trends[trends.length - 1]!.findings : 0;
+      const totalResolved = summary?.findings_resolved ?? trends.reduce((sum, t) => sum + t.resolved, 0);
+      const totalFindings = summary?.total_findings
+        ?? (trends.length > 0 ? trends[trends.length - 1]!.findings : 0);
 
       const lines = [
         `# Analytics Summary`,
         '',
         `**Current Health Score:** ${latestScore}/100`,
-        `**Score Change (5-week):** ${scoreDelta > 0 ? '+' : ''}${scoreDelta} points`,
-        `**Open Opportunities:** ${trends.length > 0 ? trends[trends.length - 1]!.opportunities : 0}`,
-        `**Resolved (5-week):** ${totalResolved}`,
-        `**Active Findings:** ${totalFindings}`,
+        `**Score Change:** ${scoreDelta > 0 ? '+' : ''}${scoreDelta} points`,
+        `**Analysis Runs:** ${summary?.analysis_runs ?? trends.length}`,
+        `**Findings Resolved:** ${totalResolved}`,
+        `**Total Findings:** ${totalFindings}`,
+        `**Resolution Rate:** ${summary?.resolution_rate ?? 0}%`,
         '',
         '## Health Score Trend',
         '',
-        '| Period | Health Score | Opportunities | Resolved | Findings |',
-        '| --- | --- | --- | --- | --- |',
+        '| Date | Health Score | Resolved | Findings |',
+        '| --- | --- | --- | --- |',
       ];
 
       for (const t of trends) {
-        lines.push(
-          `| ${t.period} | ${t.health_score} | ${t.opportunities} | ${t.resolved} | ${t.findings} |`,
-        );
+        lines.push(`| ${t.date} | ${t.health} | ${t.resolved} | ${t.findings} |`);
       }
 
       if (dimensions.length > 0) {
@@ -127,7 +137,7 @@ export function registerAnalyticsResources(server: McpServer): void {
         );
 
         for (const d of dimensions) {
-          lines.push(`| ${d.name} | ${d.score}/100 | ${d.trend} |`);
+          lines.push(`| ${d.dimension} | ${d.score}/100 | ${d.trend ?? 'n/a'} |`);
         }
 
         const lowestDim = dimensions.reduce((min, d) => d.score < min.score ? d : min, dimensions[0]!);
@@ -137,10 +147,8 @@ export function registerAnalyticsResources(server: McpServer): void {
           '',
           '## Key Insights',
           '',
-          `- Health score improved by **${scoreDelta > 0 ? '+' : ''}${scoreDelta} points** over the last 5 weeks`,
-          `- **${totalResolved} opportunities** resolved in this period`,
-          `- ${lowestDim.name} remains the lowest-scoring dimension at ${lowestDim.score}/100`,
-          `- ${highestDim.name} is the strongest dimension at ${highestDim.score}/100`,
+          `- ${lowestDim.dimension} is the lowest-scoring dimension at ${lowestDim.score}/100`,
+          `- ${highestDim.dimension} is the strongest dimension at ${highestDim.score}/100`,
           '',
           '> Use the `get_health_score` tool for real-time scores and `get_opportunities` for current opportunities.',
         );

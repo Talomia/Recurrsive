@@ -99,15 +99,25 @@ export function registerProjectTools(server: McpServer): void {
     },
     async ({ project_ids }) => {
       try {
-        const params = project_ids
-          ? `?ids=${project_ids.map(id => encodeURIComponent(id)).join(',')}`
-          : '';
-        const comparison = await apiGet<unknown>(`/api/v1/projects/comparisons${params}`);
+        const comparison = await apiGet<{
+          data: Array<{ id: string; [key: string]: unknown }>;
+          total: number;
+          avgHealth: number;
+        }>('/api/v1/projects/compare/health');
+
+        // The endpoint compares all projects; narrow to the requested ids here
+        // when the caller passes a subset.
+        const result = project_ids && project_ids.length > 0
+          ? {
+              ...comparison,
+              data: comparison.data.filter((p) => project_ids.includes(p.id)),
+            }
+          : comparison;
 
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify(comparison, null, 2),
+            text: JSON.stringify(result, null, 2),
           }],
         };
       } catch (error) {

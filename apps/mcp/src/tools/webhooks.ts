@@ -102,10 +102,23 @@ export function registerWebhookTools(server: McpServer): void {
     },
     async ({ webhook_id, action }) => {
       try {
-        const result = await apiRequest<unknown>(
-          `/api/v1/webhooks/${encodeURIComponent(webhook_id)}/${encodeURIComponent(action)}`,
-          { method: 'POST' },
-        );
+        const id = encodeURIComponent(webhook_id);
+        // Each action maps to a distinct route/verb on the server:
+        //   test    → POST   /webhooks/:id/test
+        //   delete  → DELETE /webhooks/:id
+        //   enable  → PATCH  /webhooks/:id { active: true }
+        //   disable → PATCH  /webhooks/:id { active: false }
+        let result: unknown;
+        if (action === 'test') {
+          result = await apiRequest<unknown>(`/api/v1/webhooks/${id}/test`, { method: 'POST' });
+        } else if (action === 'delete') {
+          result = await apiRequest<unknown>(`/api/v1/webhooks/${id}`, { method: 'DELETE' });
+        } else {
+          result = await apiRequest<unknown>(`/api/v1/webhooks/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ active: action === 'enable' }),
+          });
+        }
 
         return {
           content: [{
