@@ -271,11 +271,13 @@ describe('ReasoningEngine', () => {
       expect(result).toBeDefined();
     });
 
-    it('returns empty hypotheses when all specialists fail', async () => {
+    it('throws when ALL specialists fail rather than reporting a clean empty run', async () => {
       const engine = new ReasoningEngine(config);
       const specialists = engine.getSpecialists();
 
-      // All specialists fail
+      // All specialists fail — a total outage must NOT be silently reported as
+      // "reasoning ran and found nothing"; it must surface as an error so the
+      // honest `failed` paths downstream take over.
       for (const s of specialists) {
         (s.analyzeFindings as ReturnType<typeof vi.fn>)
           .mockRejectedValue(new Error('Crashed'));
@@ -284,8 +286,25 @@ describe('ReasoningEngine', () => {
       const graph = makeGraphClient();
       const findings = [makeFinding('00000000-0000-4000-8000-000000000001')];
 
+      await expect(engine.process(findings, graph)).rejects.toThrow(/specialists failed/i);
+    });
+
+    it('tolerates a PARTIAL specialist failure and keeps the survivors work', async () => {
+      const engine = new ReasoningEngine(config);
+      const specialists = engine.getSpecialists();
+
+      // First specialist fails, the rest succeed with no hypotheses — a partial
+      // failure is real work, so process() must complete (not throw).
+      specialists.forEach((s, i) => {
+        const fn = s.analyzeFindings as ReturnType<typeof vi.fn>;
+        if (i === 0) fn.mockRejectedValue(new Error('Crashed'));
+        else fn.mockResolvedValue([]);
+      });
+
+      const graph = makeGraphClient();
+      const findings = [makeFinding('00000000-0000-4000-8000-000000000001')];
+
       const result = await engine.process(findings, graph);
-      expect(result.hypotheses).toEqual([]);
       expect(result.opportunities).toEqual([]);
     });
   });

@@ -247,33 +247,49 @@ export class ReasoningEngine {
     const results = await Promise.allSettled(
       this.specialists.map(async (specialist) => {
         logger.debug(`${specialist.name} analyzing ${findings.length} findings`);
-        try {
-          const hypotheses = await specialist.analyzeFindings(
-            findings,
-            this.llm,
-            graphClient,
-          );
-          logger.debug(
-            `${specialist.name} produced ${hypotheses.length} hypotheses`,
-          );
-          return hypotheses;
-        } catch (err) {
-          logger.warn(
-            `${specialist.name} failed to analyze findings: ` +
-            `${err instanceof Error ? err.message : String(err)}`,
-          );
-          return [];
-        }
+        const hypotheses = await specialist.analyzeFindings(
+          findings,
+          this.llm,
+          graphClient,
+        );
+        logger.debug(
+          `${specialist.name} produced ${hypotheses.length} hypotheses`,
+        );
+        return hypotheses;
       }),
     );
 
     const allHypotheses: Hypothesis[] = [];
+    const failures: unknown[] = [];
 
     for (const result of results) {
       if (result.status === 'fulfilled') {
         allHypotheses.push(...result.value);
+      } else {
+        failures.push(result.reason);
+        logger.warn(
+          `Specialist failed to analyze findings: ` +
+          `${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+        );
       }
-      // Rejected results are already logged in the catch block above
+    }
+
+    // Honest degradation: if EVERY specialist failed, the reasoning did not run
+    // — do not let the caller mistake a total outage for "ran clean, found
+    // nothing." Surface it as an error so the honest `failed` paths in the CLI,
+    // server, and MCP take over. A partial failure (some specialists produced
+    // hypotheses) is tolerated: the survivors' work is still real.
+    if (failures.length > 0 && failures.length === this.specialists.length) {
+      const first = failures[0];
+      const code =
+        first instanceof ReasoningError ? first.code : 'REASONING_ALL_SPECIALISTS_FAILED';
+      throw new ReasoningError(
+        `All ${this.specialists.length} specialists failed to analyze findings ` +
+        `(${first instanceof Error ? first.message : String(first)}). ` +
+        `Reasoning did not run.`,
+        code,
+        first instanceof Error ? first : undefined,
+      );
     }
 
     return allHypotheses;

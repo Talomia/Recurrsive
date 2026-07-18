@@ -281,8 +281,10 @@ export class DebateProtocol {
 
         const context = contextByHypothesis.get(hypothesis.id);
 
-        // Step 1 — challenge. If generating the challenge fails, record neither
-        // a challenge nor a response.
+        // Step 1 — challenge. If generating the challenge fails, we still record
+        // the exchange (marked unresolved) so the round reflects that scrutiny
+        // was ATTEMPTED — a failed challenge must not be silently dropped and
+        // thereby counted as "nothing disputed → agreement."
         let challengeText: string;
         try {
           challengeText = await specialist.challenge(hypothesis, this.llm, context);
@@ -291,7 +293,24 @@ export class DebateProtocol {
             `Challenge failed for "${hypothesis.title}": ` +
             `${err instanceof Error ? err.message : String(err)}`,
           );
-          return null;
+          const failedChallenge: DebateChallenge = {
+            challenger: specialist.role,
+            hypothesis_id: hypothesis.id,
+            challenge:
+              `Challenge could not be generated ` +
+              `(error: ${err instanceof Error ? err.message : String(err)}).`,
+            evidence: `Challenge from ${specialist.name} applying ${specialist.cognitiveFramework}`,
+          };
+          return {
+            challenge: failedChallenge,
+            response: {
+              defender: hypothesis.proposed_by,
+              hypothesis_id: hypothesis.id,
+              response: '(challenge failed — exchange unresolved)',
+              revised_confidence: hypothesis.confidence,
+              unresolved: true,
+            },
+          };
         }
 
         const challenge: DebateChallenge = {
@@ -336,6 +355,7 @@ export class DebateProtocol {
                 `Defense unavailable — the defender could not respond ` +
                 `(error: ${err instanceof Error ? err.message : String(err)}).`,
               revised_confidence: hypothesis.confidence,
+              unresolved: true,
             };
           }
         } else {
@@ -344,6 +364,7 @@ export class DebateProtocol {
             hypothesis_id: hypothesis.id,
             response: '(no defender available to respond to this challenge)',
             revised_confidence: hypothesis.confidence,
+            unresolved: true,
           };
         }
         return { challenge, response };
@@ -450,27 +471,45 @@ export class DebateProtocol {
   /**
    * Measure inter-agent agreement within a round.
    *
-   * For each challenge, the defender's post-exchange confidence is the real
-   * signal: if it stayed at or above 0.5 the defense held (the challenger's
-   * objection did not land — agreement); if it fell below 0.5 the defender
-   * conceded doubt (dissent). Agreement is the fraction of challenges that were
-   * withstood. A round with no challenges has nothing in dispute and so counts
-   * as full agreement (1.0).
+   * A challenge is "withstood" when the defender considered it and did NOT
+   * lower their confidence — i.e. the objection failed to move them. We measure
+   * that as a *change* against the hypothesis's confidence at the start of the
+   * round, not against an absolute cutoff: a hypothesis everyone honestly rates
+   * at 0.35 whose defense holds each challenge is agreement, not dissent, even
+   * though 0.35 < 0.5. A drop beyond {@link CHALLENGE_LANDED_EPSILON} means the
+   * challenge landed (dissent).
+   *
+   * Exchanges flagged `unresolved` (the challenge or defense LLM call failed, or
+   * no defender was available) are counted in the denominator but never as
+   * withstood — an outage must depress agreement, never inflate it. A round with
+   * no challenges at all has nothing in dispute and counts as full agreement.
    *
    * @param round - The debate round to assess.
    * @returns Agreement ratio in [0, 1].
    */
   private agreementRatio(round: DebateRound): number {
-    const DISSENT_CONFIDENCE = 0.5;
+    // A confidence drop smaller than this is treated as noise (the defense
+    // held); a larger drop means the challenge moved the proposer.
+    const CHALLENGE_LANDED_EPSILON = 0.05;
+
+    // Confidence of each hypothesis at the START of this round — the baseline
+    // the revised confidence is compared against.
+    const originalConfidence = new Map<string, number>();
+    for (const h of round.hypotheses) {
+      originalConfidence.set(h.id, h.confidence);
+    }
+
     // Pair each challenge with the defense it provoked (k-th challenge for a
     // hypothesis ↔ k-th response for that hypothesis, as pushed in order).
-    // executeRound guarantees one response per challenge (a placeholder is
-    // recorded if a defense fails), so these arrays stay aligned; the
-    // `revised === undefined` fallback below remains as defensive robustness.
+    // executeRound records exactly one response per challenge, so these arrays
+    // stay aligned.
     let total = 0;
     let withstood = 0;
 
-    const byHypothesis = new Map<string, { challenges: number; responses: number[] }>();
+    const byHypothesis = new Map<
+      string,
+      { challenges: number; responses: DebateResponse[] }
+    >();
     for (const c of round.challenges) {
       const entry = byHypothesis.get(c.hypothesis_id) ?? { challenges: 0, responses: [] };
       entry.challenges += 1;
@@ -478,17 +517,29 @@ export class DebateProtocol {
     }
     for (const r of round.responses) {
       const entry = byHypothesis.get(r.hypothesis_id) ?? { challenges: 0, responses: [] };
-      entry.responses.push(r.revised_confidence);
+      entry.responses.push(r);
       byHypothesis.set(r.hypothesis_id, entry);
     }
 
-    for (const { challenges, responses } of byHypothesis.values()) {
+    for (const [hypothesisId, { challenges, responses }] of byHypothesis.entries()) {
+      const baseline = originalConfidence.get(hypothesisId);
       for (let i = 0; i < challenges; i++) {
         total += 1;
-        const revised = responses[i];
-        // A challenge with a defense that held counts as withstood. A challenge
-        // with no recorded defense is treated as unresolved (not withstood).
-        if (revised !== undefined && revised >= DISSENT_CONFIDENCE) {
+        const response = responses[i];
+        if (!response || response.unresolved) {
+          // Unresolved (failed challenge/defense, or no defender): the objection
+          // was never actually answered — not withstood.
+          continue;
+        }
+        // Withstood iff the defender's confidence did not materially fall. When
+        // no baseline is known (defensive fallback), require the older absolute
+        // ≥ 0.5 signal rather than crediting agreement for free.
+        const revised = response.revised_confidence;
+        const held =
+          baseline !== undefined
+            ? revised >= baseline - CHALLENGE_LANDED_EPSILON
+            : revised >= 0.5;
+        if (held) {
           withstood += 1;
         }
       }

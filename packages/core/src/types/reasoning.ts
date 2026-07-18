@@ -103,6 +103,14 @@ export interface DebateResponse {
   response: string;
   /** Updated confidence after considering the challenge. */
   revised_confidence: number;
+  /**
+   * True when the challenge could not actually be resolved — the challenge or
+   * the defense LLM call failed, or no defender was available. An unresolved
+   * exchange carries the pre-challenge confidence purely to keep the transcript
+   * aligned; it must never be counted as the hypothesis "withstanding" scrutiny
+   * (that would let an outage masquerade as agreement).
+   */
+  unresolved?: boolean;
 }
 
 /**
@@ -179,7 +187,13 @@ export interface ReasoningConfig {
   llm_base_url?: string;
   /** Maximum number of debate rounds. */
   max_debate_rounds: number;
-  /** Minimum consensus score for a hypothesis to be promoted. */
+  /**
+   * Agreement ratio (0–1) at which the debate is considered settled and stops
+   * early. This is the debate *termination* threshold, not a promotion gate:
+   * hypotheses are promoted to opportunities based on their post-debate
+   * confidence, and each opportunity carries its own measured `consensus_score`
+   * in its provenance for the consumer to weigh.
+   */
   min_consensus_score: number;
   /** Which specialist roles participate in the debate. */
   specialists: SpecialistRole[];

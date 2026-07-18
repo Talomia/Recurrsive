@@ -236,8 +236,35 @@ export class Synthesizer {
     rounds: DebateRound[],
     findings: Finding[],
   ): Promise<Opportunity[]> {
+    // Validate every cited finding id against the REAL findings. A specialist
+    // LLM can hallucinate finding ids; left unchecked they resolve to empty
+    // evidence and produce an untraceable "opportunity" shown beside genuine,
+    // evidence-backed ones. Drop hallucinated ids, and drop any hypothesis that
+    // cited findings but whose citations were ALL invalid — it has no real
+    // evidentiary basis and must not be promoted.
+    const validFindingIds = new Set(findings.map((f) => f.id));
+    const grounded: Hypothesis[] = [];
+    for (const h of hypotheses) {
+      const cited = h.finding_ids ?? [];
+      const valid = cited.filter((id) => validFindingIds.has(id));
+      if (cited.length > 0 && valid.length === 0) {
+        logger.warn(
+          `Dropping hypothesis "${h.title}": all ${cited.length} cited finding id(s) ` +
+          `are absent from the analyzed findings (hallucinated evidence).`,
+        );
+        continue;
+      }
+      if (valid.length !== cited.length) {
+        logger.warn(
+          `Hypothesis "${h.title}": dropped ${cited.length - valid.length} cited finding ` +
+          `id(s) not present in the analyzed findings.`,
+        );
+      }
+      grounded.push(valid.length === cited.length ? h : { ...h, finding_ids: valid });
+    }
+
     // Filter out hypotheses that have been debated down to negligible confidence
-    const viable = hypotheses.filter((h) => h.confidence >= 0.1);
+    const viable = grounded.filter((h) => h.confidence >= 0.1);
 
     if (viable.length === 0) {
       logger.info('No viable hypotheses after debate — returning empty opportunities');
@@ -418,7 +445,7 @@ export class Synthesizer {
       id: generateId(),
       title: hypothesis.title,
       type: detail.type,
-      category: this.sanitizeCategory(detail.category),
+      category: this.sanitizeCategory(detail.category, relatedFindings[0]?.category),
       severity: detail.severity,
       problem: detail.problem,
       evidence: relatedFindings.flatMap((f) => f.evidence),
@@ -512,11 +539,16 @@ export class Synthesizer {
     interface Exchange {
       challenger: string;
       challenge: string;
-      revisedConfidence: number;
+      /** How far the defender's confidence fell relative to the round baseline. */
+      confidenceDrop: number;
     }
     const exchanges: Exchange[] = [];
 
     for (const round of rounds) {
+      const baselineById = new Map<string, number>();
+      for (const h of round.hypotheses) baselineById.set(h.id, h.confidence);
+      const baseline = baselineById.get(hypothesis.id) ?? hypothesis.confidence;
+
       const challenges = round.challenges.filter(
         (c) => c.hypothesis_id === hypothesis.id,
       );
@@ -526,31 +558,36 @@ export class Synthesizer {
       challenges.forEach((challenge, i) => {
         const response = responses[i];
         if (!response) return; // challenge with no recorded defense
+        // An exchange we could not actually resolve (challenge/defense failed,
+        // or no defender) carries no agreement signal — skip it entirely rather
+        // than counting a challenger as either a dissenter or a non-dissenter.
+        if (response.unresolved) return;
         exchanges.push({
           challenger: challenge.challenger,
           challenge: challenge.challenge,
-          revisedConfidence: response.revised_confidence,
+          confidenceDrop: baseline - response.revised_confidence,
         });
       });
     }
 
-    // A challenger dissents when the defender's own post-exchange confidence
-    // fell below 0.5 — i.e. the defender conceded doubt, so the challenge
-    // landed. This is inter-agent disagreement, not the proposer's self-report.
-    // Keep each dissenting challenger once, recording their strongest concern
-    // (the exchange where confidence dropped lowest).
-    const DISSENT_CONFIDENCE = 0.5;
-    const dissentByAgent = new Map<string, { reason: string; conf: number }>();
+    // A challenger dissents when the defense measurably LOWERED the proposer's
+    // confidence — i.e. the objection landed. Measuring the *drop* (not an
+    // absolute 0.5 cutoff) means a hypothesis everyone honestly rates low but
+    // successfully defends is not mislabeled as unanimous dissent. Keep each
+    // dissenting challenger once, recording their strongest concern (the
+    // exchange that moved confidence the most).
+    const CHALLENGE_LANDED_EPSILON = 0.05;
+    const dissentByAgent = new Map<string, { reason: string; drop: number }>();
     const challengers = new Set<string>();
 
     for (const ex of exchanges) {
       challengers.add(ex.challenger);
-      if (ex.revisedConfidence < DISSENT_CONFIDENCE) {
+      if (ex.confidenceDrop > CHALLENGE_LANDED_EPSILON) {
         const existing = dissentByAgent.get(ex.challenger);
-        if (!existing || ex.revisedConfidence < existing.conf) {
+        if (!existing || ex.confidenceDrop > existing.drop) {
           dissentByAgent.set(ex.challenger, {
             reason: ex.challenge.slice(0, 200),
-            conf: ex.revisedConfidence,
+            drop: ex.confidenceDrop,
           });
         }
       }
@@ -600,7 +637,10 @@ export class Synthesizer {
    * @param raw - Raw category from LLM output.
    * @returns Valid OpportunityCategory string.
    */
-  private sanitizeCategory(raw: string): Opportunity['category'] {
+  private sanitizeCategory(
+    raw: string,
+    preferred?: Opportunity['category'],
+  ): Opportunity['category'] {
     const validCategories = [
       'architecture', 'performance', 'security', 'cost', 'ai_quality',
       'reliability', 'ux', 'accessibility', 'privacy', 'compliance',
@@ -609,7 +649,39 @@ export class Synthesizer {
 
     const normalized = raw.toLowerCase().replace(/[\s-]/g, '_');
     const match = validCategories.find((c) => c === normalized);
-    return match ?? 'architecture';
+    if (match) return match;
+
+    // Common synonyms the LLM emits for real categories.
+    const synonyms: Record<string, Opportunity['category']> = {
+      observability: 'reliability', monitoring: 'reliability', resilience: 'reliability',
+      testing: 'reliability', quality: 'reliability', qa: 'reliability',
+      appsec: 'security', vulnerability: 'security', auth: 'security',
+      efficiency: 'performance', latency: 'performance', scalability: 'performance',
+      devex: 'developer_experience', dx: 'developer_experience', tooling: 'developer_experience',
+      docs: 'documentation', usability: 'ux', a11y: 'accessibility',
+      cloud: 'infrastructure', ops: 'infrastructure', deployment: 'infrastructure',
+      ml: 'ai_quality', llm: 'ai_quality', model: 'ai_quality',
+      finops: 'cost', spend: 'cost', gdpr: 'privacy', pii: 'privacy',
+    };
+    const synonym = synonyms[normalized];
+    if (synonym) return synonym;
+
+    // Prefer the real category carried by the source finding (produced by an
+    // analyzer, not an LLM) over an arbitrary default — silently relabeling an
+    // unknown category as "architecture" mis-routes category-conditioned
+    // policies and mislabels the opportunity.
+    if (preferred) {
+      logger.warn(
+        `Unknown opportunity category "${raw}" from LLM — falling back to the ` +
+        `source finding's category "${preferred}".`,
+      );
+      return preferred;
+    }
+    logger.warn(
+      `Unknown opportunity category "${raw}" from LLM and no source-finding ` +
+      `category available — defaulting to "architecture".`,
+    );
+    return 'architecture';
   }
 
   /**

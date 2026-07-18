@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Synthesizer } from '../synthesizer/synthesizer.js';
 import type { LLMAdapter, LLMMessage, LLMOptions, LLMResponse } from '../llm/adapter.js';
-import type { Hypothesis } from '@recurrsive/core';
+import type { Hypothesis, Finding } from '@recurrsive/core';
 
 /** Minimal LLM adapter that returns a valid opportunity detail and counts calls. */
 class MockLLM implements LLMAdapter {
@@ -35,6 +35,16 @@ function hyp(id: string, findingIds: string[], title: string, confidence: number
   } as Hypothesis;
 }
 
+/** Minimal real finding so cited finding_ids resolve (evidence-validation). */
+function finding(id: string): Finding {
+  return {
+    id, analyzer_id: 'test-analyzer', title: `Finding ${id}`,
+    description: `Description for ${id}`, severity: 'high', category: 'architecture',
+    evidence: [], locations: [], confidence: 0.8, tags: [],
+    created_at: new Date().toISOString(),
+  } as Finding;
+}
+
 describe('Synthesizer hypothesis dedup', () => {
   it('collapses hypotheses that share the same source findings', async () => {
     const llm = new MockLLM();
@@ -47,7 +57,7 @@ describe('Synthesizer hypothesis dedup', () => {
       hyp('h5', ['f2'], 'Add resilience configuration for dependencies', 0.6),
       hyp('h6', ['f1', 'f2'], 'Systemic dependency management weakness', 0.9),
     ];
-    const result = await s.synthesize(hypotheses, [], []);
+    const result = await s.synthesize(hypotheses, [], [finding('f1'), finding('f2')]);
     // 3 distinct source-finding signatures: {f1}, {f2}, {f1,f2}
     expect(result.length).toBe(3);
     // synthesis LLM was called once per surviving hypothesis, not once per input
@@ -62,7 +72,20 @@ describe('Synthesizer hypothesis dedup', () => {
       hyp('b', ['f2'], 'Issue two', 0.6),
       hyp('c', ['f3'], 'Issue three', 0.6),
     ];
-    const result = await s.synthesize(hypotheses, [], []);
+    const result = await s.synthesize(hypotheses, [], [finding('f1'), finding('f2'), finding('f3')]);
     expect(result.length).toBe(3);
+  });
+
+  it('drops a hypothesis whose cited finding_ids are all hallucinated', async () => {
+    const llm = new MockLLM();
+    const s = new Synthesizer(llm);
+    const hypotheses: Hypothesis[] = [
+      hyp('real', ['f1'], 'Grounded issue', 0.7),
+      hyp('fake', ['ghost'], 'Ungrounded issue citing a non-existent finding', 0.9),
+    ];
+    const result = await s.synthesize(hypotheses, [], [finding('f1')]);
+    // Only the grounded hypothesis survives; the hallucinated one is dropped.
+    expect(result.length).toBe(1);
+    expect(llm.calls).toBe(1);
   });
 });

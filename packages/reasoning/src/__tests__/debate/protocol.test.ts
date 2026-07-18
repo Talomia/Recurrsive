@@ -114,7 +114,7 @@ describe('DebateProtocol', () => {
     expect(sec.challenge).toHaveBeenCalled();
   });
 
-  it('records neither a challenge nor a response when the challenge fails', async () => {
+  it('records a failed challenge as an UNRESOLVED exchange, not a silent drop', async () => {
     const arch = makeSpecialist('architecture_engineer', {
       challenge: vi.fn().mockRejectedValue(new Error('challenge boom')),
     });
@@ -127,12 +127,22 @@ describe('DebateProtocol', () => {
     ];
     const round = (await protocol.execute(hypotheses, [arch, sec], makeGraph()))[0]!;
 
-    // arch's challenge (against h-sec) failed → dropped entirely; only sec's
-    // challenge against h-arch survives. Arrays stay aligned.
-    expect(round.challenges).toHaveLength(1);
-    expect(round.responses).toHaveLength(1);
-    expect(round.challenges[0]!.challenger).toBe('security_engineer');
-    expect(round.challenges[0]!.hypothesis_id).toBe('h-arch');
+    // Both challenges are recorded (arch's failed, sec's succeeded); a failed
+    // challenge must not be silently dropped — otherwise a round of all-failed
+    // challenges would look like "nothing disputed → agreement". Arrays stay
+    // aligned (one response per challenge).
+    expect(round.challenges).toHaveLength(2);
+    expect(round.responses).toHaveLength(2);
+
+    // arch challenged h-sec and failed → that exchange is marked unresolved.
+    const archResp = round.responses.find((r) => r.hypothesis_id === 'h-sec');
+    expect(archResp?.unresolved).toBe(true);
+
+    // sec challenged h-arch and succeeded → a normal, resolved exchange.
+    const secChallenge = round.challenges.find((c) => c.challenger === 'security_engineer');
+    expect(secChallenge?.hypothesis_id).toBe('h-arch');
+    const secResp = round.responses.find((r) => r.hypothesis_id === 'h-arch');
+    expect(secResp?.unresolved).toBeFalsy();
   });
 
   it('applies the defender revised confidence into the round hypotheses snapshot', async () => {
