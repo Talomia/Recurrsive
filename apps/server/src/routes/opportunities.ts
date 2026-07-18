@@ -12,6 +12,7 @@ import type { ExportFormat } from '@recurrsive/opportunities';
 import { createLogger } from '@recurrsive/core';
 import { state } from '../state.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 const logger = createLogger({ context: { component: 'server:routes:opportunities' } });
 
@@ -122,7 +123,7 @@ export async function registerOpportunityRoutes(app: FastifyInstance): Promise<v
    */
   app.patch<{ Params: OpportunityParams; Body: UpdateStatusBody; Querystring: { projectId?: string } }>(
     '/api/v1/opportunities/:id',
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware, requireRole('analyst')] },
     async (request, reply) => {
       const { id } = request.params;
       const { status, reason } = request.body;

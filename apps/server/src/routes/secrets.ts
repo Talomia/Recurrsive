@@ -26,9 +26,20 @@ const IV_LENGTH = 12; // 96-bit IV recommended for GCM
 const AUTH_TAG_LENGTH = 16;
 
 /** Derive a 32-byte key from the configured secret. */
+const DEFAULT_SECRETS_KEY = 'recurrsive-default-encryption-key-32b';
+
 function getEncryptionKey(): Buffer {
-  const raw = process.env['SECRETS_ENCRYPTION_KEY'] ?? 'recurrsive-default-encryption-key-32b';
-  return createHash('sha256').update(raw).digest();
+  const raw = process.env['SECRETS_ENCRYPTION_KEY'];
+  // Never encrypt secrets-at-rest under the built-in default key in production —
+  // that key ships in the source tree, so it would make encryption decorative.
+  // Mirrors the JWT_SECRET guard in the auth middleware.
+  if (process.env['NODE_ENV'] === 'production' && (!raw || raw === DEFAULT_SECRETS_KEY)) {
+    throw new Error(
+      'SECRETS_ENCRYPTION_KEY must be set to a strong, unique value in production. ' +
+      'Refusing to use the built-in default encryption key.',
+    );
+  }
+  return createHash('sha256').update(raw ?? DEFAULT_SECRETS_KEY).digest();
 }
 
 /** Encrypt a plaintext value using AES-256-GCM. Returns base64(iv + ciphertext + authTag). */

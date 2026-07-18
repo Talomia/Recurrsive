@@ -14,6 +14,7 @@
 import type { FastifyInstance } from 'fastify';
 import { createHmac, randomBytes } from 'node:crypto';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -271,7 +272,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       events: WebhookEvent[];
       secret?: string;
     };
-  }>('/api/v1/webhooks', { preHandler: [authMiddleware] }, async (request, reply) => {
+  }>('/api/v1/webhooks', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     const { url, events, secret } = request.body ?? {};
 
     if (!url || typeof url !== 'string') {
@@ -376,7 +377,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    */
   app.delete<{ Params: { id: string } }>(
     '/api/v1/webhooks/:id',
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware, requireRole('admin')] },
     async (request, reply) => {
       const { id } = request.params;
 
@@ -407,7 +408,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       events?: WebhookEvent[];
       url?: string;
     };
-  }>('/api/v1/webhooks/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  }>('/api/v1/webhooks/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     const { id } = request.params;
     const hook = await store.get<WebhookRegistration>('webhooks', id);
 
@@ -453,7 +454,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    */
   app.post<{ Params: { id: string } }>(
     '/api/v1/webhooks/:id/test',
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware, requireRole('admin')] },
     async (request, reply) => {
       const { id } = request.params;
       const hook = await store.get<WebhookRegistration>('webhooks', id);

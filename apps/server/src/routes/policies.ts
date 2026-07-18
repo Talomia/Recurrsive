@@ -13,6 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -121,7 +122,7 @@ export async function registerPolicyRoutes(app: FastifyInstance): Promise<void> 
    */
   app.post<{ Body: { opportunity_ids?: string[] } }>(
     '/api/v1/policies/evaluate',
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware, requireRole('analyst')] },
     async (request, reply) => {
       if (!state.isInitialized()) {
         return reply.status(503).send({

@@ -139,9 +139,9 @@ export async function registerRateLimit(
  * Respects `X-Forwarded-For` for reverse proxy setups.
  */
 function defaultKeyGenerator(request: FastifyRequest): string {
-  const forwarded = request.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0]!.trim();
-  }
+  // Use Fastify's resolved client IP. With trustProxy enabled, Fastify already
+  // derives this from X-Forwarded-For correctly; keying off the raw header's
+  // leftmost value instead would let a client spoof a fresh bucket per request
+  // and bypass the limit entirely.
   return request.ip;
 }

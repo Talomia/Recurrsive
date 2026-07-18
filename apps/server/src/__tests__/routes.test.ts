@@ -1636,3 +1636,52 @@ describe('RBAC enforcement on write routes', () => {
     expect(res.statusCode).toBe(403);
   });
 });
+
+// ---------------------------------------------------------------------------
+// RBAC/auth regression for routes fixed in the deep review (export, webhooks,
+// batch, opportunities, policies)
+// ---------------------------------------------------------------------------
+describe('deep-review auth/RBAC regressions', () => {
+  const viewerToken = createToken('dr-viewer', 'viewer');
+  const vh = { authorization: `Bearer ${viewerToken}` };
+
+  it('rejects UNAUTHENTICATED export (was public — data exfiltration)', async () => {
+    for (const url of ['/api/v1/export/history', '/api/v1/export/report']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(401);
+    }
+    const post = await app.inject({ method: 'POST', url: '/api/v1/export', payload: { format: 'json', scope: 'all' } });
+    expect(post.statusCode).toBe(401);
+  });
+
+  it('blocks a viewer from creating a webhook (admin required)', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/webhooks', headers: vh,
+      payload: { url: 'https://example.com/hook', events: ['analysis.complete'] },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('blocks a viewer from batch analysis (analyst required)', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/batch/analyze', headers: vh,
+      payload: { projects: ['/tmp/x'] },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('blocks a viewer from updating an opportunity (analyst required)', async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: '/api/v1/opportunities/some-id', headers: vh,
+      payload: { status: 'accepted' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('blocks a viewer from evaluating policies (analyst required)', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/policies/evaluate', headers: vh, payload: {},
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});

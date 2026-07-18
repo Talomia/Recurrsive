@@ -9,6 +9,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth.js';
+import { validateOutboundUrl } from '../util/ssrf.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -99,6 +100,13 @@ async function deliverNotification(
 
   if (!url) {
     return { success: false, error: 'No URL configured for channel' };
+  }
+
+  // SSRF guard: never let a user-supplied notification URL reach a private or
+  // internal target (loopback, RFC1918, link-local, cloud metadata).
+  const urlCheck = validateOutboundUrl(url);
+  if (!urlCheck.ok) {
+    return { success: false, error: urlCheck.reason };
   }
 
   const controller = new AbortController();

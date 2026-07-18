@@ -183,6 +183,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    */
   app.post<{ Body: ExportRequest }>(
     '/api/v1/export',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { format, scope, filters } = request.body ?? ({} as ExportRequest);
 
@@ -240,6 +241,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    */
   app.get<{ Params: { id: string } }>(
     '/api/v1/export/:id/download',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params;
       const record = await store.get<ExportRecord>('exports', id);
@@ -275,7 +277,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    *
    * List all past exports.
    */
-  app.get('/api/v1/export/history', async (_request, reply) => {
+  app.get('/api/v1/export/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const all = await store.all<ExportRecord>('exports');
     return reply.send({
       data: all,
@@ -483,6 +485,7 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
    */
   app.get<{ Querystring: { format?: string } }>(
     '/api/v1/export/report',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const format = (request.query.format ?? 'markdown') as ExportFormat;
 

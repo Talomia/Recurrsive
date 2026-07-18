@@ -13,6 +13,7 @@ import { store } from '../store.js';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -183,7 +184,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       options?: Record<string, unknown>;
     };
   }>('/api/v1/batch/analyze', {
-    preHandler: [authMiddleware],
+    preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
         type: 'object',
