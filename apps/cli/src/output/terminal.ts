@@ -190,11 +190,17 @@ export function success(message: string): void {
 }
 
 /**
- * Print an error message to stderr.
+ * Print an error message to stderr and mark the process as failed.
+ *
+ * Sets `process.exitCode = 1` (without exiting immediately) so scripts and CI
+ * can detect the failure — previously commands that reported errors through
+ * this helper still exited 0.
+ *
  * @param message - The message text.
  */
 export function error(message: string): void {
   console.error(`${red('✖')} ${message}`);
+  process.exitCode = 1;
 }
 
 /**

@@ -13,15 +13,41 @@ import { homedir } from 'node:os';
 import { error } from './output/terminal.js';
 
 /**
- * Base URL for the Recurrsive API server.
+ * Read the CLI config file (`~/.recurrsive/config`) if present.
  *
- * Reads from `RECURRSIVE_SERVER` env var, falling back to localhost:3000.
- * Also checks `RECURRSIVE_API_URL` for consistency with `.env.example`.
+ * @returns Parsed config object, or `{}` when missing/unreadable.
  */
-export const API_BASE_URL =
-  process.env['RECURRSIVE_SERVER'] ??
-  process.env['RECURRSIVE_API_URL'] ??
-  'http://localhost:3000';
+function readCliConfig(): Record<string, unknown> {
+  try {
+    const configPath = join(homedir(), '.recurrsive', 'config');
+    if (existsSync(configPath)) {
+      return JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
+    }
+  } catch {
+    // Unreadable config — treat as absent.
+  }
+  return {};
+}
+
+/**
+ * Resolve the base URL for the Recurrsive API server.
+ *
+ * Priority: `RECURRSIVE_SERVER` / `RECURRSIVE_API_URL` env vars →
+ * the `server` saved by `recurrsive login --server <url>` in
+ * `~/.recurrsive/config` → localhost default. Without the config step,
+ * logging in against a remote server would save a URL that nothing ever
+ * read, and every subsequent command would silently hit localhost.
+ */
+function resolveServerUrl(): string {
+  const fromEnv = process.env['RECURRSIVE_SERVER'] ?? process.env['RECURRSIVE_API_URL'];
+  if (fromEnv) return fromEnv;
+  const saved = readCliConfig()['server'];
+  if (typeof saved === 'string' && saved.length > 0) return saved;
+  return 'http://localhost:3000';
+}
+
+/** Base URL for the Recurrsive API server (env → saved config → default). */
+export const API_BASE_URL = resolveServerUrl();
 
 /**
  * Resolve the API auth token from available sources.
@@ -37,18 +63,25 @@ function resolveToken(): string | undefined {
   if (envToken) return envToken;
 
   // 2. Config file (~/.recurrsive/config)
-  try {
-    const configPath = join(homedir(), '.recurrsive', 'config');
-    if (existsSync(configPath)) {
-      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-      if (config.token && typeof config.token === 'string') {
-        return config.token;
-      }
-    }
-  } catch {
-    // Config file unreadable — fall through
-  }
+  const token = readCliConfig()['token'];
+  if (token && typeof token === 'string') return token;
 
+  return undefined;
+}
+
+/**
+ * Resolve the active project id for API scoping.
+ *
+ * Priority: `--project` global flag (surfaced as `RECURRSIVE_PROJECT` by the
+ * program before commands run) → `projectId` persisted by
+ * `recurrsive projects use <id>` in `~/.recurrsive/config` → none (the
+ * server's implicit default project).
+ */
+export function resolveProjectId(): string | undefined {
+  const fromEnv = process.env['RECURRSIVE_PROJECT'];
+  if (fromEnv) return fromEnv;
+  const saved = readCliConfig()['projectId'];
+  if (typeof saved === 'string' && saved.length > 0) return saved;
   return undefined;
 }
 
@@ -121,9 +154,19 @@ export async function apiRequest(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  // Scope the request to the active project (from --project or
+  // `recurrsive projects use`) unless the caller already set one. Server
+  // routes that don't take projectId simply ignore the parameter.
+  let finalPath = path;
+  const projectId = resolveProjectId();
+  if (projectId && !path.includes('projectId=')) {
+    const sep = path.includes('?') ? '&' : '?';
+    finalPath = `${path}${sep}projectId=${encodeURIComponent(projectId)}`;
+  }
+
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    res = await fetch(`${API_BASE_URL}${finalPath}`, { ...options, headers });
   } catch (err) {
     // Network-level failure: server unreachable, DNS, TLS, timeout, etc.
     throw new ApiConnectionError(

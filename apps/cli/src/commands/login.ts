@@ -350,12 +350,14 @@ export function registerLoginCommand(program: Command): void {
       }
       token ??= process.env['RECURRSIVE_TOKEN'];
 
+      let revoked = false;
       if (token) {
         try {
-          await fetch(`${opts.server}/api/v1/auth/logout`, {
+          const res = await fetch(`${opts.server}/api/v1/auth/logout`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });
+          revoked = res.ok;
           // Whether or not revocation succeeds, we remove the local token.
         } catch {
           // Server unreachable — still clear local credentials below.
@@ -363,7 +365,13 @@ export function registerLoginCommand(program: Command): void {
       }
 
       removeToken();
-      success('Logged out. Token revoked and removed from ~/.recurrsive/config');
+      // Only claim server-side revocation when it actually happened.
+      if (revoked) {
+        success('Logged out. Token revoked and removed from ~/.recurrsive/config');
+      } else {
+        success('Logged out. Local credentials removed from ~/.recurrsive/config');
+        info(dim('  (The server could not be reached to revoke the token; it will expire on its own.)'));
+      }
     });
 
   // ── whoami ───────────────────────────────────────────────────────────

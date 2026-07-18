@@ -214,7 +214,7 @@ function prettyPrint(value: unknown, indent = 0): void {
 export function registerConfigCommand(program: Command): void {
   const configCmd = program
     .command('config')
-    .description('View, validate, and inspect Recurrsive configuration');
+    .description('View, edit, validate, and inspect Recurrsive configuration');
 
   // ── config view ──────────────────────────────────────────────
   configCmd

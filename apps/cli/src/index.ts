@@ -182,6 +182,17 @@ export function createProgram(): Command {
         'knowledge graph, and surface prioritized risks and opportunities.',
     )
     .version(VERSION, '-v, --version', 'Show the installed version')
+    // Global project scope for all server-backed commands. The value is
+    // surfaced through RECURRSIVE_PROJECT so the shared apiRequest helper can
+    // append ?projectId= without threading the option through every command.
+    .option(
+      '-p, --project <id>',
+      'Scope server commands to a project (overrides `recurrsive projects use`)',
+    )
+    .hook('preAction', (thisCommand) => {
+      const project = thisCommand.opts()['project'] as string | undefined;
+      if (project) process.env['RECURRSIVE_PROJECT'] = project;
+    })
     // Sort subcommands and options alphabetically in --help for scannability.
     .configureHelp({ sortSubcommands: true, sortOptions: true })
     // On an unknown command / bad flag, point the user at --help instead of
@@ -208,7 +219,8 @@ export function createProgram(): Command {
       bold('Tips:'),
       `  ${dim('•')} Many commands accept ${cyan('--json')} for scripting ${dim('(')}${cyan('analyze')}${dim('/')}${cyan('report')} ${dim('use')} ${cyan('--format json')}${dim(').')}`,
       `  ${dim('•')} Set ${cyan('RECURRSIVE_LLM_API_KEY')} before ${cyan('analyze')} to generate opportunities via reasoning.`,
-      `  ${dim('•')} Point at a server with ${cyan('RECURRSIVE_SERVER')} ${dim('(default http://localhost:3000)')}.`,
+      `  ${dim('•')} Point at a server with ${cyan('RECURRSIVE_SERVER')} ${dim('or')} ${cyan('login --server <url>')} ${dim('(default http://localhost:3000)')}.`,
+      `  ${dim('•')} Scope server commands to a project: ${cyan('recurrsive projects use <id>')} ${dim('or the global')} ${cyan('--project <id>')}${dim('.')}`,
       '',
     ].join('\n'),
   );

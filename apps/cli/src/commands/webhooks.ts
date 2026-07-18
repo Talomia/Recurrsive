@@ -9,13 +9,12 @@
  * @packageDocumentation
  */
 
-import { apiRequest } from '../config.js';
+import { apiRequest, reportApiError } from '../config.js';
 import type { Command } from 'commander';
 import {
   banner,
   header,
   info,
-  error,
   bold,
   cyan,
   green,
@@ -112,8 +111,7 @@ export function registerWebhooksCommand(program: Command): void {
 
         info(`\n${bold('Total')}: ${cyan(String(result.total))} webhooks`);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        error(`Failed to list webhooks: ${msg}`);
+        reportApiError(err, { action: 'Failed to list webhooks' });
         process.exitCode = 1;
       }
     });
@@ -146,8 +144,7 @@ export function registerWebhooksCommand(program: Command): void {
         info(`${bold('Events')}: ${result.data.events.join(', ')}`);
         info(`${bold('Status')}: ${green('active')}`);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        error(`Failed to register webhook: ${msg}`);
+        reportApiError(err, { action: 'Failed to register webhook' });
         process.exitCode = 1;
       }
     });
@@ -166,8 +163,7 @@ export function registerWebhooksCommand(program: Command): void {
         header('Webhook Removed');
         info(`Webhook ${cyan(id)} has been removed.`);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        error(`Failed to remove webhook: ${msg}`);
+        reportApiError(err, { action: 'Failed to remove webhook' });
         process.exitCode = 1;
       }
     });
@@ -193,8 +189,7 @@ export function registerWebhooksCommand(program: Command): void {
           info(`${red('✗')} Test delivery failed for webhook ${cyan(id)}`);
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        error(`Failed to test webhook: ${msg}`);
+        reportApiError(err, { action: 'Failed to test webhook' });
         process.exitCode = 1;
       }
     });
@@ -220,8 +215,7 @@ export function registerWebhooksCommand(program: Command): void {
 
         console.log(table(['Event', 'Description'], rows));
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        error(`Failed to list events: ${msg}`);
+        reportApiError(err, { action: 'Failed to list events' });
         process.exitCode = 1;
       }
     });

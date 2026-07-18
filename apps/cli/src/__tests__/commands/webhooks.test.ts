@@ -206,14 +206,18 @@ describe('recurrsive webhooks', () => {
     );
   });
 
-  it('webhooks list handles API errors gracefully', async () => {
+  it('webhooks list reports API errors through the shared handler', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Connection refused'));
 
     const program = createTestProgram();
-    await program.parseAsync(['node', 'test', 'webhooks', 'list']);
-
+    // Server-backed commands now route failures through reportApiError, which
+    // prints an actionable message and exits non-zero (surfaced as a throw in
+    // the test), instead of printing a raw "fetch failed" string.
+    await expect(
+      program.parseAsync(['node', 'test', 'webhooks', 'list']),
+    ).rejects.toThrow();
     expect(termError).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to list webhooks'),
+      expect.stringContaining('Could not reach the API server'),
     );
   });
 
