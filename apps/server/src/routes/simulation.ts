@@ -112,7 +112,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     }
   });
 
-  app.post('/api/v1/simulations', {
+  app.post<{ Querystring: { projectId?: string } }>('/api/v1/simulations', {
     preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
@@ -136,11 +136,9 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     try {
       const id = generateId();
 
-      // Compute results from real analysis data when available
-      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+      // Compute results from the requested project's analysis data
+      const cache = state.isInitialized() ? await state.loadCacheForProject(request.query.projectId) : null;
       const findings = cache?.findings ?? [];
-      // Real health score; when no analysis has run, the true baseline is a
-      // clean slate (100 = zero findings), not a fabricated midpoint.
       // Derive impact score from finding severity distribution
       const criticalCount = findings.filter(f => f.severity === 'critical').length;
       const highCount = findings.filter(f => f.severity === 'high').length;
@@ -217,7 +215,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     }
   });
 
-  app.post('/api/v1/pull-requests/generate', {
+  app.post<{ Querystring: { projectId?: string } }>('/api/v1/pull-requests/generate', {
     preHandler: [authMiddleware, requireRole('analyst')],
     schema: {
       body: {
@@ -238,7 +236,7 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
     }
 
     try {
-      const cache = state.isInitialized() ? state.getAnalysisCache() : null;
+      const cache = state.isInitialized() ? await state.loadCacheForProject(request.query.projectId) : null;
       const findings = cache?.findings ?? [];
 
       const changes = findings.map(f => ({

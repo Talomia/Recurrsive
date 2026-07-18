@@ -98,7 +98,7 @@ export default function PartnersPage() {
           style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}
         >
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-3 hover:opacity-80">✕</button>
+          <button onClick={() => setError(null)} aria-label="Dismiss error" className="ml-3 hover:opacity-80">✕</button>
         </div>
       )}
 

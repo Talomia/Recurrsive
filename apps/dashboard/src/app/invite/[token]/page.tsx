@@ -136,7 +136,7 @@ export default function AcceptInvitePage() {
             <div className="text-center py-4">
               <div className="w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center"
                    style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
-                <span className="text-2xl">✕</span>
+                <span className="text-2xl" aria-hidden="true">✕</span>
               </div>
               <h2 className="text-lg font-semibold text-text-primary mb-2">Invalid Invite</h2>
               <p className="text-text-secondary text-sm mb-4">{error}</p>

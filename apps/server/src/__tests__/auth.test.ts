@@ -522,6 +522,33 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it ('POST /api/v1/auth/login throttles brute-force attempts with 429', async () => {
+    // Use a dedicated username so failures here don't lock out the other tests.
+    for (let i = 0; i < 5; i++) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { username: 'bruteforce-target', password: `guess-${i}` },
+      });
+      expect(res.statusCode).toBe(401);
+    }
+    // Sixth attempt within the window is throttled before the credential check.
+    const throttled = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { username: 'bruteforce-target', password: 'guess-6' },
+    });
+    expect(throttled.statusCode).toBe(429);
+    expect(throttled.headers['retry-after']).toBeDefined();
+    // A different username from the same IP is unaffected.
+    const other = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { username: 'someone-else', password: 'x' },
+    });
+    expect(other.statusCode).toBe(401);
+  });
+
   // ── Refresh ────────────────────────────────────────────────────────────────
 
   it ('POST /api/v1/auth/refresh returns a new token', async () => {

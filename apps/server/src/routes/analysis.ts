@@ -194,8 +194,8 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
    * Return the history of all analysis runs performed during this
    * server session, ordered newest-first.
    */
-  app.get('/api/v1/analysis/history', { preHandler: [authMiddleware] }, async (_request, reply) => {
-    const history = state.getAnalysisHistory();
+  app.get<{ Querystring: { projectId?: string } }>('/api/v1/analysis/history', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const history = await state.loadHistoryForProject(request.query.projectId);
 
     return reply.status(200).send({
       data: [...history].reverse(),

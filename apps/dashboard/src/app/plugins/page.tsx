@@ -185,7 +185,7 @@ export default function PluginsPage() {
       {error && (
         <div className="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-red-400" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-3 hover:opacity-80">✕</button>
+          <button onClick={() => setError(null)} aria-label="Dismiss error" className="ml-3 hover:opacity-80">✕</button>
         </div>
       )}
 

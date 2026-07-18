@@ -44,6 +44,8 @@ interface ScheduledReport {
   sections: Array<'summary' | 'findings' | 'opportunities' | 'trends' | 'health' | 'comparison'>;
   /** Whether to include executive summary. */
   includeExecutiveSummary: boolean;
+  /** Project the report is generated for (undefined = default project). */
+  projectId?: string;
   status: ScheduleStatus;
   lastRunAt: string | null;
   nextRunAt: string;
@@ -196,10 +198,11 @@ async function executeScheduledRun(schedule: ScheduledReport): Promise<ReportRun
       return run;
     }
 
-    // Generate the report using real analysis data
-    const manager = state.getOpportunities();
+    // Generate the report from the schedule's project (not whichever project
+    // happens to be loaded in memory when the cron fires).
+    const manager = await state.loadOpportunitiesForProject(schedule.projectId);
     const opportunities = manager.list();
-    const healthScore = state.getHealthScore();
+    const healthScore = await state.getHealthScoreForProject(schedule.projectId);
 
     const reportContent = generateReport(
       opportunities,
@@ -320,6 +323,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
           recipients: { type: 'array', items: { type: 'string' } },
           sections: { type: 'array', items: { type: 'string' } },
           includeExecutiveSummary: { type: 'boolean' },
+          projectId: { type: 'string', minLength: 1 },
         },
         additionalProperties: false,
       },
@@ -343,6 +347,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
       recipients: body.recipients ?? [],
       sections: body.sections ?? ['summary', 'findings', 'opportunities'],
       includeExecutiveSummary: body.includeExecutiveSummary ?? false,
+      ...(body.projectId ? { projectId: body.projectId } : {}),
       status: 'active',
       lastRunAt: null,
       nextRunAt: nextCronRun(body.schedule),
@@ -371,6 +376,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
           recipients: { type: 'array', items: { type: 'string' } },
           sections: { type: 'array', items: { type: 'string' } },
           includeExecutiveSummary: { type: 'boolean' },
+          projectId: { type: 'string', minLength: 1 },
           status: { type: 'string', enum: ['active', 'paused', 'error'] },
         },
         additionalProperties: false,
@@ -392,6 +398,7 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
       recipients: body.recipients ?? existing.recipients,
       sections: body.sections ?? existing.sections,
       includeExecutiveSummary: body.includeExecutiveSummary ?? existing.includeExecutiveSummary,
+      projectId: body.projectId ?? existing.projectId,
       status: body.status ?? existing.status,
       nextRunAt: body.schedule ? nextCronRun(body.schedule) : existing.nextRunAt,
       updatedAt: nowISO(),

@@ -85,7 +85,7 @@ export default function CloudPage() {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400">✕</button>
+          <button onClick={() => setError(null)} aria-label="Dismiss error" className="text-red-400/60 hover:text-red-400">✕</button>
         </div>
       )}
 

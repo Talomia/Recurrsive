@@ -205,7 +205,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
    * Query params:
    * - baseline (optional) — Index in history to compare against (default: previous run)
    */
-  app.get<{ Querystring: { baseline?: string } }>(
+  app.get<{ Querystring: { baseline?: string; projectId?: string } }>(
     '/api/v1/analysis/compare',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
@@ -216,7 +216,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
         });
       }
 
-      const cache = state.getAnalysisCache();
+      const cache = await state.loadCacheForProject(request.query.projectId);
       if (!cache) {
         return reply.status(404).send({
           error: 'No analysis results',
@@ -224,7 +224,7 @@ export async function registerSnapshotRoutes(app: FastifyInstance): Promise<void
         });
       }
 
-      const history = state.getAnalysisHistory();
+      const history = await state.loadHistoryForProject(request.query.projectId);
       if (history.length < 2) {
         // No previous run to compare against — return current as "all new"
         const currentFindings = cache.findings;
