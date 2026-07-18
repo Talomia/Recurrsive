@@ -27,19 +27,24 @@ export function registerSearchTools(server: McpServer): void {
   // ── search_codebase ──────────────────────────────────────────────
   server.tool(
     'search_codebase',
-    'Search findings, opportunities, and entities by keyword',
+    'Search a Recurrsive-server project\'s findings, opportunities, and entities by keyword',
     {
       query: z.string().describe('Search query string'),
       scope: z
         .enum(['findings', 'opportunities', 'entities'])
         .optional()
         .describe('Limit search to a specific scope'),
+      project_id: z
+        .string()
+        .optional()
+        .describe('Project to search (omit for the server default project)'),
     },
-    async ({ query, scope }) => {
+    async ({ query, scope, project_id }) => {
       try {
         const params = new URLSearchParams();
         params.set('q', query);
         if (scope) params.set('scope', scope);
+        if (project_id) params.set('projectId', project_id);
 
         const result = await apiGet<unknown>(`/api/v1/search?${params.toString()}`);
 

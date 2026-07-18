@@ -40,10 +40,13 @@ export function registerIntelligenceTools(server: McpServer): void {
     },
     async ({ status }) => {
       try {
-        const path = status
-          ? `/api/v1/simulations?status=${encodeURIComponent(status)}`
-          : '/api/v1/simulations';
-        const simulations = await apiGet<unknown[]>(path);
+        // The server returns all simulations; apply the status filter here so
+        // the advertised filter actually takes effect (the endpoint ignores
+        // query params).
+        const all = await apiGet<Array<{ status?: string }>>('/api/v1/simulations');
+        const simulations = status
+          ? all.filter((s) => s.status === status)
+          : all;
 
         return {
           content: [{
@@ -130,10 +133,12 @@ export function registerIntelligenceTools(server: McpServer): void {
     },
     async ({ domain }) => {
       try {
-        const path = domain
-          ? `/api/v1/intelligence-packs?domain=${encodeURIComponent(domain)}`
-          : '/api/v1/intelligence-packs';
-        const packs = await apiGet<unknown[]>(path);
+        // Filter client-side — the endpoint returns all packs and ignores query
+        // params, so filtering here keeps the advertised `domain` filter honest.
+        const all = await apiGet<Array<{ domain?: string }>>('/api/v1/intelligence-packs');
+        const packs = domain
+          ? all.filter((p) => p.domain === domain)
+          : all;
 
         return {
           content: [{

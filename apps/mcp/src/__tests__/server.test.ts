@@ -3,7 +3,7 @@
  *
  * Tests cover:
  * - Server has correct name and version
- * - All 42 tools are registered
+ * - All 45 tools are registered
  * - All 16 resources are registered
  * - All 21 prompts are registered
  * - Tools have valid schemas (verified by spy call args)
@@ -180,9 +180,9 @@ describe('MCP Server', () => {
   // ── Tool Registration ──────────────────────────────────────────────────
 
   describe('tool registration', () => {
-    it('registers exactly 42 tools', () => {
+    it('registers exactly 45 tools', () => {
       createServer();
-      expect(mockTool).toHaveBeenCalledTimes(42);
+      expect(mockTool).toHaveBeenCalledTimes(45);
     });
 
     it('registers "analyze_project" tool', () => {
@@ -409,13 +409,13 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('compare_analysis_runs');
     });
 
-    it('all 42 tool names are unique', () => {
+    it('all 45 tool names are unique', () => {
       createServer();
       const toolNames = mockTool.mock.calls.map(
         (call: unknown[]) => call[0],
       );
       const uniqueNames = new Set(toolNames);
-      expect(uniqueNames.size).toBe(42);
+      expect(uniqueNames.size).toBe(45);
     });
 
     it('each tool has a description string as second argument', () => {

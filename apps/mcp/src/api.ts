@@ -113,8 +113,25 @@ export async function apiRequest<T = unknown>(
     });
 
     if (!response.ok) {
+      // Surface the server's structured `{ error, message }` body so the model
+      // gets actionable detail (e.g. "Path X is not in the allowed directories.
+      // Allowed prefixes: …") instead of a bare status code it cannot act on.
+      let detail = '';
+      try {
+        const body = await response.text();
+        if (body) {
+          try {
+            const parsed = JSON.parse(body) as { error?: string; message?: string };
+            detail = parsed.message ?? parsed.error ?? body;
+          } catch {
+            detail = body;
+          }
+        }
+      } catch {
+        // Body unreadable — fall back to status text only.
+      }
       throw new ApiError(
-        `API request failed: ${response.status} ${response.statusText}`,
+        `API request failed: ${response.status} ${response.statusText}${detail ? ` — ${detail}` : ''}`,
         response.status,
         url,
       );

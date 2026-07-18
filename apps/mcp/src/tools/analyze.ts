@@ -148,9 +148,13 @@ export function registerAnalyzeTools(server: McpServer): void {
 
   server.tool(
     'analyze_project',
-    'Run the full Recurrsive analysis pipeline on a project directory. ' +
-    'Collects code entities, builds the knowledge graph, runs analyzers, ' +
-    'and optionally runs multi-agent reasoning to generate opportunities.',
+    'Run a LOCAL, in-process Recurrsive analysis on a project directory on THIS ' +
+    'machine (results live only in this MCP session\'s memory). Collects code ' +
+    'entities, builds the knowledge graph, runs analyzers, and optionally runs ' +
+    'multi-agent reasoning to generate opportunities. Its results are read by ' +
+    'the local tools (get_opportunities, query_graph, list_findings, ' +
+    'get_health_score). To analyze on the Recurrsive server instead (persisted, ' +
+    'shared, project-scoped), use trigger_server_analysis.',
     {
       path: z.string().describe('Absolute path to the project directory to analyze'),
       analyzers: z
