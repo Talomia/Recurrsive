@@ -5,6 +5,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/sidebar";
 import { Providers } from "@/components/providers";
+import ScopedContent from "@/components/scoped-content";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -47,7 +48,7 @@ export default function RootLayout({
           <div className="flex min-h-screen">
             <Sidebar />
             <main id="main-content" className="flex-1 min-w-0 overflow-y-auto">
-              {children}
+              <ScopedContent>{children}</ScopedContent>
             </main>
           </div>
         </Providers>

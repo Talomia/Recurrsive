@@ -27,8 +27,12 @@ export type BatchStatus = 'pending' | 'running' | 'completed' | 'partial' | 'fai
 
 /** A single project entry within a batch. */
 export interface BatchProject {
-  /** Filesystem path to the project. */
+  /** Filesystem path to the project (used when no gitUrl is given). */
   path: string;
+  /** Git repository URL to clone and analyze (preferred for server projects). */
+  gitUrl?: string;
+  /** Project id to scope the analysis results to. */
+  projectId?: string;
   /** Current analysis status. */
   status: ProjectStatus;
   /** ISO timestamp of when analysis started (null if pending). */
@@ -107,18 +111,26 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
     project.started_at = new Date().toISOString();
     await store.set<BatchRun>('batches', batchId, currentBatch);
 
+    let clonedDir: string | null = null;
     try {
-      // Validate path safety
-      if (!isSafePath(project.path)) {
+      // Resolve the target path: clone the git URL if given, otherwise use the
+      // filesystem path (path-guarded). This lets the batch analyze the same
+      // remote repos the single-project analyze endpoint accepts.
+      let effectivePath = project.path;
+      if (project.gitUrl) {
+        clonedDir = await state.cloneRepo(project.gitUrl);
+        effectivePath = clonedDir;
+      } else if (!isSafePath(project.path)) {
         throw new Error(`Path "${project.path}" is not in the allowed directories.`);
       }
 
-      // Initialize state for this project and run analysis
+      // Initialize state for this project and run analysis, scoped to its
+      // project id so results land on the right project (not the default bucket).
       if (state.isInitialized()) {
         await state.dispose();
       }
-      await state.initialize(project.path);
-      await state.runAnalysis();
+      await state.initialize(effectivePath);
+      await state.runAnalysis(undefined, undefined, project.projectId);
 
       // Mark success
       const afterBatch = await store.get<BatchRun>('batches', batchId);
@@ -143,6 +155,11 @@ async function runBatchAnalysis(batchId: string): Promise<void> {
         afterProject.completed_at = new Date().toISOString();
         afterProject.error = message;
         await store.set<BatchRun>('batches', batchId, afterBatch);
+      }
+    } finally {
+      // Remove any repo cloned for this item to reclaim disk.
+      if (clonedDir) {
+        try { await state.cleanupClone(clonedDir); } catch { /* best-effort */ }
       }
     }
   }
@@ -172,15 +189,17 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
   /**
    * POST /api/v1/batch/analyze
    *
-   * Submit a batch of project paths for sequential analysis.
+   * Submit a batch of projects for sequential analysis.
    *
    * Body:
-   * - projects: string[] — non-empty array of filesystem paths (max 10)
+   * - projects: array (max 10) of either a filesystem-path string OR an object
+   *   `{ path?, gitUrl?, projectId? }` (gitUrl is cloned; projectId scopes
+   *   results). Mixed forms are allowed.
    * - options: Record<string, unknown> (optional)
    */
   app.post<{
     Body: {
-      projects: string[];
+      projects: Array<string | { path?: string; gitUrl?: string; projectId?: string }>;
       options?: Record<string, unknown>;
     };
   }>('/api/v1/batch/analyze', {
@@ -192,7 +211,20 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
         properties: {
           projects: {
             type: 'array',
-            items: { type: 'string', minLength: 1 },
+            items: {
+              anyOf: [
+                { type: 'string', minLength: 1 },
+                {
+                  type: 'object',
+                  properties: {
+                    path: { type: 'string' },
+                    gitUrl: { type: 'string' },
+                    projectId: { type: 'string' },
+                  },
+                  additionalProperties: false,
+                },
+              ],
+            },
             minItems: 1,
             maxItems: 10,
           },
@@ -213,11 +245,10 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
     const projects = body['projects'];
     const options = (body['options'] as Record<string, unknown>) ?? {};
 
-    // Validate projects field
     if (!Array.isArray(projects)) {
       return reply.status(400).send({
         error: 'Invalid request',
-        message: 'projects must be an array of file paths.',
+        message: 'projects must be an array.',
       });
     }
 
@@ -235,14 +266,34 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    // Validate each project is a non-empty string
+    // Normalize each item to a BatchProject; every item must carry either a
+    // path or a gitUrl.
+    const normalized: BatchProject[] = [];
     for (let i = 0; i < projects.length; i++) {
-      if (typeof projects[i] !== 'string' || (projects[i] as string).trim() === '') {
-        return reply.status(400).send({
-          error: 'Invalid request',
-          message: `projects[${i}] must be a non-empty string.`,
-        });
+      const item = projects[i];
+      let entry: { path: string; gitUrl?: string; projectId?: string };
+      if (typeof item === 'string') {
+        if (item.trim() === '') {
+          return reply.status(400).send({ error: 'Invalid request', message: `projects[${i}] must be a non-empty string.` });
+        }
+        entry = { path: item };
+      } else if (item && typeof item === 'object') {
+        const obj = item as { path?: string; gitUrl?: string; projectId?: string };
+        if (!obj.gitUrl && !obj.path) {
+          return reply.status(400).send({ error: 'Invalid request', message: `projects[${i}] must include a path or gitUrl.` });
+        }
+        entry = { path: obj.path ?? '', gitUrl: obj.gitUrl, projectId: obj.projectId };
+      } else {
+        return reply.status(400).send({ error: 'Invalid request', message: `projects[${i}] must be a string or an object.` });
       }
+      normalized.push({
+        path: entry.path,
+        ...(entry.gitUrl ? { gitUrl: entry.gitUrl } : {}),
+        ...(entry.projectId ? { projectId: entry.projectId } : {}),
+        status: 'pending' as ProjectStatus,
+        started_at: null,
+        completed_at: null,
+      });
     }
 
     const batchId = await generateBatchId();
@@ -251,12 +302,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
     const batchRun: BatchRun = {
       batch_id: batchId,
       status: 'pending',
-      projects: projects.map((path) => ({
-        path: path as string,
-        status: 'pending' as ProjectStatus,
-        started_at: null,
-        completed_at: null,
-      })),
+      projects: normalized,
       options,
       created_at: now,
       completed_at: null,
@@ -280,7 +326,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       batch_id: batchId,
       status: 'pending',
       projects: batchRun.projects.map((p) => ({
-        path: p.path,
+        path: p.gitUrl || p.path,
         status: p.status,
       })),
     });

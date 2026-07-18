@@ -109,6 +109,11 @@ export function ActiveProjectProvider({ children }: { children: React.ReactNode 
     const search = current.toString();
     const query = search ? `?${search}` : '';
     router.push(`${pathname}${query}`);
+    // A query-only navigation does not re-run server-component data fetches by
+    // default, so force it — otherwise switching the project leaves every
+    // server-rendered page showing the previous project's data. Client pages
+    // are remounted by the projectId-keyed wrapper in the layout.
+    router.refresh();
   }, [pathname, searchParams, router]);
 
   return (

@@ -112,7 +112,8 @@ export async function getBatchJob(id: string): Promise<BatchRun | null> {
  * Submit a new batch analysis run via `POST /api/v1/batch/analyze`.
  */
 export async function createBatchRun(data: {
-  projects: string[];
+  // A filesystem path, or a { gitUrl, projectId } target for a server project.
+  projects: Array<string | { path?: string; gitUrl?: string; projectId?: string }>;
   options?: Record<string, unknown>;
 }): Promise<{ batch_id: string; status: string; projects: { path: string; status: string }[] }> {
   return await apiFetch<{ batch_id: string; status: string; projects: { path: string; status: string }[] }>(

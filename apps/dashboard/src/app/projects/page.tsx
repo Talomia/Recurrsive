@@ -306,7 +306,7 @@ export default function ProjectsPage() {
     setAnalyzingIds(prev => new Set(prev).add(project.id));
     try {
       await triggerAnalysis(project.repository, project.id);
-      toast(`Analysis started for "${project.name}". Check the Overview page for progress.`, 'success');
+      toast(`Analysis started for "${project.name}". Open the project to watch live progress.`, 'success');
     } catch {
       toast(`Failed to start analysis for "${project.name}".`, 'error');
     } finally {
@@ -319,11 +319,19 @@ export default function ProjectsPage() {
   }, [toast]);
 
   const analyzeAll = useCallback(async () => {
-    const repos = projects.map(p => p.repository);
-    if (repos.length === 0) return;
+    // Send each project as a { gitUrl, projectId } target so the batch clones
+    // the repo and scopes results to the right project. (Sending bare repo URLs
+    // as filesystem paths silently failed every item.)
+    const targets = projects
+      .filter(p => p.repository)
+      .map(p => ({ gitUrl: p.repository, projectId: p.id }));
+    if (targets.length === 0) {
+      toast('No projects have a repository URL to analyze.', 'info');
+      return;
+    }
     try {
-      await createBatchRun({ projects: repos });
-      toast(`Batch analysis started for ${repos.length} project${repos.length !== 1 ? 's' : ''}. Check the Batch page for progress.`, 'success');
+      await createBatchRun({ projects: targets });
+      toast(`Batch analysis started for ${targets.length} project${targets.length !== 1 ? 's' : ''}. Check the Batch page for progress.`, 'success');
     } catch {
       toast('Failed to start batch analysis.', 'error');
     }
