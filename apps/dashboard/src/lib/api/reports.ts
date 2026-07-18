@@ -82,7 +82,6 @@ export interface ProjectSnapshot {
   health_score: number;
   findings_count: number;
   opportunities_count: number;
-  trigger: "manual" | "scheduled" | "ci";
   summary: string;
   dimensions: Record<string, number>;
 }

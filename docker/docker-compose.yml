@@ -53,8 +53,10 @@ services:
       RECURRSIVE_WEBHOOK_SECRET: ${RECURRSIVE_WEBHOOK_SECRET:-}
       RECURRSIVE_WEBHOOK_TIMEOUT_MS: ${RECURRSIVE_WEBHOOK_TIMEOUT_MS:-5000}
       RECURRSIVE_WEBHOOK_MAX_RETRIES: ${RECURRSIVE_WEBHOOK_MAX_RETRIES:-3}
-      # Auth configuration
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      # Auth configuration — REQUIRED. `docker compose up` fails fast with this
+      # message if JWT_SECRET is unset, instead of shipping a known signing key.
+      # Generate one with: openssl rand -hex 32
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (e.g. `openssl rand -hex 32`) before starting — see docker/.env.example}
       # CORS — allow dashboard and website origins
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3100,http://localhost:3200}
       # Tier configuration

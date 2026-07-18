@@ -15,15 +15,22 @@ import { formatDate } from '@/lib/format';
 import { getTenants, createTenant, deleteTenant } from '@/lib/api';
 import type { DashboardTenant } from '@/lib/api';
 
+// Mirrors the server's real tierQuotas / tierFeatures
+// (apps/server/src/routes/multi-tenant.ts). No fabricated rows (e.g. SLA,
+// which the tenant model does not define).
 const featureMatrix = [
   { feature: 'Projects', free: '3', team: '20', enterprise: 'Unlimited' },
-  { feature: 'Users', free: '5', team: '50', enterprise: '500+' },
-  { feature: 'Storage', free: '512 MB', team: '2 GB', enterprise: '10 GB+' },
+  { feature: 'Users', free: '5', team: '50', enterprise: 'Unlimited' },
+  { feature: 'Analysis runs / day', free: '10', team: '100', enterprise: 'Unlimited' },
+  { feature: 'Storage', free: '500 MB', team: '5 GB', enterprise: '50 GB' },
+  { feature: 'Data retention', free: '30 days', team: '90 days', enterprise: '365 days' },
+  { feature: 'API Access', free: '✓', team: '✓', enterprise: '✓' },
   { feature: 'SSO', free: '—', team: '✓', enterprise: '✓' },
-  { feature: 'API Access', free: '—', team: '✓', enterprise: '✓' },
-  { feature: 'Custom Plugins', free: '—', team: '—', enterprise: '✓' },
-  { feature: 'SLA', free: '—', team: '99.5%', enterprise: '99.9%' },
-  { feature: 'Priority Support', free: '—', team: '—', enterprise: '✓' },
+  { feature: 'Webhooks', free: '—', team: '✓', enterprise: '✓' },
+  { feature: 'Advanced reporting', free: '—', team: '✓', enterprise: '✓' },
+  { feature: 'Audit log', free: '—', team: '✓', enterprise: '✓' },
+  { feature: 'Custom branding', free: '—', team: '—', enterprise: '✓' },
+  { feature: 'Multi-region', free: '—', team: '—', enterprise: '✓' },
 ];
 
 function TierBadge({ tier }: { tier: string }) {

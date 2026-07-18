@@ -84,8 +84,10 @@ export async function apiFetch<T>(
   // `x-recurrsive-project-id` request header that middleware derives from the
   // same URL query — otherwise server-rendered pages ignore `?projectId=`.
   let finalPath = path;
-  const method = fetchOpts.method?.toUpperCase() || 'GET';
-  if (method === 'GET' && !path.includes('projectId=')) {
+  // Apply to ALL methods, not just GET: mutations like the opportunity/finding
+  // PATCH are per-project too, and the server loads the wrong (default) bucket
+  // without the scope — previously Accept/Dismiss 404'd for every real project.
+  if (!path.includes('projectId=')) {
     let projectId: string | null = null;
     if (typeof window !== 'undefined') {
       projectId = new URLSearchParams(window.location.search).get('projectId');

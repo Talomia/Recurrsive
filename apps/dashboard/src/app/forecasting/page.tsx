@@ -170,7 +170,6 @@ interface AnalyzerScore {
   accuracy: number;
   predictions: number;
   brierScore: number;
-  trend: 'improving' | 'stable' | 'declining';
 }
 
 interface Prediction {
@@ -196,10 +195,6 @@ function OutcomeBadge({ outcome }: { outcome: string }) {
   );
 }
 
-function TrendLabel({ trend }: { trend: string }) {
-  const c: Record<string, string> = { improving: 'text-green-400', stable: 'text-yellow-400', declining: 'text-red-400' };
-  return <span className={`text-xs capitalize ${c[trend] ?? 'text-text-tertiary'}`}>{trend}</span>;
-}
 
 // ---------------------------------------------------------------------------
 // Main Page
@@ -252,8 +247,7 @@ export default function ForecastingPage() {
   const calibration: CalibrationBucket[] = confData?.calibration ?? [];
   const analyzers: AnalyzerScore[] = (confData?.analyzerAccuracy ?? []).map(a => ({
     name: a.name, accuracy: a.accuracy, predictions: a.predictions,
-    brierScore: a.accuracy > 0 ? (1 - a.accuracy / 100) * 0.25 : 0.25,
-    trend: a.accuracy >= 90 ? 'improving' as const : a.accuracy >= 80 ? 'stable' as const : 'declining' as const,
+    brierScore: a.brierScore,
   }));
   const predictions: Prediction[] = (confData?.recentPredictions ?? []).map(p => ({
     id: p.id, description: p.description, confidence: p.predicted,
@@ -561,7 +555,7 @@ export default function ForecastingPage() {
                               </div>
                               <div className="text-right">
                                 <p className="text-lg font-bold text-text-primary">{a.accuracy}%</p>
-                                <TrendLabel trend={a.trend} />
+                                <p className="text-xs text-text-tertiary">accuracy</p>
                               </div>
                             </div>
                           ))}

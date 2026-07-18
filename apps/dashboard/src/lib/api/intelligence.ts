@@ -84,7 +84,7 @@ export interface ConfidenceData {
   totalPredictions: number;
   accuracy: number;
   calibration: { predicted: string; count: number; actualRate: number; deviation: number }[];
-  analyzerAccuracy: { name: string; accuracy: number; predictions: number }[];
+  analyzerAccuracy: { name: string; accuracy: number; predictions: number; brierScore: number }[];
   recentPredictions: { id: string; description: string; predicted: number; actual: boolean | null; date: string; source: string }[];
 }
 
@@ -302,11 +302,13 @@ export async function getConfidenceData(): Promise<ConfidenceData> {
         deviation: b.calibrationError,
       })),
 
-      // Map analyzerScores → analyzerAccuracy (analyzerId→name, totalPredictions→predictions)
+      // Map analyzerScores → analyzerAccuracy, carrying the server's REAL
+      // per-analyzer Brier score (the pages must not re-invent it from accuracy).
       analyzerAccuracy: (overview.analyzerScores ?? []).map(a => ({
         name: a.analyzerId,
         accuracy: a.accuracy,
         predictions: a.totalPredictions,
+        brierScore: a.brierScore,
       })),
 
       // Map server predictions → dashboard recentPredictions shape

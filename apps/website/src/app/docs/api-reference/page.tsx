@@ -28,15 +28,15 @@ export const metadata: Metadata = {
 };
 
 const ENDPOINT_GROUPS = [
-  { name: 'Health', count: 3, icon: Activity, color: 'var(--green)', desc: 'Liveness, readiness, and version checks' },
-  { name: 'Analysis', count: 4, icon: BarChart3, color: 'var(--blue)', desc: 'Trigger, status, cancel, and list analyses' },
-  { name: 'Opportunities', count: 3, icon: Zap, color: 'var(--amber)', desc: 'List, detail, and dismiss improvement opportunities' },
-  { name: 'Graph', count: 5, icon: Network, color: 'var(--purple)', desc: 'Query entities, relationships, and subgraphs' },
-  { name: 'Findings', count: 3, icon: AlertTriangle, color: 'var(--red)', desc: 'List, detail, and acknowledge findings' },
-  { name: 'Reports', count: 1, icon: FileText, color: 'var(--cyan)', desc: 'Generate HTML, PDF, or JSON reports' },
-  { name: 'Timeline', count: 3, icon: Clock, color: 'var(--blue)', desc: 'Historical trends, diffs, and snapshots' },
-  { name: 'Snapshots', count: 2, icon: Camera, color: 'var(--green)', desc: 'Create and restore analysis snapshots' },
-  { name: 'Policies', count: 3, icon: Settings, color: 'var(--purple)', desc: 'CRUD for quality gates and policies' },
+  { name: 'Health', count: 3, icon: Activity, color: 'var(--green)', desc: '/health, /api/v1/health, and /api/v1/health/detailed' },
+  { name: 'Analysis', count: 3, icon: BarChart3, color: 'var(--blue)', desc: 'Trigger a run, poll status, and list run history' },
+  { name: 'Opportunities', count: 5, icon: Zap, color: 'var(--amber)', desc: 'List, detail, and manage improvement opportunities' },
+  { name: 'Graph', count: 7, icon: Network, color: 'var(--purple)', desc: 'Query entities, relationships, and subgraphs' },
+  { name: 'Findings', count: 5, icon: AlertTriangle, color: 'var(--red)', desc: 'List, detail, and manage findings' },
+  { name: 'Reports', count: 1, icon: FileText, color: 'var(--cyan)', desc: 'Generate reports (markdown, HTML, JSON, or SARIF)' },
+  { name: 'Timeline', count: 4, icon: Clock, color: 'var(--blue)', desc: 'Historical trends, events, and diffs' },
+  { name: 'Snapshots', count: 3, icon: Camera, color: 'var(--green)', desc: 'Create, list, and restore graph snapshots' },
+  { name: 'Policies', count: 4, icon: Settings, color: 'var(--purple)', desc: 'CRUD for quality gates and policies' },
 ];
 
 export default function ApiReferencePage() {
@@ -216,32 +216,49 @@ export default function ApiReferencePage() {
                 POST
               </span>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                /api/v1/analyses
+                /api/v1/analyze
               </span>
             </div>
           </div>
           <div className="code-block" style={{ marginBottom: 'var(--space-xl)' }}>
-            <div><span className="keyword">curl</span> -X POST <span className="string">http://localhost:3000/api/v1/analyses</span> \</div>
+            <div><span className="keyword">curl</span> -X POST <span className="string">http://localhost:3000/api/v1/analyze</span> \</div>
             <div>{'  '}-H <span className="string">&quot;Authorization: Bearer $TOKEN&quot;</span> \</div>
             <div>{'  '}-H <span className="string">&quot;Content-Type: application/json&quot;</span> \</div>
             <div>{'  '}-d <span className="string">{`'{`}</span></div>
-            <div><span className="string">{'    '}&quot;repository&quot;: &quot;https://github.com/acme/app&quot;,</span></div>
-            <div><span className="string">{'    '}&quot;branch&quot;: &quot;main&quot;,</span></div>
-            <div><span className="string">{'    '}&quot;analyzers&quot;: [&quot;architecture&quot;, &quot;security&quot;, &quot;performance&quot;]</span></div>
+            <div><span className="string">{'    '}&quot;gitUrl&quot;: &quot;https://github.com/acme/app.git&quot;,</span></div>
+            <div><span className="string">{'    '}&quot;analyzers&quot;: [&quot;architecture.structural&quot;, &quot;security.vulnerabilities&quot;],</span></div>
+            <div><span className="string">{'    '}&quot;include_reasoning&quot;: true</span></div>
             <div><span className="string">{`  }'`}</span></div>
           </div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', lineHeight: 1.7, marginBottom: 'var(--space-xl)' }}>
+            The body must include either <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>path</span>{' '}
+            (an allowed absolute local path) or <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>gitUrl</span>.
+            Optional fields: <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>analyzers</span> (analyzer IDs),{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>include_reasoning</span>, and{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>projectId</span>.
+          </p>
 
           {/* Response */}
-          <h3 style={{ fontSize: '1.1rem', marginBottom: 'var(--space-md)' }}>Response</h3>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: 'var(--space-md)' }}>Response <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>202 Accepted</span></h3>
           <div className="code-block">
             <div>{`{`}</div>
-            <div>{'  '}<span className="keyword">&quot;id&quot;</span>: <span className="string">&quot;ana_8f3k2j1m&quot;</span>,</div>
-            <div>{'  '}<span className="keyword">&quot;status&quot;</span>: <span className="string">&quot;running&quot;</span>,</div>
-            <div>{'  '}<span className="keyword">&quot;repository&quot;</span>: <span className="string">&quot;https://github.com/acme/app&quot;</span>,</div>
-            <div>{'  '}<span className="keyword">&quot;branch&quot;</span>: <span className="string">&quot;main&quot;</span>,</div>
-            <div>{'  '}<span className="keyword">&quot;analyzers&quot;</span>: [<span className="string">&quot;architecture&quot;</span>, <span className="string">&quot;security&quot;</span>, <span className="string">&quot;performance&quot;</span>],</div>
-            <div>{'  '}<span className="keyword">&quot;created_at&quot;</span>: <span className="string">&quot;2026-07-02T10:30:00Z&quot;</span>,</div>
-            <div>{'  '}<span className="keyword">&quot;estimated_duration&quot;</span>: <span className="number">45</span></div>
+            <div>{'  '}<span className="keyword">&quot;message&quot;</span>: <span className="string">&quot;Analysis started&quot;</span>,</div>
+            <div>{'  '}<span className="keyword">&quot;status&quot;</span>: {`{`}</div>
+            <div>{'    '}<span className="keyword">&quot;phase&quot;</span>: <span className="string">&quot;collecting&quot;</span>,</div>
+            <div>{'    '}<span className="keyword">&quot;progress&quot;</span>: <span className="number">0</span>,</div>
+            <div>{'    '}<span className="keyword">&quot;message&quot;</span>: <span className="string">&quot;Starting analysis…&quot;</span>,</div>
+            <div>{'    '}<span className="keyword">&quot;startedAt&quot;</span>: <span className="string">&quot;2026-07-16T10:30:00.000Z&quot;</span>,</div>
+            <div>{'    '}<span className="keyword">&quot;completedAt&quot;</span>: <span className="keyword">null</span>,</div>
+            <div>{'    '}<span className="keyword">&quot;error&quot;</span>: <span className="keyword">null</span>,</div>
+            <div>{'    '}<span className="keyword">&quot;reasoning&quot;</span>: <span className="keyword">null</span></div>
+            <div>{'  '}{`}`},</div>
+            <div>{'  '}<span className="keyword">&quot;project&quot;</span>: <span className="string">&quot;/tmp/recurrsive-repos/app&quot;</span>,</div>
+            <div>{'  '}<span className="keyword">&quot;gitUrl&quot;</span>: <span className="string">&quot;https://github.com/acme/app.git&quot;</span>,</div>
+            <div>{'  '}<span className="keyword">&quot;endpoints&quot;</span>: {`{`}</div>
+            <div>{'    '}<span className="keyword">&quot;status&quot;</span>: <span className="string">&quot;/api/v1/analysis/status&quot;</span>,</div>
+            <div>{'    '}<span className="keyword">&quot;history&quot;</span>: <span className="string">&quot;/api/v1/analysis/history&quot;</span>,</div>
+            <div>{'    '}<span className="keyword">&quot;opportunities&quot;</span>: <span className="string">&quot;/api/v1/opportunities&quot;</span></div>
+            <div>{'  '}{`}`}</div>
             <div>{`}`}</div>
           </div>
         </div>

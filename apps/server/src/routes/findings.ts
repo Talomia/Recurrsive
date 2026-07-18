@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { state } from '../state.js';
 import { createLogger } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 const logger = createLogger({ context: { component: 'server:routes:findings' } });
 
@@ -171,14 +172,17 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
       }
 
       const { findings } = cache;
+      // Merge the persisted per-project triage overlay so status/assignee
+      // reflect real user actions instead of a hardcoded "open".
+      const overlays = await state.loadFindingOverlays(request.query.projectId);
 
       const items = findings.map((f) => ({
         id: f.id,
         title: f.title,
         severity: f.severity,
         category: f.category,
-        status: 'open' as const,
-        assignee: '',
+        status: overlays[f.id]?.status ?? 'open',
+        assignee: overlays[f.id]?.assignee ?? '',
         created_at: f.created_at ?? cache.analyzedAt,
       }));
 
@@ -277,12 +281,74 @@ export async function registerFindingsRoutes(app: FastifyInstance): Promise<void
           });
         }
 
-        return reply.status(200).send({ data: finding });
+        // Surface the persisted triage overlay alongside the immutable finding.
+        const overlays = await state.loadFindingOverlays((request.query as ProjectQuery).projectId);
+        const overlay = overlays[finding.id];
+        return reply.status(200).send({
+          data: {
+            ...finding,
+            status: overlay?.status ?? 'open',
+            assignee: overlay?.assignee ?? '',
+          },
+        });
       } catch (err) {
         logger.error('Failed to get finding', { error: err });
         return reply.status(500).send({
           error: 'Internal server error',
           message: 'Failed to retrieve finding.',
+        });
+      }
+    },
+  );
+
+  /**
+   * PATCH /api/v1/findings/:id
+   *
+   * Update a finding's triage status and/or assignee for a project. Findings
+   * are immutable analyzer output; this persists a lifecycle overlay keyed by
+   * (projectId, findingId) that survives re-analysis and restarts.
+   */
+  app.patch<{ Params: FindingParams; Querystring: ProjectQuery; Body: { status?: string; assignee?: string } }>(
+    '/api/v1/findings/:id',
+    {
+      preHandler: [authMiddleware, requireRole('analyst')],
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['open', 'resolved', 'suppressed'] },
+            assignee: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { status, assignee } = request.body ?? {};
+      if (status === undefined && assignee === undefined) {
+        return reply.status(400).send({
+          error: 'Bad request',
+          message: 'Provide "status" (open|resolved|suppressed) and/or "assignee".',
+        });
+      }
+      try {
+        const updated = await state.setFindingStatus(
+          request.query.projectId,
+          request.params.id,
+          { status, assignee },
+        );
+        if (!updated) {
+          return reply.status(404).send({
+            error: 'Finding not found',
+            message: `No finding with ID "${request.params.id}" in this project.`,
+          });
+        }
+        return reply.status(200).send({ data: updated });
+      } catch (err) {
+        logger.error('Failed to update finding', { error: err });
+        return reply.status(500).send({
+          error: 'Internal server error',
+          message: 'Failed to update finding.',
         });
       }
     },

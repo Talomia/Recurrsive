@@ -1570,6 +1570,41 @@ describe ('Search Routes', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Findings triage (PATCH status/assignee) — route contract
+// ---------------------------------------------------------------------------
+describe('Findings triage route', () => {
+  it('PATCH /api/v1/findings/:id returns 400 with an empty body', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'PATCH',
+      url: '/api/v1/findings/some-id',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('PATCH /api/v1/findings/:id returns 404 for an unknown finding', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'PATCH',
+      url: '/api/v1/findings/does-not-exist',
+      payload: { status: 'resolved' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('PATCH /api/v1/findings/:id rejects an invalid status value', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'PATCH',
+      url: '/api/v1/findings/some-id',
+      payload: { status: 'bogus' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // RBAC enforcement on mutating routes (regression for viewer/analyst gating)
 // ---------------------------------------------------------------------------
 describe('RBAC enforcement on write routes', () => {

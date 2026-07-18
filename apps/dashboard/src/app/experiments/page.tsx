@@ -118,8 +118,10 @@ function MetricRow({
 // ---------------------------------------------------------------------------
 
 function ActiveExperimentCard({ experiment }: { experiment: DashboardExperiment }) {
-  // Calculate simulated progress for running experiments
-  const progress = experiment.status === "running" ? ((experiment as unknown as { progress?: number }).progress ?? 50) : experiment.status === "completed" ? 100 : 0;
+  // The server does not report a progress percentage, so we show status
+  // honestly (indeterminate while running) rather than a fabricated number.
+  const isRunning = experiment.status === "running";
+  const isComplete = experiment.status === "completed";
 
   return (
     <div className="glass-card p-5 border-l-2 border-blue-400">
@@ -138,21 +140,24 @@ function ActiveExperimentCard({ experiment }: { experiment: DashboardExperiment 
         <StatusBadge status={experiment.status} />
       </div>
 
-      {/* Progress bar */}
+      {/* Status indicator — indeterminate while running (no fabricated %) */}
       <div className="mt-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] text-text-muted font-medium uppercase tracking-wider">
-            Progress
+            Status
           </span>
-          <span className="text-xs text-text-primary font-semibold tabular-nums">
-            {progress}%
+          <span className="text-xs text-text-primary font-semibold capitalize">
+            {experiment.status}
           </span>
         </div>
         <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-1000 ease-out"
-            style={{ width: `${progress}%` }}
-          />
+          {isRunning ? (
+            <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 animate-pulse" />
+          ) : (
+            <div
+              className={`h-full rounded-full ${isComplete ? "w-full bg-green-500/70" : "w-0"}`}
+            />
+          )}
         </div>
       </div>
 

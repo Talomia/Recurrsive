@@ -200,12 +200,8 @@ export default function NotificationsPanel({
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
-        {unreadCount === 0 && isOpen === false && (
-          <span
-            className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-accent-blue animate-pulse-dot"
-            aria-hidden="true"
-          />
-        )}
+        {/* No "new" dot when there is nothing unread — the bell icon alone is
+            the resting state; a permanent pulse is a false signal. */}
       </button>
 
       {/* Panel dropdown */}

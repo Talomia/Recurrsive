@@ -38,6 +38,10 @@ const JWT_SECRET = process.env['JWT_SECRET'] ?? 'recurrsive-dev-secret';
 const INSECURE_SECRETS = new Set([
   'recurrsive-dev-secret',
   'REPLACE_WITH_STRONG_SECRET',
+  // The placeholder the docker-compose file and .env.example ship with — the
+  // server must refuse to start in production while still using it, otherwise
+  // the whole guard is defeated by the project's own default config.
+  'change-me-in-production',
   'changeme',
   'secret',
 ]);

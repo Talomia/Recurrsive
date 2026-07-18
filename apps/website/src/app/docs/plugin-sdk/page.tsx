@@ -8,32 +8,34 @@ import {
   Layers,
   Settings,
   CheckCircle2,
-  TestTube,
-  Zap,
-  Code2,
+  Users,
   ArrowDown,
   Database,
   Network,
+  Info,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Plugin SDK — Recurrsive Docs',
   description:
-    'Build custom analyzers and collectors with the Recurrsive Plugin SDK. Full TypeScript API with lifecycle hooks and type safety.',
+    'Extend Recurrsive with custom collectors, analyzers, and reasoning specialists built against the real extension interfaces.',
 };
 
 const COLLECTOR_LIFECYCLE = [
-  { step: 'initialize', desc: 'Set up connections, validate credentials, prepare resources', color: 'var(--purple)' },
-  { step: 'validate', desc: 'Check that the target is accessible and data format is supported', color: 'var(--blue)' },
-  { step: 'collect', desc: 'Gather data from the source and emit entities and relationships', color: 'var(--cyan)' },
+  { step: 'initialize', desc: 'Receive the CollectorConfig, set up connections, validate credentials', color: 'var(--purple)' },
+  { step: 'validate', desc: 'Return { valid, errors } after checking the target is reachable', color: 'var(--blue)' },
+  { step: 'collect', desc: 'Gather data and return a CollectorResult of entities, relationships, and metadata', color: 'var(--cyan)' },
   { step: 'dispose', desc: 'Clean up connections, flush buffers, release resources', color: 'var(--green)' },
 ];
 
 const ANALYZER_LIFECYCLE = [
-  { step: 'initialize', desc: 'Load configuration, register rules, set up analysis context', color: 'var(--purple)' },
-  { step: 'analyze', desc: 'Traverse the knowledge graph, apply rules, produce findings', color: 'var(--blue)' },
-  { step: 'finalize', desc: 'Aggregate results, compute scores, emit summary metrics', color: 'var(--green)' },
+  { step: 'initialize', desc: 'One-time setup: load configuration, warm caches, prepare state', color: 'var(--purple)' },
+  { step: 'analyze', desc: 'Read the knowledge graph via ctx.graph and return Finding[]', color: 'var(--blue)' },
+  { step: 'finalize', desc: 'Emit any summary-level findings after the main pass', color: 'var(--green)' },
 ];
+
+const ENTITY_TYPES = ['file', 'function', 'class', 'module', 'endpoint', 'dependency', 'table', 'query', 'deployment', 'pipeline', 'config', 'agent', 'tool'];
+const RELATION_TYPES = ['imports', 'calls', 'extends', 'implements', 'depends_on', 'references', 'owns', 'deploys_to', 'tests', 'routes_to', 'queries_table', 'migrates'];
 
 export default function PluginSdkPage() {
   return (
@@ -46,7 +48,7 @@ export default function PluginSdkPage() {
         <div className="glow-orb glow-purple" style={{ width: 500, height: 500, top: -200, right: '15%' }} />
         <div className="container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
           <div className="badge badge-accent" style={{ marginBottom: 'var(--space-lg)' }}>
-            <Puzzle size={14} /> Plugin SDK
+            <Puzzle size={14} /> Extension Points
           </div>
           <h1 style={{ marginBottom: 'var(--space-md)' }}>
             <span className="text-gradient">Plugin SDK</span>
@@ -60,9 +62,27 @@ export default function PluginSdkPage() {
               lineHeight: 1.7,
             }}
           >
-            Extend Recurrsive with custom analyzers and collectors. Full TypeScript SDK with lifecycle
-            hooks, type safety, and built-in testing utilities.
+            Extend Recurrsive with custom collectors, analyzers, and reasoning specialists. Implement
+            the platform&apos;s TypeScript interfaces and register them with the built-in registries.
           </p>
+        </div>
+      </section>
+
+      {/* SDK status note */}
+      <section className="section-sm">
+        <div className="container" style={{ maxWidth: 900 }}>
+          <div className="glass-card" style={{ padding: 'var(--space-md) var(--space-lg)', borderLeft: '3px solid var(--amber)', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+            <Info size={20} style={{ color: 'var(--amber)', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+              <strong style={{ color: 'var(--text-primary)' }}>There is no separately published <code style={{ fontFamily: 'var(--font-mono)' }}>@recurrsive/sdk</code> package yet.</strong>{' '}
+              The extension points are the interfaces exported by the workspace packages —{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>@recurrsive/core</span> (types),{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>@recurrsive/collectors</span>,{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>@recurrsive/analyzers</span>, and{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>@recurrsive/reasoning</span>. Build against
+              those directly, as the built-in collectors and analyzers do.
+            </div>
+          </div>
         </div>
       </section>
 
@@ -73,24 +93,33 @@ export default function PluginSdkPage() {
             Extension <span className="text-gradient">Architecture</span>
           </h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)', lineHeight: 1.7 }}>
-            Recurrsive is built around two primary extension points. <strong style={{ color: 'var(--text-primary)' }}>Collectors</strong> bring
-            data into the knowledge graph, and <strong style={{ color: 'var(--text-primary)' }}>Analyzers</strong> extract insights from it.
+            Recurrsive exposes three extension points. <strong style={{ color: 'var(--text-primary)' }}>Collectors</strong> bring
+            data into the knowledge graph, <strong style={{ color: 'var(--text-primary)' }}>Analyzers</strong> extract findings from it,
+            and <strong style={{ color: 'var(--text-primary)' }}>Specialists</strong> add domain perspectives to the multi-agent reasoning engine.
           </p>
-          <div className="grid-2">
+          <div className="grid-3">
             <div className="glass-card" style={{ textAlign: 'center' }}>
               <Boxes size={32} style={{ color: 'var(--blue)', marginBottom: 'var(--space-md)' }} />
               <h3 style={{ fontSize: '1.1rem', marginBottom: 'var(--space-sm)' }}>Collectors</h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                Ingest data from external sources — Git, APIs, databases, cloud providers — and emit
-                typed entities and relationships into the knowledge graph.
+                Implement the <code style={{ fontFamily: 'var(--font-mono)' }}>Collector</code> interface to ingest data
+                from external sources and return typed entities and relationships.
               </p>
             </div>
             <div className="glass-card" style={{ textAlign: 'center' }}>
               <Eye size={32} style={{ color: 'var(--purple)', marginBottom: 'var(--space-md)' }} />
               <h3 style={{ fontSize: '1.1rem', marginBottom: 'var(--space-sm)' }}>Analyzers</h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                Traverse the knowledge graph, apply domain-specific rules, and produce findings with
-                severity, evidence, and recommendations.
+                Implement the <code style={{ fontFamily: 'var(--font-mono)' }}>Analyzer</code> interface to read the graph
+                and produce findings with severity, evidence, and confidence.
+              </p>
+            </div>
+            <div className="glass-card" style={{ textAlign: 'center' }}>
+              <Users size={32} style={{ color: 'var(--cyan)', marginBottom: 'var(--space-md)' }} />
+              <h3 style={{ fontSize: '1.1rem', marginBottom: 'var(--space-sm)' }}>Specialists</h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                Use <code style={{ fontFamily: 'var(--font-mono)' }}>createCustomSpecialist</code> to add a domain expert
+                to the debate that runs alongside the built-in specialists.
               </p>
             </div>
           </div>
@@ -191,9 +220,10 @@ export default function PluginSdkPage() {
             <h2 style={{ fontSize: '1.5rem' }}>Type System</h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)', lineHeight: 1.7 }}>
-            The knowledge graph uses a rich type system with 43 entity types and 43 relationship
-            types. All types are fully exported from{' '}
-            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>@recurrsive/types</span>.
+            The knowledge graph uses a typed schema of 43 entity types (<span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>EntityType</span>)
+            and 43 relationship types (<span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>RelationType</span>), both
+            exported from <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>@recurrsive/core</span>. All type
+            literals are lowercase <code style={{ fontFamily: 'var(--font-mono)' }}>snake_case</code>.
           </p>
           <div className="grid-2">
             <div className="glass-card">
@@ -203,7 +233,7 @@ export default function PluginSdkPage() {
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--cyan)' }}>43</span>
               </h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {['File', 'Function', 'Class', 'Module', 'Package', 'API', 'Route', 'Query', 'Migration', 'Deployment', 'Pipeline', 'Test', 'Config'].map((t) => (
+                {ENTITY_TYPES.map((t) => (
                   <span
                     key={t}
                     style={{
@@ -225,7 +255,7 @@ export default function PluginSdkPage() {
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--cyan)' }}>43</span>
               </h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {['IMPORTS', 'CALLS', 'EXTENDS', 'IMPLEMENTS', 'DEPENDS_ON', 'OWNS', 'DEPLOYS', 'TESTS', 'ROUTES_TO', 'QUERIES', 'MIGRATES', 'CONFIGURES'].map((t) => (
+                {RELATION_TYPES.map((t) => (
                   <span
                     key={t}
                     style={{
@@ -251,29 +281,37 @@ export default function PluginSdkPage() {
             Example: Custom <span className="text-gradient">Collector</span>
           </h2>
           <div className="code-block">
-            <div><span className="keyword">import</span> {'{'} <span className="function">Collector</span>, <span className="function">CollectorContext</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/sdk&apos;</span>;</div>
-            <div style={{ marginTop: 8 }}><span className="keyword">export class</span> <span className="function">SentryCollector</span> <span className="keyword">extends</span> <span className="function">Collector</span> {'{'}</div>
-            <div>{'  '}<span className="keyword">readonly</span> name = <span className="string">&apos;sentry&apos;</span>;</div>
-            <div>{'  '}<span className="keyword">readonly</span> version = <span className="string">&apos;1.0.0&apos;</span>;</div>
-            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">initialize</span>(ctx: <span className="function">CollectorContext</span>) {'{'}</div>
-            <div>{'    '}<span className="keyword">this</span>.client = <span className="keyword">new</span> <span className="function">SentryClient</span>(ctx.config.dsn);</div>
+            <div><span className="keyword">import type</span> {'{'} <span className="function">Collector</span>, <span className="function">CollectorConfig</span>, <span className="function">CollectorResult</span>, <span className="function">CollectorType</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/core&apos;</span>;</div>
+            <div><span className="keyword">import</span> {'{'} <span className="function">nowISO</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/core&apos;</span>;</div>
+            <div style={{ marginTop: 8 }}><span className="keyword">export class</span> <span className="function">SentryCollector</span> <span className="keyword">implements</span> <span className="function">Collector</span> {'{'}</div>
+            <div>{'  '}<span className="keyword">readonly</span> id = <span className="string">&apos;error-tracking.sentry&apos;</span>;</div>
+            <div>{'  '}<span className="keyword">readonly</span> name = <span className="string">&apos;Sentry Collector&apos;</span>;</div>
+            <div>{'  '}<span className="keyword">readonly</span> description = <span className="string">&apos;Ingests Sentry issues as incident entities.&apos;</span>;</div>
+            <div>{'  '}<span className="keyword">readonly</span> type: <span className="function">CollectorType</span> = <span className="string">&apos;observability&apos;</span>;</div>
+            <div>{'  '}<span className="keyword">readonly</span> version = <span className="string">&apos;0.1.0&apos;</span>;</div>
+            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">initialize</span>(config: <span className="function">CollectorConfig</span>): <span className="function">Promise</span>&lt;<span className="keyword">void</span>&gt; {'{'}</div>
+            <div>{'    '}<span className="keyword">this</span>.client = <span className="keyword">new</span> <span className="function">SentryClient</span>(config.credentials?.values.dsn);</div>
             <div>{'  }'}</div>
             <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">validate</span>() {'{'}</div>
-            <div>{'    '}<span className="keyword">return this</span>.client.<span className="function">healthCheck</span>();</div>
+            <div>{'    '}<span className="keyword">const</span> ok = <span className="keyword">await this</span>.client.<span className="function">healthCheck</span>();</div>
+            <div>{'    '}<span className="keyword">return</span> {'{'} valid: ok, errors: ok ? [] : [<span className="string">&apos;Sentry unreachable&apos;</span>] {'}'};</div>
             <div>{'  }'}</div>
-            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">collect</span>(ctx: <span className="function">CollectorContext</span>) {'{'}</div>
-            <div>{'    '}<span className="keyword">const</span> issues = <span className="keyword">await this</span>.client.<span className="function">listIssues</span>();</div>
-            <div>{'    '}<span className="keyword">for</span> (<span className="keyword">const</span> issue <span className="keyword">of</span> issues) {'{'}</div>
-            <div>{'      '}ctx.<span className="function">emitEntity</span>({'{'}</div>
-            <div>{'        '}type: <span className="string">&apos;ErrorEvent&apos;</span>,</div>
-            <div>{'        '}id: issue.id,</div>
-            <div>{'        '}properties: {'{'} title: issue.title, count: issue.count {'}'},</div>
-            <div>{'      }'});</div>
-            <div>{'    }'}</div>
+            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">collect</span>(): <span className="function">Promise</span>&lt;<span className="function">CollectorResult</span>&gt; {'{'}</div>
+            <div>{'    '}<span className="keyword">const</span> start = Date.<span className="function">now</span>();</div>
+            <div>{'    '}<span className="keyword">const</span> entities = (<span className="keyword">await this</span>.client.<span className="function">listIssues</span>()).<span className="function">map</span>(toEntity);</div>
+            <div style={{ marginTop: 4 }}>{'    '}<span className="keyword">return</span> {'{'}</div>
+            <div>{'      '}entities,</div>
+            <div>{'      '}relationships: [],</div>
+            <div>{'      '}metadata: {'{'}</div>
+            <div>{'        '}collector_id: <span className="keyword">this</span>.id,</div>
+            <div>{'        '}collected_at: <span className="function">nowISO</span>(),</div>
+            <div>{'        '}duration_ms: Date.<span className="function">now</span>() - start,</div>
+            <div>{'        '}items_processed: entities.length,</div>
+            <div>{'        '}errors: [],</div>
+            <div>{'      }'},</div>
+            <div>{'    }'};</div>
             <div>{'  }'}</div>
-            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">dispose</span>() {'{'}</div>
-            <div>{'    '}<span className="keyword">await this</span>.client.<span className="function">close</span>();</div>
-            <div>{'  }'}</div>
+            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">dispose</span>() {'{'} <span className="keyword">await this</span>.client.<span className="function">close</span>(); {'}'}</div>
             <div>{'}'}</div>
           </div>
         </div>
@@ -286,97 +324,115 @@ export default function PluginSdkPage() {
             Example: Custom <span className="text-gradient">Analyzer</span>
           </h2>
           <div className="code-block">
-            <div><span className="keyword">import</span> {'{'} <span className="function">Analyzer</span>, <span className="function">AnalyzerContext</span>, <span className="function">Severity</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/sdk&apos;</span>;</div>
-            <div style={{ marginTop: 8 }}><span className="keyword">export class</span> <span className="function">CouplingAnalyzer</span> <span className="keyword">extends</span> <span className="function">Analyzer</span> {'{'}</div>
-            <div>{'  '}<span className="keyword">readonly</span> name = <span className="string">&apos;coupling&apos;</span>;</div>
-            <div>{'  '}<span className="keyword">readonly</span> version = <span className="string">&apos;1.0.0&apos;</span>;</div>
-            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">analyze</span>(ctx: <span className="function">AnalyzerContext</span>) {'{'}</div>
-            <div>{'    '}<span className="keyword">const</span> modules = <span className="keyword">await</span> ctx.graph.<span className="function">query</span>(</div>
-            <div>{'      '}<span className="string">&apos;MATCH (m:Module)-[r:DEPENDS_ON]-&gt;(n:Module) RETURN m, count(r) AS deps&apos;</span></div>
-            <div>{'    '});</div>
-            <div style={{ marginTop: 8 }}>{'    '}<span className="keyword">for</span> (<span className="keyword">const</span> mod <span className="keyword">of</span> modules) {'{'}</div>
-            <div>{'      '}<span className="keyword">if</span> (mod.deps {'>'} <span className="number">15</span>) {'{'}</div>
-            <div>{'        '}ctx.<span className="function">emitFinding</span>({'{'}</div>
-            <div>{'          '}rule: <span className="string">&apos;high-coupling&apos;</span>,</div>
-            <div>{'          '}severity: Severity.<span className="keyword">Warning</span>,</div>
-            <div>{'          '}message: <span className="string">`Module ${'{'}</span>mod.name<span className="string">{'}'} has ${'{'}</span>mod.deps<span className="string">{'}'} dependencies`</span>,</div>
-            <div>{'          '}entity: mod.id,</div>
-            <div>{'          '}evidence: {'{'} dependencyCount: mod.deps {'}'},</div>
-            <div>{'        }'});</div>
+            <div><span className="keyword">import type</span> {'{'} <span className="function">Analyzer</span>, <span className="function">AnalysisContext</span>, <span className="function">Finding</span>, <span className="function">OpportunityCategory</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/core&apos;</span>;</div>
+            <div><span className="keyword">import</span> {'{'} <span className="function">createFinding</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/analyzers&apos;</span>;</div>
+            <div style={{ marginTop: 8 }}><span className="keyword">export class</span> <span className="function">CouplingAnalyzer</span> <span className="keyword">implements</span> <span className="function">Analyzer</span> {'{'}</div>
+            <div>{'  '}<span className="keyword">readonly</span> id = <span className="string">&apos;architecture.coupling&apos;</span>;</div>
+            <div>{'  '}<span className="keyword">readonly</span> name = <span className="string">&apos;Coupling Analyzer&apos;</span>;</div>
+            <div>{'  '}<span className="keyword">readonly</span> description = <span className="string">&apos;Flags modules with excessive outgoing dependencies.&apos;</span>;</div>
+            <div>{'  '}<span className="keyword">readonly</span> version = <span className="string">&apos;0.1.0&apos;</span>;</div>
+            <div>{'  '}<span className="keyword">readonly</span> categories: <span className="function">OpportunityCategory</span>[] = [<span className="string">&apos;architecture&apos;</span>];</div>
+            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">initialize</span>() {'{'}{'}'}</div>
+            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">analyze</span>(ctx: <span className="function">AnalysisContext</span>): <span className="function">Promise</span>&lt;<span className="function">Finding</span>[]&gt; {'{'}</div>
+            <div>{'    '}<span className="keyword">const</span> findings: <span className="function">Finding</span>[] = [];</div>
+            <div>{'    '}<span className="keyword">const</span> modules = <span className="keyword">await</span> ctx.graph.<span className="function">getEntities</span>(<span className="string">&apos;module&apos;</span>);</div>
+            <div style={{ marginTop: 4 }}>{'    '}<span className="keyword">for</span> (<span className="keyword">const</span> mod <span className="keyword">of</span> modules) {'{'}</div>
+            <div>{'      '}<span className="keyword">const</span> edges = <span className="keyword">await</span> ctx.graph.<span className="function">getRelationships</span>(mod.id, <span className="string">&apos;out&apos;</span>);</div>
+            <div>{'      '}<span className="keyword">const</span> deps = edges.<span className="function">filter</span>((r) ={'>'} r.type === <span className="string">&apos;depends_on&apos;</span>);</div>
+            <div>{'      '}<span className="keyword">if</span> (deps.length {'>'} <span className="number">15</span>) {'{'}</div>
+            <div>{'        '}findings.<span className="function">push</span>(<span className="function">createFinding</span>({'{'}</div>
+            <div>{'          '}analyzer_id: <span className="keyword">this</span>.id,</div>
+            <div>{'          '}title: <span className="string">`High coupling in ${'{'}</span>mod.name<span className="string">{'}'}`</span>,</div>
+            <div>{'          '}description: <span className="string">`Depends on ${'{'}</span>deps.length<span className="string">{'}'} modules.`</span>,</div>
+            <div>{'          '}severity: <span className="string">&apos;high&apos;</span>,</div>
+            <div>{'          '}category: <span className="string">&apos;architecture&apos;</span>,</div>
+            <div>{'          '}evidence: [], locations: [], tags: [<span className="string">&apos;coupling&apos;</span>],</div>
+            <div>{'          '}confidence: <span className="number">0.9</span>,</div>
+            <div>{'        }'}));</div>
             <div>{'      }'}</div>
             <div>{'    }'}</div>
+            <div>{'    '}<span className="keyword">return</span> findings;</div>
             <div>{'  }'}</div>
+            <div style={{ marginTop: 8 }}>{'  '}<span className="keyword">async</span> <span className="function">finalize</span>() {'{'} <span className="keyword">return</span> []; {'}'}</div>
             <div>{'}'}</div>
           </div>
         </div>
       </section>
 
-      {/* Registration */}
+      {/* Custom Specialist Example */}
       <section className="section-sm" style={{ background: 'var(--bg-secondary)' }}>
+        <div className="container" style={{ maxWidth: 900 }}>
+          <h2 style={{ marginBottom: 'var(--space-lg)' }}>
+            Example: Custom <span className="text-gradient">Specialist</span>
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
+            Custom specialists join the multi-agent debate alongside the 19 built-in specialists. Roles
+            must map to an existing <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>SpecialistRole</span>.
+          </p>
+          <div className="code-block">
+            <div><span className="keyword">import</span> {'{'} <span className="function">createCustomSpecialist</span>, <span className="function">SpecialistRegistry</span>, <span className="function">SpecialistTemplate</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/reasoning&apos;</span>;</div>
+            <div style={{ marginTop: 8 }}><span className="keyword">const</span> dataEngineer = <span className="function">createCustomSpecialist</span>({'{'}</div>
+            <div>{'  '}name: <span className="string">&apos;Data Pipeline Engineer&apos;</span>,</div>
+            <div>{'  '}description: <span className="string">&apos;Evaluates data pipeline reliability.&apos;</span>,</div>
+            <div>{'  '}domain: <span className="string">&apos;data-engineering&apos;</span>,</div>
+            <div>{'  '}role: <span className="string">&apos;backend_engineer&apos;</span>,</div>
+            <div>{'  '}expertiseAreas: [<span className="string">&apos;ETL&apos;</span>, <span className="string">&apos;streaming&apos;</span>, <span className="string">&apos;schema evolution&apos;</span>],</div>
+            <div>{'  '}cognitiveFramework: <span className="string">&apos;Evaluate pipeline reliability and schema drift...&apos;</span>,</div>
+            <div>{'}'});</div>
+            <div style={{ marginTop: 8 }}><span className="keyword">const</span> registry = <span className="keyword">new</span> <span className="function">SpecialistRegistry</span>();</div>
+            <div>registry.<span className="function">register</span>(dataEngineer);</div>
+            <div>registry.<span className="function">register</span>(<span className="function">SpecialistTemplate</span>.<span className="function">createSecurityAuditor</span>());</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Registration */}
+      <section className="section-sm">
         <div className="container" style={{ maxWidth: 900 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 'var(--space-xl)' }}>
             <Settings size={28} style={{ color: 'var(--text-accent)' }} />
-            <h2 style={{ fontSize: '1.5rem' }}>Registration &amp; Configuration</h2>
+            <h2 style={{ fontSize: '1.5rem' }}>Registration</h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            Register your plugins in <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>recurrsive.config.ts</span>.
-            Each plugin can declare its own configuration schema.
+            Register collectors and analyzers with their respective registries before running the
+            pipeline. The registries drive collection and analysis.
           </p>
           <div className="code-block">
-            <div><span className="keyword">import</span> {'{'} <span className="function">defineConfig</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/cli&apos;</span>;</div>
+            <div><span className="keyword">import</span> {'{'} <span className="function">CollectorRegistry</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/collectors&apos;</span>;</div>
+            <div><span className="keyword">import</span> {'{'} <span className="function">AnalyzerRegistry</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/analyzers&apos;</span>;</div>
             <div><span className="keyword">import</span> {'{'} <span className="function">SentryCollector</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;./plugins/sentry-collector&apos;</span>;</div>
             <div><span className="keyword">import</span> {'{'} <span className="function">CouplingAnalyzer</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;./plugins/coupling-analyzer&apos;</span>;</div>
-            <div style={{ marginTop: 8 }}><span className="keyword">export default</span> <span className="function">defineConfig</span>({'{'}</div>
-            <div>{'  '}<span className="keyword">plugins</span>: [</div>
-            <div>{'    '}<span className="keyword">new</span> <span className="function">SentryCollector</span>({'{'}</div>
-            <div>{'      '}dsn: process.env.<span className="keyword">SENTRY_DSN</span>,</div>
-            <div>{'      '}project: <span className="string">&apos;my-app&apos;</span>,</div>
-            <div>{'    '}{'}'}),</div>
-            <div>{'    '}<span className="keyword">new</span> <span className="function">CouplingAnalyzer</span>({'{'}</div>
-            <div>{'      '}threshold: <span className="number">15</span>,</div>
-            <div>{'    '}{'}'}),</div>
-            <div>{'  '}],</div>
-            <div>{'}'}{')'};</div>
+            <div style={{ marginTop: 8 }}><span className="keyword">const</span> collectors = <span className="keyword">new</span> <span className="function">CollectorRegistry</span>();</div>
+            <div>collectors.<span className="function">register</span>(<span className="keyword">new</span> <span className="function">SentryCollector</span>());</div>
+            <div style={{ marginTop: 8 }}><span className="keyword">const</span> analyzers = <span className="keyword">new</span> <span className="function">AnalyzerRegistry</span>();</div>
+            <div>analyzers.<span className="function">register</span>(<span className="keyword">new</span> <span className="function">CouplingAnalyzer</span>());</div>
           </div>
         </div>
       </section>
 
       {/* Testing */}
-      <section className="section-sm">
+      <section className="section-sm" style={{ background: 'var(--bg-secondary)' }}>
         <div className="container" style={{ maxWidth: 900 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 'var(--space-xl)' }}>
-            <TestTube size={28} style={{ color: 'var(--green)' }} />
+            <CheckCircle2 size={28} style={{ color: 'var(--green)' }} />
             <h2 style={{ fontSize: '1.5rem' }}>Testing Plugins</h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            The SDK ships with testing utilities that let you validate your plugins against a mock
-            knowledge graph without running a full analysis.
+            There is no dedicated testing-utilities package. Test collectors and analyzers with your own
+            framework (the workspace uses Vitest) by constructing the inputs the interfaces expect — a{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>CollectorConfig</span> for collectors, or an{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>AnalysisContext</span> (with a stub{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>GraphClient</span>) for analyzers.
           </p>
-          <div className="code-block" style={{ marginBottom: 'var(--space-xl)' }}>
-            <div><span className="keyword">import</span> {'{'} <span className="function">createTestContext</span>, <span className="function">mockGraph</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;@recurrsive/sdk/testing&apos;</span>;</div>
-            <div><span className="keyword">import</span> {'{'} <span className="function">CouplingAnalyzer</span> {'}'} <span className="keyword">from</span> <span className="string">&apos;./coupling-analyzer&apos;</span>;</div>
-            <div style={{ marginTop: 8 }}><span className="function">describe</span>(<span className="string">&apos;CouplingAnalyzer&apos;</span>, () ={'>'} {'{'}</div>
-            <div>{'  '}<span className="function">it</span>(<span className="string">&apos;detects high coupling&apos;</span>, <span className="keyword">async</span> () ={'>'} {'{'}</div>
-            <div>{'    '}<span className="keyword">const</span> ctx = <span className="function">createTestContext</span>({'{'}</div>
-            <div>{'      '}graph: <span className="function">mockGraph</span>()<br />{'        '}.<span className="function">addModule</span>(<span className="string">&apos;auth&apos;</span>, {'{'} deps: <span className="number">20</span> {'}'})<br />{'        '}.<span className="function">addModule</span>(<span className="string">&apos;utils&apos;</span>, {'{'} deps: <span className="number">3</span> {'}'}),</div>
-            <div>{'    }'});</div>
-            <div style={{ marginTop: 4 }}>{'    '}<span className="keyword">const</span> analyzer = <span className="keyword">new</span> <span className="function">CouplingAnalyzer</span>();</div>
-            <div>{'    '}<span className="keyword">await</span> analyzer.<span className="function">analyze</span>(ctx);</div>
-            <div style={{ marginTop: 4 }}>{'    '}<span className="function">expect</span>(ctx.findings).<span className="function">toHaveLength</span>(<span className="number">1</span>);</div>
-            <div>{'    '}<span className="function">expect</span>(ctx.findings[<span className="number">0</span>].rule).<span className="function">toBe</span>(<span className="string">&apos;high-coupling&apos;</span>);</div>
-            <div>{'  }'});</div>
-            <div>{'}'}{')'};</div>
-          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             {[
-              'createTestContext — builds an isolated context with mock services',
-              'mockGraph — fluent builder for test knowledge graphs',
-              'assertFinding — deep equality check for finding properties',
-              'snapshotEntities — snapshot testing for emitted entities',
+              'The built-in collectors and analyzers ship __tests__ directories you can copy as templates',
+              'GraphClient is a small interface (getEntity, getEntities, getRelationships, query, getNeighbors) — easy to stub',
+              'createFinding from @recurrsive/analyzers builds well-formed findings for assertions',
             ].map((item) => (
-              <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <CheckCircle2 size={16} style={{ color: 'var(--green)', flexShrink: 0 }} />
-                <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>{item}</span>
+              <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <CheckCircle2 size={16} style={{ color: 'var(--green)', flexShrink: 0, marginTop: 3 }} />
+                <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{item}</span>
               </div>
             ))}
           </div>
@@ -391,11 +447,12 @@ export default function PluginSdkPage() {
             Build Your <span className="text-gradient">First Plugin</span>
           </h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: 500, margin: '0 auto var(--space-xl)', lineHeight: 1.7 }}>
-            Start with our template, write your collector or analyzer, and publish to the marketplace.
+            Study the built-in collectors and analyzers in the repository, then implement your own against
+            the same interfaces.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-            <Link href="/docs/getting-started" className="btn btn-primary btn-lg">
-              Getting Started <ArrowRight size={18} />
+            <Link href="https://github.com/Talomia/Recurrsive/blob/main/docs/PLUGIN_SDK.md" className="btn btn-primary btn-lg" target="_blank" rel="noopener noreferrer">
+              Plugin SDK Docs <ArrowRight size={18} />
             </Link>
             <Link href="/docs/architecture" className="btn btn-secondary btn-lg">
               Architecture Guide

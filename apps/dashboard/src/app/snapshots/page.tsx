@@ -5,15 +5,11 @@ import ErrorState from "@/components/ui/error-state";
 import {
   Camera,
   ChevronDown,
-  Clock,
   TrendingUp,
   TrendingDown,
   Minus,
   ShieldAlert,
   Lightbulb,
-  Play,
-  CalendarClock,
-  GitBranch,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -33,12 +29,6 @@ function getScoreBg(score: number): string {
   if (score >= 55) return "bg-amber-500";
   return "bg-red-500";
 }
-
-const TRIGGER_STYLES: Record<string, { bg: string; text: string; border: string; icon: typeof Clock }> = {
-  scheduled: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20", icon: CalendarClock },
-  manual: { bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/20", icon: Play },
-  ci: { bg: "bg-cyan-500/10", text: "text-cyan-400", border: "border-cyan-500/20", icon: GitBranch },
-};
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -125,8 +115,6 @@ export default async function SnapshotsPage() {
             <div className="absolute left-[11px] top-4 bottom-4 w-px bg-white/10" aria-hidden="true" />
 
             {snapshots.map((snapshot, idx) => {
-              const triggerStyle = TRIGGER_STYLES[snapshot.trigger] ?? TRIGGER_STYLES.scheduled!;
-              const TriggerIcon = triggerStyle.icon;
               const prevScore = snapshots[idx + 1]?.health_score ?? snapshot.health_score;
               const delta = snapshot.health_score - prevScore;
 
@@ -175,12 +163,6 @@ export default async function SnapshotsPage() {
                     {/* Opportunities */}
                     <span className="text-xs text-text-secondary hidden md:block">
                       {snapshot.opportunities_count} opps
-                    </span>
-
-                    {/* Trigger badge */}
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium border ${triggerStyle.bg} ${triggerStyle.text} ${triggerStyle.border} inline-flex items-center gap-1 hidden lg:inline-flex`}>
-                      <TriggerIcon className="h-3 w-3" />
-                      {snapshot.trigger}
                     </span>
 
                     <ChevronDown className="h-4 w-4 text-text-muted ml-auto transition-transform group-open:rotate-180" />

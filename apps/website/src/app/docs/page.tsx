@@ -12,33 +12,25 @@ import {
   Server,
   Map,
   ArrowRight,
-  ChevronRight,
-  Clock,
   FileText,
-  Layers,
-  Shield,
-  GitBranch,
-  Database,
-  Zap,
-  Settings,
-  Cpu,
-  BarChart3,
   ExternalLink,
 } from 'lucide-react';
+
+const REPO_URL = 'https://github.com/Talomia/Recurrsive';
 
 const QUICK_START = [
   {
     icon: Rocket,
     title: 'Getting Started',
-    description: '5-minute setup guide. Install Recurrsive, connect your repositories, and run your first analysis.',
-    tag: '5 min',
+    description: 'Clone and build the monorepo, initialize a project, and run your first local analysis.',
+    tag: 'Guide',
     tagColor: 'var(--green)',
     href: '/docs/getting-started',
   },
   {
     icon: Code2,
     title: 'API Reference',
-    description: 'Complete REST API documentation with 160+ endpoints covering analysis, policies, and management.',
+    description: 'The Recurrsive server REST + WebSocket API: analysis, health, projects, and management endpoints.',
     tag: 'Reference',
     tagColor: 'var(--cyan)',
     href: '/docs/api-reference',
@@ -46,7 +38,7 @@ const QUICK_START = [
   {
     icon: Terminal,
     title: 'CLI Reference',
-    description: 'Master the recurrsive command-line tool. Comprehensive documentation for all 28 CLI commands.',
+    description: 'The recurrsive command-line tool — 29 commands for analysis, exploration, and server workflows.',
     tag: 'CLI Tool',
     tagColor: 'var(--purple)',
     href: '/docs/cli-reference',
@@ -54,81 +46,56 @@ const QUICK_START = [
   {
     icon: Puzzle,
     title: 'Plugin SDK',
-    description: 'Extend Recurrsive. Build custom analyzers, collectors, and integrations using our TypeScript SDK.',
-    tag: 'SDK Docs',
+    description: 'Extend Recurrsive with custom collectors, analyzers, and reasoning specialists against the real registries.',
+    tag: 'Extend',
     tagColor: 'var(--blue)',
     href: '/docs/plugin-sdk',
   },
   {
     icon: Server,
-    title: 'On-Premise Deployment',
-    description: 'Production deployment guide. Set up Recurrsive behind your firewall with Docker Compose or Kubernetes.',
+    title: 'Deployment',
+    description: 'Self-host Recurrsive with Docker Compose: PostgreSQL + Apache AGE, the API server, and the dashboard.',
     tag: 'Deploy',
     tagColor: 'var(--amber)',
     href: '/docs/deployment',
   },
   {
     icon: Map,
-    title: 'Architecture & Engine',
-    description: 'Deep-dive into the Recurrsive Core. Learn about graph engines, incremental analysis, and AST parsing.',
+    title: 'Architecture',
+    description: 'How the platform fits together: the nine core packages, the apps, and the multi-agent reasoning engine.',
     tag: 'Engine',
     tagColor: 'var(--red)',
     href: '/docs/architecture',
   },
 ];
 
-const POPULAR_GUIDES = [
+// The documentation set: the six guide pages on this site, plus the
+// authoritative Markdown docs that live in the repository's `docs/` directory.
+const DOC_SECTIONS = [
   {
-    category: 'Setup & Configuration',
+    category: 'Guides on this site',
     color: 'var(--green)',
     guides: [
-      { title: 'Docker Compose Quickstart', duration: '5 min', href: '/docs/deployment' },
-      { title: 'Configuring recurrsive.yaml', duration: '8 min', href: '/docs/getting-started' },
-      { title: 'Integrating with GitHub Actions', duration: '12 min', href: '/docs/deployment' },
-      { title: 'Connecting Private Registries', duration: '6 min', href: '/docs/deployment' },
+      { title: 'Getting Started', href: '/docs/getting-started', external: false },
+      { title: 'CLI Reference', href: '/docs/cli-reference', external: false },
+      { title: 'API Reference', href: '/docs/api-reference', external: false },
+      { title: 'Plugin SDK', href: '/docs/plugin-sdk', external: false },
+      { title: 'Deployment', href: '/docs/deployment', external: false },
+      { title: 'Architecture', href: '/docs/architecture', external: false },
     ],
   },
   {
-    category: 'Analysis & Insights',
-    color: 'var(--blue)',
-    guides: [
-      { title: 'Configuring Rules & Linters', duration: '8 min', href: '/docs/getting-started' },
-      { title: 'Creating Custom Policies', duration: '15 min', href: '/docs/plugin-sdk' },
-      { title: 'Interpreting Risk Scores', duration: '6 min', href: '/docs/api-reference' },
-      { title: 'Building Executive Dashboards', duration: '12 min', href: '/docs/architecture' },
-    ],
-  },
-  {
-    category: 'Integrations',
+    category: 'In the repository (docs/)',
     color: 'var(--cyan)',
     guides: [
-      { title: 'GitHub App Installation', duration: '5 min', href: '/docs/deployment' },
-      { title: 'GitLab CI/CD Integration', duration: '10 min', href: '/docs/deployment' },
-      { title: 'Slack Notifications Setup', duration: '5 min', href: '/docs/deployment' },
-      { title: 'Webhook Integrations', duration: '8 min', href: '/docs/deployment' },
+      { title: 'GETTING_STARTED.md', href: `${REPO_URL}/blob/main/docs/GETTING_STARTED.md`, external: true },
+      { title: 'ARCHITECTURE.md', href: `${REPO_URL}/blob/main/docs/ARCHITECTURE.md`, external: true },
+      { title: 'API.md', href: `${REPO_URL}/blob/main/docs/API.md`, external: true },
+      { title: 'PLUGIN_SDK.md', href: `${REPO_URL}/blob/main/docs/PLUGIN_SDK.md`, external: true },
+      { title: 'DEPLOYMENT.md', href: `${REPO_URL}/blob/main/docs/DEPLOYMENT.md`, external: true },
+      { title: 'DEVELOPMENT.md', href: `${REPO_URL}/blob/main/docs/DEVELOPMENT.md`, external: true },
     ],
   },
-  {
-    category: 'AI & MCP',
-    color: 'var(--purple)',
-    guides: [
-      { title: 'Connecting to Claude Desktop', duration: '5 min', href: '/docs/api-reference' },
-      { title: 'MCP Server Configuration', duration: '10 min', href: '/docs/api-reference' },
-      { title: 'Using AI-Powered Queries', duration: '8 min', href: '/docs/cli-reference' },
-      { title: 'Custom MCP Prompt Templates', duration: '12 min', href: '/docs/plugin-sdk' },
-    ],
-  },
-];
-
-const API_SECTIONS = [
-  { name: 'Authentication', endpoints: 8, icon: Shield },
-  { name: 'Analysis', endpoints: 25, icon: BarChart3 },
-  { name: 'Repositories', endpoints: 20, icon: GitBranch },
-  { name: 'Knowledge Graph', endpoints: 18, icon: Database },
-  { name: 'Policies', endpoints: 14, icon: Settings },
-  { name: 'Integrations', endpoints: 25, icon: Layers },
-  { name: 'MCP Server', endpoints: 32, icon: Cpu },
-  { name: 'Admin', endpoints: 20, icon: Zap },
 ];
 
 export default function DocsPage() {
@@ -140,7 +107,7 @@ export default function DocsPage() {
     item.tag.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredPopularGuides = POPULAR_GUIDES.map((section) => {
+  const filteredDocSections = DOC_SECTIONS.map((section) => {
     const matchedGuides = section.guides.filter((guide) =>
       guide.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -150,14 +117,9 @@ export default function DocsPage() {
     };
   }).filter((section) => section.guides.length > 0);
 
-  const filteredApiSections = API_SECTIONS.filter((section) =>
-    section.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const isSearchEmpty =
     filteredQuickStart.length === 0 &&
-    filteredPopularGuides.length === 0 &&
-    filteredApiSections.length === 0;
+    filteredDocSections.length === 0;
 
   return (
     <div style={{ paddingTop: 'var(--nav-height)' }}>
@@ -234,23 +196,6 @@ export default function DocsPage() {
                 transition: 'all var(--transition-fast)',
               }}
             />
-            <kbd
-              style={{
-                position: 'absolute',
-                right: 18,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                padding: '4px 10px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-subtle)',
-                fontSize: '0.75rem',
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--text-tertiary)',
-              }}
-            >
-              ⌘K
-            </kbd>
           </div>
         </div>
       </section>
@@ -373,20 +318,20 @@ export default function DocsPage() {
             </section>
           )}
 
-          {/* Popular Guides */}
-          {filteredPopularGuides.length > 0 && (
+          {/* Documentation index */}
+          {filteredDocSections.length > 0 && (
             <section className="section" style={{ background: 'var(--bg-secondary)' }}>
               <div className="container">
                 <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
                   <h2 style={{ marginBottom: 'var(--space-md)' }}>
-                    Guides by <span className="text-gradient">Topic</span>
+                    All <span className="text-gradient">Docs</span>
                   </h2>
                   <p style={{ color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto', fontSize: '1.05rem' }}>
-                    Common tasks grouped by area. Each links into the relevant documentation section.
+                    The six guide pages on this site, plus the source-of-truth Markdown docs in the repository.
                   </p>
                 </div>
                 <div className="grid-2">
-                  {filteredPopularGuides.map((section) => (
+                  {filteredDocSections.map((section) => (
                     <div key={section.category} className="glass-card">
                       <h3
                         style={{
@@ -413,6 +358,9 @@ export default function DocsPage() {
                           <li key={guide.title}>
                             <Link
                               href={guide.href}
+                              {...(guide.external
+                                ? { target: '_blank', rel: 'noopener noreferrer' }
+                                : {})}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -434,63 +382,16 @@ export default function DocsPage() {
                                 <FileText size={15} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
                                 {guide.title}
                               </span>
-                              <span
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  fontSize: '0.78rem',
-                                  color: 'var(--text-tertiary)',
-                                  flexShrink: 0,
-                                  marginLeft: '12px',
-                                }}
-                              >
-                                <Clock size={12} />
-                                {guide.duration}
-                              </span>
+                              {guide.external ? (
+                                <ExternalLink size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0, marginLeft: '12px' }} />
+                              ) : (
+                                <ArrowRight size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0, marginLeft: '12px' }} />
+                              )}
                             </Link>
                           </li>
                         ))}
                       </ul>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* API Sections */}
-          {filteredApiSections.length > 0 && (
-            <section className="section">
-              <div className="container">
-                <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
-                  <h2 style={{ marginBottom: 'var(--space-md)' }}>
-                    API <span className="text-gradient">Reference</span>
-                  </h2>
-                  <p style={{ color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto', fontSize: '1.05rem' }}>
-                    Explore 160+ REST API endpoints across categories. Full request/response examples included.
-                  </p>
-                </div>
-                <div className="grid-4">
-                  {filteredApiSections.map((section) => (
-                    <Link
-                      key={section.name}
-                      href="/docs/api-reference"
-                      className="glass-card"
-                      style={{ textAlign: 'center', textDecoration: 'none' }}
-                    >
-                      <section.icon
-                        size={28}
-                        style={{
-                          color: 'var(--text-accent)',
-                          marginBottom: 'var(--space-md)',
-                        }}
-                      />
-                      <h3 style={{ fontSize: '0.95rem', marginBottom: '4px' }}>{section.name}</h3>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                        {section.endpoints} endpoints
-                      </p>
-                    </Link>
                   ))}
                 </div>
               </div>
@@ -507,7 +408,7 @@ export default function DocsPage() {
               Get Started in <span className="text-gradient">Seconds</span>
             </h2>
             <p style={{ color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto', fontSize: '1.05rem' }}>
-              Install the CLI, connect a repo, and run your first analysis.
+              Install the CLI, initialize a project, and run your first analysis.
             </p>
           </div>
           <div className="code-block">
@@ -527,13 +428,13 @@ export default function DocsPage() {
               <span className="comment"># Run your first analysis</span>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <span className="function">$</span> <span className="keyword">recurrsive</span> analyze --full
+              <span className="function">$</span> <span className="keyword">recurrsive</span> analyze <span className="string">.</span>
             </div>
             <div style={{ marginBottom: 4 }}>
-              <span className="comment"># View the results</span>
+              <span className="comment"># Generate a shareable HTML report</span>
             </div>
             <div>
-              <span className="function">$</span> <span className="keyword">recurrsive</span> dashboard --open
+              <span className="function">$</span> <span className="keyword">recurrsive</span> report <span className="keyword">--format</span> <span className="string">html</span>
             </div>
           </div>
         </div>

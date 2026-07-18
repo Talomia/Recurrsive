@@ -221,7 +221,7 @@ export default function HomePage() {
               {/* Terminal body */}
               <div className="code-block" style={{ border: 'none', borderRadius: 0 }}>
                 <div>
-                  <span className="comment">$ recurrsive analyze --depth full</span>
+                  <span className="comment">$ recurrsive analyze .</span>
                 </div>
                 <br />
                 <div>
@@ -692,6 +692,15 @@ export default function HomePage() {
               See what a{' '}
               <span className="text-gradient">recommendation</span> looks like
             </h2>
+            <p
+              style={{
+                marginTop: 'var(--space-sm)',
+                color: 'var(--text-tertiary)',
+                fontSize: '0.85rem',
+              }}
+            >
+              Illustrative example — values shown are for layout only, not from a real analysis run.
+            </p>
           </div>
 
           <div

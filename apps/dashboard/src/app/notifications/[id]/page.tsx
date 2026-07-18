@@ -10,8 +10,6 @@ import {
   Clock,
   Server,
   Link2,
-  Eye,
-  Trash2,
   Shield,
   Lightbulb,
   ShieldAlert,
@@ -196,25 +194,15 @@ export default async function NotificationDetailPage({ params }: NotificationDet
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] border border-white/5 p-5">
-        <div className="text-sm text-text-muted">
-          Manage this notification
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
-          >
-            <Trash2 className="h-4 w-4" />
-            Dismiss
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/20 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/20 transition-colors"
-          >
-            <Eye className="h-4 w-4" />
-            Mark as Read
-          </button>
-        </div>
+      {/* Notifications are managed in bulk from the notifications list
+          (mark-all-read); there is no per-notification mutation endpoint, so we
+          don't render dead action buttons here. */}
+      <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-5 text-sm text-text-muted">
+        Manage notifications from the{" "}
+        <Link href="/notifications" className="text-blue-400 hover:underline">
+          notifications list
+        </Link>
+        .
       </div>
     </div>
   );

@@ -1443,6 +1443,60 @@ export class ServerState {
   }
 
   /**
+   * Load the per-project finding lifecycle overlay (status/assignee keyed by
+   * finding id). Findings themselves are immutable analyzer output; their
+   * triage state is stored separately so it survives re-analysis and restarts.
+   *
+   * @param projectId - Project id (defaults to the implicit project).
+   */
+  async loadFindingOverlays(
+    projectId?: string,
+  ): Promise<Record<string, { status?: string; assignee?: string; updatedAt: string }>> {
+    const id = projectId ?? DEFAULT_PROJECT_ID;
+    try {
+      return (await store.get<Record<string, { status?: string; assignee?: string; updatedAt: string }>>('finding_overlays', id)) ?? {};
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Set a finding's triage status and/or assignee for a SPECIFIC project and
+   * persist it. Verifies the finding exists in that project's analysis cache so
+   * a bad id is a 404 rather than a silent write.
+   *
+   * @param projectId - Project the finding belongs to.
+   * @param findingId - Finding id.
+   * @param patch - Fields to update (status and/or assignee).
+   * @returns The finding merged with its overlay, or null if the finding does not exist.
+   */
+  async setFindingStatus(
+    projectId: string | undefined,
+    findingId: string,
+    patch: { status?: string; assignee?: string },
+  ): Promise<Record<string, unknown> | null> {
+    const pid = projectId ?? DEFAULT_PROJECT_ID;
+    const cache = await this.loadCacheForProject(pid);
+    const finding = cache?.findings.find((f) => f.id === findingId);
+    if (!finding) return null;
+
+    const overlays = await this.loadFindingOverlays(pid);
+    const existing = overlays[findingId] ?? { updatedAt: nowISO() };
+    overlays[findingId] = {
+      status: patch.status ?? existing.status,
+      assignee: patch.assignee ?? existing.assignee,
+      updatedAt: nowISO(),
+    };
+    await store.set('finding_overlays', pid, overlays);
+
+    return {
+      ...(finding as unknown as Record<string, unknown>),
+      status: overlays[findingId]!.status ?? 'open',
+      assignee: overlays[findingId]!.assignee ?? '',
+    };
+  }
+
+  /**
    * Check whether the server state has been initialized.
    *
    * @returns `true` if initialized with a project path.
