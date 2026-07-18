@@ -21,12 +21,28 @@ export const metadata: Metadata = {
 // authoritative history see the linked CHANGELOG on GitHub.
 const releases = [
   {
+    version: 'v0.6.0',
+    date: 'Jul 16, 2026',
+    title: 'Honesty & Correctness Pass',
+    icon: Shield,
+    color: 'var(--green)',
+    latest: true,
+    changes: [
+      'Removed the demo-user backdoor (admin/admin) and the ALLOW_DEMO_USERS flag — login authenticates only real store-backed users; first admin via POST /api/v1/setup',
+      'JWT hardening: alg-header validation, revocable tokens (jti + logout), enforced password minimums, public /health for liveness probes',
+      'No fabricated metrics anywhere: one canonical severity-weighted health score, honest not_analyzed / insufficient_data / unavailable states instead of stand-in numbers',
+      'Per-project isolation of analysis state and the knowledge graph; the graph is served on-demand after a restart',
+      'Real multi-agent debate: consensus reflects genuine inter-agent agreement, every hypothesis is challenged',
+      'Pinned the PostgreSQL + Apache AGE image; docker compose requires a real JWT_SECRET',
+    ],
+  },
+  {
     version: 'v0.5.8',
     date: 'Jul 8, 2026',
     title: 'Dashboard UX/UI Overhaul',
     icon: Globe,
     color: 'var(--purple)',
-    latest: true,
+    latest: false,
     changes: [
       'Sidebar consolidated from 7 sections into 4 collapsible groups (28 items)',
       'Command Palette (⌘K), notifications dropdown, and AI chat slide-out panel',
