@@ -19,7 +19,10 @@
 services:
   # ── PostgreSQL + Apache AGE ────────────────────────────────────────────────
   postgres:
-    image: apache/age:latest
+    # Pin the PostgreSQL major line so the AGE/PG combination is reproducible
+    # and cannot silently jump major versions on a rebuild. Override with
+    # POSTGRES_IMAGE to pin a specific release tag or digest in production.
+    image: ${POSTGRES_IMAGE:-apache/age:PG16_latest}
     environment:
       POSTGRES_USER: recurrsive
       POSTGRES_PASSWORD: recurrsive
@@ -52,7 +55,6 @@ services:
       RECURRSIVE_WEBHOOK_MAX_RETRIES: ${RECURRSIVE_WEBHOOK_MAX_RETRIES:-3}
       # Auth configuration
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      ALLOW_DEMO_USERS: ${ALLOW_DEMO_USERS:-false}
       # CORS — allow dashboard and website origins
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3100,http://localhost:3200}
       # Tier configuration

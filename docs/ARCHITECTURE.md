@@ -2127,9 +2127,9 @@ Fresh installations use a setup wizard (`POST /api/v1/setup`) to create the init
 
 Users are persisted in the `users` table of the SQLite store. Passwords are hashed using Node.js `crypto.scrypt` (N=16384, r=8, p=1, keylen=64) with per-user random 32-byte salts.
 
-#### Demo Users (Development Only)
+#### No Built-in Accounts
 
-Three demo accounts (`admin/admin`, `analyst/analyst`, `viewer/viewer`) are available when `NODE_ENV !== 'production'` or `ALLOW_DEMO_USERS=true`. These are checked as a fallback after the real user store.
+There are no demo, default, or fallback accounts in any environment. Authentication is backed entirely by the user store; the only way to obtain the first account is the first-user setup wizard above. This holds in development as well as production.
 
 #### Team Invites
 

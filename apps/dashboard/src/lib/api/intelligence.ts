@@ -192,12 +192,6 @@ interface ServerSimulation {
     impactScore: number;
     riskLevel: string;
     findings: Array<{ area: string; impact: string; probability: number; recommendation: string }>;
-    metrics: {
-      estimatedLatencyChangeMs: number;
-      estimatedErrorRateChange: number;
-      estimatedCostChangePct: number;
-      estimatedAvailabilityChange: number;
-    };
     timeline: Array<{ timestamp: string; event: string; metric: string; value: number }>;
   } | null;
   createdAt: string;
@@ -222,12 +216,13 @@ export async function getSimulations(): Promise<SimulationScenario[]> {
     const sims = res.data ?? [];
     return sims.map((s) => {
       const results = s.results;
+      // Only surface honest, severity-derived signals. Absolute-unit
+      // predictions (latency/cost/availability) are intentionally not shown —
+      // the server no longer fabricates them.
       const metrics: SimulationScenario['metrics'] = results
         ? [
-            { label: 'Latency Δ', value: `${results.metrics.estimatedLatencyChangeMs}ms` },
-            { label: 'Error Rate Δ', value: `${(results.metrics.estimatedErrorRateChange * 100).toFixed(1)}%` },
-            { label: 'Cost Δ', value: `${results.metrics.estimatedCostChangePct}%` },
-            { label: 'Availability Δ', value: `${(results.metrics.estimatedAvailabilityChange * 100).toFixed(2)}%` },
+            { label: 'Impact Score', value: `${results.impactScore}/10` },
+            { label: 'Risk Level', value: results.riskLevel },
           ]
         : [];
       const timeline: SimulationScenario['timeline'] = (results?.timeline ?? []).map((t) => ({

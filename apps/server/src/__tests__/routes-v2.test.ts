@@ -795,7 +795,7 @@ describe ('Simulation endpoints', () => {
     expect(body.data.status).toBe('completed');
   });
 
-  it ('Simulation has results with metrics', async () => {
+  it ('Simulation has results with honest severity-derived signals', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
@@ -810,9 +810,9 @@ describe ('Simulation endpoints', () => {
     expect(body.data.results).not.toBeNull();
     expect(body.data.results).toHaveProperty('impactScore');
     expect(body.data.results).toHaveProperty('riskLevel');
-    expect(body.data.results).toHaveProperty('metrics');
-    expect(body.data.results.metrics).toHaveProperty('estimatedLatencyChangeMs');
-    expect(body.data.results.metrics).toHaveProperty('estimatedErrorRateChange');
+    // No fabricated absolute-unit predictions — the metrics block was removed
+    // because there is no empirical basis for latency/cost/availability numbers.
+    expect(body.data.results).not.toHaveProperty('metrics');
   });
 
   it ('Pull requests endpoint works', async () => {

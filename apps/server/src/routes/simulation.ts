@@ -44,12 +44,6 @@ interface SimulationResult {
     probability: number;
     recommendation: string;
   }>;
-  metrics: {
-    estimatedLatencyChangeMs: number;
-    estimatedErrorRateChange: number;
-    estimatedCostChangePct: number;
-    estimatedAvailabilityChange: number;
-  };
   timeline: Array<{
     timestamp: string;
     event: string;
@@ -147,8 +141,6 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
       const findings = cache?.findings ?? [];
       // Real health score; when no analysis has run, the true baseline is a
       // clean slate (100 = zero findings), not a fabricated midpoint.
-      const healthScore = state.getHealthScore().overall ?? 100;
-
       // Derive impact score from finding severity distribution
       const criticalCount = findings.filter(f => f.severity === 'critical').length;
       const highCount = findings.filter(f => f.severity === 'high').length;
@@ -183,15 +175,14 @@ export async function registerSimulationRoutes(app: FastifyInstance): Promise<vo
         parameters: body.parameters ?? {},
         status: 'completed',
         results: {
+          // impactScore and riskLevel are heuristic aggregates of the real
+          // finding severities. We deliberately do NOT emit absolute-unit
+          // predictions (latency ms, error-rate, cost %, availability): there
+          // is no empirical basis for them, so reporting them would be
+          // fabricated pseudo-precision dressed up as an engineering estimate.
           impactScore,
           riskLevel,
           findings: simFindings,
-          metrics: {
-            estimatedLatencyChangeMs: Math.round(criticalCount * 100 + highCount * 50),
-            estimatedErrorRateChange: Math.round(criticalCount * 0.01 * 1000) / 1000,
-            estimatedCostChangePct: Math.round((100 - healthScore) * 1.5),
-            estimatedAvailabilityChange: -Math.round(criticalCount * 0.002 * 1000) / 1000,
-          },
           timeline: [],
         },
         createdAt: nowISO(),
