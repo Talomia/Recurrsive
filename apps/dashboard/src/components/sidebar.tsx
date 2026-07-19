@@ -67,52 +67,65 @@ interface NavSection {
 
 // ─── Section definitions ─────────────────────────────────────────────────────
 
+// Navigation is organized around the user's actual journey rather than the
+// backend's feature list: WORKSPACE (do the work on a project) → INSIGHTS
+// (understand it) → AUTOMATION (scale it) → GOVERNANCE (control access & rules)
+// → PLATFORM (configure & extend). Only the first two groups are open by
+// default, so the everyday surface is ~11 items instead of 34; the long tail
+// is one click away here and always reachable via ⌘K / header search.
 const NAV_SECTIONS: NavSection[] = [
   {
-    key: "intelligence",
-    label: "Intelligence",
+    key: "workspace",
+    label: "Workspace",
     items: [
       { href: "/", label: "Overview", icon: LayoutDashboard },
-      { href: "/forecasting", label: "Forecasting", icon: Brain },
-      { href: "/confidence", label: "Confidence", icon: Target },
-      { href: "/health", label: "Health", icon: HeartPulse },
-      { href: "/timeline", label: "Timeline", icon: Clock },
-      { href: "/comparisons", label: "Comparisons", icon: GitCompare },
-      { href: "/intelligence-packs", label: "Intelligence Packs", icon: Boxes },
-    ],
-  },
-  {
-    key: "analysis",
-    label: "Analysis",
-    items: [
       { href: "/projects", label: "Projects", icon: FolderGit2 },
       { href: "/findings", label: "Findings", icon: ShieldAlert },
       { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
       { href: "/system-map", label: "System Map", icon: Network },
-      { href: "/analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
   {
-    key: "operations",
-    label: "Operations",
+    key: "insights",
+    label: "Insights",
     items: [
-      { href: "/batch", label: "Batch", icon: Layers },
+      { href: "/health", label: "Health", icon: HeartPulse },
+      { href: "/timeline", label: "Timeline", icon: Clock },
+      { href: "/forecasting", label: "Forecasting", icon: Brain },
+      { href: "/confidence", label: "Confidence", icon: Target },
+      { href: "/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/comparisons", label: "Comparisons", icon: GitCompare },
+    ],
+  },
+  {
+    key: "automation",
+    label: "Automation",
+    items: [
+      { href: "/batch", label: "Batch Analysis", icon: Layers },
       { href: "/scheduling", label: "Scheduling", icon: Calendar },
       { href: "/reports", label: "Reports", icon: FileText },
-      { href: "/search", label: "Search", icon: Search },
-      { href: "/experiments", label: "Experiments", icon: FlaskConical },
-      { href: "/simulation", label: "Simulation", icon: Bot },
       { href: "/snapshots", label: "Snapshots", icon: Camera },
+      { href: "/simulation", label: "Simulation", icon: Bot },
+      { href: "/experiments", label: "Experiments", icon: FlaskConical },
+      { href: "/intelligence-packs", label: "Intelligence Packs", icon: Boxes },
     ],
   },
   {
-    key: "administration",
-    label: "Administration",
+    key: "governance",
+    label: "Team & Governance",
     items: [
       { href: "/users", label: "Users", icon: Users },
       { href: "/invites", label: "Invites", icon: Mail },
       { href: "/policies", label: "Policies", icon: Shield },
       { href: "/audit", label: "Audit Trail", icon: History },
+      { href: "/sso", label: "SSO", icon: KeyRound, enterprise: true },
+      { href: "/tenants", label: "Tenants", icon: Building2, enterprise: true },
+    ],
+  },
+  {
+    key: "platform",
+    label: "Platform",
+    items: [
       { href: "/settings", label: "Settings", icon: Settings },
       { href: "/secrets", label: "Secrets", icon: Key },
       { href: "/data-masking", label: "Data Masking", icon: Eye },
@@ -122,21 +135,23 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/plugins", label: "Plugins", icon: Package },
       { href: "/partners", label: "Partners", icon: Handshake },
       { href: "/cloud", label: "Cloud", icon: Cloud },
-      { href: "/sso", label: "SSO", icon: KeyRound, enterprise: true },
-      { href: "/tenants", label: "Tenants", icon: Building2, enterprise: true },
     ],
   },
 ];
 
 // ─── localStorage helpers ────────────────────────────────────────────────────
 
-const STORAGE_KEY = "recurrsive-sidebar-sections";
+// v2: navigation regrouped around the user journey (workspace/insights/
+// automation/governance/platform); bump the key so the new default-expanded
+// state isn't shadowed by a stale value keyed on the old section names.
+const STORAGE_KEY = "recurrsive-sidebar-sections-v2";
 
 const DEFAULT_EXPANDED: Record<string, boolean> = {
-  intelligence: true,
-  analysis: true,
-  operations: false,
-  administration: false,
+  workspace: true,
+  insights: true,
+  automation: false,
+  governance: false,
+  platform: false,
 };
 
 function loadExpanded(): Record<string, boolean> {
