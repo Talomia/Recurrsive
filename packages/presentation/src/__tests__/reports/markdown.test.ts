@@ -109,7 +109,7 @@ describe('generateMarkdownReport', () => {
     it('shows total findings count', () => {
       const opps = [makeOpp(), makeOpp()];
       const md = generateMarkdownReport(opps);
-      expect(md).toContain('**Total Findings:** 2');
+      expect(md).toContain('**Total Opportunities:** 2');
     });
   });
 
@@ -229,7 +229,7 @@ describe('generateMarkdownReport', () => {
       const md = generateMarkdownReport([]);
 
       expect(md).toContain('# Recurrsive Analysis Report');
-      expect(md).toContain('**Total Findings:** 0');
+      expect(md).toContain('**Total Opportunities:** 0');
       expect(md).not.toContain('## Top Opportunities');
     });
   });

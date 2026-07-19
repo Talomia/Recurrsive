@@ -15,6 +15,7 @@ import type { Entity, EntityType, Relationship } from '@recurrsive/core';
 import { GraphError, EntityTypeSchema, RelationTypeSchema } from '@recurrsive/core';
 import type { GraphClient } from '@recurrsive/core';
 import { migrate, DEFAULT_AGE_GRAPH, assertSafeGraphName } from '../migrations/001_initial_schema.js';
+import { assertValidFilterKeys, matchesPropertyFilter } from './property-filter.js';
 
 const { Pool } = pg;
 
@@ -55,6 +56,29 @@ function escapeCypher(value: string): string {
     .replace(/\\/g, '\\\\')        // escape backslashes first
     .replace(/'/g, "\\'")          // escape single quotes
     .replace(/\0/g, '');           // strip null bytes
+}
+
+/**
+ * Wrap a Cypher body in a PostgreSQL dollar-quoted string using a tag
+ * that is guaranteed not to occur in the body.
+ *
+ * A plain `$$ ... $$` wrapper is exploitable: entity content sourced
+ * from arbitrary cloned repositories can contain the `$$` delimiter and
+ * break out of the dollar-quoted string, turning the remainder of the
+ * payload into attacker-controlled SQL. Instead of `Math.random` (not
+ * available in every runtime), the tag is derived deterministically by
+ * a counter loop over the payload — the loop terminates because each
+ * candidate tag is distinct and the body is finite.
+ *
+ * @param body - Raw Cypher query body.
+ * @returns Dollar-quoted string safe to embed in SQL.
+ */
+function dollarQuote(body: string): string {
+  let tag = 'cypher';
+  for (let i = 0; body.includes(`$${tag}$`); i++) {
+    tag = `cypher_${i}`;
+  }
+  return `$${tag}$ ${body} $${tag}$`;
 }
 
 /**
@@ -401,7 +425,7 @@ export class AgeGraphClient implements ExtendedGraphClient {
       await this.prepareConnection(client);
       // Set a per-query timeout to prevent slow Cypher scans from hanging
       await client.query(`SET statement_timeout = '30s';`);
-      const sql = `SELECT * FROM cypher('${this.graphName}', $$ ${cypher} $$) AS (${returnColumns});`;
+      const sql = `SELECT * FROM cypher('${this.graphName}', ${dollarQuote(cypher)}) AS (${returnColumns});`;
       const result = await client.query(sql);
       return result.rows.map((row: Record<string, unknown>) => {
         const parsed: Record<string, unknown> = {};
@@ -486,7 +510,15 @@ export class AgeGraphClient implements ExtendedGraphClient {
   }
 
   /**
-   * List entities of a given type, optionally filtered by properties.
+   * List entities of a given type, optionally filtered by nested
+   * `properties` values.
+   *
+   * The filter is applied against the entity's `properties` map (the
+   * same contract as the SQLite provider): scalars are compared by
+   * value and objects/arrays structurally. Because AGE stores the
+   * `properties` map as a JSON string on the vertex, the filter is
+   * evaluated in JS after JSON round-trip via the shared predicate,
+   * guaranteeing backend-equivalent results.
    *
    * @param type - The entity type to query.
    * @param filter - Optional key-value filter applied to `properties`.
@@ -494,31 +526,22 @@ export class AgeGraphClient implements ExtendedGraphClient {
    * @throws {GraphError} If the query fails.
    */
   async getEntities(type: EntityType, filter?: Record<string, unknown>): Promise<Entity[]> {
-    try {
-      let whereClause = '';
-      if (filter && Object.keys(filter).length > 0) {
-        const conditions = Object.entries(filter).map(([k, v]) => {
-          // Validate filter key to prevent Cypher injection
-          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) {
-            throw new GraphError(
-              `Invalid filter key "${k}" — must be a valid identifier`,
-              'INVALID_FILTER',
-            );
-          }
-          const val = typeof v === 'string' ? `'${escapeCypher(v)}'` : JSON.stringify(v);
-          return `n.${k} = ${val}`;
-        });
-        whereClause = `WHERE ${conditions.join(' AND ')}`;
-      }
+    validateCypherLabel(type, 'entity');
+    if (filter) assertValidFilterKeys(filter);
 
+    try {
       const rows = await this.executeCypher(
-        `MATCH (n:${(validateCypherLabel(type, 'entity'), type)}) ${whereClause} RETURN n`,
+        `MATCH (n:${type}) RETURN n`,
         'n agtype',
       );
-      return rows.map((row) => {
+      const entities = rows.map((row) => {
         const r = row as Record<string, unknown>;
         return vertexToEntity(r['n'] as Record<string, unknown>);
       });
+      if (filter && Object.keys(filter).length > 0) {
+        return entities.filter((e) => matchesPropertyFilter(e.properties, filter));
+      }
+      return entities;
     } catch (error) {
       throw new GraphError(
         `Failed to get entities of type "${type}"`,
@@ -592,7 +615,11 @@ export class AgeGraphClient implements ExtendedGraphClient {
   }
 
   /**
-   * Walk the graph outward from an entity up to `depth` hops.
+   * Walk the graph outward from an entity up to `depth` hops and return
+   * the induced subgraph: all collected entities plus ALL relationships
+   * whose endpoints are both within the collected set (not just the
+   * edges on traversal paths). This matches the SQLite provider's
+   * semantics so both backends return the same subgraph.
    *
    * @param entityId - Starting entity UUID.
    * @param depth - Maximum traversal depth (default: `1`).
@@ -605,13 +632,13 @@ export class AgeGraphClient implements ExtendedGraphClient {
   ): Promise<{ entities: Entity[]; relationships: Relationship[] }> {
     try {
       const safeId = escapeCypher(entityId);
+      const safeDepth = Math.max(1, Math.floor(depth));
       const rows = await this.executeCypher(
-        `MATCH (start {id: '${safeId}'})-[r*1..${depth}]-(neighbor) RETURN DISTINCT neighbor, r`,
-        'neighbor agtype, r agtype',
+        `MATCH (start {id: '${safeId}'})-[*1..${safeDepth}]-(neighbor) RETURN DISTINCT neighbor`,
+        'neighbor agtype',
       );
 
       const entityMap = new Map<string, Entity>();
-      const relMap = new Map<string, Relationship>();
 
       // Add the starting entity
       const startEntity = await this.getEntity(entityId);
@@ -625,17 +652,27 @@ export class AgeGraphClient implements ExtendedGraphClient {
           const entity = vertexToEntity(r['neighbor'] as Record<string, unknown>);
           entityMap.set(entity.id, entity);
         }
+      }
+
+      if (entityMap.size === 0) {
+        return { entities: [], relationships: [] };
+      }
+
+      // Fetch ALL relationships among the collected nodes (induced subgraph)
+      const idList = Array.from(entityMap.keys())
+        .map((id) => `'${escapeCypher(id)}'`)
+        .join(', ');
+      const relRows = await this.executeCypher(
+        `MATCH (a)-[r]->(b) WHERE a.id IN [${idList}] AND b.id IN [${idList}] RETURN r`,
+        'r agtype',
+      );
+
+      const relMap = new Map<string, Relationship>();
+      for (const row of relRows) {
+        const r = row as Record<string, unknown>;
         if (r['r']) {
-          const relData = r['r'];
-          if (Array.isArray(relData)) {
-            for (const edge of relData) {
-              const rel = edgeToRelationship(edge as Record<string, unknown>);
-              relMap.set(rel.id, rel);
-            }
-          } else {
-            const rel = edgeToRelationship(relData as Record<string, unknown>);
-            relMap.set(rel.id, rel);
-          }
+          const rel = edgeToRelationship(r['r'] as Record<string, unknown>);
+          relMap.set(rel.id, rel);
         }
       }
 
@@ -665,8 +702,45 @@ export class AgeGraphClient implements ExtendedGraphClient {
     try {
       const props = entityToAgeProps(entity);
       validateCypherLabel(entity.type, 'entity');
+      const safeId = escapeCypher(entity.id);
+
+      // Look up any existing vertex with this id REGARDLESS of label.
+      // A bare `MERGE (n:type {id})` would create a duplicate vertex when
+      // the entity's type (= AGE label) changes, because MERGE only
+      // matches within the given label.
+      const existingRows = await this.executeCypher(
+        `MATCH (n {id: '${safeId}'}) RETURN n`,
+        'n agtype',
+      );
+
+      if (existingRows.length > 0) {
+        const vertex = (existingRows[0] as Record<string, unknown>)['n'] as
+          | Record<string, unknown>
+          | undefined;
+        const existingLabel = String(vertex?.['label'] ?? '');
+
+        if (existingLabel !== entity.type) {
+          // AGE cannot relabel a vertex in place. Recreate it under the
+          // new label, preserving its relationships — parity with the
+          // SQLite provider where `type` is a plain column update.
+          const existingRels = await this.getRelationships(entity.id, 'both');
+          await this.executeCypher(
+            `MATCH (n {id: '${safeId}'}) DETACH DELETE n RETURN count(n) AS deleted`,
+            'deleted agtype',
+          );
+          await this.executeCypher(
+            `CREATE (n:${entity.type} ${props}) RETURN n`,
+            'n agtype',
+          );
+          for (const rel of existingRels) {
+            await this.upsertRelationship(rel);
+          }
+          return entity;
+        }
+      }
+
       await this.executeCypher(
-        `MERGE (n:${entity.type} {id: '${escapeCypher(entity.id)}'}) SET n += ${props} RETURN n`,
+        `MERGE (n:${entity.type} {id: '${safeId}'}) SET n += ${props} RETURN n`,
         'n agtype',
       );
       return entity;
@@ -895,8 +969,10 @@ export class AgeGraphClient implements ExtendedGraphClient {
         return { data: [], total: 0 };
       }
 
-      // Get paginated results
-      const dataCypher = `MATCH ()-[r${typeFilter}]->() RETURN r SKIP ${offset} LIMIT ${limit}`;
+      // Get paginated results. ORDER BY a stable key before SKIP/LIMIT —
+      // without it Postgres gives no ordering guarantee, so rows could be
+      // duplicated or missed across pages.
+      const dataCypher = `MATCH ()-[r${typeFilter}]->() RETURN r ORDER BY r.id SKIP ${offset} LIMIT ${limit}`;
       const rows = await this.executeCypher(dataCypher, 'r agtype');
 
       const relationships: Relationship[] = rows.map((row) => {

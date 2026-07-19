@@ -8,6 +8,7 @@
  */
 
 import type { Opportunity, Severity, MaturityScore } from '@recurrsive/core';
+import { healthLabel } from '../health-label.js';
 
 // ---------------------------------------------------------------------------
 // Report options
@@ -240,7 +241,7 @@ export function generateHtmlReport(
 
   // Stats grid
   parts.push('<div class="stat-grid">');
-  parts.push(`<div class="stat"><div class="stat-value">${opportunities.length}</div><div class="stat-label">Total Findings</div></div>`);
+  parts.push(`<div class="stat"><div class="stat-value">${opportunities.length}</div><div class="stat-label">Total Opportunities</div></div>`);
   for (const sev of SEVERITY_ORDER) {
     if (sevCounts[sev] > 0) {
       parts.push(`<div class="stat"><div class="stat-value" style="color:${SEVERITY_COLOR[sev]}">${sevCounts[sev]}</div><div class="stat-label">${sev}</div></div>`);
@@ -254,8 +255,7 @@ export function generateHtmlReport(
     parts.push('<div class="health-section">');
     parts.push(`<div>${healthGaugeSvg(healthScore)}</div>`);
     parts.push('<div>');
-    const label = healthScore >= 75 ? 'Good' : healthScore >= 50 ? 'Fair' : 'Needs Attention';
-    parts.push(`<h3 style="font-size:1.3rem">${label}</h3>`);
+    parts.push(`<h3 style="font-size:1.3rem">${healthLabel(healthScore)}</h3>`);
     parts.push(`<p style="color:var(--text-secondary)">Your project health score is <strong>${healthScore}/100</strong>.</p>`);
     parts.push('</div></div>');
   }

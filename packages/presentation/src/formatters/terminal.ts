@@ -7,6 +7,7 @@
  */
 
 import type { Opportunity, Severity, MaturityScore, MaturityLevel } from '@recurrsive/core';
+import { healthLabel, healthTier, type HealthTier } from '../health-label.js';
 
 // ---------------------------------------------------------------------------
 // ANSI colour constants
@@ -310,15 +311,15 @@ export function formatHealthScore(score: number, maturity?: MaturityScore[]): st
   lines.push(`  ${formatProgressBar(score, 100, 30)}`);
   lines.push('');
 
-  const label = score >= 90
-    ? `${FG_GREEN}Excellent${RESET}`
-    : score >= 75
-      ? `${FG_GREEN}Good${RESET}`
-      : score >= 60
-        ? `${FG_YELLOW}Fair${RESET}`
-        : score >= 40
-          ? `${FG_RED}Needs Attention${RESET}`
-          : `${FG_RED}${BOLD}Critical${RESET}`;
+  // Shared 5-tier scale (health-label.ts) with terminal colouring
+  const TIER_STYLE: Record<HealthTier, string> = {
+    excellent: FG_GREEN,
+    good: FG_GREEN,
+    fair: FG_YELLOW,
+    'needs-attention': FG_RED,
+    critical: `${FG_RED}${BOLD}`,
+  };
+  const label = `${TIER_STYLE[healthTier(score)]}${healthLabel(score)}${RESET}`;
 
   lines.push(`  Status: ${label}`);
   lines.push('');

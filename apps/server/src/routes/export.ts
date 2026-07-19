@@ -54,6 +54,28 @@ const VALID_FORMATS: ExportFormat[] = ['json', 'csv', 'markdown', 'sarif'];
 const VALID_SCOPES: ExportScope[] = ['findings', 'opportunities', 'health', 'all'];
 
 // ---------------------------------------------------------------------------
+// Escaping helpers
+// ---------------------------------------------------------------------------
+
+/** Quote a CSV field per RFC 4180 (only when quoting is required). */
+function csvField(value: unknown): string {
+  const s = String(value ?? '');
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Join values into an RFC-4180 CSV row. */
+function csvRow(values: unknown[]): string {
+  return values.map(csvField).join(',');
+}
+
+/** Escape a value for use inside a Markdown table cell. */
+function mdCell(value: unknown): string {
+  return String(value ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, ' ');
+}
+
+// ---------------------------------------------------------------------------
 // Content generators — uses real state data when available
 // ---------------------------------------------------------------------------
 
@@ -95,15 +117,46 @@ async function generateContent(format: ExportFormat, scope: ExportScope, project
   const scopeData =
     scope === 'all' ? data : { [scope]: data[scope as keyof typeof data] };
 
+  const includeFindings = scope === 'findings' || scope === 'all';
+  const includeOpportunities = scope === 'opportunities' || scope === 'all';
+  const includeHealth = scope === 'health' || scope === 'all';
+
   switch (format) {
     case 'json':
       return JSON.stringify(scopeData, null, 2);
 
     case 'csv': {
-      const rows = findings.map(
-        f => `${f.id},${f.title},${f.severity},${f.category}`,
-      );
-      return ['id,title,severity,category', ...rows].join('\n');
+      // Every format honors `scope` — the delivered artifact must match
+      // the stored record_count for its scope.
+      if (scope === 'findings') {
+        return [
+          'id,title,severity,category',
+          ...findings.map((f) => csvRow([f.id, f.title, f.severity, f.category])),
+        ].join('\n');
+      }
+      if (scope === 'opportunities') {
+        return [
+          'id,title,severity,status',
+          ...opportunities.map((o) => csvRow([o.id, o.title, o.severity, o.status])),
+        ].join('\n');
+      }
+      if (scope === 'health') {
+        return [
+          'metric,score',
+          csvRow(['overall', healthData.overall_score ?? '']),
+          ...Object.entries(healthData.dimensions).map(([dim, score]) => csvRow([dim, score])),
+        ].join('\n');
+      }
+      // scope === 'all': one unified table covering all three record kinds
+      return [
+        'record_type,id,title,severity,category,status,score',
+        ...findings.map((f) => csvRow(['finding', f.id, f.title, f.severity, f.category, '', ''])),
+        ...opportunities.map((o) => csvRow(['opportunity', o.id, o.title, o.severity, '', o.status, ''])),
+        csvRow(['health', 'overall', '', '', '', '', healthData.overall_score ?? '']),
+        ...Object.entries(healthData.dimensions).map(([dim, score]) =>
+          csvRow(['health', dim, '', '', '', '', score]),
+        ),
+      ].join('\n');
     }
 
     case 'markdown': {
@@ -112,16 +165,76 @@ async function generateContent(format: ExportFormat, scope: ExportScope, project
         '',
         `Generated at: ${nowISO()}`,
         '',
-        '| ID | Title | Severity |',
-        '|---|---|---|',
-        ...findings.map(f => `| ${f.id} | ${f.title} | ${f.severity} |`),
       ];
+      if (includeFindings) {
+        lines.push('## Findings', '');
+        lines.push('| ID | Title | Severity | Category |');
+        lines.push('|---|---|---|---|');
+        lines.push(
+          ...findings.map(
+            (f) => `| ${mdCell(f.id)} | ${mdCell(f.title)} | ${mdCell(f.severity)} | ${mdCell(f.category)} |`,
+          ),
+        );
+        lines.push('');
+      }
+      if (includeOpportunities) {
+        lines.push('## Opportunities', '');
+        lines.push('| ID | Title | Severity | Status |');
+        lines.push('|---|---|---|---|');
+        lines.push(
+          ...opportunities.map(
+            (o) => `| ${mdCell(o.id)} | ${mdCell(o.title)} | ${mdCell(o.severity)} | ${mdCell(o.status)} |`,
+          ),
+        );
+        lines.push('');
+      }
+      if (includeHealth) {
+        lines.push('## Health', '');
+        lines.push('| Metric | Score |');
+        lines.push('|---|---|');
+        lines.push(`| overall | ${mdCell(healthData.overall_score ?? 'n/a')} |`);
+        lines.push(
+          ...Object.entries(healthData.dimensions).map(
+            ([dim, score]) => `| ${mdCell(dim)} | ${mdCell(score)} |`,
+          ),
+        );
+        lines.push('');
+      }
       return lines.join('\n');
     }
 
     case 'sarif': {
+      const toLevel = (severity: string): string =>
+        severity === 'critical' || severity === 'high'
+          ? 'error'
+          : severity === 'medium'
+            ? 'warning'
+            : 'note';
+
+      // SARIF also honors scope: findings and/or opportunities become
+      // results; a health-only export carries the health data as run
+      // properties with zero results.
+      const items = [
+        ...(includeFindings
+          ? findings.map((f) => ({
+              id: f.id,
+              title: f.title,
+              severity: f.severity,
+              properties: { severity: f.severity, category: f.category, kind: 'finding' },
+            }))
+          : []),
+        ...(includeOpportunities
+          ? opportunities.map((o) => ({
+              id: o.id,
+              title: o.title,
+              severity: o.severity,
+              properties: { severity: o.severity, status: o.status, kind: 'opportunity' },
+            }))
+          : []),
+      ];
+
       const sarifReport = {
-        $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json',
+        $schema: 'https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json',
         version: '2.1.0',
         runs: [
           {
@@ -130,33 +243,21 @@ async function generateContent(format: ExportFormat, scope: ExportScope, project
                 name: 'Recurrsive',
                 informationUri: 'https://recurrsive.dev',
                 version: '1.0.0',
-                rules: findings.map(f => ({
-                  id: f.id,
-                  shortDescription: { text: f.title },
-                  defaultConfiguration: {
-                    level: f.severity === 'critical' || f.severity === 'high'
-                      ? 'error'
-                      : f.severity === 'medium'
-                        ? 'warning'
-                        : 'note',
-                  },
-                  properties: { category: f.category },
+                rules: items.map((item) => ({
+                  id: item.id,
+                  shortDescription: { text: item.title },
+                  defaultConfiguration: { level: toLevel(item.severity) },
+                  properties: item.properties,
                 })),
               },
             },
-            results: findings.map(f => ({
-              ruleId: f.id,
-              level: f.severity === 'critical' || f.severity === 'high'
-                ? 'error'
-                : f.severity === 'medium'
-                  ? 'warning'
-                  : 'note',
-              message: { text: f.title },
-              properties: {
-                severity: f.severity,
-                category: f.category,
-              },
+            results: items.map((item) => ({
+              ruleId: item.id,
+              level: toLevel(item.severity),
+              message: { text: item.title },
+              properties: item.properties,
             })),
+            ...(includeHealth ? { properties: { health: healthData } } : {}),
           },
         ],
       };
@@ -417,8 +518,8 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
             break;
 
           case 'csv': {
-            const entityRows = allEntities.map((e) => `entity,${e.id},${e.name},${e.type},${e.qualified_name}`);
-            const relRows = allRels.map((r) => `relationship,${r.id},${r.source_id},${r.target_id},${r.type}`);
+            const entityRows = allEntities.map((e) => csvRow(['entity', e.id, e.name, e.type, e.qualified_name]));
+            const relRows = allRels.map((r) => csvRow(['relationship', r.id, r.source_id, r.target_id, r.type]));
             content = ['kind,id,col1,col2,col3', ...entityRows, ...relRows].join('\n');
             contentType = 'text/csv; charset=utf-8';
             ext = 'csv';
@@ -428,11 +529,11 @@ export async function registerExportRoutes(app: FastifyInstance): Promise<void> 
           case 'graphml': {
             const xmlEntities = allEntities.map(
               (e) =>
-                `    <node id="${e.id}">\n      <data key="name">${escapeXml(e.name)}</data>\n      <data key="type">${escapeXml(e.type)}</data>\n    </node>`,
+                `    <node id="${escapeXml(e.id)}">\n      <data key="name">${escapeXml(e.name)}</data>\n      <data key="type">${escapeXml(e.type)}</data>\n    </node>`,
             );
             const xmlEdges = allRels.map(
               (r) =>
-                `    <edge id="${r.id}" source="${r.source_id}" target="${r.target_id}">\n      <data key="type">${escapeXml(r.type)}</data>\n    </edge>`,
+                `    <edge id="${escapeXml(r.id)}" source="${escapeXml(r.source_id)}" target="${escapeXml(r.target_id)}">\n      <data key="type">${escapeXml(r.type)}</data>\n    </edge>`,
             );
             content = [
               '<?xml version="1.0" encoding="UTF-8"?>',

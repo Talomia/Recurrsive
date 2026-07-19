@@ -60,17 +60,3 @@ export {
   type MigrationProvider,
   type MigrationResult,
 } from './migrations/index.js';
-
-// ─── Query Builders ──────────────────────────────────────────────────────────
-
-export {
-  findCallChain,
-  findDependencyTree,
-  findAIWorkflow,
-  findDeadCode,
-  findCircularDeps,
-  findAllPromptsForAgent,
-  findModelUsage,
-  findEntitiesByPattern,
-  type QueryDialect,
-} from './queries/index.js';

@@ -188,19 +188,29 @@ describe('generateHtmlReport', () => {
       expect(html).toContain('<h2>Health Score</h2>');
     });
 
+    it('shows health status label "Excellent" for score >= 90', () => {
+      const html = generateHtmlReport([], { healthScore: 92 });
+      expect(html).toContain('Excellent');
+    });
+
     it('shows health status label "Good" for score >= 75', () => {
       const html = generateHtmlReport([], { healthScore: 80 });
       expect(html).toContain('Good');
     });
 
-    it('shows health status label "Fair" for score >= 50', () => {
-      const html = generateHtmlReport([], { healthScore: 55 });
+    it('shows health status label "Fair" for score >= 60', () => {
+      const html = generateHtmlReport([], { healthScore: 65 });
       expect(html).toContain('Fair');
     });
 
-    it('shows health status label "Needs Attention" for score < 50', () => {
-      const html = generateHtmlReport([], { healthScore: 30 });
+    it('shows health status label "Needs Attention" for score >= 40 (same 5-tier scale as markdown/terminal)', () => {
+      const html = generateHtmlReport([], { healthScore: 55 });
       expect(html).toContain('Needs Attention');
+    });
+
+    it('shows health status label "Critical" for score < 40', () => {
+      const html = generateHtmlReport([], { healthScore: 30 });
+      expect(html).toContain('Critical');
     });
 
     it('does not contain health section when healthScore not provided', () => {
@@ -258,7 +268,7 @@ describe('generateHtmlReport', () => {
       const opps = [makeOpp(), makeOpp(), makeOpp()];
       const html = generateHtmlReport(opps);
       expect(html).toContain('>3<');
-      expect(html).toContain('Total Findings');
+      expect(html).toContain('Total Opportunities');
     });
 
     it('shows severity counts with colors', () => {
@@ -328,7 +338,7 @@ describe('generateHtmlReport', () => {
       expect(html).toContain('<!DOCTYPE html>');
       expect(html).toContain('<html');
       expect(html).toContain('</html>');
-      expect(html).toContain('Total Findings');
+      expect(html).toContain('Total Opportunities');
     });
 
     it('does not render Opportunities heading for empty input', () => {

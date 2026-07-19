@@ -8,6 +8,7 @@
  */
 
 import type { Opportunity, Severity, MaturityScore } from '@recurrsive/core';
+import { healthLabel, healthTier, type HealthTier } from '../health-label.js';
 
 // ---------------------------------------------------------------------------
 // Report options
@@ -41,18 +42,23 @@ const SEVERITY_BADGE: Record<Severity, string> = {
 
 const SEVERITY_ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
 
+/** Emoji badge for each shared health tier. */
+const HEALTH_TIER_EMOJI: Record<HealthTier, string> = {
+  excellent: '🟢',
+  good: '🟡',
+  fair: '🟠',
+  'needs-attention': '🔴',
+  critical: '⛔',
+};
+
 /**
- * Get a health status label from a numeric score.
+ * Get a health status label (emoji + shared label) from a numeric score.
  *
  * @param score - Health score 0–100
  * @returns Status label
  */
-function healthLabel(score: number): string {
-  if (score >= 90) return '🟢 Excellent';
-  if (score >= 75) return '🟡 Good';
-  if (score >= 60) return '🟠 Fair';
-  if (score >= 40) return '🔴 Needs Attention';
-  return '⛔ Critical';
+function healthBadge(score: number): string {
+  return `${HEALTH_TIER_EMOJI[healthTier(score)]} ${healthLabel(score)}`;
 }
 
 /**
@@ -109,10 +115,10 @@ export function generateMarkdownReport(
   lines.push('## Executive Summary');
   lines.push('');
   if (healthScore !== undefined) {
-    lines.push(`**Health Score:** ${healthScore}/100 ${healthLabel(healthScore)}`);
+    lines.push(`**Health Score:** ${healthScore}/100 ${healthBadge(healthScore)}`);
     lines.push('');
   }
-  lines.push(`**Total Findings:** ${opportunities.length}`);
+  lines.push(`**Total Opportunities:** ${opportunities.length}`);
   lines.push('');
 
   // Severity breakdown

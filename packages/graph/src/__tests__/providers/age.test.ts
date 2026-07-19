@@ -196,23 +196,113 @@ describe('AgeGraphClient', () => {
   // ── getEntities ────────────────────────────────────────────────────────
 
   describe('getEntities', () => {
+    /** Build an agtype vertex row for a function entity. */
+    function vertexRow(id: string, properties: Record<string, unknown>): string {
+      return JSON.stringify({
+        id: 1,
+        label: 'function',
+        properties: {
+          id,
+          type: 'function',
+          name: id,
+          qualified_name: `src:${id}`,
+          source: 'test',
+          properties: JSON.stringify(properties),
+          tags: JSON.stringify([]),
+          created_at: now,
+          updated_at: now,
+          last_seen_at: now,
+        },
+      }) + '::vertex';
+    }
+
+    function mockVertices(vertices: string[]): void {
+      mockClientQuery.mockImplementation((sql: unknown) => {
+        if (typeof sql === 'string' && sql.includes('MATCH (n:function)')) {
+          return Promise.resolve({ rows: vertices.map((v) => ({ n: v })) });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+    }
+
     it('returns empty array when no matches', async () => {
       mockClientQuery.mockResolvedValue({ rows: [] });
       const result = await client.getEntities('function');
       expect(result).toEqual([]);
     });
 
-    it('passes filter to WHERE clause', async () => {
-      mockClientQuery.mockResolvedValue({ rows: [] });
-      await client.getEntities('function', { language: 'typescript' });
+    it('filters by nested properties with string values', async () => {
+      mockVertices([
+        vertexRow('e1', { language: 'typescript' }),
+        vertexRow('e2', { language: 'python' }),
+      ]);
+      const result = await client.getEntities('function', { language: 'typescript' });
+      expect(result.map((e) => e.id)).toEqual(['e1']);
+    });
 
-      // Verify the SQL included a WHERE condition with the filter
-      const calls = mockClientQuery.mock.calls;
-      const cypherCall = calls.find(
-        (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('WHERE'),
+    it('filters booleans and numbers as values, not quoted strings', async () => {
+      mockVertices([
+        vertexRow('e1', { is_source: true }),
+        vertexRow('e2', { is_source: false }),
+        vertexRow('e3', { count: 5 }),
+      ]);
+
+      const src = await client.getEntities('function', { is_source: true });
+      expect(src.map((e) => e.id)).toEqual(['e1']);
+
+      const counted = await client.getEntities('function', { count: 5 });
+      expect(counted.map((e) => e.id)).toEqual(['e3']);
+    });
+
+    it('rejects invalid filter keys with INVALID_FILTER', async () => {
+      await expect(
+        client.getEntities('function', { 'bad key; DROP': 1 }),
+      ).rejects.toMatchObject({ code: 'INVALID_FILTER' });
+    });
+  });
+
+  // ── Cypher dollar-quoting ───────────────────────────────────────────────
+
+  describe('dollar-quote injection safety', () => {
+    it('never uses a bare $$ delimiter around the Cypher body', async () => {
+      mockClientQuery.mockResolvedValue({ rows: [] });
+      await client.query('MATCH (n) RETURN n');
+      const cypherCall = mockClientQuery.mock.calls.find(
+        (c: unknown[]) => typeof c[0] === 'string' && c[0].includes("cypher('"),
       );
-      // It should have been called (the exact check is that it doesn't throw)
       expect(cypherCall).toBeDefined();
+      expect(cypherCall![0]).toMatch(/cypher\('recurrsive', \$cypher\$ /);
+    });
+
+    it('content containing $$ cannot break out of the dollar-quoted string', async () => {
+      mockClientQuery.mockResolvedValue({ rows: [] });
+      const entity = makeEntity({
+        description: 'evil $$ ) AS (x agtype); DROP TABLE users; --',
+      });
+      await client.upsertEntity(entity);
+
+      for (const call of mockClientQuery.mock.calls) {
+        const sql = call[0];
+        if (typeof sql !== 'string' || !sql.includes("cypher('")) continue;
+        const match = sql.match(/cypher\('recurrsive', \$(cypher(?:_\d+)?)\$ ([\s\S]*) \$\1\$\)/);
+        expect(match).not.toBeNull();
+        // The chosen tag must not occur inside the quoted body
+        expect(match![2]).not.toContain(`$${match![1]}$`);
+      }
+    });
+
+    it('picks a different tag when the payload contains the default tag', async () => {
+      mockClientQuery.mockResolvedValue({ rows: [] });
+      const entity = makeEntity({ description: 'contains $cypher$ literally' });
+      await client.upsertEntity(entity);
+
+      const evilCall = mockClientQuery.mock.calls.find(
+        (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('$cypher$ literally'),
+      );
+      expect(evilCall).toBeDefined();
+      expect(evilCall![0]).toContain('$cypher_0$');
+      // Wrapper is well-formed: body enclosed by the escaped tag
+      expect(evilCall![0]).toMatch(/cypher\('recurrsive', \$cypher_0\$ [\s\S]* \$cypher_0\$\)/);
     });
   });
 
@@ -258,6 +348,55 @@ describe('AgeGraphClient', () => {
     });
   });
 
+  // ── getNeighbors ───────────────────────────────────────────────────────
+
+  describe('getNeighbors', () => {
+    function vertexOf(id: string, label = 'function'): string {
+      return JSON.stringify({
+        id: 1,
+        label,
+        properties: {
+          id,
+          type: label,
+          name: id,
+          qualified_name: `src:${id}`,
+          source: 'test',
+          properties: '{}',
+          tags: '[]',
+          created_at: now,
+          updated_at: now,
+          last_seen_at: now,
+        },
+      }) + '::vertex';
+    }
+
+    it('returns the induced subgraph: all edges among collected nodes', async () => {
+      mockClientQuery.mockImplementation((sql: unknown) => {
+        if (typeof sql === 'string') {
+          if (sql.includes('-[*1..1]-')) {
+            return Promise.resolve({ rows: [{ neighbor: vertexOf('entity-2') }] });
+          }
+          if (sql.includes("MATCH (n {id: 'entity-1'}) RETURN n")) {
+            return Promise.resolve({ rows: [{ n: vertexOf('entity-1') }] });
+          }
+        }
+        return Promise.resolve({ rows: [] });
+      });
+
+      const result = await client.getNeighbors('entity-1', 1);
+      expect(result.entities.map((e) => e.id).sort()).toEqual(['entity-1', 'entity-2']);
+
+      // The relationship query must cover ALL pairs among the collected
+      // node set, not only traversal-path edges.
+      const inducedCall = mockClientQuery.mock.calls.find(
+        (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('WHERE a.id IN'),
+      );
+      expect(inducedCall).toBeDefined();
+      expect(inducedCall![0]).toContain("'entity-1'");
+      expect(inducedCall![0]).toContain("'entity-2'");
+    });
+  });
+
   // ── upsertEntity ───────────────────────────────────────────────────────
 
   describe('upsertEntity', () => {
@@ -277,6 +416,46 @@ describe('AgeGraphClient', () => {
           typeof c[0] === 'string' && c[0].includes('MERGE'),
       );
       expect(mergeCall).toBeDefined();
+    });
+
+    it('recreates the vertex under the new label when the type changes', async () => {
+      const existingVertex = JSON.stringify({
+        id: 1,
+        label: 'class',
+        properties: {
+          id: 'entity-1',
+          type: 'class',
+          name: 'wasAClass',
+          qualified_name: 'src:wasAClass',
+          source: 'test',
+          properties: '{}',
+          tags: '[]',
+          created_at: now,
+          updated_at: now,
+          last_seen_at: now,
+        },
+      }) + '::vertex';
+
+      mockClientQuery.mockImplementation((sql: unknown) => {
+        if (
+          typeof sql === 'string' &&
+          sql.includes("MATCH (n {id: 'entity-1'}) RETURN n")
+        ) {
+          return Promise.resolve({ rows: [{ n: existingVertex }] });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+
+      await client.upsertEntity(makeEntity({ id: 'entity-1', type: 'function' }));
+
+      const sqls = mockClientQuery.mock.calls
+        .map((c: unknown[]) => c[0])
+        .filter((s): s is string => typeof s === 'string');
+      // No label-scoped MERGE (which would duplicate the vertex) —
+      // instead detach-delete + create under the new label.
+      expect(sqls.some((s) => s.includes('DETACH DELETE'))).toBe(true);
+      expect(sqls.some((s) => s.includes('CREATE (n:function'))).toBe(true);
+      expect(sqls.some((s) => s.includes('MERGE'))).toBe(false);
     });
 
     it('wraps errors in GraphError with MUTATION_FAILED code', async () => {
@@ -412,6 +591,27 @@ describe('AgeGraphClient', () => {
       expect(stats.entityCountsByType['function']).toBe(3);
       expect(stats.entityCountsByType['class']).toBe(1);
       expect(stats.relationshipCountsByType['calls']).toBe(5);
+    });
+  });
+
+  // ── listRelationships ──────────────────────────────────────────────────
+
+  describe('listRelationships', () => {
+    it('orders by a stable key before SKIP/LIMIT', async () => {
+      mockClientQuery.mockImplementation((sql: unknown) => {
+        if (typeof sql === 'string' && sql.includes('count(r)')) {
+          return Promise.resolve({ rows: [{ cnt: '3' }] });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+
+      await client.listRelationships({ limit: 2, offset: 1 });
+
+      const dataCall = mockClientQuery.mock.calls.find(
+        (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('SKIP'),
+      );
+      expect(dataCall).toBeDefined();
+      expect(dataCall![0]).toContain('ORDER BY r.id SKIP 1 LIMIT 2');
     });
   });
 

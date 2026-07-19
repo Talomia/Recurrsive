@@ -16,6 +16,7 @@ import type { Entity, EntityType, Relationship } from '@recurrsive/core';
 import { GraphError } from '@recurrsive/core';
 // GraphClient interface is implemented via ExtendedGraphClient
 import type { ExtendedGraphClient, GraphStats } from './age.js';
+import { assertValidFilterKeys, matchesPropertyFilter } from './property-filter.js';
 import { migrate } from '../migrations/001_initial_schema.js';
 
 // ---------------------------------------------------------------------------
@@ -186,34 +187,33 @@ export class SqliteGraphClient implements ExtendedGraphClient {
   }
 
   /**
-   * List entities of a given type, optionally filtered by properties.
+   * List entities of a given type, optionally filtered by nested
+   * `properties` values.
+   *
+   * The filter is applied against the entity's `properties` map using
+   * the shared predicate from `property-filter.ts` — scalars compared
+   * by value (numbers/booleans are NOT coerced to quoted JSON strings)
+   * and objects/arrays structurally — so this backend returns exactly
+   * the same set as the AGE provider for the same call.
    *
    * @param type - The entity type to query.
-   * @param filter - Optional key-value filter applied to properties JSON.
+   * @param filter - Optional key-value filter applied to `properties`.
    * @returns Matching entities.
    * @throws {GraphError} If the query fails.
    */
   async getEntities(type: EntityType, filter?: Record<string, unknown>): Promise<Entity[]> {
+    if (filter) assertValidFilterKeys(filter);
+
     try {
       const db = this.getDb();
-      const params: unknown[] = [type];
-      let sql = 'SELECT * FROM entities WHERE type = ?';
-
+      const rows = db
+        .prepare('SELECT * FROM entities WHERE type = ?')
+        .all(type) as Record<string, unknown>[];
+      const entities = rows.map(rowToEntity);
       if (filter && Object.keys(filter).length > 0) {
-        for (const [key, value] of Object.entries(filter)) {
-          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
-            throw new GraphError(
-              `Invalid filter key "${key}": must match /^[a-zA-Z_][a-zA-Z0-9_]*$/`,
-              'INVALID_ARGUMENT',
-            );
-          }
-          sql += ` AND json_extract(properties, '$.${key}') = ?`;
-          params.push(typeof value === 'string' ? value : JSON.stringify(value));
-        }
+        return entities.filter((e) => matchesPropertyFilter(e.properties, filter));
       }
-
-      const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
-      return rows.map(rowToEntity);
+      return entities;
     } catch (error) {
       throw new GraphError(
         `Failed to get entities of type "${type}"`,
@@ -327,10 +327,13 @@ export class SqliteGraphClient implements ExtendedGraphClient {
     try {
       const db = this.getDb();
 
-      // Recursive CTE to walk both directions
+      // Recursive CTE to walk both directions. The visited-set guard
+      // stores the path as a comma-DELIMITED list (',id1,id2,') and
+      // checks candidates wrapped in commas — a bare INSTR(path, id)
+      // would spuriously match when one id is a substring of another.
       const neighborSql = `
         WITH RECURSIVE neighbors(entity_id, current_depth, path) AS (
-          SELECT ?, 0, ?
+          SELECT ?, 0, ',' || ? || ','
           UNION ALL
           SELECT
             CASE
@@ -338,17 +341,17 @@ export class SqliteGraphClient implements ExtendedGraphClient {
               ELSE r.source_id
             END,
             n.current_depth + 1,
-            n.path || ',' || CASE
+            n.path || CASE
               WHEN r.source_id = n.entity_id THEN r.target_id
               ELSE r.source_id
-            END
+            END || ','
           FROM neighbors n
           JOIN relationships r ON r.source_id = n.entity_id OR r.target_id = n.entity_id
           WHERE n.current_depth < ?
-            AND INSTR(n.path, CASE
+            AND INSTR(n.path, ',' || CASE
               WHEN r.source_id = n.entity_id THEN r.target_id
               ELSE r.source_id
-            END) = 0
+            END || ',') = 0
         )
         SELECT DISTINCT entity_id FROM neighbors;
       `;
@@ -605,7 +608,9 @@ export class SqliteGraphClient implements ExtendedGraphClient {
     query: string,
     options?: { type?: string; limit?: number },
   ): Promise<Entity[]> {
-    if (!this.db) throw new GraphError('Database not initialized', 'NOT_INITIALIZED');
+    // Lazily open the connection like every other method — using
+    // `this.db` directly threw NOT_INITIALIZED before first use.
+    const db = this.getDb();
 
     try {
       const limit = options?.limit ?? 50;
@@ -643,7 +648,7 @@ export class SqliteGraphClient implements ExtendedGraphClient {
         params = [ftsQuery, limit];
       }
 
-      const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
+      const rows = db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
 
       return rows.map((row) => ({
         id: String(row['id']),

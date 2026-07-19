@@ -105,9 +105,13 @@ function severityToLevel(severity: Severity): SarifLevel {
   }
 }
 
-/** Sanitize a string into a valid SARIF rule ID (alphanumeric + dashes). */
+/**
+ * Build the SARIF rule ID for an opportunity. Uses the FULL opportunity
+ * id — truncating to a prefix risks two distinct opportunities colliding
+ * on the same rule.
+ */
 function toRuleId(opp: Opportunity): string {
-  return `recurrsive/${opp.category}/${opp.id.slice(0, 8)}`;
+  return `recurrsive/${opp.category}/${opp.id}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +143,8 @@ export function generateSarifReport(
   // Build rule descriptors (one per unique opportunity)
   const rules: SarifReportingDescriptor[] = capped.map((opp) => ({
     id: toRuleId(opp),
-    name: opp.title.replace(/[^a-zA-Z0-9\s\-_]/g, '').slice(0, 128),
+    // Fall back to the rule id when sanitisation strips the entire title
+    name: opp.title.replace(/[^a-zA-Z0-9\s\-_]/g, '').slice(0, 128).trim() || toRuleId(opp),
     shortDescription: { text: opp.problem.slice(0, 256) },
     fullDescription: { text: opp.recommendation },
     properties: {
@@ -190,7 +195,8 @@ export function generateSarifReport(
   });
 
   const log: SarifLog = {
-    $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json',
+    // Canonical OASIS schema URL for SARIF v2.1.0
+    $schema: 'https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json',
     version: '2.1.0',
     runs: [
       {

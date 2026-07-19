@@ -45,6 +45,10 @@ export type {
 export { HttpNotifier } from './notifications/http.js';
 export type { HttpNotifierConfig } from './notifications/http.js';
 
+// Health label (shared 5-tier scale used by all report surfaces)
+export { healthLabel, healthTier, HEALTH_TIER_LABEL } from './health-label.js';
+export type { HealthTier } from './health-label.js';
+
 // Formatters
 export {
   formatTable,

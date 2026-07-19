@@ -45,19 +45,6 @@ const stats = await client.getStats();
 | `createGraphClient(config)` | Create a read-write graph client (AGE or SQLite) |
 | `createReadOnlyGraphClient(config)` | Create a read-only client |
 
-### Query Builders
-
-| Function | Description |
-|----------|-------------|
-| `findDependencyTree()` | Recursive dependency traversal |
-| `findCircularDeps()` | Cycle detection in the graph |
-| `findDeadCode()` | Find unreferenced entities |
-| `findCallChain()` | Trace function call paths |
-| `findAIWorkflow()` | Discover agent-tool-prompt workflows |
-| `findEntitiesByPattern()` | Name/pattern matching |
-| `findAllPromptsForAgent()` | Get all prompts used by an agent |
-| `findModelUsage()` | Analyze LLM model usage across the graph |
-
 ### Providers
 
 | Export | Description |

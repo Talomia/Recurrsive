@@ -314,6 +314,31 @@ describe('SqliteGraphClient', () => {
       expect(entityNames).toContain('C');
     });
 
+    it('returns the induced subgraph: edges among collected neighbors are included', async () => {
+      const eA = makeEntity({ id: crypto.randomUUID(), name: 'A' });
+      const eB = makeEntity({ id: crypto.randomUUID(), name: 'B' });
+      const eC = makeEntity({ id: crypto.randomUUID(), name: 'C' });
+      await client.upsertEntity(eA);
+      await client.upsertEntity(eB);
+      await client.upsertEntity(eC);
+
+      // A -> B, A -> C plus a B -> C edge that is NOT on any 1-hop path from A
+      await client.upsertRelationship(
+        makeRelationship({ source_id: eA.id, target_id: eB.id, type: 'calls' }),
+      );
+      await client.upsertRelationship(
+        makeRelationship({ source_id: eA.id, target_id: eC.id, type: 'calls' }),
+      );
+      const crossEdge = makeRelationship({ source_id: eB.id, target_id: eC.id, type: 'calls' });
+      await client.upsertRelationship(crossEdge);
+
+      const result = await client.getNeighbors(eA.id, 1);
+      expect(result.entities.map((e) => e.name).sort()).toEqual(['A', 'B', 'C']);
+      // Induced subgraph semantics: the B -> C edge is included too
+      expect(result.relationships.map((r) => r.id)).toContain(crossEdge.id);
+      expect(result.relationships).toHaveLength(3);
+    });
+
     it('returns empty for entity with no connections', async () => {
       const lonely = makeEntity({ id: crypto.randomUUID(), name: 'Lonely' });
       await client.upsertEntity(lonely);

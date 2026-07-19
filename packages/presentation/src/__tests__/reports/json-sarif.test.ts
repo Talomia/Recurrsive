@@ -260,12 +260,35 @@ describe('generateSarifReport', () => {
     expect(() => JSON.parse(output)).not.toThrow();
   });
 
-  it('has correct $schema for SARIF v2.1.0', () => {
+  it('has the canonical OASIS $schema URL for SARIF v2.1.0', () => {
     const parsed = JSON.parse(generateSarifReport([]));
     expect(parsed.$schema).toBe(
-      'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json',
+      'https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json',
     );
     expect(parsed.version).toBe('2.1.0');
+  });
+
+  it('uses the full opportunity id in the rule id (no truncation collisions)', () => {
+    const opp = makeOpp({ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', category: 'security' });
+    const parsed = JSON.parse(generateSarifReport([opp]));
+    const ruleId = parsed.runs[0].results[0].ruleId;
+    expect(ruleId).toBe('recurrsive/security/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+    expect(parsed.runs[0].tool.driver.rules[0].id).toBe(ruleId);
+  });
+
+  it('distinct opportunities sharing an id prefix get distinct rule ids', () => {
+    const a = makeOpp({ id: 'aaaaaaaa-1111-1111-1111-111111111111', category: 'security' });
+    const b = makeOpp({ id: 'aaaaaaaa-2222-2222-2222-222222222222', category: 'security' });
+    const parsed = JSON.parse(generateSarifReport([a, b]));
+    const ids = parsed.runs[0].tool.driver.rules.map((r: { id: string }) => r.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it('falls back to the rule id when the sanitized rule name is empty', () => {
+    const opp = makeOpp({ id: 'opp-1', title: '!!!???***', category: 'security' });
+    const parsed = JSON.parse(generateSarifReport([opp]));
+    const rule = parsed.runs[0].tool.driver.rules[0];
+    expect(rule.name).toBe('recurrsive/security/opp-1');
   });
 
   describe('severity to SARIF level mapping', () => {
