@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2,
@@ -13,13 +13,14 @@ import {
   Code2,
   Lightbulb,
   UserPlus,
-  ArrowLeft,
+  Network,
 } from 'lucide-react';
 import Header from '@/components/header';
 import ErrorBanner from '@/components/error-banner';
 import LoadingSkeleton from '@/components/loading-skeleton';
 import { useToast } from '@/components/ui/toast';
 import { apiFetch } from '@/lib/api/client';
+import { scopedHref } from '@/lib/project-links';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,6 +73,8 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string; 
 export default function FindingDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get('projectId');
   const { toast } = useToast();
 
   const [finding, setFinding] = useState<Finding | null>(null);
@@ -157,10 +160,15 @@ export default function FindingDetailPage() {
 
   // -- Loading --
 
+  const breadcrumbs = [
+    { label: 'Findings', href: scopedHref('/findings', projectId) },
+    { label: finding ? `#${finding.id}` : `#${id}` },
+  ];
+
   if (loading) {
     return (
       <div className="flex flex-col gap-6 p-6">
-        <Header title="Finding Detail" subtitle="Loading…" />
+        <Header title="Finding Detail" subtitle="Loading…" breadcrumbs={breadcrumbs} />
         <LoadingSkeleton variant="list" count={4} />
       </div>
     );
@@ -171,7 +179,7 @@ export default function FindingDetailPage() {
   if (error && !finding) {
     return (
       <div className="flex flex-col gap-6 p-6">
-        <Header title="Finding Detail" />
+        <Header title="Finding Detail" breadcrumbs={breadcrumbs} />
         <ErrorBanner message={error} onRetry={fetchFinding} />
       </div>
     );
@@ -186,22 +194,10 @@ export default function FindingDetailPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <Header
-        title="Finding Detail"
-        subtitle={finding.title}
+        title={finding.title}
+        subtitle={`${finding.category} · ${finding.severity}`}
+        breadcrumbs={breadcrumbs}
       />
-
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
-        <Link
-          href="/findings"
-          className="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Findings
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
-        <span className="text-text-primary font-medium">Finding #{finding.id}</span>
-      </nav>
 
       {/* Error banner (non-fatal) */}
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
@@ -263,6 +259,19 @@ export default function FindingDetailPage() {
           <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Description</p>
           <p className="text-sm text-text-secondary leading-relaxed">{finding.description}</p>
         </div>
+
+        {/* Cross-link into the architecture view for located findings */}
+        {finding.file_path && (
+          <div className="pt-3 border-t border-white/5">
+            <Link
+              href={scopedHref('/system-map', projectId)}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-blue hover:text-blue-300 transition-colors"
+            >
+              <Network className="h-3.5 w-3.5" aria-hidden="true" />
+              Explore this area in the System Map
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Code snippet */}
@@ -295,7 +304,7 @@ export default function FindingDetailPage() {
               return (
                 <Link
                   key={opp.id}
-                  href={`/opportunities/${encodeURIComponent(opp.id)}`}
+                  href={scopedHref(`/opportunities/${encodeURIComponent(opp.id)}`, projectId)}
                   className="group flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.05] hover:border-white/10 transition-all"
                 >
                   <span className={`h-2 w-2 rounded-full shrink-0 ${oppSev.dot}`} />

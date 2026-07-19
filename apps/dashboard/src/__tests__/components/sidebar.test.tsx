@@ -2,17 +2,36 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Sidebar from '../../components/sidebar';
 
-// Mock useActiveProject
+// ── Mock useActiveProject (two-tier scope model) ──────────────────────────────
+//
+// The sidebar renders WORKSPACE sections when scope === 'workspace' and
+// PROJECT sections when scope === 'project'. Tests flip the mock per case.
+
+const PROJECTS = [
+  { id: 'proj-1', name: 'Service A', slug: 'service-a', language: 'TypeScript' },
+  { id: 'proj-2', name: 'Service B', slug: 'service-b', language: 'Python' },
+];
+
+const workspaceContext = {
+  projects: PROJECTS,
+  activeProject: null,
+  scope: 'workspace' as const,
+  loading: false,
+  switchProject: vi.fn(),
+  enterWorkspace: vi.fn(),
+  refresh: vi.fn(),
+};
+
+const projectContext = {
+  ...workspaceContext,
+  activeProject: PROJECTS[0],
+  scope: 'project' as const,
+};
+
+let activeProjectContext: typeof workspaceContext | typeof projectContext = workspaceContext;
+
 vi.mock('../../components/active-project-context', () => ({
-  useActiveProject: () => ({
-    projects: [
-      { id: 'proj-1', name: 'Service A', slug: 'service-a', language: 'TypeScript' },
-      { id: 'proj-2', name: 'Service B', slug: 'service-b', language: 'Python' }
-    ],
-    activeProject: { id: 'proj-1', name: 'Service A', slug: 'service-a', language: 'TypeScript' },
-    loading: false,
-    switchProject: vi.fn(),
-  }),
+  useActiveProject: () => activeProjectContext,
 }));
 
 // Mock useAssistant (AI availability context)
@@ -28,6 +47,7 @@ vi.mock('../../components/assistant-context', () => ({
 describe('Sidebar', () => {
   beforeEach(() => {
     localStorage.clear();
+    activeProjectContext = workspaceContext;
   });
 
   it('renders the Recurrsive brand', () => {
@@ -35,85 +55,101 @@ describe('Sidebar', () => {
     expect(screen.getByText('Recurrsive')).toBeInTheDocument();
   });
 
-  it('renders consolidated section headers', () => {
-    render(<Sidebar />);
-    expect(screen.getByText('Intelligence')).toBeInTheDocument();
-    expect(screen.getByText('Analysis')).toBeInTheDocument();
-    expect(screen.getByText('Operations')).toBeInTheDocument();
-    expect(screen.getByText('Administration')).toBeInTheDocument();
+  describe('workspace scope', () => {
+    it('renders the workspace section headers', () => {
+      render(<Sidebar />);
+      expect(screen.getByText('Portfolio')).toBeInTheDocument();
+      expect(screen.getByText('Team & Governance')).toBeInTheDocument();
+      expect(screen.getByText('Platform')).toBeInTheDocument();
+    });
+
+    it('does not render project-scope section headers', () => {
+      render(<Sidebar />);
+      expect(screen.queryByText('Insights')).not.toBeInTheDocument();
+      expect(screen.queryByText('Delivery')).not.toBeInTheDocument();
+    });
+
+    it('shows portfolio links by default (Portfolio section expanded)', () => {
+      render(<Sidebar />);
+      expect(screen.getByRole('link', { name: /Overview/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Projects/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Comparisons/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Batch Analysis/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Intelligence Packs/i })).toBeInTheDocument();
+      // Only the Portfolio section's 5 links are visible by default.
+      expect(screen.getAllByRole('link').length).toBe(5);
+    });
+
+    it('reveals governance and platform links when expanded', () => {
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Team & Governance/i }));
+      expect(screen.getByRole('link', { name: /Users/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Policies/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Audit Trail/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /SSO/i })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Platform/i }));
+      expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Secrets/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Webhooks/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Marketplace/i })).toBeInTheDocument();
+
+      // Portfolio (5) + Governance (6) + Platform (9) links all visible.
+      expect(screen.getAllByRole('link').length).toBe(20);
+    });
   });
 
-  it('renders navigation items within default expanded sections', () => {
-    render(<Sidebar />);
-    // Intelligence section (expanded by default)
-    expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Forecasting')).toBeInTheDocument();
-    expect(screen.getByText('Health')).toBeInTheDocument();
-    expect(screen.getByText('Timeline')).toBeInTheDocument();
-    expect(screen.getByText('Comparisons')).toBeInTheDocument();
+  describe('project scope', () => {
+    beforeEach(() => {
+      activeProjectContext = projectContext;
+    });
 
-    // Analysis section (expanded by default)
-    expect(screen.getByText('Projects')).toBeInTheDocument();
-    expect(screen.getByText('Opportunities')).toBeInTheDocument();
-    expect(screen.getByText('Findings')).toBeInTheDocument();
-    expect(screen.getByText('System Map')).toBeInTheDocument();
-    expect(screen.getByText('Analytics')).toBeInTheDocument();
-  });
+    it('renders the project section headers', () => {
+      render(<Sidebar />);
+      // "Project" also appears as the scope-selector label, so target the
+      // collapsible section toggle buttons specifically.
+      expect(screen.getByRole('button', { name: /^Project$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^Insights$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^Delivery$/i })).toBeInTheDocument();
+    });
 
-  it('renders operations and administration pages when expanded', () => {
-    render(<Sidebar />);
+    it('shows project and insights links by default', () => {
+      render(<Sidebar />);
+      // Project section
+      expect(screen.getByRole('link', { name: /Overview/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Findings/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Opportunities/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /System Map/i })).toBeInTheDocument();
+      // Insights section
+      expect(screen.getByRole('link', { name: /Health/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Timeline/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Forecasting/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Confidence/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Analytics/i })).toBeInTheDocument();
+      // Project (4) + Insights (5) links visible by default.
+      expect(screen.getAllByRole('link').length).toBe(9);
+    });
 
-    // Expand Operations
-    const operationsButton = screen.getByRole('button', { name: /Operations/i });
-    fireEvent.click(operationsButton);
+    it('reveals delivery links when expanded', () => {
+      render(<Sidebar />);
+      fireEvent.click(screen.getByRole('button', { name: /Delivery/i }));
+      expect(screen.getByRole('link', { name: /Reports/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Snapshots/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Scheduling/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Simulation/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Experiments/i })).toBeInTheDocument();
+      // Project (4) + Insights (5) + Delivery (5) links all visible.
+      expect(screen.getAllByRole('link').length).toBe(14);
+    });
 
-    expect(screen.getByText('Batch')).toBeInTheDocument();
-    expect(screen.getByText('Scheduling')).toBeInTheDocument();
-    expect(screen.getByText('Reports')).toBeInTheDocument();
-    expect(screen.getByText('Search')).toBeInTheDocument();
-    expect(screen.getByText('Experiments')).toBeInTheDocument();
-    expect(screen.getByText('Simulation')).toBeInTheDocument();
-    expect(screen.getByText('Snapshots')).toBeInTheDocument();
-
-    // Expand Administration
-    const adminButton = screen.getByRole('button', { name: /Administration/i });
-    fireEvent.click(adminButton);
-
-    expect(screen.getByText('Users')).toBeInTheDocument();
-    expect(screen.getByText('Policies')).toBeInTheDocument();
-    expect(screen.getByText('Audit Trail')).toBeInTheDocument();
-    expect(screen.getByText('Settings')).toBeInTheDocument();
-    expect(screen.getByText('Secrets')).toBeInTheDocument();
-    expect(screen.getByText('Data Masking')).toBeInTheDocument();
-    expect(screen.getByText('Webhooks')).toBeInTheDocument();
-    expect(screen.getByText('Notifications')).toBeInTheDocument();
-    expect(screen.getByText('Marketplace')).toBeInTheDocument();
-    expect(screen.getByText('Plugins')).toBeInTheDocument();
-    expect(screen.getByText('SSO')).toBeInTheDocument();
-    expect(screen.getByText('Tenants')).toBeInTheDocument();
-  });
-
-  it('renders navigation links as anchor elements', () => {
-    render(<Sidebar />);
-    // By default, only expanded section links are visible (12 links)
-    const links = screen.getAllByRole('link');
-    expect(links.length).toBe(12);
-  });
-
-  it('renders all links when all sections are expanded', () => {
-    render(<Sidebar />);
-
-    const operationsButton = screen.getByRole('button', { name: /Operations/i });
-    const adminButton = screen.getByRole('button', { name: /Administration/i });
-
-    fireEvent.click(operationsButton);
-    fireEvent.click(adminButton);
-
-    const links = screen.getAllByRole('link');
-    // Intelligence + Analysis + Operations + Administration nav links, including
-    // the newly wired confidence/intelligence-packs/invites/partners/cloud pages.
-    expect(links.length).toBe(34);
+    it('keeps project links scoped with the active projectId', () => {
+      render(<Sidebar />);
+      const findingsLink = screen.getByRole('link', { name: /Findings/i });
+      expect(findingsLink).toHaveAttribute('href', '/findings?projectId=proj-1');
+      // The Overview item resolves to the project home.
+      const overviewLink = screen.getByRole('link', { name: /Overview/i });
+      expect(overviewLink).toHaveAttribute('href', '/projects/proj-1');
+    });
   });
 });
-
-

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Sparkles, LogOut, User, Settings } from "lucide-react";
+import { Search, Bell, Sparkles, LogOut, User, Settings, ChevronRight, type LucideIcon } from "lucide-react";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { LiveIndicator } from "./LiveIndicator";
 import { useAuth } from "@/lib/auth-context";
@@ -11,9 +11,35 @@ import { useActiveProject } from "./active-project-context";
 import NotificationsPanel from "./notifications-panel";
 import AiChatPanel from "./ai-chat-panel";
 
+/** A single breadcrumb segment rendered above the page title. */
+export interface HeaderBreadcrumb {
+  label: string;
+  /** When present, the crumb is a link (e.g. back to the list page). */
+  href?: string;
+}
+
+/**
+ * The page's primary action, rendered as a prominent button on the right of
+ * the header. Provide `href` (navigation) OR `onClick` (in-page action).
+ * Note: `onClick` and `icon` are only usable from client components — server
+ * pages should pass an href-only action.
+ */
+export interface HeaderPrimaryAction {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+  icon?: LucideIcon;
+  /** Disable the action (e.g. while an analysis is already running). */
+  disabled?: boolean;
+}
+
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  /** Optional ancestry trail (detail pages: e.g. Findings › #F-123). */
+  breadcrumbs?: HeaderBreadcrumb[];
+  /** Optional prominent action button (list pages: e.g. New Analysis). */
+  primaryAction?: HeaderPrimaryAction;
 }
 
 /** Map role to display color. */
@@ -23,7 +49,7 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   viewer: { bg: 'rgba(107, 114, 128, 0.15)', text: '#9ca3af' },
 };
 
-export default function Header({ title, subtitle }: HeaderProps) {
+export default function Header({ title, subtitle, breadcrumbs, primaryAction }: HeaderProps) {
   const router = useRouter();
   const { activeProject } = useActiveProject();
   const [searchQuery, setSearchQuery] = useState("");
@@ -116,12 +142,35 @@ export default function Header({ title, subtitle }: HeaderProps) {
   return (
     <>
       <header className="flex items-center justify-between border-b border-border px-6 py-4" aria-label="Page header">
-        {/* Left: title */}
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-text-primary">{title}</h1>
+        {/* Left: breadcrumbs + title */}
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="min-w-0">
+            {breadcrumbs && breadcrumbs.length > 0 && (
+              <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 mb-1 text-xs">
+                {breadcrumbs.map((crumb, i) => (
+                  <span key={`${crumb.label}-${i}`} className="flex items-center gap-1.5 min-w-0">
+                    {i > 0 && (
+                      <ChevronRight className="h-3 w-3 shrink-0 text-text-muted" aria-hidden="true" />
+                    )}
+                    {crumb.href ? (
+                      <Link
+                        href={crumb.href}
+                        className="text-text-muted hover:text-text-primary transition-colors truncate max-w-[240px]"
+                      >
+                        {crumb.label}
+                      </Link>
+                    ) : (
+                      <span className="text-text-secondary truncate max-w-[280px]" aria-current="page">
+                        {crumb.label}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </nav>
+            )}
+            <h1 className="text-xl font-bold text-text-primary truncate">{title}</h1>
             {subtitle && (
-              <p className="mt-0.5 text-sm text-text-muted">{subtitle}</p>
+              <p className="mt-0.5 text-sm text-text-muted truncate">{subtitle}</p>
             )}
           </div>
           {activeProject && (
@@ -134,8 +183,11 @@ export default function Header({ title, subtitle }: HeaderProps) {
           )}
         </div>
 
-        {/* Right: search + actions */}
-        <div className="flex items-center gap-3">
+        {/* Right: primary action + search + actions */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Primary page action */}
+          {primaryAction && <PrimaryActionButton action={primaryAction} />}
+
           {/* Search */}
           <div className="hidden md:flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 border border-white/5 focus-within:border-accent-blue/40 transition-colors">
             <Search className="h-4 w-4 text-text-muted" aria-hidden="true" />
@@ -248,6 +300,40 @@ export default function Header({ title, subtitle }: HeaderProps) {
         <CommandPalette onClose={() => setShowCommandPalette(false)} activeProjectId={activeProjectId} />
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Primary action button (consistent page shell across list/detail pages)
+// ---------------------------------------------------------------------------
+
+const PRIMARY_ACTION_CLASSES =
+  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:hover:scale-100 disabled:cursor-not-allowed';
+const PRIMARY_ACTION_STYLE = { background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' } as const;
+
+function PrimaryActionButton({ action }: { action: HeaderPrimaryAction }) {
+  const Icon = action.icon;
+
+  if (action.href && !action.disabled) {
+    return (
+      <Link href={action.href} className={PRIMARY_ACTION_CLASSES} style={PRIMARY_ACTION_STYLE}>
+        {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
+        {action.label}
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={action.onClick}
+      disabled={action.disabled}
+      className={PRIMARY_ACTION_CLASSES}
+      style={PRIMARY_ACTION_STYLE}
+    >
+      {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
+      {action.label}
+    </button>
   );
 }
 

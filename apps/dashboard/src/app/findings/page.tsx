@@ -3,12 +3,14 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff } from "lucide-react";
+import { Search, Filter, ShieldAlert, AlertTriangle, AlertCircle, CheckCircle2, EyeOff, Download } from "lucide-react";
 import Header from "@/components/header";
 import EmptyState from "@/components/ui/empty-state";
 import ErrorState from "@/components/ui/error-state";
 import LoadingSkeleton from "@/components/loading-skeleton";
 import { getFindingsPage, type FindingsPageData } from "@/lib/api";
+import { scopedHref } from "@/lib/project-links";
+import { downloadCsv } from "@/lib/csv";
 import clsx from "clsx";
 
 // ---------------------------------------------------------------------------
@@ -84,7 +86,7 @@ export default function FindingsPage() {
   if (error) {
     return (
       <div className="flex flex-col gap-6 p-6">
-        <Header title="Security Findings" subtitle="Couldn't load findings" />
+        <Header title="Findings" subtitle="Couldn't load findings" />
         <ErrorState
           title="Failed to load findings"
           message={error}
@@ -97,11 +99,20 @@ export default function FindingsPage() {
   if (!data) {
     return (
       <div className="flex flex-col gap-6 p-6">
-        <Header title="Security Findings" subtitle="Loading findings data…" />
+        <Header title="Findings" subtitle="Loading findings data…" />
         <LoadingSkeleton variant="table" count={6} />
       </div>
     );
   }
+
+  // Export exactly what's on screen (respects active filters) — real data only.
+  const exportCsv = () => {
+    downloadCsv(
+      'findings.csv',
+      ['ID', 'Title', 'Severity', 'Category', 'Status', 'Assignee'],
+      filtered.map((f) => [f.id, f.title, f.severity, f.category, f.status, f.assignee]),
+    );
+  };
 
   const stats = [
     { label: "Total", value: data.stats.total, color: "text-text-primary", bg: "bg-blue-500/10", icon: ShieldAlert, iconColor: "text-blue-400" },
@@ -114,8 +125,14 @@ export default function FindingsPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <Header
-        title="Security Findings"
-        subtitle={`${data.stats.total} findings across your codebase`}
+        title="Findings"
+        subtitle={`${data.stats.total} finding${data.stats.total !== 1 ? 's' : ''} across your codebase`}
+        primaryAction={{
+          label: 'Export CSV',
+          onClick: exportCsv,
+          icon: Download,
+          disabled: filtered.length === 0,
+        }}
       />
 
       {/* Stats Row */}
@@ -207,10 +224,10 @@ export default function FindingsPage() {
                   className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.02] transition-colors cursor-pointer group"
                 >
                   <td className="px-5 py-3">
-                    <Link href={`/findings/${finding.id}`} className="text-xs font-mono text-text-muted group-hover:text-accent-blue transition-colors">{finding.id}</Link>
+                    <Link href={scopedHref(`/findings/${encodeURIComponent(finding.id)}`, projectId)} className="text-xs font-mono text-text-muted group-hover:text-accent-blue transition-colors">{finding.id}</Link>
                   </td>
                   <td className="px-5 py-3">
-                    <Link href={`/findings/${finding.id}`} className="text-xs font-medium text-text-primary truncate max-w-xs block group-hover:text-accent-blue transition-colors">
+                    <Link href={scopedHref(`/findings/${encodeURIComponent(finding.id)}`, projectId)} className="text-xs font-medium text-text-primary truncate max-w-xs block group-hover:text-accent-blue transition-colors">
                       {finding.title}
                     </Link>
                   </td>

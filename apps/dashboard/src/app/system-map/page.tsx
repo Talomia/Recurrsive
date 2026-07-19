@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Header from "@/components/header";
+import ErrorBanner from "@/components/error-banner";
 import { Network, Box, ArrowRight, Layers, FolderGit2 } from "lucide-react";
 import { getGraphStats } from "@/lib/api";
 
@@ -112,7 +113,11 @@ export default async function SystemMapPage() {
 
     return (
       <div className="flex flex-col min-h-screen">
-        <Header title="System Map" subtitle="Knowledge graph topology and entity distribution" />
+        <Header
+          title="System Map"
+          subtitle="Knowledge graph topology and entity distribution"
+          primaryAction={{ label: "Run Analysis", href: "/projects" }}
+        />
         <div className="flex-1 p-6 space-y-6">
 
           {/* Summary stats */}
@@ -235,14 +240,14 @@ export default async function SystemMapPage() {
         </div>
       </div>
     );
-  } catch {
+  } catch (err) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header title="System Map" subtitle="Knowledge graph topology and entity distribution" />
         <div className="flex-1 p-6">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-text-muted">
-            Unable to load data. The API may be unavailable.
-          </div>
+          <ErrorBanner
+            message={`${err instanceof Error ? err.message : 'Unable to load the system map.'} — the analysis server is unreachable or returned an error. This is not the same as having no data yet.`}
+          />
         </div>
       </div>
     );

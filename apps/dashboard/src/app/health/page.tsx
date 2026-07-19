@@ -1,5 +1,6 @@
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
+import ErrorBanner from "@/components/error-banner";
 import { getHealthDashboard } from "@/lib/api";
 import {
   HeartPulse,
@@ -58,6 +59,7 @@ export default async function HealthPage() {
         <Header
           title="System Health"
           subtitle="Live process metrics and service status"
+          primaryAction={{ label: "Run Analysis", href: "/projects" }}
         />
 
         {/* Health Score + Status Cards */}
@@ -156,16 +158,16 @@ export default async function HealthPage() {
         </div>
       </div>
     );
-  } catch {
+  } catch (err) {
     return (
       <div className="flex flex-col gap-6 p-6">
         <Header
           title="System Health"
           subtitle="Live process metrics and service status"
         />
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-text-muted">
-          Unable to load data. The API may be unavailable.
-        </div>
+        <ErrorBanner
+          message={`${err instanceof Error ? err.message : 'Unable to load health data.'} — the analysis server is unreachable or returned an error. This is not the same as having no data yet.`}
+        />
       </div>
     );
   }

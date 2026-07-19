@@ -5,8 +5,6 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2,
-  ChevronRight,
-  ArrowLeft,
   FolderGit2,
   ExternalLink,
   Play,
@@ -15,15 +13,16 @@ import {
   Lightbulb,
   Settings,
   BarChart3,
-  AlertTriangle,
   CheckCircle2,
   AlertCircle,
   EyeOff,
 } from 'lucide-react';
 import Header from '@/components/header';
 import ErrorBanner from '@/components/error-banner';
+import LoadingSkeleton from '@/components/loading-skeleton';
 import ScoreGauge from '@/components/score-gauge';
 import { apiFetch, ApiError } from '@/lib/api/client';
+import { scopedHref } from '@/lib/project-links';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -238,21 +237,17 @@ export default function ProjectDetailPage() {
 
   // -- Loading --
   if (loading) {
-    return (
-      <div className="flex flex-col h-screen">
-        <Header title="Project Detail" subtitle="Loading…" />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton variant="page" />;
   }
 
   // -- Error --
   if (error && !project) {
     return (
       <div className="flex flex-col gap-6 p-6">
-        <Header title="Project Detail" />
+        <Header
+          title="Project Detail"
+          breadcrumbs={[{ label: 'Projects', href: '/projects' }, { label: 'Project' }]}
+        />
         <ErrorBanner message={error} onRetry={fetchProject} />
       </div>
     );
@@ -263,22 +258,16 @@ export default function ProjectDetailPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <Header
-        title="Project Detail"
-        subtitle={project.name}
+        title={project.name}
+        subtitle={project.description ?? project.repository}
+        breadcrumbs={[{ label: 'Projects', href: '/projects' }, { label: project.name }]}
+        primaryAction={{
+          label: analyzing ? 'Analyzing…' : project.lastAnalysis ? 'Re-analyze' : 'Analyze',
+          onClick: () => void handleAnalyze(),
+          icon: Play,
+          disabled: analyzing,
+        }}
       />
-
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
-        <Link
-          href="/projects"
-          className="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Projects
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
-        <span className="text-text-primary font-medium">{project.name}</span>
-      </nav>
 
       {/* Error banner */}
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
@@ -319,19 +308,15 @@ export default function ProjectDetailPage() {
               )}
             </div>
           </div>
-          <button
-            onClick={handleAnalyze}
-            disabled={analyzing}
-            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-60 shrink-0"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}
-          >
-            {analyzing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-            {project.lastAnalysis ? 'Re-analyze' : 'Analyze'}
-          </button>
+          {project.lastAnalysis && (
+            <Link
+              href={`/?projectId=${encodeURIComponent(project.id)}`}
+              className="inline-flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-white/10 hover:text-text-primary transition-colors shrink-0"
+            >
+              <BarChart3 className="h-4 w-4" aria-hidden="true" />
+              Open Overview
+            </Link>
+          )}
         </div>
       </div>
 
@@ -449,23 +434,23 @@ export default function ProjectDetailPage() {
         {/* Overview */}
         {activeTab === 'Overview' && (
           <div className="space-y-6">
-            {/* Health metrics */}
+            {/* Health metrics — each tile is a one-click path into the journey */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="glass-card p-4 text-center">
+              <Link href={scopedHref('/health', project.id)} className="glass-card p-4 text-center hover:border-white/15 transition-all">
                 <BarChart3 className="h-5 w-5 mx-auto text-blue-400 mb-2" />
                 <p className="text-2xl font-bold text-text-primary tabular-nums">{project.healthScore}</p>
                 <p className="text-[10px] text-text-muted">Health Score</p>
-              </div>
-              <div className="glass-card p-4 text-center">
+              </Link>
+              <Link href={scopedHref('/findings', project.id)} className="glass-card p-4 text-center hover:border-white/15 transition-all">
                 <ShieldAlert className="h-5 w-5 mx-auto text-amber-400 mb-2" />
                 <p className="text-2xl font-bold text-text-primary tabular-nums">{findings.length || '—'}</p>
                 <p className="text-[10px] text-text-muted">Findings</p>
-              </div>
-              <div className="glass-card p-4 text-center">
+              </Link>
+              <Link href={scopedHref('/opportunities', project.id)} className="glass-card p-4 text-center hover:border-white/15 transition-all">
                 <Lightbulb className="h-5 w-5 mx-auto text-purple-400 mb-2" />
                 <p className="text-2xl font-bold text-text-primary tabular-nums">{opportunities.length || '—'}</p>
                 <p className="text-[10px] text-text-muted">Opportunities</p>
-              </div>
+              </Link>
               <div className="glass-card p-4 text-center">
                 <Settings className="h-5 w-5 mx-auto text-cyan-400 mb-2" />
                 <p className="text-2xl font-bold text-text-primary tabular-nums">{project.settings.analyzers.length}</p>
@@ -524,10 +509,10 @@ export default function ProjectDetailPage() {
                     return (
                       <tr key={f.id} className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.02] transition-colors">
                         <td className="px-5 py-3">
-                          <Link href={`/findings/${f.id}`} className="text-xs font-mono text-accent-blue hover:underline">{f.id}</Link>
+                          <Link href={scopedHref(`/findings/${encodeURIComponent(f.id)}`, project.id)} className="text-xs font-mono text-accent-blue hover:underline">{f.id}</Link>
                         </td>
                         <td className="px-5 py-3">
-                          <Link href={`/findings/${f.id}`} className="text-xs font-medium text-text-primary hover:text-accent-blue transition-colors truncate block max-w-xs">{f.title}</Link>
+                          <Link href={scopedHref(`/findings/${encodeURIComponent(f.id)}`, project.id)} className="text-xs font-medium text-text-primary hover:text-accent-blue transition-colors truncate block max-w-xs">{f.title}</Link>
                         </td>
                         <td className="px-5 py-3">
                           <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${s.bg} ${s.text} border ${s.border}`}>

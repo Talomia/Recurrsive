@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { getProjects, createBatchRun, triggerAnalysis } from '@/lib/api';
 import type { Project } from '@/lib/api';
+import { scopedHref } from '@/lib/project-links';
 import { apiFetch } from '@/lib/api/client';
 import Header from '@/components/header';
 import { useActiveProject } from '@/components/active-project-context';
@@ -200,28 +201,28 @@ function ProjectQuickLinks({ project }: { project: Project }) {
   return (
     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
       <Link
-        href="/findings"
+        href={scopedHref('/findings', project.id)}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-text-secondary transition-all hover:bg-white/5 hover:text-text-primary"
       >
         <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
         Findings
       </Link>
       <Link
-        href="/system-map"
+        href={scopedHref('/system-map', project.id)}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-text-secondary transition-all hover:bg-white/5 hover:text-text-primary"
       >
         <Network className="w-3.5 h-3.5 text-blue-400" />
         System Map
       </Link>
       <Link
-        href="/health"
+        href={scopedHref('/health', project.id)}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-text-secondary transition-all hover:bg-white/5 hover:text-text-primary"
       >
         <BarChart3 className="w-3.5 h-3.5 text-green-400" />
         Health
       </Link>
       <Link
-        href="/opportunities"
+        href={scopedHref('/opportunities', project.id)}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-text-secondary transition-all hover:bg-white/5 hover:text-text-primary"
       >
         <Sparkles className="w-3.5 h-3.5 text-purple-400" />
@@ -345,10 +346,20 @@ export default function ProjectsPage() {
 
   const hasAnyAnalyzed = projects.some(p => p.lastAnalysis);
 
+  const headerAction = {
+    label: 'New Project',
+    onClick: () => setShowCreate((prev) => !prev),
+    icon: Plus,
+  };
+
   if (loading) {
     return (
       <div className="space-y-6 p-6">
-        <Header title="Projects" subtitle="Manage your registered repositories and trigger analyses" />
+        <Header
+          title="Projects"
+          subtitle="Manage your registered repositories and trigger analyses"
+          primaryAction={headerAction}
+        />
         <LoadingSkeleton variant="list" count={4} />
       </div>
     );
@@ -356,28 +367,24 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header */}
-      <Header title="Projects" subtitle="Manage your registered repositories and trigger analyses" />
-      <div className="flex items-center justify-end gap-3">
-          {projects.length > 0 && (
-            <button
-              onClick={() => setSortBy(sortBy === 'health' ? 'name' : sortBy === 'name' ? 'updated' : 'health')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all"
-              style={{ background: 'var(--color-surface)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
-            >
-              <ArrowUpDown className="w-4 h-4" />
-              {sortBy === 'health' ? 'By Health' : sortBy === 'name' ? 'By Name' : 'By Updated'}
-            </button>
-          )}
+      {/* Header — the primary journey action lives in the shared shell */}
+      <Header
+        title="Projects"
+        subtitle="Manage your registered repositories and trigger analyses"
+        primaryAction={headerAction}
+      />
+      {projects.length > 0 && (
+        <div className="flex items-center justify-end gap-3">
           <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:scale-[1.02]"
-            style={{ background: 'var(--color-accent)' }}
+            onClick={() => setSortBy(sortBy === 'health' ? 'name' : sortBy === 'name' ? 'updated' : 'health')}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all"
+            style={{ background: 'var(--color-surface)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
           >
-            <Plus className="w-4 h-4" />
-            New Project
+            <ArrowUpDown className="w-4 h-4" />
+            {sortBy === 'health' ? 'By Health' : sortBy === 'name' ? 'By Name' : 'By Updated'}
           </button>
-      </div>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

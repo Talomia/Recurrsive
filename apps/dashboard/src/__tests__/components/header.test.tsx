@@ -117,4 +117,65 @@ describe('Header', () => {
     render(<Header title="Test" />);
     expect(screen.getByTestId('live-indicator')).toBeInTheDocument();
   });
+
+  it('renders no breadcrumb nav by default', () => {
+    render(<Header title="Test" />);
+    expect(screen.queryByLabelText('Breadcrumb')).not.toBeInTheDocument();
+  });
+
+  it('renders breadcrumbs with links for ancestors and text for the current page', () => {
+    render(
+      <Header
+        title="Finding Detail"
+        breadcrumbs={[
+          { label: 'Findings', href: '/findings' },
+          { label: '#F-123' },
+        ]}
+      />
+    );
+    const nav = screen.getByLabelText('Breadcrumb');
+    expect(nav).toBeInTheDocument();
+    const link = screen.getByText('Findings');
+    expect(link.closest('a')).toHaveAttribute('href', '/findings');
+    const current = screen.getByText('#F-123');
+    expect(current.closest('a')).toBeNull();
+  });
+
+  it('renders a primary action as a link when href is given', () => {
+    render(
+      <Header
+        title="Overview"
+        primaryAction={{ label: 'New Analysis', href: '/projects' }}
+      />
+    );
+    const action = screen.getByText('New Analysis');
+    expect(action.closest('a')).toHaveAttribute('href', '/projects');
+  });
+
+  it('renders a primary action as a button and fires onClick', () => {
+    const onClick = vi.fn();
+    render(
+      <Header
+        title="Projects"
+        primaryAction={{ label: 'New Project', onClick }}
+      />
+    );
+    const button = screen.getByRole('button', { name: 'New Project' });
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the primary action when disabled is set', () => {
+    const onClick = vi.fn();
+    render(
+      <Header
+        title="Project"
+        primaryAction={{ label: 'Analyzing…', onClick, disabled: true }}
+      />
+    );
+    const button = screen.getByRole('button', { name: 'Analyzing…' });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+  });
 });

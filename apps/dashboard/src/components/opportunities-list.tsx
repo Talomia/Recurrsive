@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
+import { scopedHref } from "@/lib/project-links";
 import type { Opportunity } from "@/lib/api";
 
 interface OpportunitiesListProps {
   opportunities: Opportunity[];
+  /** Active project id — keeps the list/detail links project-scoped. */
+  projectId?: string | null;
 }
 
 function getScoreColor(score: number): string {
@@ -23,6 +26,7 @@ function getScoreBarColor(score: number): string {
 
 export default function OpportunitiesList({
   opportunities,
+  projectId,
 }: OpportunitiesListProps) {
   const top = opportunities.slice(0, 5);
 
@@ -33,7 +37,7 @@ export default function OpportunitiesList({
           Top Opportunities
         </h3>
         <Link
-          href="/opportunities"
+          href={scopedHref("/opportunities", projectId)}
           className="flex items-center gap-1 text-xs font-medium text-accent-blue hover:text-blue-300 transition-colors"
         >
           Explore All Opportunities
@@ -53,7 +57,7 @@ export default function OpportunitiesList({
         {top.map((opp, i) => (
           <li key={opp.id}>
           <Link
-            href={`/opportunities/${opp.id}`}
+            href={scopedHref(`/opportunities/${encodeURIComponent(opp.id)}`, projectId)}
             className="flex items-start gap-4 rounded-xl bg-white/[0.02] border border-white/5 p-4 hover:bg-white/[0.04] hover:border-white/8 transition-all duration-200 animate-fade-in-up"
             style={{ animationDelay: `${i * 0.07}s` }}
           >

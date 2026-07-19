@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink, Lightbulb } from "lucide-react";
+import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink, Lightbulb, Download } from "lucide-react";
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
@@ -11,6 +11,8 @@ import EmptyState from "@/components/ui/empty-state";
 import ErrorState from "@/components/ui/error-state";
 import LoadingSkeleton from "@/components/loading-skeleton";
 import { getOpportunities, type Opportunity } from "@/lib/api";
+import { scopedHref } from "@/lib/project-links";
+import { downloadCsv } from "@/lib/csv";
 import clsx from "clsx";
 
 type TabKey = "overview" | "evidence" | "analysis" | "implementation";
@@ -177,11 +179,29 @@ export default function OpportunitiesPage() {
     { label: "ROI", value: selected.roi, icon: CheckCircle2 },
   ];
 
+  // Export exactly what's on screen (respects active filters) — real data only.
+  const exportCsv = () => {
+    downloadCsv(
+      'opportunities.csv',
+      ['ID', 'Title', 'Severity', 'Score', 'Categories', 'Impact', 'Confidence', 'Effort', 'Risk', 'ROI'],
+      filtered.map((o) => [
+        o.id, o.title, o.severity, o.score, o.categories.join('; '),
+        o.impact, o.confidence, o.effort, o.risk, o.roi,
+      ]),
+    );
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <Header
         title="Opportunities"
         subtitle="AI-discovered improvement opportunities across your codebase"
+        primaryAction={{
+          label: 'Export CSV',
+          onClick: exportCsv,
+          icon: Download,
+          disabled: filtered.length === 0,
+        }}
       />
 
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
@@ -263,7 +283,7 @@ export default function OpportunitiesPage() {
                         )}
                       >
                         <Link
-                          href={`/opportunities/${encodeURIComponent(opp.id)}`}
+                          href={scopedHref(`/opportunities/${encodeURIComponent(opp.id)}`, projectId)}
                           className="hover:underline hover:text-accent-blue transition-colors"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -332,7 +352,7 @@ export default function OpportunitiesPage() {
             </div>
             <h2 className="text-xl font-bold text-text-primary leading-snug">
               <Link
-                href={`/opportunities/${encodeURIComponent(selected.id)}`}
+                href={scopedHref(`/opportunities/${encodeURIComponent(selected.id)}`, projectId)}
                 className="hover:underline hover:text-accent-blue transition-colors inline-flex items-center gap-2"
               >
                 {selected.title}

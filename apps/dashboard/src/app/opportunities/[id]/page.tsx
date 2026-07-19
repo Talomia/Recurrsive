@@ -11,8 +11,10 @@ import {
   Layers,
   ArrowRight,
 } from "lucide-react";
+import Header from "@/components/header";
 import { getOpportunity } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { scopedHref } from "@/lib/project-links";
 import OpportunityActions from "./opportunity-actions";
 
 // ---------------------------------------------------------------------------
@@ -72,32 +74,42 @@ function getScoreBarColor(score: number): string {
 
 interface OpportunityDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ projectId?: string }>;
 }
 
-export default async function OpportunityDetailPage({ params }: OpportunityDetailPageProps) {
+export default async function OpportunityDetailPage({ params, searchParams }: OpportunityDetailPageProps) {
   const { id } = await params;
+  const { projectId } = await searchParams;
   const opportunity = await getOpportunity(id);
+
+  const listHref = scopedHref("/opportunities", projectId ?? null);
 
   if (!opportunity) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <div className="rounded-2xl bg-white/5 p-6">
-          <AlertCircle className="h-10 w-10 text-text-muted" />
+      <div className="flex flex-col min-h-screen">
+        <Header
+          title="Opportunity Detail"
+          breadcrumbs={[{ label: "Opportunities", href: listHref }, { label: `#${id}` }]}
+        />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+          <div className="rounded-2xl bg-white/5 p-6">
+            <AlertCircle className="h-10 w-10 text-text-muted" />
+          </div>
+          <h2 className="text-lg font-semibold text-text-primary">
+            Opportunity Not Found
+          </h2>
+          <p className="text-sm text-text-muted max-w-xs text-center">
+            The opportunity <span className="text-text-secondary font-mono">{id}</span> could
+            not be found. It may have been resolved or removed.
+          </p>
+          <Link
+            href={listHref}
+            className="mt-2 inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-accent-blue/20 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Opportunities
+          </Link>
         </div>
-        <h2 className="text-lg font-semibold text-text-primary">
-          Opportunity Not Found
-        </h2>
-        <p className="text-sm text-text-muted max-w-xs text-center">
-          The opportunity <span className="text-text-secondary font-mono">{id}</span> could
-          not be found. It may have been resolved or removed.
-        </p>
-        <Link
-          href="/opportunities"
-          className="mt-2 inline-flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-accent-blue/20 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Opportunities
-        </Link>
       </div>
     );
   }
@@ -113,21 +125,16 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
   const sev = getSeverityStyle(opportunity.severity);
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto animate-fade-in-up">
-      {/* ── Breadcrumb ─────────────────────────────────── */}
-      <nav className="flex items-center gap-2 text-sm text-text-muted">
-        <Link
-          href="/opportunities"
-          className="inline-flex items-center gap-1.5 hover:text-text-secondary transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Opportunities
-        </Link>
-        <span>/</span>
-        <span className="text-text-secondary font-mono text-xs">{opportunity.id}</span>
-      </nav>
+    <div className="flex flex-col min-h-screen">
+      {/* ── Consistent page shell: breadcrumb back to the list ─────────── */}
+      <Header
+        title={opportunity.title}
+        subtitle={`${opportunity.categories.join(" · ")} · ${opportunity.severity}`}
+        breadcrumbs={[{ label: "Opportunities", href: listHref }, { label: `#${opportunity.id}` }]}
+      />
 
-      {/* ── Header ─────────────────────────────────────── */}
+      <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto w-full animate-fade-in-up">
+      {/* ── Summary card ───────────────────────────────── */}
       <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-6 space-y-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
@@ -147,9 +154,9 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
                 {opportunity.severity}
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-text-primary leading-snug">
+            <h2 className="text-2xl font-bold text-text-primary leading-snug">
               {opportunity.title}
-            </h1>
+            </h2>
             <p className="mt-3 text-sm text-text-secondary leading-relaxed max-w-3xl">
               {opportunity.description}
             </p>
@@ -326,6 +333,7 @@ export default async function OpportunityDetailPage({ params }: OpportunityDetai
 
       {/* ── Action Buttons ───────────────────────────── */}
       <OpportunityActions opportunityId={opportunity.id} />
+      </div>
     </div>
   );
 }
