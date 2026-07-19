@@ -118,7 +118,10 @@ describe('Collection — entity production', () => {
     expect(result.metadata.items_processed).toBe(0);
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
-    expect(result.metadata.errors).toEqual([]);
+    // Honest degradation: missing credentials are RECORDED (like git/gitlab),
+    // so an unconfigured collector is distinguishable from a healthy-empty one.
+    expect(result.metadata.errors.length).toBeGreaterThanOrEqual(1);
+    expect(result.metadata.errors[0]!.message).toMatch(/credential|configured/i);
   });
 });
 
@@ -202,6 +205,8 @@ describe('Metadata', () => {
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.items_processed).toBe(0);
-    expect(result.metadata.errors).toEqual([]);
+    // Missing credentials are recorded honestly rather than silently dropped.
+    expect(result.metadata.errors.length).toBeGreaterThanOrEqual(1);
+    expect(result.metadata.errors[0]!.message).toMatch(/credential|configured/i);
   });
 });
