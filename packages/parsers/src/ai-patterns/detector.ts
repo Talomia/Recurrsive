@@ -296,7 +296,10 @@ const MODEL_SETTING_PATTERNS: Array<{ re: RegExp; setting: string; label: string
 // -- Evaluation --
 const EVAL_PATTERNS: Array<{ re: RegExp; framework: string; label: string }> = [
   { re: /ragas\./g, framework: 'ragas', label: 'RAGAS Evaluation' },
-  { re: /evaluate\s*\(/g, framework: 'generic', label: 'Evaluate Call' },
+  // NOTE: a bare `evaluate\s*\(` pattern was removed — `evaluate(` is an
+  // utterly generic function name (expression evaluators, math libs, test
+  // helpers), so it fabricated `evaluation` entities in non-AI projects and
+  // suppressed the honest "no evaluation pipeline" finding.
   { re: /LangSmithClient/g, framework: 'langsmith', label: 'LangSmith Client' },
   { re: /RunEvalConfig/g, framework: 'langsmith', label: 'LangSmith RunEvalConfig' },
   { re: /faithfulness/g, framework: 'generic', label: 'Faithfulness Metric' },
@@ -828,6 +831,17 @@ export class AIPatternDetector {
     builder: (match: RegExpExecArray, pattern: T, location: SourceLocation) => AIPattern,
   ): AIPattern[] {
     const results: AIPattern[] = [];
+    // Entities/relationships are deduplicated across the whole scan: every
+    // regex MATCH used to emit its own entity with the SAME qualified_name,
+    // and the pipeline assigns each a fresh id — so N textual matches of one
+    // pattern ingested as N duplicate graph entities, and downstream analyzers
+    // reported match counts as model/prompt counts ("Project uses 5 AI models
+    // (Anthropic Messages, Anthropic Messages, …)"). Only the FIRST occurrence
+    // of a qualified_name carries the entity (matching what the agent and
+    // model-config detectors already do); every match is still reported as a
+    // pattern.
+    const seenEntityQnames = new Set<string>();
+    const seenRelationships = new Set<string>();
     for (const p of bank) {
       // Always create a fresh regex so lastIndex starts at 0
       const re = new RegExp(p.re.source, p.re.flags);
@@ -835,6 +849,17 @@ export class AIPatternDetector {
       while ((match = re.exec(source)) !== null) {
         const location = loc(source, match, filePath);
         const pattern = builder(match, p, location);
+        pattern.entities = pattern.entities.filter((entity) => {
+          if (seenEntityQnames.has(entity.qualified_name)) return false;
+          seenEntityQnames.add(entity.qualified_name);
+          return true;
+        });
+        pattern.relationships = pattern.relationships.filter((rel) => {
+          const key = `${rel.type}|${rel.source}|${rel.target}`;
+          if (seenRelationships.has(key)) return false;
+          seenRelationships.add(key);
+          return true;
+        });
         // Surface the matched source text as `content` (and `template` on
         // prompt entities) so content-scanning analyzers — prompt-injection,
         // secret-in-prompt, oversized-prompt checks — operate on the real

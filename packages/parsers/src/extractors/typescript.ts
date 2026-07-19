@@ -425,6 +425,38 @@ function extractCallArgs(source: string, matchIndex: number): string {
   return source.substring(openParen + 1);
 }
 
+/**
+ * Strip the leading route-PATH string literal from a route registration's
+ * argument text, returning only the middleware/handler portion.
+ *
+ * The auth/validation middleware regexes must never scan the path literal
+ * itself: `app.post('/auth/login', handler)` would otherwise match `\bauth\b`
+ * inside the PATH and mark the public login route as auth-protected — which
+ * flips downstream "any endpoint authenticated?" heuristics and produces
+ * per-endpoint "Missing authentication" findings on every other route.
+ *
+ * @param args - Full argument text from {@link extractCallArgs}.
+ * @returns The argument text after the first string literal (the path), or
+ *          the input unchanged when it does not start with a string literal.
+ */
+function stripLeadingPathLiteral(args: string): string {
+  const trimmed = args.trimStart();
+  const quote = trimmed[0];
+  if (quote !== '"' && quote !== "'" && quote !== '`') return args;
+  for (let i = 1; i < trimmed.length; i++) {
+    const ch = trimmed[i]!;
+    if (ch === '\\') {
+      i++; // skip escaped character
+      continue;
+    }
+    if (ch === quote) {
+      return trimmed.slice(i + 1);
+    }
+  }
+  // Unterminated literal — nothing after the path to scan.
+  return '';
+}
+
 // ─── Call-site Pattern ────────────────────────────────────────────────────────
 
 /** Simple function call: `functionName(...)` */
@@ -1068,7 +1100,8 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const path = match[2]!;
       const startLine = lineAt(source, match.index);
       const name = `${method} ${path}`;
-      const args = extractCallArgs(source, match.index);
+      // Exclude the path literal itself — only middleware/handler args count.
+      const args = stripLeadingPathLiteral(extractCallArgs(source, match.index));
 
       entities.push({
         type: 'endpoint' as EntityType,
@@ -1079,7 +1112,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
           path,
           framework: 'express',
           // Observed from the actual registration arguments (middleware list
-          // and inline handler), not an assumed marker.
+          // and inline handler, NOT the path literal), not an assumed marker.
           has_auth_middleware: AUTH_MIDDLEWARE_RE.test(args),
           has_validation_middleware: VALIDATION_MIDDLEWARE_RE.test(args),
         },
@@ -1104,7 +1137,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const qn = qname(filePath, name);
       if (seenEndpoints.has(qn)) continue;
       seenEndpoints.add(qn);
-      const fastifyArgs = extractCallArgs(source, match.index);
+      const fastifyArgs = stripLeadingPathLiteral(extractCallArgs(source, match.index));
 
       entities.push({
         type: 'endpoint' as EntityType,
@@ -1137,7 +1170,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const qn = qname(filePath, name);
       if (seenEndpoints.has(qn)) continue;
       seenEndpoints.add(qn);
-      const honoArgs = extractCallArgs(source, match.index);
+      const honoArgs = stripLeadingPathLiteral(extractCallArgs(source, match.index));
 
       entities.push({
         type: 'endpoint' as EntityType,

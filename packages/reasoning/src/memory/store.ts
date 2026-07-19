@@ -315,10 +315,25 @@ export class FileMemoryStore {
       ) {
         logger.debug('Memory file not found, initializing empty store');
       } else {
-        logger.warn(
-          `Failed to load memory file, initializing empty: ` +
-          `${err instanceof Error ? err.message : String(err)}`,
-        );
+        // The file EXISTS but could not be read/parsed. The next save() would
+        // silently overwrite it, permanently destroying whatever history it
+        // held — back it up first so the data stays recoverable.
+        const backupPath = `${this.dataFile}.corrupt-${Date.now()}`;
+        try {
+          await fs.copyFile(this.dataFile, backupPath);
+          logger.warn(
+            `Failed to load memory file, initializing empty ` +
+            `(corrupt file backed up to ${backupPath}): ` +
+            `${err instanceof Error ? err.message : String(err)}`,
+          );
+        } catch (backupErr) {
+          logger.warn(
+            `Failed to load memory file, initializing empty ` +
+            `(backup of corrupt file also failed: ` +
+            `${backupErr instanceof Error ? backupErr.message : String(backupErr)}): ` +
+            `${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
       }
 
       const empty: MemoryData = {

@@ -195,9 +195,11 @@ describe('AIRuntimeAnalyzer', () => {
 
       const findings = await analyzer.analyze(ctx);
 
-      const rlFindings = findings.filter((f) => f.title.includes('Missing rate limiting'));
+      // Now ONE systemic low-severity "not detectable" finding, not a
+      // per-function HIGH (rate-limiting isn't observable from the graph).
+      const rlFindings = findings.filter((f) => f.title.includes('Rate limiting not detectable'));
       expect(rlFindings).toHaveLength(1);
-      expect(rlFindings[0]!.severity).toBe('high');
+      expect(rlFindings[0]!.severity).toBe('low');
     });
 
     it('does not flag functions with rate limiting tag', async () => {
@@ -218,7 +220,7 @@ describe('AIRuntimeAnalyzer', () => {
 
       const findings = await analyzer.analyze(ctx);
 
-      const rlFindings = findings.filter((f) => f.title.includes('Missing rate limiting'));
+      const rlFindings = findings.filter((f) => f.title.includes('Rate limiting not detectable'));
       expect(rlFindings).toHaveLength(0);
     });
 
@@ -240,7 +242,7 @@ describe('AIRuntimeAnalyzer', () => {
 
       const findings = await analyzer.analyze(ctx);
 
-      const rlFindings = findings.filter((f) => f.title.includes('Missing rate limiting'));
+      const rlFindings = findings.filter((f) => f.title.includes('Rate limiting not detectable'));
       expect(rlFindings).toHaveLength(0);
     });
   });
@@ -332,10 +334,10 @@ describe('AIRuntimeAnalyzer', () => {
     });
   });
 
-  // ── Rule 5: Missing Streaming ──────────────────────────────────────────
+  // ── Rule 4 (removed): Missing Streaming ────────────────────────────────
 
-  describe('missing streaming', () => {
-    it('detects user-facing LLM calls without streaming', async () => {
+  describe('missing streaming (removed rule)', () => {
+    it('never fabricates a streaming finding (rule removed: gated on markers no producer emits)', async () => {
       const fn = makeEntity({
         type: 'function',
         name: 'chatCompletion',
@@ -353,53 +355,7 @@ describe('AIRuntimeAnalyzer', () => {
 
       const findings = await analyzer.analyze(ctx);
 
-      const streamFindings = findings.filter((f) => f.title.includes('Missing streaming'));
-      expect(streamFindings).toHaveLength(1);
-      expect(streamFindings[0]!.severity).toBe('medium');
-    });
-
-    it('does not flag functions with streaming tag', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'streamChat',
-        tags: ['user-facing', 'streaming'],
-      });
-      const rel = makeRel({
-        type: 'uses_model',
-        source_id: fn.id,
-        target_id: 'model-1',
-      });
-      const ctx = makeContext(
-        { function: [fn] },
-        (id) => (id === fn.id ? [rel] : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const streamFindings = findings.filter((f) => f.title.includes('Missing streaming'));
-      expect(streamFindings).toHaveLength(0);
-    });
-
-    it('does not flag non-user-facing functions', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'batchProcess',
-        properties: {},
-      });
-      const rel = makeRel({
-        type: 'uses_model',
-        source_id: fn.id,
-        target_id: 'model-1',
-      });
-      const ctx = makeContext(
-        { function: [fn] },
-        (id) => (id === fn.id ? [rel] : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const streamFindings = findings.filter((f) => f.title.includes('Missing streaming'));
-      expect(streamFindings).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Missing streaming'))).toHaveLength(0);
     });
   });
 
@@ -646,8 +602,12 @@ describe('AIRuntimeAnalyzer', () => {
 
   // ── Multiple rules fire on the same entity ──────────────────────────────
 
-  it('multiple rules can fire on the same entity', async () => {
-    // This function: uses_model, no rate limiting, no guardrails, no cost tracking
+  it('fires the honest systemic rules on an unguarded LLM call (no fabricated per-function findings)', async () => {
+    // A user-facing function that uses a model with no observable rate-limiting
+    // or cost-tracking signal. The honest rule set now emits SYSTEMIC findings
+    // (rate-limiting + cost-tracking "not detectable"), and must NOT fabricate
+    // the removed per-function "missing guardrails"/"missing streaming" rules
+    // (they keyed off markers no producer emits).
     const fn = makeEntity({
       type: 'function',
       name: 'rawLLMCall',
@@ -666,8 +626,10 @@ describe('AIRuntimeAnalyzer', () => {
 
     const findings = await analyzer.analyze(ctx);
 
-    // Should fire: missing rate limiting, missing guardrails, missing cost tracking, missing streaming
-    const ruleIds = new Set(findings.map((f) => f.tags[0]));
-    expect(ruleIds.size).toBeGreaterThanOrEqual(3);
+    expect(findings.some((f) => f.title.includes('Rate limiting not detectable'))).toBe(true);
+    expect(findings.some((f) => f.title.includes('Cost tracking'))).toBe(true);
+    // Removed rules must not reappear.
+    expect(findings.some((f) => f.title.includes('Missing guardrails'))).toBe(false);
+    expect(findings.some((f) => f.title.includes('Missing streaming'))).toBe(false);
   });
 });

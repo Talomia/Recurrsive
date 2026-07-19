@@ -145,7 +145,7 @@ describe('DebateProtocol', () => {
     expect(secResp?.unresolved).toBeFalsy();
   });
 
-  it('applies the defender revised confidence into the round hypotheses snapshot', async () => {
+  it('applies revised confidence into revised_hypotheses while preserving the start-of-round baseline', async () => {
     const arch = makeSpecialist('architecture_engineer', {
       // When arch defends h-arch, it lowers its confidence to 0.4.
       defend: vi.fn().mockResolvedValue({ response: 'conceding', revised_confidence: 0.4 }),
@@ -159,7 +159,63 @@ describe('DebateProtocol', () => {
     ];
     const round = (await protocol.execute(hypotheses, [arch, sec], makeGraph()))[0]!;
 
-    const revisedArch = round.hypotheses.find((h) => h.id === 'h-arch')!;
+    // The revised confidence lands in revised_hypotheses…
+    const revisedArch = round.revised_hypotheses!.find((h) => h.id === 'h-arch')!;
     expect(revisedArch.confidence).toBe(0.4);
+    // …while round.hypotheses keeps the START-of-round baseline. Overwriting it
+    // (the old behavior) made every agreement measurement compare revised
+    // against revised, fabricating consensus ≈ 1.0.
+    const baselineArch = round.hypotheses.find((h) => h.id === 'h-arch')!;
+    expect(baselineArch.confidence).toBe(0.8);
+  });
+
+  // ── Consensus regression: landed vs withstood challenges ──────────────────
+
+  it('counts a landed challenge (0.8 → 0.5) as dissent — no fabricated consensus', async () => {
+    // arch concedes h-arch from 0.8 down to 0.5 (the challenge LANDED);
+    // sec holds h-sec at 0.8 (withstood). Agreement = 1/2 = 0.5, below the
+    // 0.9 threshold, so consensus must NOT be declared after round 1 and the
+    // debate must run into round 2. Under the old baseline-overwrite bug,
+    // baseline === revised made agreement 1.0 and ended the debate at round 1.
+    const arch = makeSpecialist('architecture_engineer', {
+      defend: vi.fn().mockResolvedValue({ response: 'conceding', revised_confidence: 0.5 }),
+    });
+    const sec = makeSpecialist('security_engineer', {
+      defend: vi.fn().mockResolvedValue({ response: 'holding firm', revised_confidence: 0.8 }),
+    });
+    const protocol = new DebateProtocol(makeLLM(), 2, 0.9);
+
+    const hypotheses = [
+      makeHypothesis('h-arch', 'architecture_engineer', 0.8),
+      makeHypothesis('h-sec', 'security_engineer', 0.8),
+    ];
+    const rounds = await protocol.execute(hypotheses, [arch, sec], makeGraph());
+
+    expect(rounds).toHaveLength(2);
+    // Round 1 exposes the true baseline (0.8) and the true revision (0.5).
+    const round1 = rounds[0]!;
+    expect(round1.hypotheses.find((h) => h.id === 'h-arch')!.confidence).toBe(0.8);
+    expect(round1.revised_hypotheses!.find((h) => h.id === 'h-arch')!.confidence).toBe(0.5);
+  });
+
+  it('counts a genuinely-withstood challenge (0.8 → 0.78) as agreement — consensus after round 1', async () => {
+    // Both defenders hold within the noise epsilon (0.8 → 0.78 and 0.8 → 0.8):
+    // every challenge is withstood, agreement = 1.0 ≥ 0.9, so the debate
+    // legitimately ends after a single round.
+    const arch = makeSpecialist('architecture_engineer', {
+      defend: vi.fn().mockResolvedValue({ response: 'holding', revised_confidence: 0.78 }),
+    });
+    const sec = makeSpecialist('security_engineer', {
+      defend: vi.fn().mockResolvedValue({ response: 'holding', revised_confidence: 0.8 }),
+    });
+    const protocol = new DebateProtocol(makeLLM(), 3, 0.9);
+
+    const hypotheses = [
+      makeHypothesis('h-arch', 'architecture_engineer', 0.8),
+      makeHypothesis('h-sec', 'security_engineer', 0.8),
+    ];
+    const rounds = await protocol.execute(hypotheses, [arch, sec], makeGraph());
+
+    expect(rounds).toHaveLength(1);
   });
 });

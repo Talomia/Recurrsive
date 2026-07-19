@@ -203,10 +203,15 @@ export class DebateProtocol {
       );
       rounds.push(round);
 
-      // Update hypothesis confidences based on defense responses
+      // Update hypothesis confidences based on defense responses. The revised
+      // values go into a SEPARATE snapshot: `round.hypotheses` must keep the
+      // start-of-round baseline, because agreementRatio() and the synthesizer's
+      // provenance both measure how far each defense moved confidence FROM that
+      // baseline. Overwriting it with the revised values (the old behavior)
+      // made baseline === revised for every exchange, so every challenge
+      // counted as "withstood" and consensus was fabricated at ~1.0.
       currentHypotheses = this.applyRevisions(currentHypotheses, round);
-      // Update the round's hypotheses snapshot to reflect revised values
-      round.hypotheses = currentHypotheses.map((h) => ({ ...h }));
+      round.revised_hypotheses = currentHypotheses.map((h) => ({ ...h }));
 
       // Check for consensus (actual inter-agent agreement / convergence)
       if (this.hasConsensus(rounds)) {
@@ -451,13 +456,16 @@ export class DebateProtocol {
       return true;
     }
 
-    // 2. Convergence — agents have stopped changing their minds.
+    // 2. Convergence — agents have stopped changing their minds. Compare the
+    // POST-revision states of the last two rounds (round.hypotheses is the
+    // start-of-round baseline, so it lags one round behind and would measure
+    // the previous round's movement, not the latest one's).
     if (rounds.length >= 2) {
       const prevRound = rounds[rounds.length - 2];
       if (prevRound) {
         const delta = averageConfidenceChange(
-          lastRound.hypotheses,
-          prevRound.hypotheses,
+          lastRound.revised_hypotheses ?? lastRound.hypotheses,
+          prevRound.revised_hypotheses ?? prevRound.hypotheses,
         );
         if (delta < 0.02) {
           return true;

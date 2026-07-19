@@ -356,6 +356,28 @@ describe('CrossFileResolver', () => {
       expect(result[0]!.source_entity).toBe('src/main.ts');
     });
 
+    it('does not link an unresolved module path to an arbitrary same-named export', () => {
+      // Regression: when the module specifier resolved to no known file, the
+      // resolver fell back to candidates[0] — linking `import { helper } from
+      // './missing'` to a same-named export in an unrelated file, fabricating
+      // imports edges that fed circular-dependency false positives.
+      const entities = new Map<string, ExtractedEntity[]>();
+      entities.set('lib/unrelated.ts', [
+        makeEntity('helper', 'lib/unrelated.ts'),
+      ]);
+      entities.set('src/main.ts', [
+        makeEntity('main', 'src/main.ts'),
+      ]);
+
+      const imports = new Map<string, ImportInfo[]>();
+      imports.set('src/main.ts', [
+        makeImport('./missing', ['helper'], 'src/main.ts'),
+      ]);
+
+      const result = resolver.resolve(entities, imports);
+      expect(result).toEqual([]);
+    });
+
     it('handles parent-directory relative imports', () => {
       const entities = new Map<string, ExtractedEntity[]>();
       entities.set('src/utils.ts', [

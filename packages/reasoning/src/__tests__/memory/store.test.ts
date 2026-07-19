@@ -300,5 +300,21 @@ describe('FileMemoryStore', () => {
       const count = await freshStore.getDecisionCount();
       expect(count).toBe(0);
     });
+
+    it('backs up a corrupt file before it can be overwritten', async () => {
+      const filePath = path.join(tmpDir, 'reasoning_memory.json');
+      await fs.writeFile(filePath, '{broken json!!!', 'utf-8');
+
+      const freshStore = new FileMemoryStore(tmpDir);
+      // Trigger load + save, which previously overwrote the corrupt file,
+      // permanently destroying whatever history it contained.
+      await freshStore.recordDecision('opp-1', 'accepted');
+
+      const files = await fs.readdir(tmpDir);
+      const backup = files.find((f) => f.startsWith('reasoning_memory.json.corrupt-'));
+      expect(backup).toBeDefined();
+      const backedUp = await fs.readFile(path.join(tmpDir, backup!), 'utf-8');
+      expect(backedUp).toBe('{broken json!!!');
+    });
   });
 });

@@ -82,14 +82,15 @@ export class CrossFileResolver {
           const candidates = exportIndex.get(importedName);
           if (!candidates || candidates.length === 0) continue;
 
-          // Prefer candidates from the resolved module path
-          let bestMatch = candidates[0]!;
-          for (const candidate of candidates) {
-            if (candidateFiles.includes(candidate.file)) {
-              bestMatch = candidate;
-              break;
-            }
-          }
+          // Only link when the exporting file is one the module specifier
+          // actually resolves to. Falling back to candidates[0] (the old
+          // behavior) linked an unresolved module path to an ARBITRARY
+          // same-named export elsewhere in the project — fabricating imports
+          // edges that produced circular-dependency false positives.
+          const bestMatch = candidates.find((candidate) =>
+            candidateFiles.includes(candidate.file),
+          );
+          if (!bestMatch) continue;
 
           // Find the source entity that uses this import (if any)
           const sourceEntities = entities.get(sourceFile) ?? [];

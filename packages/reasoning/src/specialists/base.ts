@@ -472,11 +472,19 @@ export async function buildGraphContextFor(
       const entity = await graph.getEntity(id);
       if (!entity) continue;
       const rels = await graph.getRelationships(id, 'both');
+      // Render direction honestly: outgoing edges point AT their target, while
+      // incoming edges point FROM their source. Rendering every edge as
+      // `type -> target_id` made incoming edges point at the entity itself,
+      // mislabeling who relates to whom in the LLM context.
       const relSummary =
         rels.length > 0
           ? rels
               .slice(0, 8)
-              .map((r) => `      ${r.type} -> ${r.target_id}`)
+              .map((r) =>
+                r.source_id === id
+                  ? `      ${r.type} -> ${r.target_id}`
+                  : `      ${r.type} <- ${r.source_id}`,
+              )
               .join('\n')
           : '      (no relationships)';
       blocks.push(

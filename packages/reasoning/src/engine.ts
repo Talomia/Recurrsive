@@ -167,11 +167,14 @@ export class ReasoningEngine {
 
     logger.info(`Debate concluded after ${rounds.length} rounds`);
 
-    // Get the final hypothesis state from the last round
-    const finalHypotheses =
-      rounds.length > 0 && rounds[rounds.length - 1]
-        ? rounds[rounds.length - 1]!.hypotheses
-        : allHypotheses;
+    // Get the final hypothesis state from the last round. `revised_hypotheses`
+    // carries the post-revision confidences; `hypotheses` is the round's
+    // start-of-round baseline (kept intact so consensus/provenance can measure
+    // how far each defense moved confidence).
+    const lastRound = rounds.length > 0 ? rounds[rounds.length - 1] : undefined;
+    const finalHypotheses = lastRound
+      ? lastRound.revised_hypotheses ?? lastRound.hypotheses
+      : allHypotheses;
 
     // ── Stage 3: Synthesis ─────────────────────────────────────────────────
     logger.info(`Stage 3: Synthesizing ${finalHypotheses.length} hypotheses into opportunities`);

@@ -276,6 +276,26 @@ app.get('/api/open', (req, res) => { res.send('ok'); });
       expect(open!.properties['has_auth_middleware']).toBe(false);
       expect(open!.properties['has_validation_middleware']).toBe(false);
     });
+
+    it('does not treat auth-ish words in the PATH literal as auth middleware', () => {
+      // Regression: `\bauth\b` matched inside the route PATH ('/auth/login'),
+      // marking the public login endpoint as auth-protected — which flipped
+      // the security analyzer's anyAuthenticated heuristic and produced
+      // "Missing authentication" findings on every OTHER endpoint.
+      const source = `
+app.post('/auth/login', loginHandler);
+app.get('/validate-email', emailHandler);
+`;
+      const entities = extractor.extract(source, 'routes.ts');
+
+      const login = entities.find((e) => e.name === 'POST /auth/login');
+      expect(login).toBeDefined();
+      expect(login!.properties['has_auth_middleware']).toBe(false);
+
+      const validate = entities.find((e) => e.name === 'GET /validate-email');
+      expect(validate).toBeDefined();
+      expect(validate!.properties['has_validation_middleware']).toBe(false);
+    });
   });
 
   // ── Interface Declarations ────────────────────────────────────────────

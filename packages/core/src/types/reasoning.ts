@@ -120,8 +120,19 @@ export interface DebateResponse {
 export interface DebateRound {
   /** Sequential round number (1-indexed). */
   round_number: number;
-  /** Hypotheses under consideration in this round. */
+  /**
+   * Hypotheses as they stood at the START of this round — the baseline the
+   * round's challenges were issued against. Consumers that measure whether a
+   * challenge moved a proposer (agreement / dissent) MUST compare
+   * `revised_confidence` against these values; overwriting them with
+   * post-revision confidences fabricates 100% agreement.
+   */
   hypotheses: Hypothesis[];
+  /**
+   * Hypotheses AFTER this round's confidence revisions were applied. Absent on
+   * rounds produced before this field existed; fall back to `hypotheses`.
+   */
+  revised_hypotheses?: Hypothesis[];
   /** Challenges issued during this round. */
   challenges: DebateChallenge[];
   /** Responses to challenges in this round. */

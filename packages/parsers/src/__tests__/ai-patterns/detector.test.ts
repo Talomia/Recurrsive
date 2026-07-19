@@ -82,6 +82,27 @@ const message = await anthropic.messages.create({
       expect(llmCall!.entities.length).toBeGreaterThanOrEqual(1);
       expect(llmCall!.entities[0]!.type).toBe('model');
     });
+
+    it('dedupes repeated matches of the same pattern into ONE entity', () => {
+      // Regression: every regex MATCH emitted its own entity with the same
+      // qualified_name, and the ingestion pipeline gives each a fresh id — so
+      // 3 call sites became 3 duplicate "Anthropic Messages" model entities and
+      // downstream analyzers reported match counts as model counts.
+      const source = `
+const a = await anthropic.messages.create({});
+const b = await anthropic.messages.create({});
+const c = await anthropic.messages.create({});
+`;
+      const patterns = detector.detect(source, 'agent.ts', 'typescript');
+      const llmCalls = patterns.filter((p) => p.type === 'llm_call');
+      // All matches are still reported as patterns…
+      expect(llmCalls).toHaveLength(3);
+      // …but exactly one model entity (and one uses_model relationship) is emitted.
+      const entities = llmCalls.flatMap((p) => p.entities);
+      expect(entities).toHaveLength(1);
+      const rels = llmCalls.flatMap((p) => p.relationships);
+      expect(rels).toHaveLength(1);
+    });
   });
 
   // ── Prompt Templates ──────────────────────────────────────────────────
@@ -538,11 +559,22 @@ const response = await openai.chat.completions.create({
   // ── Evaluation Detection ──────────────────────────────────────────────
 
   describe('evaluation detection', () => {
-    it('detects evaluate() calls', () => {
+    it('detects AI evaluation via framework metric markers', () => {
       const source = `results = evaluate(dataset, metrics=[faithfulness])`;
       const patterns = detector.detect(source, 'eval.py', 'python');
       const evals = patterns.filter((p) => p.type === 'evaluation');
       expect(evals.length).toBeGreaterThanOrEqual(1);
+      expect(evals.some((p) => p.name === 'Faithfulness Metric')).toBe(true);
+    });
+
+    it('does not fabricate an evaluation entity from a generic evaluate() call', () => {
+      // Regression: `evaluate(` is an utterly generic function name; treating
+      // any such call as an AI evaluation suppressed the honest
+      // "no evaluation pipeline" finding in non-AI projects.
+      const source = `const score = evaluate(expression, scope);`;
+      const patterns = detector.detect(source, 'math.ts', 'typescript');
+      const evals = patterns.filter((p) => p.type === 'evaluation');
+      expect(evals).toHaveLength(0);
     });
   });
 

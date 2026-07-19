@@ -48,23 +48,17 @@ const RATE_LIMIT_INDICATORS = [
   'limiter', 'semaphore',
 ];
 
-/** Patterns that indicate streaming usage. */
-const STREAMING_INDICATORS = [
-  'stream', 'streaming', 'createStream',
-  'streamText', 'streamChat', 'stream: true',
-  'SSE', 'ServerSentEvent', 'ReadableStream',
-  'AsyncIterab', 'for await',
-];
-
 /**
  * Analyzes AI/LLM runtime characteristics for operational and
  * resilience issues.
  *
  * ### Rules
  * 1. Excessive token usage — prompt templates exceeding 10k tokens
- * 2. Missing rate limiting — LLM calls without throttle/retry logic
+ * 2. Missing rate limiting — systemic check that LLM usage has any
+ *    detectable rate limiting/retry signal (single honest finding; whether
+ *    a specific function throttles its calls is not observable, since
+ *    function entities carry no body text)
  * 3. Single model dependency — all LLM calls use the same model
- * 4. Missing streaming — large response handling without streaming
  * 5. Context window overflow — prompts that could exceed model limits
  * 6. Missing cost tracking — systemic check that any LLM usage has
  *    detectable cost/usage tracking (single honest finding, never
@@ -77,6 +71,10 @@ const STREAMING_INDICATORS = [
  *   `uses_model` edge was flagged CRITICAL unconditionally, and the finding
  *   duplicated the ai.quality "Missing LLM output validation" rule (which
  *   now gates on the parser-computed `has_validation_call` body feature).
+ * - Missing streaming (old rule 4) — it gated on `user_facing`/
+ *   `generates_long_response` properties and `chat`/`generation` tags that
+ *   NO producer emits, so the rule was permanently dead code; whether a
+ *   response is user-facing is not observable to this pipeline.
  */
 export class AIRuntimeAnalyzer implements Analyzer {
   readonly id = 'ai.runtime';
@@ -97,7 +95,6 @@ export class AIRuntimeAnalyzer implements Analyzer {
       excessiveTokens,
       missingRateLimiting,
       singleModel,
-      missingStreaming,
       contextOverflow,
       missingCostTracking,
       staleEmbeddings,
@@ -105,7 +102,6 @@ export class AIRuntimeAnalyzer implements Analyzer {
       this.checkExcessiveTokenUsage(ctx),
       this.checkMissingRateLimiting(ctx),
       this.checkSingleModelDependency(ctx),
-      this.checkMissingStreaming(ctx),
       this.checkContextWindowOverflow(ctx),
       this.checkMissingCostTracking(ctx),
       this.checkStaleEmbeddings(ctx),
@@ -115,7 +111,6 @@ export class AIRuntimeAnalyzer implements Analyzer {
       ...excessiveTokens,
       ...missingRateLimiting,
       ...singleModel,
-      ...missingStreaming,
       ...contextOverflow,
       ...missingCostTracking,
       ...staleEmbeddings,
@@ -195,70 +190,82 @@ export class AIRuntimeAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 2: Missing Rate Limiting ──────────────────────────────────
+  // ── Rule 2: Missing Rate Limiting (systemic) ───────────────────────
 
   /**
-   * Detect LLM API calls without rate limiting, throttling, or retry
-   * logic.
+   * Systemic check: LLM usage exists but no rate limiting/retry signal is
+   * detectable anywhere in the graph.
+   *
+   * Whether a specific function throttles its calls is NOT observable to this
+   * pipeline: function entities carry no body text, no parser emits a
+   * `has_rate_limit` property, and no producer applies `rate-limited`/
+   * `throttled`/`retry` tags — so the old per-function rule fired HIGH on
+   * 100% of LLM call sites regardless of the actual code. Instead this emits
+   * AT MOST ONE low-severity finding, honestly worded as "not detectable",
+   * and stays silent when any rate-limiting signal exists.
    *
    * @param ctx - Analysis context.
-   * @returns Findings for missing rate limiting.
+   * @returns At most one systemic finding for missing rate limiting.
    */
   private async checkMissingRateLimiting(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
     const functions = await ctx.graph.getEntities('function');
 
+    // Collect the LLM call sites. Only real model/agent invocations count — a
+    // plain `calls` edge is any same-file function call (the TS parser emits
+    // one per call), so including it would count virtually every function.
+    const llmFunctions: typeof functions = [];
     for (const fn of functions) {
       const outRels = await ctx.graph.getRelationships(fn.id, 'out');
-      // Only real model/agent invocations count — a plain `calls` edge is any
-      // same-file function call (the TS parser emits one per call), so
-      // including it made this rule fire on virtually every function and
-      // falsely assert "makes LLM API calls" about code that makes none.
       const callsModel = outRels.some(
         (r) => r.type === 'uses_model' || r.type === 'invokes_agent',
       );
+      if (callsModel) llmFunctions.push(fn);
+    }
+    if (llmFunctions.length === 0) return findings;
 
-      if (!callsModel) continue;
-
+    // Any real rate-limiting signal anywhere suppresses the finding: explicit
+    // markers or tags on functions, or rate-limit indicators in whatever
+    // content a producer did attach.
+    const hasRateLimitSignal = llmFunctions.some((fn) => {
       const content =
         (fn.properties['content'] as string | undefined) ??
         (fn.properties['body'] as string | undefined) ??
         '';
-
-      const hasRateLimiting =
+      return (
         fn.properties['has_rate_limit'] === true ||
         fn.tags.includes('rate-limited') ||
         fn.tags.includes('throttled') ||
         fn.tags.includes('retry') ||
-        RATE_LIMIT_INDICATORS.some((indicator) => content.includes(indicator));
+        RATE_LIMIT_INDICATORS.some((indicator) => content.includes(indicator))
+      );
+    });
 
-      if (!hasRateLimiting) {
-        const loc = locationFromEntity(fn);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing rate limiting: ${fn.name}`,
-            description: `Function '${fn.name}' makes LLM API calls without rate limiting or retry logic. Without throttling, concurrent requests can trigger provider rate limits, causing cascading failures.`,
-            severity: 'high',
-            category: 'ai_quality',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'LLM API call without rate limiting or retry logic',
-                entity_ids: [fn.id],
-                confidence: 0.8,
-                data: { has_rate_limiting: false },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Add rate limiting with exponential backoff (e.g., p-retry, bottleneck). Implement request queuing and respect provider rate limit headers.',
-            confidence: 0.8,
-            tags: ['missing-rate-limiting', 'ai', 'resilience', 'runtime'],
-          }),
-        );
-      }
+    if (!hasRateLimitSignal) {
+      findings.push(
+        createFinding({
+          analyzer_id: this.id,
+          title: 'Rate limiting not detectable for LLM usage',
+          description: `${llmFunctions.length} function(s) make LLM calls but no rate limiting, throttling, or retry logic is detectable in the project (no rate-limit markers, tags, or indicators). Throttling may exist in infrastructure this analysis cannot observe — verify concurrent requests are bounded, since unthrottled bursts can trip provider rate limits and cascade into failures.`,
+          severity: 'low',
+          category: 'ai_quality',
+          evidence: [
+            createEvidence({
+              type: 'metric',
+              source: this.id,
+              description: `${llmFunctions.length} LLM call sites, 0 detectable rate-limiting signals`,
+              entity_ids: llmFunctions.slice(0, 10).map((fn) => fn.id),
+              confidence: 0.6,
+              data: { llm_call_sites: llmFunctions.length, has_rate_limiting: false },
+            }),
+          ],
+          locations: [],
+          suggested_fix:
+            'Add rate limiting with exponential backoff (e.g., p-retry, bottleneck). Implement request queuing and respect provider rate limit headers.',
+          confidence: 0.6,
+          tags: ['missing-rate-limiting', 'ai', 'resilience', 'runtime', 'systemic'],
+        }),
+      );
     }
 
     return findings;
@@ -323,77 +330,12 @@ export class AIRuntimeAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 4: Missing Streaming ──────────────────────────────────────
-
-  /**
-   * Detect large response handling without streaming, which causes
-   * poor user experience and memory issues.
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for missing streaming.
-   */
-  private async checkMissingStreaming(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
-
-    for (const fn of functions) {
-      const outRels = await ctx.graph.getRelationships(fn.id, 'out');
-      const usesModel = outRels.some((r) => r.type === 'uses_model');
-      if (!usesModel) continue;
-
-      // Only flag functions that appear to generate large/user-facing responses
-      const isLargeResponse =
-        fn.properties['generates_long_response'] === true ||
-        fn.properties['user_facing'] === true ||
-        fn.tags.includes('user-facing') ||
-        fn.tags.includes('chat') ||
-        fn.tags.includes('completion') ||
-        fn.tags.includes('generation');
-
-      if (!isLargeResponse) continue;
-
-      const content =
-        (fn.properties['content'] as string | undefined) ??
-        (fn.properties['body'] as string | undefined) ??
-        '';
-
-      const hasStreaming =
-        fn.properties['uses_streaming'] === true ||
-        fn.tags.includes('streaming') ||
-        fn.tags.includes('stream') ||
-        STREAMING_INDICATORS.some((indicator) => content.includes(indicator));
-
-      if (!hasStreaming) {
-        const loc = locationFromEntity(fn);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing streaming: ${fn.name}`,
-            description: `Function '${fn.name}' handles LLM responses for user-facing or large content without streaming. Non-streaming responses block until the full response is generated, causing poor perceived performance and potential timeouts.`,
-            severity: 'medium',
-            category: 'ai_quality',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'User-facing LLM response without streaming',
-                entity_ids: [fn.id],
-                confidence: 0.75,
-                data: { has_streaming: false, is_user_facing: true },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Use streaming APIs (e.g., stream: true in OpenAI, streamText in Vercel AI SDK) for user-facing responses. Stream tokens to the client via SSE or WebSockets for real-time feedback.',
-            confidence: 0.7,
-            tags: ['missing-streaming', 'ai', 'performance', 'ux'],
-          }),
-        );
-      }
-    }
-
-    return findings;
-  }
+  // ── Rule 4 (removed): Missing Streaming ────────────────────────────
+  // The former "Missing streaming" rule gated on generates_long_response /
+  // user_facing / streaming markers that NO producer (parser or collector)
+  // emits, so it was permanently dead. Detecting streaming reliably needs
+  // request-body inspection the pipeline does not perform, so the rule was
+  // removed rather than left as dead code that implies coverage.
 
   // ── Rule 5: Context Window Overflow ────────────────────────────────
 
