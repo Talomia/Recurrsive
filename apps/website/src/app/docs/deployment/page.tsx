@@ -21,16 +21,19 @@ export const metadata: Metadata = {
 };
 
 const ENV_VARS = [
+  { name: 'JWT_SECRET', required: true, desc: 'Signing secret for API auth tokens — docker compose fails fast if unset', example: 'openssl rand -hex 32' },
   { name: 'DATABASE_URL', required: true, desc: 'PostgreSQL connection string', example: 'postgresql://recurrsive:recurrsive@postgres:5432/recurrsive' },
   { name: 'GRAPH_PROVIDER', required: true, desc: 'Graph database backend', example: 'postgresql_age | sqlite' },
   { name: 'PORT', required: false, desc: 'Port for the REST API server', example: '3000' },
   { name: 'NODE_ENV', required: false, desc: 'Node.js environment mode', example: 'production' },
+  { name: 'CORS_ORIGIN', required: false, desc: 'Comma-separated origins allowed to call the API', example: 'http://localhost:3100,http://localhost:3200' },
+  { name: 'RECURRSIVE_ALLOWED_PATHS', required: false, desc: 'Comma-separated path prefixes the server may analyze', example: '/srv/repos,/home/ci/checkouts' },
+  { name: 'SECRETS_ENCRYPTION_KEY', required: false, desc: 'Key for encrypting stored secrets (required in production)', example: 'openssl rand -hex 32' },
   { name: 'RECURRSIVE_LLM_PROVIDER', required: false, desc: 'LLM provider for reasoning engine', example: 'openai' },
   { name: 'RECURRSIVE_LLM_MODEL', required: false, desc: 'LLM model name', example: 'gpt-4.1-mini' },
   { name: 'RECURRSIVE_LLM_API_KEY', required: false, desc: 'API key for the LLM provider', example: 'sk-...' },
-  { name: 'RECURRSIVE_WEBHOOK_SECRET', required: false, desc: 'HMAC secret for webhook signatures', example: 'openssl rand -hex 32' },
+  { name: 'RECURRSIVE_WEBHOOK_TIMEOUT_MS', required: false, desc: 'Timeout for outbound webhook deliveries (ms)', example: '5000' },
   { name: 'NEXT_PUBLIC_API_URL', required: false, desc: 'API server URL for the dashboard', example: 'http://server:3000' },
-  { name: 'RECURRSIVE_LOG_LEVEL', required: false, desc: 'Logging verbosity', example: 'info | debug | warn | error' },
 ];
 
 export default function DeploymentPage() {
@@ -81,7 +84,7 @@ export default function DeploymentPage() {
             <div><span className="comment"># docker-compose.yml</span></div>
             <div><span className="keyword">services</span>:</div>
             <div>{'  '}<span className="function">postgres</span>:</div>
-            <div>{'    '}<span className="keyword">image</span>: <span className="string">apache/age:latest</span></div>
+            <div>{'    '}<span className="keyword">image</span>: <span className="string">apache/age:PG16_latest</span></div>
             <div>{'    '}<span className="keyword">environment</span>:</div>
             <div>{'      '}<span className="keyword">POSTGRES_DB</span>: <span className="string">recurrsive</span></div>
             <div>{'      '}<span className="keyword">POSTGRES_USER</span>: <span className="string">recurrsive</span></div>
@@ -92,6 +95,7 @@ export default function DeploymentPage() {
             <div>{'    '}<span className="keyword">environment</span>:</div>
             <div>{'      '}<span className="keyword">DATABASE_URL</span>: <span className="string">postgresql://recurrsive:recurrsive@postgres:5432/recurrsive</span></div>
             <div>{'      '}<span className="keyword">GRAPH_PROVIDER</span>: <span className="string">postgresql_age</span></div>
+            <div>{'      '}<span className="keyword">JWT_SECRET</span>: <span className="string">${'{JWT_SECRET:?generate with `openssl rand -hex 32`}'}</span></div>
             <div>{'    '}<span className="keyword">depends_on</span>: [<span className="string">postgres</span>]</div>
             <div>{'    '}<span className="keyword">expose</span>: [<span className="string">&quot;3000&quot;</span>]</div>
             <div style={{ marginTop: 8 }}>{'  '}<span className="function">dashboard</span>:</div>
@@ -214,8 +218,11 @@ export default function DeploymentPage() {
             <h2 style={{ fontSize: '1.5rem' }}>Kubernetes Deployment</h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            For larger teams, deploy Recurrsive on Kubernetes with the included Helm chart or raw
-            manifests.
+            For larger teams, deploy Recurrsive on Kubernetes with raw manifests like the example
+            below. A Helm chart is planned but not shipped yet. There are no published container
+            images either — build the server image from{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>docker/Dockerfile</span> and
+            push it to your own registry.
           </p>
           <div className="code-block" style={{ fontSize: '0.82rem', marginBottom: 'var(--space-lg)' }}>
             <div><span className="comment"># deployment.yaml</span></div>
@@ -234,7 +241,7 @@ export default function DeploymentPage() {
             <div>{'    '}<span className="keyword">spec</span>:</div>
             <div>{'      '}<span className="keyword">containers</span>:</div>
             <div>{'        '}- <span className="keyword">name</span>: <span className="string">api</span></div>
-            <div>{'          '}<span className="keyword">image</span>: <span className="string">ghcr.io/talomia/recurrsive-api:latest</span></div>
+            <div>{'          '}<span className="keyword">image</span>: <span className="string">registry.example.com/recurrsive-api:latest</span> <span className="comment"># built from docker/Dockerfile</span></div>
             <div>{'          '}<span className="keyword">ports</span>:</div>
             <div>{'            '}- <span className="keyword">containerPort</span>: <span className="number">3000</span></div>
             <div>{'          '}<span className="keyword">envFrom</span>:</div>
@@ -306,30 +313,30 @@ export default function DeploymentPage() {
             <h2 style={{ fontSize: '1.5rem' }}>Monitoring &amp; Health Checks</h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            Recurrsive exposes health-check endpoints and supports OpenTelemetry for full
-            observability.
+            Recurrsive exposes unauthenticated health-check endpoints for liveness/uptime probes,
+            plus an authenticated detailed endpoint with system-level diagnostics.
           </p>
           <div className="code-block" style={{ marginBottom: 'var(--space-lg)' }}>
             <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Liveness probe</span>
+              <span className="comment"># Liveness probe (no auth)</span>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <span className="function">GET</span> <span className="string">/api/v1/health/live</span>
-              {'  '}→{'  '}<span className="keyword">200</span> {'{'} <span className="string">&quot;status&quot;: &quot;ok&quot;</span> {'}'}
+              <span className="function">GET</span> <span className="string">/health</span>
+              {'  '}→{'  '}<span className="keyword">200</span> {'{'} <span className="string">&quot;status&quot;: &quot;ok&quot;</span>, <span className="string">&quot;uptime&quot;: 42.1</span>, <span className="string">&quot;initialized&quot;: true</span>, <span className="string">&quot;version&quot;: &quot;0.6.0&quot;</span> {'}'}
             </div>
             <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Readiness probe (checks database connectivity)</span>
+              <span className="comment"># Same payload under the versioned API prefix (no auth)</span>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <span className="function">GET</span> <span className="string">/api/v1/health/ready</span>
-              {'  '}→{'  '}<span className="keyword">200</span> {'{'} <span className="string">&quot;status&quot;: &quot;ok&quot;</span>, <span className="string">&quot;db&quot;: &quot;connected&quot;</span> {'}'}
+              <span className="function">GET</span> <span className="string">/api/v1/health</span>
+              {'  '}→{'  '}<span className="keyword">200</span> {'{'} <span className="string">&quot;status&quot;: &quot;ok&quot;</span>, ... {'}'}
             </div>
             <div style={{ marginBottom: 4 }}>
-              <span className="comment"># Version endpoint</span>
+              <span className="comment"># Detailed health with memory, CPU, and OS info (requires auth)</span>
             </div>
             <div>
-              <span className="function">GET</span> <span className="string">/api/v1/health/version</span>
-              {'  '}→{'  '}<span className="keyword">200</span> {'{'} <span className="string">&quot;version&quot;: &quot;2.4.0&quot;</span>, <span className="string">&quot;commit&quot;: &quot;a1b2c3d&quot;</span> {'}'}
+              <span className="function">GET</span> <span className="string">/api/v1/health/detailed</span>
+              {'  '}→{'  '}<span className="keyword">200</span> {'{'} <span className="string">&quot;status&quot;: &quot;ok&quot;</span>, <span className="string">&quot;system&quot;: {'{ ... }'}</span>, <span className="string">&quot;process&quot;: {'{ ... }'}</span> {'}'}
             </div>
           </div>
           <div
@@ -337,10 +344,12 @@ export default function DeploymentPage() {
             style={{ padding: 'var(--space-md) var(--space-lg)', borderLeft: '3px solid var(--green)' }}
           >
             <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-              <strong style={{ color: 'var(--text-primary)' }}>OpenTelemetry:</strong> Set{' '}
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>TELEMETRY_ENDPOINT</span> to
-              export traces, metrics, and logs via OTLP. Compatible with Grafana, Datadog, and
-              Honeycomb.
+              <strong style={{ color: 'var(--text-primary)' }}>OpenTelemetry data:</strong> the telemetry
+              collector can <em>ingest</em> OTLP-shaped trace and metric data from{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>.otel-traces.json</span> /{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>.otel-metrics.json</span> files
+              in the analyzed project, feeding performance entities into the knowledge graph. The
+              server itself does not export traces or metrics.
             </div>
           </div>
         </div>

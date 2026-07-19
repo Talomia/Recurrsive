@@ -59,7 +59,7 @@ That is **Decision Confidence** — the core value Recurrsive delivers.
 |---------|-------|
 | 📡 Server REST endpoints | 160+ |
 | ⌨️ CLI commands | 29 |
-| 🔌 MCP tools | 42 |
+| 🔌 MCP tools | 45 |
 | 💬 MCP prompts | 21 |
 | 📦 MCP resources | 16 |
 | 🖥️ Dashboard pages | 45 |
@@ -183,7 +183,7 @@ Add to your MCP configuration:
 }
 ```
 
-**Available MCP tools (42), prompts (21), resources (16):**
+**Available MCP tools (45), prompts (21), resources (16):**
 
 *Tools — Analysis:*
 - `analyze_project` — Run the full analysis pipeline
@@ -339,7 +339,7 @@ recurrsive/
 │   └── presentation/   # Reports + notifications + terminal
 ├── apps/
 │   ├── cli/            # Commander.js CLI — 29 commands
-│   ├── mcp/            # MCP server — 42 tools, 16 resources, 21 prompts
+│   ├── mcp/            # MCP server — 45 tools, 16 resources, 21 prompts
 │   ├── server/         # Fastify REST + WebSocket + GraphQL API — 160+ endpoints
 │   ├── dashboard/      # Next.js dashboard — 45 pages
 │   └── website/        # Next.js marketing website — 21 pages + SEO

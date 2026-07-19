@@ -2,7 +2,8 @@
  * @module @recurrsive/cli/commands
  *
  * Barrel export for all CLI command registration functions.
- * Exports 28 command registration functions for the full CLI suite.
+ * Exports 26 registration functions that together register the CLI's
+ * 29 commands (login.ts registers login, setup, logout, and whoami).
  *
  * @packageDocumentation
  */

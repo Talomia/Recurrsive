@@ -17,7 +17,7 @@ import {
 export const metadata: Metadata = {
   title: 'CLI Reference — Recurrsive Docs',
   description:
-    'Complete command-line interface reference for Recurrsive. 28 commands across 7 groups for analysis, reporting, and automation.',
+    'Complete command-line interface reference for Recurrsive. 29 commands across 7 groups for analysis, reporting, and automation.',
 };
 
 const COMMAND_GROUPS = [
@@ -39,7 +39,7 @@ const COMMAND_GROUPS = [
     commands: [
       { cmd: 'report', desc: 'Generate a report from the latest analysis results', example: 'recurrsive report --format html' },
       { cmd: 'export', desc: 'Export analysis data in various formats', example: 'recurrsive export --format json' },
-      { cmd: 'snapshot', desc: 'Export or import knowledge graph snapshots', example: 'recurrsive snapshot --export' },
+      { cmd: 'snapshot', desc: 'Export or import knowledge graph snapshots', example: 'recurrsive snapshot export' },
       { cmd: 'comparisons', desc: 'Compare analysis runs side-by-side', example: 'recurrsive comparisons' },
       { cmd: 'analytics', desc: 'View analytics summaries and categories', example: 'recurrsive analytics' },
     ],
@@ -60,7 +60,7 @@ const COMMAND_GROUPS = [
     color: 'var(--cyan)',
     commands: [
       { cmd: 'experiments', desc: 'Manage analysis experiments', example: 'recurrsive experiments' },
-      { cmd: 'simulation', desc: 'Run and view simulations', example: 'recurrsive simulation' },
+      { cmd: 'simulate', desc: 'Run and view simulations', example: 'recurrsive simulate' },
       { cmd: 'forecast', desc: 'View trend forecasts', example: 'recurrsive forecast' },
     ],
   },
@@ -94,6 +94,7 @@ const COMMAND_GROUPS = [
     color: 'var(--green)',
     commands: [
       { cmd: 'login', desc: 'Authenticate with a Recurrsive server', example: 'recurrsive login' },
+      { cmd: 'setup', desc: 'Create the first admin user (first-run bootstrap) and log in', example: 'recurrsive setup' },
       { cmd: 'logout', desc: 'Log out and clear stored credentials', example: 'recurrsive logout' },
       { cmd: 'whoami', desc: 'Display the currently authenticated user', example: 'recurrsive whoami' },
     ],
@@ -101,13 +102,14 @@ const COMMAND_GROUPS = [
 ];
 
 const GLOBAL_FLAGS = [
-  { flag: '--format <fmt>', desc: 'Output format: json, table, yaml, html, csv', default: 'table' },
-  { flag: '--output <path>', desc: 'Write output to a file instead of stdout', default: 'stdout' },
-  { flag: '--verbose', desc: 'Enable verbose logging for debugging', default: 'false' },
-  { flag: '--json', desc: 'Shorthand for --format json', default: '-' },
-  { flag: '--quiet', desc: 'Suppress all output except errors', default: 'false' },
-  { flag: '--config <path>', desc: 'Path to recurrsive.config.yaml', default: 'auto-detect' },
-  { flag: '--no-color', desc: 'Disable colored output', default: 'false' },
+  { flag: '-v, --version', desc: 'Show the installed version', default: '-' },
+  { flag: '-p, --project <id>', desc: 'Scope server-backed commands to a project', default: 'active project' },
+];
+
+const FORMAT_FLAGS = [
+  { flag: 'report --format <fmt>', desc: 'Report format: markdown, html, sarif, json', default: 'markdown' },
+  { flag: 'export --format <fmt>', desc: 'Export format: json, csv, markdown', default: 'json' },
+  { flag: 'analyze --format <fmt>', desc: 'Output format: markdown, json, sarif', default: 'markdown' },
 ];
 
 export default function CliReferencePage() {
@@ -121,7 +123,7 @@ export default function CliReferencePage() {
         <div className="glow-orb glow-cyan" style={{ width: 500, height: 500, top: -200, left: '50%' }} />
         <div className="container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
           <div className="badge badge-accent" style={{ marginBottom: 'var(--space-lg)' }}>
-            <Terminal size={14} /> 28 commands
+            <Terminal size={14} /> 29 commands
           </div>
           <h1 style={{ marginBottom: 'var(--space-md)' }}>
             <span className="text-gradient">CLI Reference</span>
@@ -239,7 +241,8 @@ export default function CliReferencePage() {
             <h2 style={{ fontSize: '1.5rem' }}>Global Flags</h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-xl)', lineHeight: 1.7 }}>
-            These flags can be passed to any command.
+            The CLI has two global flags. Output-format options are per-command, not global — the
+            most common ones are listed in the second table.
           </p>
           <div
             style={{
@@ -282,6 +285,49 @@ export default function CliReferencePage() {
               </div>
             ))}
           </div>
+
+          <h3 style={{ fontSize: '1.1rem', margin: 'var(--space-xl) 0 var(--space-md)' }}>
+            Per-Command Format Flags
+          </h3>
+          <div
+            style={{
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border-subtle)',
+              overflowX: 'auto',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid', gridTemplateColumns: '1fr 2fr 100px', minWidth: 480,
+                gap: 'var(--space-md)', padding: 'var(--space-md) var(--space-lg)',
+                background: 'var(--bg-tertiary)', fontWeight: 700, fontSize: '0.82rem',
+                color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em',
+              }}
+            >
+              <div>Flag</div>
+              <div>Description</div>
+              <div>Default</div>
+            </div>
+            {FORMAT_FLAGS.map((f, i) => (
+              <div
+                key={f.flag}
+                style={{
+                  display: 'grid', gridTemplateColumns: '1fr 2fr 100px', minWidth: 480,
+                  gap: 'var(--space-md)', padding: 'var(--space-md) var(--space-lg)',
+                  borderTop: '1px solid var(--border-subtle)',
+                  background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                }}
+              >
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', color: 'var(--cyan)' }}>
+                  {f.flag}
+                </div>
+                <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>{f.desc}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
+                  {f.default}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -295,21 +341,23 @@ export default function CliReferencePage() {
             </h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            Create a <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>recurrsive.config.yaml</span> in
-            your project root. The CLI auto-detects it, or use <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>--config</span> to point elsewhere.
+            The CLI searches upward from the working directory for{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>.recurrsive/config.json</span>,{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>.recurrsive/config.yaml</span>,{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>.recurrsive/config.yml</span>, or{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>recurrsive.config.json</span> and
+            auto-detects the first match. There is no <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>--config</span> flag.
           </p>
           <div className="code-block">
-            <div><span className="comment">{'# recurrsive.config.yaml'}</span></div>
+            <div><span className="comment">{'# .recurrsive/config.yaml'}</span></div>
             <div style={{ marginTop: 8 }}><span className="keyword">version</span>: <span className="string">&apos;1&apos;</span></div>
             <div style={{ marginTop: 8 }}><span className="keyword">graph</span>:</div>
             <div>{'  '}<span className="keyword">provider</span>: <span className="string">sqlite</span></div>
-            <div>{'  '}<span className="keyword">sqlite</span>:</div>
-            <div>{'    '}<span className="keyword">path</span>: <span className="string">.recurrsive/graph.db</span></div>
             <div style={{ marginTop: 8 }}><span className="keyword">analyzers</span>:</div>
-            <div>{'  '}<span className="keyword">enabled</span>: <span className="string">[all]</span></div>
+            <div>{'  '}<span className="keyword">enabled</span>: <span className="string">[&apos;*&apos;]</span></div>
             <div style={{ marginTop: 8 }}><span className="keyword">output</span>:</div>
             <div>{'  '}<span className="keyword">format</span>: <span className="string">html</span></div>
-            <div>{'  '}<span className="keyword">directory</span>: <span className="string">.recurrsive/output</span></div>
+            <div>{'  '}<span className="keyword">directory</span>: <span className="string">.recurrsive</span></div>
           </div>
         </div>
       </section>

@@ -1,6 +1,6 @@
 # Recurrsive CLI
 
-**Engineering Intelligence from the Terminal** — 28 commands for analyzing, inspecting, and managing software projects via the `recurrsive` executable.
+**Engineering Intelligence from the Terminal** — 29 commands for analyzing, inspecting, and managing software projects via the `recurrsive` executable.
 
 ## Overview
 

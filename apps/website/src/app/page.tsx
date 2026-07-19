@@ -227,7 +227,7 @@ export default function HomePage() {
                 <div>
                   <span className="keyword">{'▸'} Discovery</span>{'   '}
                   <span className="string">160+ endpoints</span>{' · '}
-                  <span className="string">42 MCP tools</span>{' · '}
+                  <span className="string">45 MCP tools</span>{' · '}
                   <span className="string">12 analyzers</span>
                 </div>
                 <div>
@@ -289,9 +289,9 @@ export default function HomePage() {
           >
             {[
               { value: '160+', label: 'API Endpoints', icon: Globe },
-              { value: '42', label: 'MCP Tools', icon: Puzzle },
+              { value: '45', label: 'MCP Tools', icon: Puzzle },
               { value: '12', label: 'Analyzers', icon: Search },
-              { value: '28', label: 'CLI Commands', icon: Terminal },
+              { value: '29', label: 'CLI Commands', icon: Terminal },
             ].map((stat, i) => (
               <div
                 key={stat.label}

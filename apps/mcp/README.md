@@ -1,6 +1,6 @@
 # Recurrsive MCP Server
 
-**Model Context Protocol Server** — 42 tools, 21 prompts, and 16 resources that expose the Engineering Intelligence Platform to AI coding assistants.
+**Model Context Protocol Server** — 45 tools, 21 prompts, and 16 resources that expose the Engineering Intelligence Platform to AI coding assistants.
 
 ## Overview
 
@@ -55,7 +55,7 @@ pnpm --filter @recurrsive/mcp start
 
 | Type | Modules | Total |
 |------|---------|-------|
-| **Tools** | analyze, inspect, governance, webhooks, batch, experiments, search, snapshots, export, projects, forecasting, intelligence, platform | 42 |
+| **Tools** | analyze, inspect, governance, webhooks, batch, experiments, search, snapshots, export, projects, forecasting, intelligence, platform | 45 |
 | **Prompts** | templates, assessments, governance, operations, analysis, intelligence, platform | 21 |
 | **Resources** | reports, governance, analytics, experiments, projects, platform | 16 |
 

@@ -32,7 +32,7 @@ const ENDPOINT_GROUPS = [
   { name: 'Analysis', count: 3, icon: BarChart3, color: 'var(--blue)', desc: 'Trigger a run, poll status, and list run history' },
   { name: 'Opportunities', count: 5, icon: Zap, color: 'var(--amber)', desc: 'List, detail, and manage improvement opportunities' },
   { name: 'Graph', count: 7, icon: Network, color: 'var(--purple)', desc: 'Query entities, relationships, and subgraphs' },
-  { name: 'Findings', count: 5, icon: AlertTriangle, color: 'var(--red)', desc: 'List, detail, and manage findings' },
+  { name: 'Findings', count: 6, icon: AlertTriangle, color: 'var(--red)', desc: 'List, detail, and manage findings' },
   { name: 'Reports', count: 1, icon: FileText, color: 'var(--cyan)', desc: 'Generate reports (markdown, HTML, JSON, or SARIF)' },
   { name: 'Timeline', count: 4, icon: Clock, color: 'var(--blue)', desc: 'Historical trends, events, and diffs' },
   { name: 'Snapshots', count: 3, icon: Camera, color: 'var(--green)', desc: 'Create, list, and restore graph snapshots' },
@@ -89,7 +89,7 @@ export default function ApiReferencePage() {
               </div>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 'var(--space-md)' }}>
                 Obtain a token via <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>POST /api/v1/auth/login</span>.
-                Tokens expire after 24 hours and support refresh via{' '}
+                Tokens expire after 1 hour (3600 seconds) and support refresh via{' '}
                 <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>POST /api/v1/auth/refresh</span>.
               </p>
               <div className="code-block" style={{ padding: 'var(--space-md)' }}>
@@ -106,7 +106,7 @@ export default function ApiReferencePage() {
                 Scope keys to specific permissions using RBAC roles.
               </p>
               <div className="code-block" style={{ padding: 'var(--space-md)' }}>
-                <span className="keyword">X-API-Key</span>: <span className="string">rk_live_a1b2c3d4...</span>
+                <span className="keyword">X-API-Key</span>: <span className="string">rk_a1b2c3d4...</span>
               </div>
             </div>
           </div>
@@ -272,7 +272,7 @@ export default function ApiReferencePage() {
             <h2 style={{ fontSize: '1.5rem' }}>Rate Limiting</h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
-            The server includes a built-in token-bucket rate limiter. Because Recurrsive is
+            The server includes a built-in fixed-window rate limiter (60-second windows per client). Because Recurrsive is
             self-hosted, you set the limit yourself — the default is 100 requests per minute and is
             configurable via the <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>rateLimitMax</span>{' '}
             server option (set to 0 to disable). The <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)' }}>/health</span>{' '}
@@ -314,23 +314,22 @@ export default function ApiReferencePage() {
             </div>
             <div>);</div>
             <div style={{ marginTop: 12, marginBottom: 4 }}>
-              <span className="comment">{'// Subscribe to analysis events'}</span>
+              <span className="comment">{'// Acknowledge the subscription (no channel — all clients receive all events)'}</span>
             </div>
             <div>
               <span className="function">ws</span>.<span className="function">send</span>(JSON.<span className="function">stringify</span>({'{'})
             </div>
-            <div>{'  '}<span className="keyword">type</span>: <span className="string">&apos;subscribe&apos;</span>,</div>
-            <div>{'  '}<span className="keyword">channel</span>: <span className="string">&apos;analysis:ana_8f3k2j1m&apos;</span></div>
+            <div>{'  '}<span className="keyword">type</span>: <span className="string">&apos;subscribe&apos;</span></div>
             <div>{'}'}));</div>
             <div style={{ marginTop: 12, marginBottom: 4 }}>
-              <span className="comment">{'// Receive events: collection_complete, parsing_complete,'}</span>
+              <span className="comment">{'// Receive events: analysis:started, analysis:progress,'}</span>
             </div>
             <div>
-              <span className="comment">{'// analysis_complete, reasoning_complete, done'}</span>
+              <span className="comment">{'// analysis:finding, analysis:complete, analysis:error'}</span>
             </div>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
-            {['collection_complete', 'parsing_complete', 'analysis_complete', 'reasoning_complete', 'done'].map((evt) => (
+            {['analysis:started', 'analysis:progress', 'analysis:finding', 'analysis:complete', 'analysis:error'].map((evt) => (
               <span
                 key={evt}
                 style={{

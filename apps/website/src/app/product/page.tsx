@@ -23,7 +23,7 @@ const PIPELINE_STEPS = [
   {
     icon: Layers,
     title: 'Understand',
-    desc: 'Tree-sitter parsers extract structure from TypeScript, Python, and Go. 12 analyzers with 50+ rules evaluate architecture, performance, security, cost, AI quality, and more.',
+    desc: 'Tree-sitter parsers extract structure from TypeScript, Python, and JavaScript. 12 analyzers with 50+ rules evaluate architecture, performance, security, cost, AI quality, and more.',
     color: '#3b82f6',
   },
   {
@@ -274,7 +274,7 @@ export default function ProductPage() {
                 <div><span style={{ color: '#86efac' }}>Resolution</span> → Consensus score & ranking</div>
                 <div style={{ marginTop: 'var(--space-md)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-md)' }}>
                   <div style={{ color: 'var(--text-tertiary)' }}>{'// Example specialists'}</div>
-                  {['ArchitectureSpecialist', 'PerformanceSpecialist', 'SecuritySpecialist', 'CostSpecialist', 'AIQualitySpecialist'].map((s) => (
+                  {['ArchitectureEngineer', 'PerformanceEngineer', 'SecurityEngineer', 'CostOptimizer', 'AIQualityEngineer'].map((s) => (
                     <div key={s} style={{ color: '#fbbf24' }}>→ {s}</div>
                   ))}
                   <div style={{ color: 'var(--text-tertiary)' }}>{'// ... +14 more specialists'}</div>
@@ -296,8 +296,8 @@ export default function ProductPage() {
           <div className="grid-3">
             {[
               { icon: Globe, title: 'REST API', stat: '160+ endpoints', desc: 'Full CRUD, WebSocket streaming, JWT + API key auth, RBAC' },
-              { icon: Terminal, title: 'CLI', stat: '28 commands', desc: 'Analyze, graph, report, batch, export, simulate, and more' },
-              { icon: Puzzle, title: 'MCP Server', stat: '42 tools · 21 prompts', desc: 'Model Context Protocol for AI assistant integration' },
+              { icon: Terminal, title: 'CLI', stat: '29 commands', desc: 'Analyze, graph, report, batch, export, simulate, and more' },
+              { icon: Puzzle, title: 'MCP Server', stat: '45 tools · 21 prompts', desc: 'Model Context Protocol for AI assistant integration' },
               { icon: MessageSquare, title: 'GraphQL', stat: 'Full schema', desc: 'Query your knowledge graph with rich relationship traversal' },
               { icon: Wrench, title: 'Plugin SDK', stat: 'Extensible', desc: 'Build custom collectors and analyzers with a documented API' },
               { icon: Lock, title: 'Enterprise', stat: 'SSO · RBAC · Audit', desc: 'JWT auth, API keys, role-based access, audit logging' },

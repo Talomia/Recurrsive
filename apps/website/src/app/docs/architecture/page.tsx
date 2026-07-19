@@ -36,7 +36,7 @@ const PIPELINE = [
   {
     icon: Layers,
     title: 'Parse',
-    desc: 'Tree-sitter parsers extract structural information from TypeScript, Python, and Go source files. Produces AST-level entities and relationships.',
+    desc: 'Tree-sitter parsers extract structural information from TypeScript, Python, and JavaScript source files. Produces AST-level entities and relationships.',
     color: '#3b82f6',
   },
   {
@@ -60,30 +60,32 @@ const PIPELINE = [
 ];
 
 const CORE_PACKAGES = [
-  { name: '@recurrsive/core', desc: 'Analysis pipeline orchestration and lifecycle management' },
+  { name: '@recurrsive/core', desc: 'Core type system, Zod schemas, and shared utilities — including the 43 entity + 43 relationship types' },
   { name: '@recurrsive/graph', desc: 'Knowledge graph abstraction (AGE + SQLite backends)' },
   { name: '@recurrsive/collectors', desc: '14 built-in data collectors (Git, GitHub, OTEL, etc.)' },
   { name: '@recurrsive/analyzers', desc: '12 domain analyzers with 50+ analysis rules' },
+  { name: '@recurrsive/parsers', desc: 'Tree-sitter code parsing and AI pattern detection (TypeScript, Python, JavaScript)' },
   { name: '@recurrsive/reasoning', desc: 'Multi-agent debate engine and specialist framework' },
-  { name: '@recurrsive/types', desc: '43 entity types + 43 relationship types (shared schema)' },
-  { name: '@recurrsive/sdk', desc: 'Plugin SDK for custom collectors and analyzers' },
-  { name: '@recurrsive/cli', desc: 'Command-line interface (28 commands)' },
-  { name: '@recurrsive/mcp', desc: 'Model Context Protocol server (42 tools, 21 prompts)' },
+  { name: '@recurrsive/opportunities', desc: 'Opportunity lifecycle management, ranking, and export' },
+  { name: '@recurrsive/policy', desc: 'Policy evaluation engine with built-in governance rules' },
+  { name: '@recurrsive/presentation', desc: 'Report generation, notifications, and terminal formatting' },
 ];
 
 const APPS = [
-  { name: 'api', desc: 'REST API server (160+ endpoints, WebSocket)', icon: Globe },
+  { name: 'server', desc: 'REST API server (160+ endpoints, WebSocket)', icon: Globe },
   { name: 'dashboard', desc: 'Interactive web dashboard and graph explorer', icon: Monitor },
   { name: 'website', desc: 'Marketing and documentation website', icon: Server },
-  { name: 'cli', desc: 'Standalone CLI binary distribution', icon: Terminal },
-  { name: 'worker', desc: 'Background job processor for async analysis', icon: Boxes },
+  { name: 'cli', desc: 'Command-line interface (29 commands)', icon: Terminal },
+  { name: 'mcp', desc: 'Model Context Protocol server (45 tools, 21 prompts, 16 resources)', icon: Boxes },
 ];
 
 const SPECIALISTS = [
-  'Architecture', 'Performance', 'Security', 'Cost', 'Data',
-  'Documentation', 'DevOps', 'API Contract', 'Dependency', 'Code Quality',
-  'Reliability', 'AI Runtime', 'AI Patterns', 'Testing', 'Accessibility',
-  'Scalability', 'Observability', 'Compliance', 'Developer Experience',
+  'Architecture Engineer', 'Performance Engineer', 'Security Engineer', 'Cost Optimizer',
+  'AI Quality Engineer', 'Product Manager', 'Reliability Engineer',
+  'Developer Experience Engineer', 'UX Researcher', 'Accessibility Expert',
+  'Privacy Engineer', 'Compliance Engineer', 'Backend Engineer', 'Frontend Engineer',
+  'ML Engineer', 'Prompt Engineer', 'Database Engineer', 'Documentation Engineer',
+  'Release Manager',
 ];
 
 export default function ArchitecturePage() {
@@ -448,7 +450,7 @@ export default function ArchitecturePage() {
               },
               {
                 title: 'Custom Specialists',
-                desc: 'Add new AI reasoning agents to the debate protocol. Implement the Specialist interface with present, challenge, and synthesize hooks.',
+                desc: 'Add new AI reasoning agents to the debate protocol. Build one declaratively with createCustomSpecialist — name, domain, role, expertise areas, and cognitive framework.',
                 color: 'var(--cyan)',
               },
             ].map((ext) => (
