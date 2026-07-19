@@ -164,6 +164,70 @@ jobs:
     await collector.dispose();
   });
 
+  it('splits inline on: arrays into individual triggers', async () => {
+    const workflowDir = path.join(tmpDir, '.github', 'workflows');
+    await fs.mkdir(workflowDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(workflowDir, 'inline.yml'),
+      `name: Inline Triggers
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build
+        run: npm run build
+`,
+    );
+
+    const collector = new CICDCollector(tmpDir);
+    await collector.initialize({ governance: { masked_fields: [], excluded_patterns: [], pii_detection: false, audit_log: false, retention_days: 90 }, custom: {} });
+
+    const result = await collector.collect();
+
+    const workflow = result.entities.find((e) => e.type === 'workflow');
+    expect(workflow).toBeDefined();
+    // The inline array form must be split into real trigger names, not
+    // recorded as a single malformed "[push, pull_request]" trigger.
+    expect(workflow!.properties['triggers']).toEqual(['push', 'pull_request']);
+
+    await collector.dispose();
+  });
+
+  it('applies governance exclusion patterns to workflow files', async () => {
+    const workflowDir = path.join(tmpDir, '.github', 'workflows');
+    await fs.mkdir(workflowDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(workflowDir, 'secret-deploy.yml'),
+      `name: Secret Deploy
+on: push
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+`,
+    );
+
+    const collector = new CICDCollector(tmpDir);
+    await collector.initialize({
+      governance: {
+        masked_fields: [],
+        excluded_patterns: ['.github/workflows/secret-*.yml'],
+        pii_detection: false,
+        audit_log: false,
+        retention_days: 90,
+      },
+      custom: {},
+    });
+
+    const result = await collector.collect();
+    expect(result.entities.length).toBe(0);
+
+    await collector.dispose();
+  });
+
   it('handles no workflows gracefully', async () => {
     const collector = new CICDCollector(tmpDir);
     await collector.initialize({ governance: { masked_fields: [], excluded_patterns: [], pii_detection: false, audit_log: false, retention_days: 90 }, custom: {} });

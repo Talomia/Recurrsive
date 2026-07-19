@@ -266,7 +266,7 @@ export class DocumentationCollector implements Collector {
     const entities: Entity[] = [];
     for (const docFile of docFiles) {
       try {
-        const entity = await this.buildDocumentEntity(docFile);
+        const entity = await this.buildDocumentEntity(docFile, errors);
         const masked = this.governanceFilter.maskEntity(entity);
         entities.push(masked);
       } catch (err) {
@@ -276,8 +276,15 @@ export class DocumentationCollector implements Collector {
       }
     }
 
-    // Build relationships (all documents → repository via "contains")
-    const relationships = this.buildRelationships(entities);
+    // Build relationships (repository → documents via "contains").
+    // The repository entity is emitted alongside the documents so every
+    // relationship endpoint resolves to a real entity in this result.
+    let relationships: Relationship[] = [];
+    if (entities.length > 0) {
+      const repoEntity = this.governanceFilter.maskEntity(this.buildRepositoryEntity());
+      relationships = this.buildRelationships(entities, repoEntity.id);
+      entities.push(repoEntity);
+    }
 
     const durationMs = Date.now() - startTime;
 
@@ -533,32 +540,51 @@ export class DocumentationCollector implements Collector {
    *
    * Reads the file content to extract a description preview.
    *
+   * When the file cannot be read (oversized or read failure) the failure
+   * is recorded in `errors` and content-derived properties (word_count)
+   * are omitted rather than reported as zero.
+   *
    * @param docFile - The documentation file info.
+   * @param errors - Collection error sink for read failures.
    * @returns An entity representing this document.
    */
-  private async buildDocumentEntity(docFile: DocFileInfo): Promise<Entity> {
+  private async buildDocumentEntity(
+    docFile: DocFileInfo,
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<Entity> {
     const now = nowISO();
     const repoName = path.basename(this.rootPath);
 
     // Read content for description preview
     let description = `${docFile.category} document: ${docFile.name}`;
     let content = '';
+    let contentRead = false;
 
-    if (docFile.sizeBytes <= MAX_DOC_SIZE_BYTES) {
+    if (docFile.sizeBytes > MAX_DOC_SIZE_BYTES) {
+      errors.push({
+        message: `Content of '${docFile.relativePath}' not read: size ${docFile.sizeBytes} bytes exceeds limit of ${MAX_DOC_SIZE_BYTES} bytes; content-derived properties omitted`,
+      });
+    } else {
       try {
         content = await fs.readFile(docFile.absolutePath, 'utf-8');
-        description = this.extractDescription(content, docFile.category);
 
-        // Sanitize content if PII detection is enabled
+        // Sanitize content FIRST (if PII detection is enabled), so all
+        // derived fields (description, title) come from sanitized text.
         if (this.governance.pii_detection) {
           content = this.governanceFilter.sanitizeText(content);
         }
+
+        description = this.extractDescription(content, docFile.category);
+        contentRead = true;
       } catch (err: unknown) {
-        // Failed to read — use default description
+        content = '';
+        errors.push({
+          message: `Failed to read '${docFile.relativePath}': ${err instanceof Error ? err.message : String(err)}; content-derived properties omitted`,
+        });
       }
     }
 
-    // Extract title from markdown content
+    // Extract title from (sanitized) markdown content
     const title = this.extractTitle(content, docFile.name);
 
     return {
@@ -578,7 +604,9 @@ export class DocumentationCollector implements Collector {
         size_bytes: docFile.sizeBytes,
         format: this.detectFormat(docFile.name),
         title,
-        word_count: content ? content.split(/\s+/).length : 0,
+        // word_count is only reported when the content was actually read;
+        // an unread file has an unknown word count, not zero.
+        ...(contentRead ? { word_count: content.split(/\s+/).filter(Boolean).length } : {}),
       },
       tags: [docFile.category, this.detectFormat(docFile.name)],
       created_at: now,
@@ -588,42 +616,61 @@ export class DocumentationCollector implements Collector {
   }
 
   /**
-   * Build `contains` relationships from a synthetic repository reference
-   * to each document entity.
+   * Build the repository entity that anchors the `contains` edges.
    *
-   * Note: The actual repository entity is created by the GitCollector.
-   * These relationships reference the repo by convention — they will
-   * be linked at graph merge time.
+   * Uses the same qualified name convention as the GitCollector's
+   * repository entity so the graph merger can unify them.
+   */
+  private buildRepositoryEntity(): Entity {
+    const now = nowISO();
+    const repoName = path.basename(this.rootPath);
+    return {
+      id: generateId(),
+      type: 'repository',
+      name: repoName,
+      qualified_name: qualifiedName(repoName),
+      description: `Repository at ${this.rootPath}`,
+      source: this.id,
+      source_location: { repository: this.rootPath },
+      properties: {
+        root_path: this.rootPath,
+      },
+      tags: [],
+      created_at: now,
+      updated_at: now,
+      last_seen_at: now,
+    };
+  }
+
+  /**
+   * Build `contains` relationships from the repository entity to each
+   * document entity.
+   *
+   * The repository entity is emitted by this collector (see
+   * {@link buildRepositoryEntity}) with the same qualified name that the
+   * GitCollector uses, so the graph merger can unify the two repository
+   * entities — every edge here resolves to a real entity in this result.
    *
    * @param entities - Document entities.
+   * @param repoEntityId - Id of the emitted repository entity.
    * @returns Array of relationships.
    */
-  private buildRelationships(entities: Entity[]): Relationship[] {
+  private buildRelationships(entities: Entity[], repoEntityId: string): Relationship[] {
     const relationships: Relationship[] = [];
     const now = nowISO();
-
-    // We don't have the repo entity id here — the graph merger will
-    // resolve these using qualified_name matching. For now, create
-    // relationships between documents if any are in subdirectories
-    // of others, or skip inter-entity relationships and let the
-    // graph layer handle cross-collector linking.
-
-    // Instead, create a placeholder repo entity id based on path
-    // The graph merger should resolve this.
-    const repoPlaceholderId = generateId();
 
     for (const entity of entities) {
       relationships.push({
         id: generateId(),
         type: 'contains',
-        source_id: repoPlaceholderId,
+        source_id: repoEntityId,
         target_id: entity.id,
         properties: {
           path: entity.properties['path'],
           category: entity.properties['category'],
           repo_path: this.rootPath,
         },
-        confidence: 0.9, // Slightly lower because repo entity is a placeholder
+        confidence: 1.0,
         source: this.id,
         created_at: now,
         updated_at: now,

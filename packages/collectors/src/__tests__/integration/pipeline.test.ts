@@ -89,6 +89,11 @@ const MOCK_PULL_REQUESTS = [
   },
 ];
 
+// Submitted reviews (from /pulls/{n}/reviews) — carol reviewed both PRs.
+const MOCK_PR_REVIEWS = [
+  { user: { login: 'carol' }, state: 'APPROVED' },
+];
+
 const MOCK_WORKFLOWS_RESPONSE = {
   total_count: 1,
   workflows: [
@@ -135,6 +140,7 @@ function setupGitHubFetchMock(): void {
 
     if (urlStr.includes('/contributors')) return makeResponse(MOCK_CONTRIBUTORS);
     if (urlStr.includes('/teams')) return makeResponse(MOCK_TEAMS);
+    if (/\/pulls\/\d+\/reviews/.test(urlStr)) return makeResponse(MOCK_PR_REVIEWS);
     if (urlStr.includes('/pulls')) return makeResponse(MOCK_PULL_REQUESTS);
     if (urlStr.includes('/actions/runs/') && urlStr.includes('/jobs')) return makeResponse(MOCK_WORKFLOW_JOBS_RESPONSE);
     if (urlStr.includes('/actions/workflows/') && urlStr.includes('/runs')) return makeResponse(MOCK_WORKFLOW_RUNS_RESPONSE);

@@ -391,6 +391,72 @@ pytest = "^7.0.0"
       expect(pytest!.dev).toBe(true);
     });
 
+    it('extracts PEP 621 dependencies from the dependencies array', () => {
+      const content = `
+[project]
+name = "my-app"
+version = "1.0.0"
+dependencies = [
+  "requests>=2.28.0",
+  "fastapi==0.100.0",
+  "uvicorn[standard]>=0.23",
+]
+`;
+      const deps = parsePyprojectToml(content);
+      expect(deps.map((d) => d.name).sort()).toEqual(['fastapi', 'requests', 'uvicorn']);
+      const requests = deps.find((d) => d.name === 'requests');
+      expect(requests!.version).toBe('>=2.28.0');
+      expect(requests!.dev).toBe(false);
+    });
+
+    it('extracts PEP 621 inline dependency arrays', () => {
+      const content = `
+[project]
+dependencies = ["requests>=2.28", "httpx"]
+`;
+      const deps = parsePyprojectToml(content);
+      expect(deps.map((d) => d.name).sort()).toEqual(['httpx', 'requests']);
+    });
+
+    it('does NOT treat other [project] arrays (keywords, classifiers, authors) as dependencies', () => {
+      const content = `
+[project]
+name = "my-app"
+keywords = ["ai", "openai", "agents"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+]
+authors = [
+  { name = "Someone", email = "someone@example.com" },
+]
+dependencies = [
+  "requests>=2.28.0",
+]
+`;
+      const deps = parsePyprojectToml(content);
+      // Only the real dependency — "ai"/"openai" keywords must never
+      // become fake dependencies (which would fabricate AI providers).
+      expect(deps.map((d) => d.name)).toEqual(['requests']);
+    });
+
+    it('extracts PEP 621 optional-dependency groups', () => {
+      const content = `
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0",
+]
+aws = ["boto3>=1.28"]
+`;
+      const deps = parsePyprojectToml(content);
+      const pytest = deps.find((d) => d.name === 'pytest');
+      const boto3 = deps.find((d) => d.name === 'boto3');
+      expect(pytest).toBeDefined();
+      expect(pytest!.dev).toBe(true);
+      expect(boto3).toBeDefined();
+      expect(boto3!.dev).toBe(false);
+    });
+
     it('returns empty array for empty toml', () => {
       const deps = parsePyprojectToml('');
       expect(deps).toEqual([]);

@@ -236,10 +236,14 @@ export class GitCollector implements Collector {
       logger.error(msg, { error: err });
     }
 
-    // 2. Parse git history
+    // 2. Parse git history. On failure the error is recorded and
+    // history-derived properties are omitted from the repository entity —
+    // an unreadable history must not be reported as "0 commits".
     let history: GitCommitInfo[] = [];
+    let historyAvailable = false;
     try {
       history = await this.parseGitHistory();
+      historyAvailable = true;
     } catch (err) {
       const msg = `Git history parse failed: ${err instanceof Error ? err.message : String(err)}`;
       errors.push({ message: msg, details: err instanceof Error ? { stack: err.stack } : undefined });
@@ -265,7 +269,7 @@ export class GitCollector implements Collector {
     }
 
     // 4. Build entities and relationships
-    const entities = this.buildEntities(files, history, project);
+    const entities = this.buildEntities(files, history, project, historyAvailable);
     const relationships = this.buildRelationships(entities);
 
     // 5. Apply governance masking
@@ -405,13 +409,10 @@ export class GitCollector implements Collector {
    * @returns Array of commit info objects.
    */
   private async parseGitHistory(): Promise<GitCommitInfo[]> {
-    let logResult: LogResult<DefaultLogFields>;
-    try {
-      logResult = await this.git.log({ maxCount: MAX_GIT_LOG_ENTRIES });
-    } catch (err: unknown) {
-      // Not a git repo or git is not available
-      return [];
-    }
+    // Failures (not a git repo, git unavailable, …) propagate to the
+    // caller, which records them in metadata.errors and omits
+    // history-derived properties — never silently reported as empty.
+    const logResult: LogResult<DefaultLogFields> = await this.git.log({ maxCount: MAX_GIT_LOG_ENTRIES });
 
     return logResult.all.map((entry) => ({
       hash: entry.hash,
@@ -458,7 +459,12 @@ export class GitCollector implements Collector {
     ];
 
     for (const { filename, parser } of manifestParsers) {
-      const manifestFile = files.find((f) => f.name === filename && !f.path.includes('node_modules'));
+      // Prefer the shallowest manifest (fewest path segments): in a
+      // monorepo the root manifest describes the repository, not
+      // whichever nested package happens to appear first in walk order.
+      const manifestFile = files
+        .filter((f) => f.name === filename && !f.path.includes('node_modules'))
+        .sort((a, b) => a.path.split('/').length - b.path.split('/').length)[0];
       if (manifestFile) {
         try {
           const content = await fs.readFile(
@@ -570,12 +576,15 @@ export class GitCollector implements Collector {
    * @param files - Discovered files.
    * @param history - Git commit history.
    * @param project - Detected project type info.
+   * @param historyAvailable - Whether git history was actually parsed;
+   *   when false, history-derived properties are omitted (not zeroed).
    * @returns Array of entities.
    */
   private buildEntities(
     files: FileInfo[],
     history: GitCommitInfo[],
     project: ProjectTypeInfo,
+    historyAvailable: boolean,
   ): Entity[] {
     const entities: Entity[] = [];
     const now = nowISO();
@@ -607,9 +616,15 @@ export class GitCollector implements Collector {
         ai_providers: project.aiProviders,
         cloud_services: project.cloudServices,
         total_files: files.length,
-        total_commits: history.length,
-        contributors,
-        recent_commits: recentCommits,
+        // History-derived properties are only reported when the history
+        // was actually parsed — a failed parse is not "0 commits".
+        ...(historyAvailable
+          ? {
+              total_commits: history.length,
+              contributors,
+              recent_commits: recentCommits,
+            }
+          : {}),
       },
       tags: [
         project.primaryLanguage.toLowerCase(),

@@ -91,10 +91,17 @@ function parseDockerfile(content: string, filePath: string): DockerfileInfo {
     const trimmed = line.trim();
     if (trimmed.startsWith('#') || trimmed === '') continue;
 
-    const fromMatch = trimmed.match(/^FROM\s+(\S+)(\s+AS\s+(\S+))?/i);
-    if (fromMatch) {
-      if (baseImage === 'unknown') baseImage = fromMatch[1]!;
-      if (fromMatch[3]) stages.push(fromMatch[3]);
+    if (/^FROM\s/i.test(trimmed)) {
+      // Skip option flags like `--platform=linux/amd64` — the image
+      // reference is the first non-flag token after FROM.
+      const tokens = trimmed.split(/\s+/).slice(1).filter((t) => !t.startsWith('--'));
+      const image = tokens[0];
+      if (image) {
+        if (baseImage === 'unknown') baseImage = image;
+        const asIndex = tokens.findIndex((t) => t.toUpperCase() === 'AS');
+        const stageName = asIndex !== -1 ? tokens[asIndex + 1] : undefined;
+        if (stageName) stages.push(stageName);
+      }
     }
 
     const exposeMatch = trimmed.match(/^EXPOSE\s+(.+)/i);
@@ -280,7 +287,10 @@ function parseK8sManifest(content: string, filePath: string): K8sResource | null
     if (inMetadata && lineIndent === 2) {
       if (trimmed.startsWith('name:')) name = trimmed.split(':')[1]!.trim();
       if (trimmed.startsWith('namespace:')) namespace = trimmed.split(':')[1]!.trim();
-      if (trimmed === 'labels:') inLabels = true;
+      // Any indent-2 metadata key other than `labels:` (annotations,
+      // name, …) ends the labels block — otherwise annotation entries
+      // would be misreported as labels.
+      inLabels = trimmed === 'labels:';
     }
 
     if (inLabels && lineIndent === 4) {
@@ -379,13 +389,20 @@ export class EnvironmentCollector implements Collector {
     };
   }
 
+  /** True when the error is an expected "file/directory absent" error. */
+  private static isAbsenceError(err: unknown): boolean {
+    const code = (err as NodeJS.ErrnoException | null)?.code;
+    return code === 'ENOENT' || code === 'ENOTDIR';
+  }
+
   async collect(): Promise<CollectorResult> {
     const startTime = Date.now();
     const entities: Entity[] = [];
     const relationships: Relationship[] = [];
+    const errors: Array<{ message: string; details?: unknown }> = [];
 
     // ── Discover and parse Dockerfiles ──────────────────────────────
-    const dockerfiles = await this.findDockerfiles();
+    const dockerfiles = await this.findDockerfiles(errors);
     for (const df of dockerfiles) {
       const parsed = parseDockerfile(df.content, df.path);
 
@@ -406,7 +423,7 @@ export class EnvironmentCollector implements Collector {
     }
 
     // ── Discover and parse Docker Compose files ────────────────────
-    const composeFiles = await this.findComposeFiles();
+    const composeFiles = await this.findComposeFiles(errors);
     for (const cf of composeFiles) {
       const services = parseComposeFile(cf.content);
 
@@ -480,7 +497,7 @@ export class EnvironmentCollector implements Collector {
     }
 
     // ── Discover and parse Kubernetes manifests ────────────────────
-    const k8sFiles = await this.findK8sManifests();
+    const k8sFiles = await this.findK8sManifests(errors);
     for (const kf of k8sFiles) {
       // Split multi-document YAML
       const docs = kf.content.split(/^---$/m);
@@ -512,24 +529,30 @@ export class EnvironmentCollector implements Collector {
 
     const durationMs = Date.now() - startTime;
 
+    // Apply governance masking to all entities.
+    const maskedEntities = this.governance
+      ? entities.map((e) => this.governance!.maskEntity(e))
+      : entities;
+
     logger.info('Environment collection complete', {
-      entities: entities.length,
+      entities: maskedEntities.length,
       relationships: relationships.length,
       dockerfiles: dockerfiles.length,
       composeFiles: composeFiles.length,
       k8sFiles: k8sFiles.length,
+      errors: errors.length,
       durationMs,
     });
 
     return {
-      entities,
+      entities: maskedEntities,
       relationships,
       metadata: {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
         items_processed: dockerfiles.length + composeFiles.length + k8sFiles.length,
-        errors: [],
+        errors,
       },
     };
   }
@@ -540,7 +563,39 @@ export class EnvironmentCollector implements Collector {
 
   // ── File discovery helpers ─────────────────────────────────────
 
-  private async findDockerfiles(): Promise<Array<{ path: string; content: string }>> {
+  /**
+   * Read a discovered file, applying governance exclusion (against the
+   * repo-relative path, so patterns like `secrets/**` match) BEFORE the
+   * file is ever read. Real read failures are recorded in `errors`;
+   * absence is silent (discovery probes many optional paths).
+   *
+   * @returns The file content, or `null` when excluded/absent/unreadable.
+   */
+  private async readDiscoveredFile(
+    filePath: string,
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<string | null> {
+    const relativePath = path.relative(this.rootPath, filePath);
+
+    // Exclusion must be checked before reading — excluded content should
+    // never enter this process.
+    if (this.governance?.isExcluded(relativePath)) return null;
+
+    try {
+      return await fs.readFile(filePath, 'utf-8');
+    } catch (err) {
+      if (!EnvironmentCollector.isAbsenceError(err)) {
+        const msg = `Failed to read '${relativePath}': ${err instanceof Error ? err.message : String(err)}`;
+        logger.warn(msg);
+        errors.push({ message: msg });
+      }
+      return null;
+    }
+  }
+
+  private async findDockerfiles(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<Array<{ path: string; content: string }>> {
     const results: Array<{ path: string; content: string }> = [];
     const patterns = ['Dockerfile', 'Dockerfile.dev', 'Dockerfile.prod', 'Dockerfile.staging'];
 
@@ -548,12 +603,9 @@ export class EnvironmentCollector implements Collector {
     for (const dir of [this.rootPath, path.join(this.rootPath, 'docker')]) {
       for (const name of patterns) {
         const filePath = path.join(dir, name);
-        try {
-          const content = await fs.readFile(filePath, 'utf-8');
-          if (this.governance?.isExcluded(filePath)) continue;
+        const content = await this.readDiscoveredFile(filePath, errors);
+        if (content !== null) {
           results.push({ path: filePath, content });
-        } catch {
-          // File doesn't exist
         }
       }
     }
@@ -561,7 +613,9 @@ export class EnvironmentCollector implements Collector {
     return results;
   }
 
-  private async findComposeFiles(): Promise<Array<{ path: string; content: string }>> {
+  private async findComposeFiles(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<Array<{ path: string; content: string }>> {
     const results: Array<{ path: string; content: string }> = [];
     const names = [
       'docker-compose.yml', 'docker-compose.yaml',
@@ -573,19 +627,18 @@ export class EnvironmentCollector implements Collector {
 
     for (const name of names) {
       const filePath = path.join(this.rootPath, name);
-      try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        if (this.governance?.isExcluded(filePath)) continue;
+      const content = await this.readDiscoveredFile(filePath, errors);
+      if (content !== null) {
         results.push({ path: filePath, content });
-      } catch {
-        // File doesn't exist
       }
     }
 
     return results;
   }
 
-  private async findK8sManifests(): Promise<Array<{ path: string; content: string }>> {
+  private async findK8sManifests(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<Array<{ path: string; content: string }>> {
     const results: Array<{ path: string; content: string }> = [];
 
     const k8sDirs = ['k8s', 'kubernetes', 'deploy', 'deployments', 'manifests', 'helm'];
@@ -594,9 +647,14 @@ export class EnvironmentCollector implements Collector {
       try {
         const stat = await fs.stat(fullDir);
         if (!stat.isDirectory()) continue;
-        await this.walkK8sDir(fullDir, results);
-      } catch {
-        // Directory doesn't exist
+        await this.walkK8sDir(fullDir, results, errors);
+      } catch (err) {
+        // Absent directories are expected; real failures are recorded.
+        if (!EnvironmentCollector.isAbsenceError(err)) {
+          const msg = `Failed to scan '${dir}': ${err instanceof Error ? err.message : String(err)}`;
+          logger.warn(msg);
+          errors.push({ message: msg });
+        }
       }
     }
 
@@ -606,19 +664,25 @@ export class EnvironmentCollector implements Collector {
   private async walkK8sDir(
     dir: string,
     results: Array<{ path: string; content: string }>,
+    errors: Array<{ message: string; details?: unknown }>,
   ): Promise<void> {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch (err) {
+      const msg = `Failed to list '${path.relative(this.rootPath, dir)}': ${err instanceof Error ? err.message : String(err)}`;
+      logger.warn(msg);
+      errors.push({ message: msg });
+      return;
+    }
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        await this.walkK8sDir(fullPath, results);
+        await this.walkK8sDir(fullPath, results, errors);
       } else if (entry.name.endsWith('.yml') || entry.name.endsWith('.yaml')) {
-        try {
-          const content = await fs.readFile(fullPath, 'utf-8');
-          if (this.governance?.isExcluded(fullPath)) continue;
+        const content = await this.readDiscoveredFile(fullPath, errors);
+        if (content !== null) {
           results.push({ path: fullPath, content });
-        } catch {
-          // Skip unreadable files
         }
       }
     }

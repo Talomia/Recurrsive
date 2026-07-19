@@ -387,9 +387,14 @@ export function parsePackageJson(content: string): DependencyInfo[] {
 /**
  * Extract dependency information from a `pyproject.toml` file's content.
  *
- * Uses simple line-by-line parsing for the `[project.dependencies]` and
- * `[project.optional-dependencies]` sections, as well as Poetry's
+ * Uses simple line-by-line parsing for the PEP 621 `dependencies = [...]`
+ * array under `[project]`, the group arrays under
+ * `[project.optional-dependencies]`, and Poetry's
  * `[tool.poetry.dependencies]` format.
+ *
+ * Only items inside an actual dependency array are collected — quoted
+ * strings in other `[project]` arrays (keywords, classifiers, authors, …)
+ * are never treated as dependencies.
  *
  * @param content - Raw string content of pyproject.toml.
  * @returns Array of extracted dependencies.
@@ -399,14 +404,46 @@ export function parsePyprojectToml(content: string): DependencyInfo[] {
   const lines = content.split('\n');
 
   let currentSection = '';
+  /**
+   * Non-null while inside a multi-line PEP 621 dependency array
+   * (`dependencies = [` under `[project]`, or a group array under
+   * `[project.optional-dependencies]`).
+   */
+  let pep621Array: { dev: boolean } | null = null;
+
+  /** Extract all quoted string items from a line fragment. */
+  const extractQuoted = (s: string): string[] =>
+    [...s.matchAll(/"([^"]*)"|'([^']*)'/g)].map((m) => m[1] ?? m[2] ?? '');
+
+  /** Parse a PEP 508 requirement string like `requests>=2.28.0`. */
+  const pushRequirement = (raw: string, dev: boolean): void => {
+    const m = /^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(\[[^\]]*\])?\s*(.*)$/.exec(raw.trim());
+    if (!m || !m[1]) {
+      return;
+    }
+    deps.push({
+      name: m[1],
+      version: m[3]?.trim() || '*',
+      dev,
+      source: 'pyproject.toml',
+    });
+  };
+
+  /** Does this line fragment close the current array? (a `]` outside quotes at the end) */
+  const closesArray = (s: string): boolean => {
+    const withoutStrings = s.replace(/"[^"]*"|'[^']*'/g, '');
+    const withoutComment = withoutStrings.split('#')[0] ?? '';
+    return withoutComment.includes(']');
+  };
 
   for (const line of lines) {
     const trimmed = line.trim();
 
     // Detect section headers
-    const sectionMatch = /^\[([^\]]+)\]/.exec(trimmed);
+    const sectionMatch = /^\[([^\]]+)\]\s*(#.*)?$/.exec(trimmed);
     if (sectionMatch) {
       currentSection = sectionMatch[1] ?? '';
+      pep621Array = null;
       continue;
     }
 
@@ -415,18 +452,54 @@ export function parsePyprojectToml(content: string): DependencyInfo[] {
       continue;
     }
 
-    // Parse PEP 621 dependencies array items: "requests>=2.28"
-    if (currentSection === 'project' || currentSection === 'project.dependencies') {
-      // Match items like: "requests>=2.28.0",
-      const arrayItemMatch = /^"([a-zA-Z0-9_-]+)\s*([><=!~^]*\s*[\d.*]+)?"/.exec(trimmed);
-      if (arrayItemMatch) {
-        deps.push({
-          name: arrayItemMatch[1] ?? trimmed,
-          version: arrayItemMatch[2]?.trim() ?? '*',
-          dev: false,
-          source: 'pyproject.toml',
-        });
+    // Continuation of a multi-line PEP 621 dependency array
+    if (pep621Array) {
+      for (const item of extractQuoted(trimmed)) {
+        if (item) {
+          pushRequirement(item, pep621Array.dev);
+        }
       }
+      if (closesArray(trimmed)) {
+        pep621Array = null;
+      }
+      continue;
+    }
+
+    // PEP 621: `dependencies = [...]` under [project] — the ONLY key in
+    // [project] whose array items are dependencies.
+    if (currentSection === 'project') {
+      const depsStart = /^dependencies\s*=\s*\[(.*)$/.exec(trimmed);
+      if (depsStart) {
+        const rest = depsStart[1] ?? '';
+        for (const item of extractQuoted(rest)) {
+          if (item) {
+            pushRequirement(item, false);
+          }
+        }
+        if (!closesArray(rest)) {
+          pep621Array = { dev: false };
+        }
+      }
+      continue;
+    }
+
+    // PEP 621 optional dependency groups: `group = [...]`
+    if (currentSection === 'project.optional-dependencies') {
+      const groupStart = /^([A-Za-z0-9._-]+)\s*=\s*\[(.*)$/.exec(trimmed);
+      if (groupStart) {
+        const groupName = groupStart[1] ?? '';
+        const dev = /^(dev|develop|development|test|tests|testing|lint|docs?|typing)$/i.test(groupName);
+        const rest = groupStart[2] ?? '';
+        for (const item of extractQuoted(rest)) {
+          if (item) {
+            pushRequirement(item, dev);
+          }
+        }
+        if (!closesArray(rest)) {
+          pep621Array = { dev };
+        }
+      }
+      continue;
     }
 
     // Parse Poetry-style: package = "^1.0"  or  package = {version = "^1.0"}

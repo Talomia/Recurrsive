@@ -54,11 +54,20 @@ interface GitLabMR {
   labels: string[];
 }
 
-/** Subset of a GitLab pipeline API response. */
+/**
+ * Subset of a GitLab pipeline LIST API response.
+ * Note: the list endpoint does NOT include the triggering user — that
+ * is only available from the single-pipeline detail endpoint.
+ */
 interface GitLabPipeline {
   id: number;
   ref: string;
   status: string;
+}
+
+/** Subset of a GitLab single-pipeline detail API response. */
+interface GitLabPipelineDetail {
+  id: number;
   user: { username: string } | null;
 }
 
@@ -115,7 +124,12 @@ interface CollectedPipeline {
   ref: string;
   /** Status exactly as reported by the GitLab API, or 'unknown'. */
   status: string;
-  triggeredBy: string;
+  /**
+   * Username that triggered the pipeline, from the single-pipeline
+   * detail endpoint. Omitted when the detail could not be fetched or
+   * reported no user — never guessed.
+   */
+  triggeredBy?: string;
   /** Jobs sorted by id ascending (GitLab creates jobs in stage order). */
   jobs: Array<{ name: string; stage: string }>;
 }
@@ -133,7 +147,11 @@ interface CollectedDeployment {
   deployer: string;
   /** Status exactly as reported by the GitLab API, or 'unknown'. */
   status: string;
-  pipelineId: number;
+  /**
+   * Id of the pipeline that produced the deployable. Omitted when the
+   * API reported none — never fabricated as 0.
+   */
+  pipelineId?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +390,7 @@ export class GitLabCollector implements Collector {
 
     const results: T[] = [];
     let page = 1;
+    let nextPageAvailable = false;
 
     // Add per_page param if not already present
     const separator = path.includes('?') ? '&' : '?';
@@ -379,6 +398,7 @@ export class GitLabCollector implements Collector {
 
     try {
       while (results.length < maxItems) {
+        nextPageAvailable = false;
         const pageParam = basePath.includes('per_page') ? `&page=${page}` : `?page=${page}`;
         const url = `${this.apiBase}/api/v4${basePath}${pageParam}`;
 
@@ -428,6 +448,7 @@ export class GitLabCollector implements Collector {
         // Check if there's a next page
         const nextPage = response.headers.get('X-Next-Page');
         if (!nextPage || nextPage === '') break;
+        nextPageAvailable = true;
         page = parseInt(nextPage, 10);
       }
     } catch (err) {
@@ -436,7 +457,72 @@ export class GitLabCollector implements Collector {
       errors.push({ message: msg });
     }
 
+    // Record silent truncation honestly: either more pages existed at the
+    // cap, or the final slice below drops already-fetched items.
+    if (results.length > maxItems || (nextPageAvailable && results.length >= maxItems)) {
+      const msg = `GitLab API results for ${path} truncated to ${maxItems} items; additional items exist but were not collected`;
+      logger.warn(msg);
+      errors.push({ message: msg });
+    }
+
     return results.slice(0, maxItems);
+  }
+
+  /**
+   * Make a single (non-paginated) GET request to the GitLab API.
+   * Used for endpoints that return an object, not an array.
+   */
+  private async fetchSingle<T>(
+    path: string,
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<T | null> {
+    if (!this.token) {
+      logger.warn('No GitLab token configured, skipping API call', { path });
+      errors.push({ message: `No GitLab token configured, skipping: ${path}` });
+      return null;
+    }
+
+    try {
+      const url = `${this.apiBase}/api/v4${path}`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), GitLabCollector.FETCH_TIMEOUT_MS);
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          headers: {
+            'PRIVATE-TOKEN': this.token,
+            'Accept': 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+
+      const remaining = response.headers.get('RateLimit-Remaining');
+      const rateLimited = remaining !== null && parseInt(remaining, 10) <= 0;
+      const resetTime = response.headers.get('RateLimit-Reset');
+
+      if (!response.ok) {
+        const msg = rateLimited
+          ? `GitLab API rate limit exhausted (${response.status} for ${url}). Resets at ${resetTime}`
+          : `GitLab API error: ${response.status} ${response.statusText} for ${url}`;
+        logger.warn(msg);
+        errors.push({ message: msg, details: { status: response.status } });
+        return null;
+      }
+
+      const parsed = (await response.json()) as T;
+
+      if (rateLimited) {
+        errors.push({ message: `GitLab API rate limit exhausted after ${url}; subsequent calls may fail. Resets at ${resetTime}` });
+      }
+
+      return parsed;
+    } catch (err) {
+      errors.push({ message: `GitLab API fetch failed for ${path}: ${err instanceof Error ? err.message : String(err)}` });
+      return null;
+    }
   }
 
   /**
@@ -488,10 +574,27 @@ export class GitLabCollector implements Collector {
 
     const collectedPipelines: CollectedPipeline[] = [];
 
-    for (const pipeline of rawPipelines.slice(0, 10)) {
+    // Cap per-pipeline detail/job lookups; record honestly when
+    // fetched pipelines are dropped by the cap.
+    const PIPELINE_LIMIT = 10;
+    if (rawPipelines.length > PIPELINE_LIMIT) {
+      const msg = `Only the first ${PIPELINE_LIMIT} of ${rawPipelines.length} fetched pipelines were processed; the rest were not collected`;
+      logger.warn(msg);
+      errors.push({ message: msg });
+    }
+
+    for (const pipeline of rawPipelines.slice(0, PIPELINE_LIMIT)) {
+      // The pipelines LIST response carries no user — fetch the
+      // single-pipeline detail for the real triggering user.
+      const detail = await this.fetchSingle<GitLabPipelineDetail>(
+        `/projects/${this.projectId}/pipelines/${encodeURIComponent(String(pipeline.id))}`,
+        errors,
+      );
+      const triggeredBy = detail?.user?.username;
+
       // Fetch jobs for this pipeline
       const rawJobs = await this.fetchPaginated<GitLabJob>(
-        `/projects/${this.projectId}/pipelines/${pipeline.id}/jobs`,
+        `/projects/${this.projectId}/pipelines/${encodeURIComponent(String(pipeline.id))}/jobs`,
         errors,
         50,
       );
@@ -512,7 +615,9 @@ export class GitLabCollector implements Collector {
         ref: pipeline.ref,
         // Report the status exactly as GitLab returned it — never guessed.
         status: pipeline.status || 'unknown',
-        triggeredBy: pipeline.user?.username || 'unknown',
+        // Only include the triggering user when the detail actually
+        // reported one — never defaulted to 'unknown'.
+        ...(triggeredBy ? { triggeredBy } : {}),
         jobs,
       });
     }
@@ -550,15 +655,20 @@ export class GitLabCollector implements Collector {
       errors,
       100,
     );
-    return rawDeployments.map((d) => ({
-      environment: d.environment || 'unknown',
-      sha: d.sha?.substring(0, 8) || 'unknown',
-      deployer: d.user?.username || 'unknown',
-      // Report the status exactly as GitLab returned it; 'unknown' when
-      // absent — never defaulted to a success state.
-      status: d.status || 'unknown',
-      pipelineId: d.deployable?.pipeline?.id || 0,
-    }));
+    return rawDeployments.map((d) => {
+      const pipelineId = d.deployable?.pipeline?.id;
+      return {
+        environment: d.environment || 'unknown',
+        sha: d.sha?.substring(0, 8) || 'unknown',
+        deployer: d.user?.username || 'unknown',
+        // Report the status exactly as GitLab returned it; 'unknown' when
+        // absent — never defaulted to a success state.
+        status: d.status || 'unknown',
+        // Only include the pipeline id when the API reported one —
+        // never fabricated as 0.
+        ...(typeof pipelineId === 'number' ? { pipelineId } : {}),
+      };
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -685,7 +795,8 @@ export class GitLabCollector implements Collector {
           pipeline_id: pipeline.id,
           ref: pipeline.ref,
           status: pipeline.status,
-          triggered_by: pipeline.triggeredBy,
+          // Only present when the pipeline detail reported a real user.
+          ...(pipeline.triggeredBy !== undefined ? { triggered_by: pipeline.triggeredBy } : {}),
           job_count: pipeline.jobs.length,
           platform: 'gitlab-ci',
           gitlab_url: this.gitlabUrl,
@@ -724,7 +835,8 @@ export class GitLabCollector implements Collector {
           sha: deploy.sha,
           deployer: deploy.deployer,
           status: deploy.status,
-          pipeline_id: deploy.pipelineId,
+          // Only present when the API reported a producing pipeline.
+          ...(deploy.pipelineId !== undefined ? { pipeline_id: deploy.pipelineId } : {}),
           platform: 'gitlab',
         }, [deploy.environment]),
       );
@@ -766,9 +878,11 @@ export class GitLabCollector implements Collector {
     const deployments = entities.filter((e) => e.type === 'deployment');
     const environments = entities.filter((e) => e.type === 'environment');
 
-    // User → Pipeline (triggers)
+    // User → Pipeline (triggers) — only when the pipeline detail
+    // reported a real triggering user.
     for (const pipeline of pipelineEntities) {
-      const triggeredBy = pipeline.properties['triggered_by'] as string;
+      const triggeredBy = pipeline.properties['triggered_by'];
+      if (typeof triggeredBy !== 'string') continue;
       const userEntity = users.find((u) => u.name === triggeredBy);
       if (userEntity) {
         relationships.push(this.makeRel('triggers', userEntity.id, pipeline.id, {

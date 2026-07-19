@@ -63,6 +63,30 @@ EXPOSE 3000 8080
     await collector.dispose();
   });
 
+  it('skips FROM option flags like --platform when extracting the base image', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'Dockerfile'),
+      `FROM --platform=linux/amd64 node:18 AS build
+WORKDIR /app
+FROM --platform=$BUILDPLATFORM node:18-slim
+CMD ["node", "index.js"]
+`,
+    );
+
+    const collector = new EnvironmentCollector(tmpDir);
+    await collector.initialize({ governance: { masked_fields: [], excluded_patterns: [], pii_detection: false, audit_log: false, retention_days: 90 }, custom: {} });
+
+    const result = await collector.collect();
+
+    const dockerEntity = result.entities.find((e) => e.properties['source'] === 'dockerfile');
+    expect(dockerEntity).toBeDefined();
+    // The flag must never be reported as the base image.
+    expect(dockerEntity!.properties['base_image']).toBe('node:18');
+    expect(dockerEntity!.properties['stages']).toEqual(['build']);
+
+    await collector.dispose();
+  });
+
   it('handles no Dockerfile gracefully', async () => {
     const collector = new EnvironmentCollector(tmpDir);
     await collector.initialize({ governance: { masked_fields: [], excluded_patterns: [], pii_detection: false, audit_log: false, retention_days: 90 }, custom: {} });
@@ -185,6 +209,73 @@ spec:
     expect(deployment!.properties['namespace']).toBe('production');
     expect(deployment!.properties['replicas']).toBe(3);
     expect((deployment!.properties['labels'] as Record<string, string>)['app']).toBe('api-server');
+
+    await collector.dispose();
+  });
+
+  it('does not merge metadata annotations into labels', async () => {
+    const k8sDir = path.join(tmpDir, 'k8s');
+    await fs.mkdir(k8sDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(k8sDir, 'deployment.yml'),
+      `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+  labels:
+    app: api-server
+  annotations:
+    deployment.kubernetes.io/revision: "4"
+    checksum/config: abc123
+spec:
+  replicas: 1
+`,
+    );
+
+    const collector = new EnvironmentCollector(tmpDir);
+    await collector.initialize({ governance: { masked_fields: [], excluded_patterns: [], pii_detection: false, audit_log: false, retention_days: 90 }, custom: {} });
+
+    const result = await collector.collect();
+
+    const deployment = result.entities.find((e) => e.properties['source'] === 'kubernetes');
+    expect(deployment).toBeDefined();
+    const labels = deployment!.properties['labels'] as Record<string, string>;
+    expect(labels).toEqual({ app: 'api-server' });
+
+    await collector.dispose();
+  });
+
+  it('applies exclusion patterns against repo-relative paths before reading', async () => {
+    const k8sDir = path.join(tmpDir, 'k8s', 'secrets');
+    await fs.mkdir(k8sDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(k8sDir, 'secret.yml'),
+      `apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+`,
+    );
+
+    const collector = new EnvironmentCollector(tmpDir);
+    await collector.initialize({
+      governance: {
+        masked_fields: [],
+        excluded_patterns: ['k8s/secrets/**'],
+        pii_detection: false,
+        audit_log: false,
+        retention_days: 90,
+      },
+      custom: {},
+    });
+
+    const result = await collector.collect();
+
+    // The excluded manifest must never be collected — the glob is
+    // matched against the repo-relative path, not the absolute one.
+    expect(result.entities.length).toBe(0);
 
     await collector.dispose();
   });

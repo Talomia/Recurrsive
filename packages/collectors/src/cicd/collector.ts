@@ -30,6 +30,7 @@ import {
   nowISO,
   createLogger,
 } from '@recurrsive/core';
+import { GovernanceFilter } from '../base/governance.js';
 
 const logger = createLogger({ context: { module: 'cicd-collector' } });
 
@@ -94,10 +95,18 @@ function parseGitHubWorkflow(content: string, filePath: string): WorkflowInfo {
       } else if (trimmed === 'on:' || trimmed.startsWith('on:')) {
         inOn = true;
         section = 'on';
-        // Inline triggers like `on: push`
-        const inlineVal = trimmed.slice(3).trim();
+        // Inline triggers like `on: push` or `on: [push, pull_request]`
+        const inlineVal = trimmed.slice(3).split('#')[0]!.trim();
         if (inlineVal && inlineVal !== '') {
-          triggers.push(inlineVal);
+          if (inlineVal.startsWith('[')) {
+            // Inline array form — split into individual trigger names.
+            for (const part of inlineVal.replace(/^\[/, '').replace(/\]$/, '').split(',')) {
+              const name = part.trim().replace(/^['"]|['"]$/g, '');
+              if (name) triggers.push(name);
+            }
+          } else {
+            triggers.push(inlineVal.replace(/^['"]|['"]$/g, ''));
+          }
           inOn = false;
         }
       } else if (trimmed === 'jobs:') {
@@ -248,12 +257,14 @@ export class CICDCollector implements Collector {
   readonly version = '0.1.0';
 
   private rootPath: string;
+  private governanceFilter: GovernanceFilter | null = null;
 
   constructor(rootPath: string) {
     this.rootPath = rootPath;
   }
 
-  async initialize(_config: CollectorConfig): Promise<void> {
+  async initialize(config: CollectorConfig): Promise<void> {
+    this.governanceFilter = new GovernanceFilter(config.governance);
     logger.info('CI/CD collector initialized', { rootPath: this.rootPath });
   }
 
@@ -313,9 +324,10 @@ export class CICDCollector implements Collector {
     const startTime = Date.now();
     const entities: Entity[] = [];
     const relationships: Relationship[] = [];
+    const errors: Array<{ message: string; details?: unknown }> = [];
 
     // ── Discover GitHub Actions workflows ──────────────────────────
-    const workflows = await this.findGitHubWorkflows();
+    const workflows = await this.findGitHubWorkflows(errors);
     for (const wf of workflows) {
       const parsed = parseGitHubWorkflow(wf.content, wf.path);
 
@@ -392,7 +404,7 @@ export class CICDCollector implements Collector {
     }
 
     // ── Discover GitLab CI ──────────────────────────────────────────
-    const gitlabCI = await this.findGitLabCI();
+    const gitlabCI = await this.findGitLabCI(errors);
     if (gitlabCI) {
       const pipelineEntity = this.makeEntity(
         'pipeline',
@@ -410,22 +422,28 @@ export class CICDCollector implements Collector {
 
     const durationMs = Date.now() - startTime;
 
+    // Apply governance masking to all entities.
+    const maskedEntities = this.governanceFilter
+      ? entities.map((e) => this.governanceFilter!.maskEntity(e))
+      : entities;
+
     logger.info('CI/CD collection complete', {
-      entities: entities.length,
+      entities: maskedEntities.length,
       relationships: relationships.length,
       workflows: workflows.length,
+      errors: errors.length,
       durationMs,
     });
 
     return {
-      entities,
+      entities: maskedEntities,
       relationships,
       metadata: {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
         items_processed: workflows.length + (gitlabCI ? 1 : 0),
-        errors: [],
+        errors,
       },
     };
   }
@@ -436,7 +454,15 @@ export class CICDCollector implements Collector {
 
   // ── File discovery helpers ─────────────────────────────────────
 
-  private async findGitHubWorkflows(): Promise<Array<{ path: string; content: string }>> {
+  /** True when the error is an expected "file/directory absent" error. */
+  private static isAbsenceError(err: unknown): boolean {
+    const code = (err as NodeJS.ErrnoException | null)?.code;
+    return code === 'ENOENT' || code === 'ENOTDIR';
+  }
+
+  private async findGitHubWorkflows(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<Array<{ path: string; content: string }>> {
     const results: Array<{ path: string; content: string }> = [];
     const workflowDir = path.join(this.rootPath, '.github', 'workflows');
 
@@ -450,26 +476,51 @@ export class CICDCollector implements Collector {
         if (!entry.name.endsWith('.yml') && !entry.name.endsWith('.yaml')) continue;
 
         const filePath = path.join(workflowDir, entry.name);
+        const relativePath = path.relative(this.rootPath, filePath);
+
+        // Governance exclusion — checked before reading the file.
+        if (this.governanceFilter?.isExcluded(relativePath)) continue;
+
         try {
           const content = await fs.readFile(filePath, 'utf-8');
           results.push({ path: filePath, content });
-        } catch {
-          // Skip unreadable files
+        } catch (err) {
+          const msg = `Failed to read workflow file '${relativePath}': ${err instanceof Error ? err.message : String(err)}`;
+          logger.warn(msg);
+          errors.push({ message: msg });
         }
       }
-    } catch {
-      // No .github/workflows directory
+    } catch (err) {
+      // A missing .github/workflows directory is expected; anything else
+      // (permissions, I/O) is a real failure and must be recorded.
+      if (!CICDCollector.isAbsenceError(err)) {
+        const msg = `Failed to scan '.github/workflows': ${err instanceof Error ? err.message : String(err)}`;
+        logger.warn(msg);
+        errors.push({ message: msg });
+      }
     }
 
     return results;
   }
 
-  private async findGitLabCI(): Promise<{ path: string; content: string } | null> {
+  private async findGitLabCI(
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Promise<{ path: string; content: string } | null> {
     const filePath = path.join(this.rootPath, '.gitlab-ci.yml');
+
+    // Governance exclusion — checked before reading the file.
+    if (this.governanceFilter?.isExcluded('.gitlab-ci.yml')) return null;
+
     try {
       const content = await fs.readFile(filePath, 'utf-8');
       return { path: filePath, content };
-    } catch {
+    } catch (err) {
+      // Absence is expected; real read failures are recorded.
+      if (!CICDCollector.isAbsenceError(err)) {
+        const msg = `Failed to read '.gitlab-ci.yml': ${err instanceof Error ? err.message : String(err)}`;
+        logger.warn(msg);
+        errors.push({ message: msg });
+      }
       return null;
     }
   }

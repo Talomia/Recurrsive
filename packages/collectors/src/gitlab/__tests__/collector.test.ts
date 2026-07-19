@@ -60,10 +60,15 @@ const MOCK_MRS = [
   },
 ];
 
+// The pipelines LIST response carries no `user` field — the triggering
+// user is only available from the single-pipeline detail endpoint.
 const MOCK_PIPELINES = [
-  { id: 1001, ref: 'main', status: 'success', user: { username: 'alice' } },
-  { id: 1002, ref: 'main', status: 'success', user: { username: 'dave' } },
+  { id: 1001, ref: 'main', status: 'success' },
+  { id: 1002, ref: 'main', status: 'success' },
 ];
+
+const MOCK_PIPELINE_1001_DETAIL = { id: 1001, ref: 'main', status: 'success', user: { username: 'alice' } };
+const MOCK_PIPELINE_1002_DETAIL = { id: 1002, ref: 'main', status: 'success', user: { username: 'dave' } };
 
 const MOCK_PIPELINE_1001_JOBS = [
   { id: 1, name: 'lint', stage: 'test', status: 'success', pipeline: { id: 1001 }, runner: { description: 'shared-runner' } },
@@ -108,6 +113,8 @@ function setupFetchMock(): void {
     if (urlStr.includes('/merge_requests')) return makeResponse(MOCK_MRS);
     if (urlStr.includes('/pipelines/1001/jobs')) return makeResponse(MOCK_PIPELINE_1001_JOBS);
     if (urlStr.includes('/pipelines/1002/jobs')) return makeResponse(MOCK_PIPELINE_1002_JOBS);
+    if (/\/pipelines\/1001(\?|$)/.test(urlStr)) return makeResponse(MOCK_PIPELINE_1001_DETAIL);
+    if (/\/pipelines\/1002(\?|$)/.test(urlStr)) return makeResponse(MOCK_PIPELINE_1002_DETAIL);
     if (urlStr.includes('/pipelines')) return makeResponse(MOCK_PIPELINES);
     if (urlStr.includes('/environments')) return makeResponse(MOCK_ENVIRONMENTS);
     if (urlStr.includes('/deployments')) return makeResponse(MOCK_DEPLOYMENTS);
@@ -290,6 +297,43 @@ describe('Collection — entity production', () => {
     for (const pipeline of pipelines) {
       expect(pipeline.properties['platform']).toBe('gitlab-ci');
     }
+  });
+
+  it('resolves triggered_by from the pipeline detail endpoint', async () => {
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const pipelines = result.entities.filter((e) => e.type === 'pipeline');
+    const p1001 = pipelines.find((p) => p.properties['pipeline_id'] === 1001);
+    const p1002 = pipelines.find((p) => p.properties['pipeline_id'] === 1002);
+    expect(p1001?.properties['triggered_by']).toBe('alice');
+    expect(p1002?.properties['triggered_by']).toBe('dave');
+  });
+
+  it('omits triggered_by when the pipeline detail reports no user', async () => {
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      if (/\/pipelines\/100[12](\?|$)/.test(urlStr)) {
+        return new Response(JSON.stringify({ id: 1001, user: null }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'RateLimit-Remaining': '1999', 'X-Next-Page': '' },
+        });
+      }
+      return originalFetch(url as never, init);
+    }));
+
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const pipelines = result.entities.filter((e) => e.type === 'pipeline');
+    expect(pipelines.length).toBe(2);
+    for (const pipeline of pipelines) {
+      // Unknown trigger user must be omitted, never reported as 'unknown'.
+      expect('triggered_by' in pipeline.properties).toBe(false);
+    }
+    // And no triggers relationship may be invented.
+    expect(result.relationships.filter((r) => r.type === 'triggers').length).toBe(0);
   });
 
   it('tags all entities with gitlab', async () => {

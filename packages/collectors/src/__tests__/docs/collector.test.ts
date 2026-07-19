@@ -205,7 +205,7 @@ describe('collector metadata', () => {
 // ---------------------------------------------------------------------------
 
 describe('relationship creation', () => {
-  it('creates relationships between doc entities', async () => {
+  it('creates contains relationships that resolve to emitted entities', async () => {
     const docsDir = path.join(tmpDir, 'docs');
     await fs.mkdir(docsDir, { recursive: true });
 
@@ -223,10 +223,69 @@ describe('relationship creation', () => {
     const result = await collector.collect();
 
     expect(result.entities.length).toBeGreaterThan(0);
-    expect(result.relationships).toBeDefined();
-    // Should create 'contains' relationships
-    if (result.relationships.length > 0) {
-      expect(result.relationships[0]!.type).toBe('contains');
+    expect(result.relationships.length).toBeGreaterThan(0);
+
+    // A real repository entity anchors the edges — no dangling
+    // placeholder ids are ever emitted.
+    const repo = result.entities.find((e) => e.type === 'repository');
+    expect(repo).toBeDefined();
+
+    const entityIds = new Set(result.entities.map((e) => e.id));
+    for (const rel of result.relationships) {
+      expect(rel.type).toBe('contains');
+      expect(rel.source_id).toBe(repo!.id);
+      expect(entityIds.has(rel.target_id)).toBe(true);
+      expect(rel.confidence).toBe(1.0);
     }
+  });
+
+  it('emits no repository entity or relationships when no docs exist', async () => {
+    await fs.writeFile(path.join(tmpDir, 'index.ts'), 'export const x = 1;');
+
+    const collector = new DocumentationCollector(tmpDir);
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    expect(result.entities).toEqual([]);
+    expect(result.relationships).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Honest degradation
+// ---------------------------------------------------------------------------
+
+describe('honest degradation', () => {
+  it('reports a real word_count for read documents', async () => {
+    await fs.writeFile(path.join(tmpDir, 'README.md'), '# Title\n\none two three');
+
+    const collector = new DocumentationCollector(tmpDir);
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const readme = result.entities.find(
+      (e) => e.type === 'document' && e.properties.category === 'readme',
+    );
+    expect(readme).toBeDefined();
+    expect(readme!.properties.word_count).toBe(5);
+  });
+
+  it('omits word_count and records an error for oversized documents', async () => {
+    // 1 MB + 1 byte README exceeds MAX_DOC_SIZE_BYTES.
+    await fs.writeFile(path.join(tmpDir, 'README.md'), 'a'.repeat(1024 * 1024 + 1));
+
+    const collector = new DocumentationCollector(tmpDir);
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const readme = result.entities.find(
+      (e) => e.type === 'document' && e.properties.category === 'readme',
+    );
+    expect(readme).toBeDefined();
+    // An unread file has an unknown word count — never zero.
+    expect('word_count' in readme!.properties).toBe(false);
+    expect(
+      result.metadata.errors.some((e) => e.message.includes('exceeds limit')),
+    ).toBe(true);
   });
 });

@@ -66,6 +66,18 @@ const MOCK_PULL_REQUESTS = [
   },
 ];
 
+// Submitted reviews per PR, as returned by /pulls/{n}/reviews.
+// Note dave was REQUESTED on PR 103 but never actually reviewed — no
+// review relationship must be invented for him.
+const MOCK_PR_101_REVIEWS = [
+  { user: { login: 'bob' }, state: 'APPROVED' },
+  { user: { login: 'carol' }, state: 'CHANGES_REQUESTED' },
+];
+const MOCK_PR_102_REVIEWS = [
+  { user: { login: 'alice' }, state: 'APPROVED' },
+];
+const MOCK_PR_103_REVIEWS: Array<{ user: { login: string } | null; state: string }> = [];
+
 const MOCK_WORKFLOWS_RESPONSE = {
   total_count: 2,
   workflows: [
@@ -164,6 +176,9 @@ function setupFetchMock(): void {
 
     if (urlStr.includes('/contributors')) return makeResponse(MOCK_CONTRIBUTORS);
     if (urlStr.includes('/teams')) return makeResponse(MOCK_TEAMS);
+    if (urlStr.includes('/pulls/101/reviews')) return makeResponse(MOCK_PR_101_REVIEWS);
+    if (urlStr.includes('/pulls/102/reviews')) return makeResponse(MOCK_PR_102_REVIEWS);
+    if (urlStr.includes('/pulls/103/reviews')) return makeResponse(MOCK_PR_103_REVIEWS);
     if (urlStr.includes('/pulls')) return makeResponse(MOCK_PULL_REQUESTS);
     if (urlStr.includes('/actions/runs/200/jobs')) return makeResponse(MOCK_DEPLOY_JOBS_RESPONSE);
     if (urlStr.includes('/actions/runs/100/jobs')) return makeResponse(MOCK_CI_JOBS_RESPONSE);
@@ -370,14 +385,31 @@ describe('Collection — entity production', () => {
     expect(users.length).toBe(5);
   });
 
-  it('produces team entities', async () => {
+  it('produces team entities without unfetched membership data', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
 
     const teams = result.entities.filter((e) => e.type === 'team');
     expect(teams.length).toBe(3);
-    expect(teams[0]!.properties['members']).toBeDefined();
-    expect(teams[0]!.properties['member_count']).toBeDefined();
+    // Membership is never fetched (requires org admin) — it must be
+    // omitted, not reported as an empty roster.
+    for (const team of teams) {
+      expect('members' in team.properties).toBe(false);
+      expect('member_count' in team.properties).toBe(false);
+    }
+  });
+
+  it('names deployments with the sha so environments do not collide', async () => {
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const deployments = result.entities.filter((e) => e.type === 'deployment');
+    const names = deployments.map((d) => d.name).sort();
+    expect(names).toEqual(['deploy-production-abc1234', 'deploy-staging-def5678']);
+    // The real creation timestamp from the API is carried through.
+    for (const d of deployments) {
+      expect(d.properties['created_at']).toMatch(/^2025-01-0[12]T00:00:00Z$/);
+    }
   });
 });
 
@@ -389,9 +421,30 @@ describe('Collection — relationship production', () => {
   it('produces exactly the relationships derivable from the API data', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
-    // 4 triggers (3 CI jobs + 1 deploy job) + 4 reviews + 2 depends_on
-    // (test needs lint, build needs test)
-    expect(result.relationships.length).toBe(10);
+    // 4 triggers (3 CI jobs + 1 deploy job) + 3 reviews (submitted
+    // reviews only: bob+carol on PR 101, alice on PR 102, none on PR
+    // 103) + 2 depends_on (test needs lint, build needs test)
+    expect(result.relationships.length).toBe(9);
+  });
+
+  it('builds review relationships from submitted reviews, not review requests', async () => {
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const usersById = new Map(
+      result.entities.filter((e) => e.type === 'user').map((e) => [e.id, e.name]),
+    );
+    const reviews = result.relationships.filter((r) => r.type === 'reviews');
+    const pairs = reviews
+      .map((r) => `${usersById.get(r.source_id)}->${usersById.get(r.target_id)}`)
+      .sort();
+
+    expect(pairs).toEqual(['alice->bob', 'bob->alice', 'carol->alice']);
+    // dave was only a REQUESTED reviewer on PR 103 and never reviewed —
+    // no relationship may be fabricated for him.
+    for (const rel of reviews) {
+      expect(usersById.get(rel.source_id)).not.toBe('dave');
+    }
   });
 
   it('produces only valid RelationType values', async () => {

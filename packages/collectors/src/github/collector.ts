@@ -49,10 +49,15 @@ interface GitHubPR {
   number: number;
   title: string;
   user: { login: string } | null;
-  requested_reviewers: Array<{ login: string }>;
   state: string;
   merged_at: string | null;
   labels: Array<{ name: string }>;
+}
+
+/** Subset of a GitHub pull request review API response. */
+interface GitHubPRReview {
+  user: { login: string } | null;
+  state: string;
 }
 
 /** Subset of a GitHub workflow API response. */
@@ -118,6 +123,11 @@ interface CollectedPR {
   number: number;
   title: string;
   author: string;
+  /**
+   * Logins of users who actually submitted a review on this PR (from the
+   * /pulls/{n}/reviews API) — NOT requested reviewers, who may never
+   * have reviewed anything. Empty when reviews were not fetched.
+   */
   reviewers: string[];
   state: 'open' | 'closed' | 'merged';
   labels: string[];
@@ -133,6 +143,8 @@ interface CollectedDeployment {
   environment: string;
   sha: string;
   creator: string;
+  /** Deployment creation timestamp as reported by the API. */
+  createdAt?: string;
   /**
    * Latest deployment status reported by the GitHub deployment statuses
    * API. Omitted entirely when no status could be fetched — never guessed.
@@ -357,14 +369,27 @@ export class GitHubCollector implements Collector {
   }
 
   /**
+   * API path prefix for the configured repository, with owner and repo
+   * URL-encoded so unusual characters cannot break or redirect the path.
+   */
+  private repoApiPath(): string {
+    return `/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}`;
+  }
+
+  /**
    * Make a paginated GET request to the GitHub API.
    * Returns up to `maxItems` results across pages.
    * Checks `X-RateLimit-Remaining` and aborts if exhausted.
+   * When the cap cuts off further pages (or drops fetched items), a
+   * truncation note is recorded in `errors` unless
+   * `options.noteTruncation` is false (for intentional latest-only
+   * lookups such as deployment statuses).
    */
   private async fetchPaginated<T>(
     path: string,
     errors: Array<{ message: string; details?: unknown }>,
     maxItems = 100,
+    options: { noteTruncation?: boolean } = {},
   ): Promise<T[]> {
     if (!this.token) {
       logger.warn('No GitHub token configured, skipping API call', { path });
@@ -374,6 +399,7 @@ export class GitHubCollector implements Collector {
 
     const results: T[] = [];
     let url: string | null = `https://api.github.com${path}`;
+    let cappedWithMorePages = false;
 
     // Add per_page param if not already present
     if (!url.includes('per_page')) {
@@ -381,7 +407,12 @@ export class GitHubCollector implements Collector {
     }
 
     try {
-      while (url && results.length < maxItems) {
+      while (url) {
+        if (results.length >= maxItems) {
+          // A next page exists but the cap stops us here.
+          cappedWithMorePages = true;
+          break;
+        }
         const response = await this.fetchWithTimeout(url);
 
         const remaining = response.headers.get('X-RateLimit-Remaining');
@@ -417,6 +448,14 @@ export class GitHubCollector implements Collector {
       }
     } catch (err) {
       const msg = `GitHub API fetch failed for ${path}: ${err instanceof Error ? err.message : String(err)}`;
+      logger.warn(msg);
+      errors.push({ message: msg });
+    }
+
+    // Record silent truncation honestly: either more pages existed at the
+    // cap, or the final slice below drops already-fetched items.
+    if ((options.noteTruncation ?? true) && (cappedWithMorePages || results.length > maxItems)) {
+      const msg = `GitHub API results for ${path} truncated to ${maxItems} items; additional items exist but were not collected`;
       logger.warn(msg);
       errors.push({ message: msg });
     }
@@ -504,7 +543,7 @@ export class GitHubCollector implements Collector {
    */
   private async fetchContributors(errors: Array<{ message: string; details?: unknown }>): Promise<string[]> {
     const contributors = await this.fetchPaginated<GitHubContributor>(
-      `/repos/${this.owner}/${this.repo}/contributors`,
+      `${this.repoApiPath()}/contributors`,
       errors,
       100,
     );
@@ -514,38 +553,77 @@ export class GitHubCollector implements Collector {
   /**
    * Fetch teams from the GitHub API.
    * Requires admin access; gracefully returns empty on 403/404.
+   * Team membership is NOT fetched (requires org admin), so no member
+   * data is returned — it must not be reported as an empty roster.
    */
   private async fetchTeams(
     errors: Array<{ message: string; details?: unknown }>,
-  ): Promise<Array<{ name: string; members: string[] }>> {
+  ): Promise<Array<{ name: string }>> {
     const teams = await this.fetchPaginated<GitHubTeam>(
-      `/repos/${this.owner}/${this.repo}/teams`,
+      `${this.repoApiPath()}/teams`,
       errors,
       100,
     );
-    // We can't easily fetch team members without org admin, so return team names with empty members
-    return teams.map((t) => ({ name: t.slug, members: [] }));
+    return teams.map((t) => ({ name: t.slug }));
   }
 
   /**
-   * Fetch pull requests from the GitHub API.
+   * Fetch pull requests and their submitted reviews from the GitHub API.
+   *
+   * Reviewers come from the /pulls/{n}/reviews endpoint — the users who
+   * actually reviewed — not from `requested_reviewers` (users merely
+   * asked to review). Review lookups are capped; PRs beyond the cap get
+   * no reviewer data and the omission is recorded.
    */
   private async fetchPullRequests(
     errors: Array<{ message: string; details?: unknown }>,
   ): Promise<CollectedPR[]> {
     const rawPRs = await this.fetchPaginated<GitHubPR>(
-      `/repos/${this.owner}/${this.repo}/pulls?state=all&per_page=30`,
+      `${this.repoApiPath()}/pulls?state=all&per_page=30`,
       errors,
       100,
     );
-    return rawPRs.map((pr) => ({
-      number: pr.number,
-      title: pr.title,
-      author: pr.user?.login || 'unknown',
-      reviewers: (pr.requested_reviewers || []).map((r) => r.login),
-      state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
-      labels: (pr.labels || []).map((l) => l.name),
-    }));
+
+    // Cap per-PR review lookups to bound API usage.
+    const REVIEW_LOOKUP_LIMIT = 30;
+    if (rawPRs.length > REVIEW_LOOKUP_LIMIT) {
+      errors.push({
+        message: `Review lookups only performed for the first ${REVIEW_LOOKUP_LIMIT} of ${rawPRs.length} pull requests; reviewer data omitted for the rest`,
+      });
+    }
+
+    const collected: CollectedPR[] = [];
+    for (let i = 0; i < rawPRs.length; i++) {
+      const pr = rawPRs[i]!;
+      const author = pr.user?.login || 'unknown';
+
+      let reviewers: string[] = [];
+      if (i < REVIEW_LOOKUP_LIMIT) {
+        const reviews = await this.fetchPaginated<GitHubPRReview>(
+          `${this.repoApiPath()}/pulls/${pr.number}/reviews`,
+          errors,
+          100,
+        );
+        // Unique submitters, excluding the PR author (self-comments are
+        // not code reviews).
+        reviewers = [...new Set(
+          reviews
+            .map((r) => r.user?.login)
+            .filter((login): login is string => typeof login === 'string' && login !== author),
+        )];
+      }
+
+      collected.push({
+        number: pr.number,
+        title: pr.title,
+        author,
+        reviewers,
+        state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
+        labels: (pr.labels || []).map((l) => l.name),
+      });
+    }
+
+    return collected;
   }
 
   /**
@@ -556,7 +634,7 @@ export class GitHubCollector implements Collector {
   ): Promise<CollectedWorkflow[]> {
     // Fetch workflows list — this returns { total_count, workflows: [...] }
     const workflowsResponse = await this.fetchSingle<{ total_count: number; workflows: GitHubWorkflow[] }>(
-      `/repos/${this.owner}/${this.repo}/actions/workflows`,
+      `${this.repoApiPath()}/actions/workflows`,
       errors,
     );
 
@@ -564,14 +642,22 @@ export class GitHubCollector implements Collector {
 
     const collectedWorkflows: CollectedWorkflow[] = [];
 
-    for (const wf of workflowsResponse.workflows.slice(0, 10)) {
+    // Cap per-workflow processing; record honestly when workflows are dropped.
+    const WORKFLOW_LIMIT = 10;
+    if (workflowsResponse.workflows.length > WORKFLOW_LIMIT) {
+      const msg = `Only the first ${WORKFLOW_LIMIT} of ${workflowsResponse.workflows.length} workflows were processed; the rest were not collected`;
+      logger.warn(msg);
+      errors.push({ message: msg });
+    }
+
+    for (const wf of workflowsResponse.workflows.slice(0, WORKFLOW_LIMIT)) {
       // Fetch and parse the workflow definition file for the real
       // trigger ('on:') and job dependency ('needs:') declarations.
       const parsedDef = await this.fetchWorkflowDefinition(wf.path, errors);
 
       // Fetch the most recent run for this workflow to get job info
       const runsResponse = await this.fetchSingle<{ total_count: number; workflow_runs: GitHubWorkflowRun[] }>(
-        `/repos/${this.owner}/${this.repo}/actions/workflows/${wf.id}/runs?per_page=1`,
+        `${this.repoApiPath()}/actions/workflows/${encodeURIComponent(String(wf.id))}/runs?per_page=1`,
         errors,
       );
 
@@ -580,7 +666,7 @@ export class GitHubCollector implements Collector {
       if (runsResponse?.workflow_runs?.[0]) {
         // Fetch jobs for the most recent run
         const jobsResponse = await this.fetchSingle<{ total_count: number; jobs: GitHubJob[] }>(
-          `/repos/${this.owner}/${this.repo}/actions/runs/${runsResponse.workflow_runs[0].id}/jobs`,
+          `${this.repoApiPath()}/actions/runs/${encodeURIComponent(String(runsResponse.workflow_runs[0].id))}/jobs`,
           errors,
         );
 
@@ -622,8 +708,11 @@ export class GitHubCollector implements Collector {
     errors: Array<{ message: string; details?: unknown }>,
   ): Promise<ParsedWorkflowDef | null> {
     if (!path) return null;
+    // Encode each path segment (but not the separators) so unusual
+    // characters in the workflow path cannot break the API URL.
+    const encodedPath = path.split('/').map(encodeURIComponent).join('/');
     const file = await this.fetchSingle<{ content?: string; encoding?: string }>(
-      `/repos/${this.owner}/${this.repo}/contents/${path}`,
+      `${this.repoApiPath()}/contents/${encodedPath}`,
       errors,
     );
     if (!file || typeof file.content !== 'string') return null;
@@ -786,7 +875,7 @@ export class GitHubCollector implements Collector {
     errors: Array<{ message: string; details?: unknown }>,
   ): Promise<CollectedDeployment[]> {
     const rawDeployments = await this.fetchPaginated<GitHubDeployment>(
-      `/repos/${this.owner}/${this.repo}/deployments`,
+      `${this.repoApiPath()}/deployments`,
       errors,
       100,
     );
@@ -802,10 +891,13 @@ export class GitHubCollector implements Collector {
 
       if (i < STATUS_LOOKUP_LIMIT) {
         // Deployment statuses are returned newest-first; take the latest.
+        // Truncation notes are suppressed: fetching only the newest
+        // status is intentional, not silent data loss.
         const statuses = await this.fetchPaginated<{ state: string }>(
-          `/repos/${this.owner}/${this.repo}/deployments/${d.id}/statuses?per_page=1`,
+          `${this.repoApiPath()}/deployments/${encodeURIComponent(String(d.id))}/statuses?per_page=1`,
           errors,
           1,
+          { noteTruncation: false },
         );
         if (statuses[0] && typeof statuses[0].state === 'string') {
           status = statuses[0].state;
@@ -816,6 +908,8 @@ export class GitHubCollector implements Collector {
         environment: d.environment || 'unknown',
         sha: d.sha?.substring(0, 7) || 'unknown',
         creator: d.creator?.login || 'unknown',
+        // Real creation timestamp from the API, when present.
+        ...(typeof d.created_at === 'string' && d.created_at ? { createdAt: d.created_at } : {}),
         // Only include status when the statuses API actually reported one.
         ...(status !== undefined ? { status } : {}),
       });
@@ -906,7 +1000,7 @@ export class GitHubCollector implements Collector {
    */
   private buildEntities(
     users: string[],
-    teams: Array<{ name: string; members: string[] }>,
+    teams: Array<{ name: string }>,
     workflows: CollectedWorkflow[],
     deployments: CollectedDeployment[],
   ): Entity[] {
@@ -924,11 +1018,12 @@ export class GitHubCollector implements Collector {
     }
 
     // --- Team entities ---
+    // Team membership is never fetched (requires org admin), so members /
+    // member_count are omitted entirely — an unfetched roster must not be
+    // reported as an empty one.
     for (const team of teams) {
       entities.push(
         this.makeEntity('team', team.name, {
-          members: team.members,
-          member_count: team.members.length,
           platform: 'github',
         }, ['organization']),
       );
@@ -968,12 +1063,16 @@ export class GitHubCollector implements Collector {
     }
 
     // --- Deployment entities ---
+    // Names include the sha so multiple deployments to the same
+    // environment do not collide into one entity.
     for (const deploy of deployments) {
       entities.push(
-        this.makeEntity('deployment', `deploy-${deploy.environment}`, {
+        this.makeEntity('deployment', `deploy-${deploy.environment}-${deploy.sha}`, {
           environment: deploy.environment,
           sha: deploy.sha,
           creator: deploy.creator,
+          // Real creation timestamp from the API, only when reported.
+          ...(deploy.createdAt !== undefined ? { created_at: deploy.createdAt } : {}),
           // Status is only present when the deployment statuses API
           // actually reported one — never defaulted.
           ...(deploy.status !== undefined ? { status: deploy.status } : {}),
@@ -1026,7 +1125,8 @@ export class GitHubCollector implements Collector {
       }
     }
 
-    // User reviews (reviewer → author mapping from PRs)
+    // User reviews (reviewer → author). Reviewers come from actually
+    // submitted reviews (/pulls/{n}/reviews), never from review requests.
     for (const pr of prs) {
       const authorEntity = users.find((u) => u.name === pr.author);
       if (!authorEntity) continue;
