@@ -93,6 +93,20 @@ interface SSOSession {
 async function parseSAMLResponse(provider: string, samlResponse: string): Promise<SAMLAssertion> {
   const config = await store.get<SSOConfig>('sso_configs', provider);
 
+  // SECURITY — fail closed. This parser does NOT cryptographically verify the
+  // SAML assertion's signature (XML-DSig), so trusting it would let anyone who
+  // can reach the callback forge an assertion (any NameID / any group → any
+  // role, including admin). Until real signature verification is implemented,
+  // refuse to authenticate. An operator may opt into the INSECURE unsigned path
+  // only in a trusted, non-production environment via an explicit env flag.
+  if (process.env['SSO_ALLOW_UNSIGNED_SAML'] !== 'true') {
+    throw new Error(
+      'SAML SSO is disabled: assertion signature verification is not implemented. ' +
+      'Refusing to authenticate from an unverified assertion. (Set ' +
+      'SSO_ALLOW_UNSIGNED_SAML=true only in a trusted dev environment.)',
+    );
+  }
+
   // Decode base64 SAML response
   let xml: string;
   try {

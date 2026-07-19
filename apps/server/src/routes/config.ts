@@ -143,7 +143,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * and any in-memory overrides. Returns 503 if the server is not yet
    * initialized with a project.
    */
-  app.get('/api/v1/config', async (_request, reply) => {
+  app.get('/api/v1/config', { preHandler: [authMiddleware] }, async (_request, reply) => {
     if (!state.isInitialized()) {
       return reply.status(503).send({
         error: 'Server not initialized',
@@ -382,7 +382,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
    * Returns a comprehensive feature inventory with enabled status
    * for analyzers, collectors, and policy sets.
    */
-  app.get('/api/v1/config/features', async (_request, reply) => {
+  app.get('/api/v1/config/features', { preHandler: [authMiddleware] }, async (_request, reply) => {
     const ov = await getOverrides();
     const enabledAnalyzers = new Set(ov.enabledAnalyzers ?? ALL_ANALYZER_IDS);
     const enabledCollectors = new Set(ov.enabledCollectors ?? ALL_COLLECTOR_IDS);
@@ -421,7 +421,7 @@ export async function registerConfigRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Settings sections — dashboard settings UI categories
-  app.get('/api/v1/settings/sections', async (_request, reply) => {
+  app.get('/api/v1/settings/sections', { preHandler: [authMiddleware] }, async (_request, reply) => {
     return reply.send({
       data: [
         {

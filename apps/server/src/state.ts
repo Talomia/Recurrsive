@@ -512,6 +512,15 @@ export class ServerState {
     if (/[\x00-\x1f\x7f]/.test(gitUrl)) {
       throw new Error('Git URL contains invalid control characters');
     }
+    // Block SSRF to loopback / private / link-local / cloud-metadata hosts — the
+    // clone target is user-supplied (POST /analyze gitUrl) and would otherwise
+    // let a caller drive git-over-HTTP requests at internal services
+    // (e.g. 169.254.169.254 metadata). Reuses the shared outbound-URL guard.
+    const { validateOutboundUrl } = await import('./util/ssrf.js');
+    const ssrf = validateOutboundUrl(gitUrl);
+    if (!ssrf.ok) {
+      throw new Error(`Git URL rejected: ${ssrf.reason}`);
+    }
 
     const crypto = await import('node:crypto');
     const hash = crypto.createHash('sha256').update(gitUrl).digest('hex').slice(0, 12);

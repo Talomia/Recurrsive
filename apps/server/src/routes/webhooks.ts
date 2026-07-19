@@ -433,6 +433,16 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       }
     }
 
+    if (url !== undefined) {
+      // Re-validate on update — a hook created against a public URL must not be
+      // repointed at a private/internal/metadata host (SSRF).
+      const { validateOutboundUrl } = await import('../util/ssrf.js');
+      const check = validateOutboundUrl(url);
+      if (!check.ok) {
+        return reply.status(400).send({ error: 'Invalid URL', message: check.reason });
+      }
+    }
+
     if (active !== undefined) hook.active = active;
     if (events !== undefined) hook.events = events;
     if (url !== undefined) hook.url = url;
