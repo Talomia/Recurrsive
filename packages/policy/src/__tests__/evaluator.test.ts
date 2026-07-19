@@ -280,9 +280,10 @@ describe('evaluateCondition', () => {
       ).toBe(true);
     });
 
-    it('returns undefined for missing path (comparison fails)', () => {
-      // undefined != "high" → should not match ==
-      expect(eval_('severity == "high"', {})).toBe(false);
+    it('throws (fail-closed) when the root identifier is absent from the context', () => {
+      // A typo'd/unknown field must surface as an error the engine converts to
+      // a `block`, never silently evaluate to false (fail-open).
+      expect(() => eval_('severity == "high"', {})).toThrow(/Unknown identifier/);
     });
 
     it('returns undefined for partially valid path (null intermediate)', () => {
@@ -377,8 +378,8 @@ describe('evaluateCondition', () => {
       expect(eval_('"" contains ""', {})).toBe(true);
     });
 
-    it('handles undefined path compared to string', () => {
-      expect(eval_('missing == "hello"', {})).toBe(false);
+    it('throws (fail-closed) on an unknown root identifier compared to a string', () => {
+      expect(() => eval_('missing == "hello"', {})).toThrow(/Unknown identifier/);
     });
 
     it('handles number zero as falsy but comparison still works', () => {
@@ -402,9 +403,8 @@ describe('evaluateCondition', () => {
       expect(eval_('false', {})).toBe(false);
     });
 
-    it('treats undefined context value as falsy in boolean conversion', () => {
-      // evaluateCondition returns Boolean(result), undefined → false
-      expect(eval_('missing', {})).toBe(false);
+    it('throws (fail-closed) on a bare unknown identifier rather than treating it as falsy', () => {
+      expect(() => eval_('missing', {})).toThrow(/Unknown identifier/);
     });
   });
 

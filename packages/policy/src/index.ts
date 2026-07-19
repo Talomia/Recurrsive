@@ -8,7 +8,7 @@
 
 // Engine
 export { PolicyEngine } from './engine.js';
-export type { PolicyResult } from './engine.js';
+export type { PolicyResult, PolicyCompliance } from './engine.js';
 
 // Evaluator
 export { evaluateCondition } from './evaluator.js';

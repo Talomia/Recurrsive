@@ -35,6 +35,53 @@ export type PolicyScope = z.infer<typeof PolicyScopeSchema>;
 // ---------------------------------------------------------------------------
 
 /**
+ * Zod schema for a single policy rule.
+ *
+ * Used to validate untrusted policy definitions (e.g. JSON files loaded
+ * from disk) before they are admitted into a policy engine. `action` must
+ * be a valid {@link PolicyActionSchema} member — an unknown action is a
+ * validation error, never silently accepted.
+ */
+export const PolicyRuleSchema = z.object({
+  /** Unique identifier. */
+  id: z.string().min(1),
+  /** Human-readable name. */
+  name: z.string().min(1),
+  /** Description of what this rule enforces. */
+  description: z.string().default(''),
+  /** Scope at which this rule applies. */
+  scope: PolicyScopeSchema.default('global'),
+  /** Expression to evaluate (e.g. `severity == "critical"`). */
+  condition: z.string().min(1),
+  /** Action to take when the condition matches (strict enum). */
+  action: PolicyActionSchema,
+  /** Message to display when the rule fires. */
+  message: z.string().default(''),
+  /** Arbitrary structured metadata. */
+  metadata: z.record(z.unknown()).default({}),
+});
+
+/**
+ * Zod schema for a policy set.
+ *
+ * `enabled` is deliberately REQUIRED (no default): a policy file that
+ * omits it would otherwise load but never run (or silently run), so its
+ * absence is treated as a validation error and the file is rejected.
+ */
+export const PolicySetSchema = z.object({
+  /** Unique identifier. */
+  id: z.string().min(1),
+  /** Human-readable name. */
+  name: z.string().min(1),
+  /** Description of this policy set. */
+  description: z.string().default(''),
+  /** Ordered list of rules. */
+  rules: z.array(PolicyRuleSchema),
+  /** Whether this policy set is currently active. REQUIRED — no default. */
+  enabled: z.boolean(),
+});
+
+/**
  * A single policy rule that defines a condition and the action to
  * take when the condition is met.
  */

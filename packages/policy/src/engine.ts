@@ -16,18 +16,28 @@ import type {
   PolicyEvaluation,
   PolicyAction,
 } from '@recurrsive/core';
+import { PolicySetSchema } from '@recurrsive/core';
 import { evaluateCondition, type EvaluationContext } from './evaluator.js';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+/** Three-state compliance verdict for an opportunity. */
+export type PolicyCompliance = 'compliant' | 'needs_approval' | 'blocked';
+
 /** Aggregate result of evaluating all policies against an opportunity. */
 export interface PolicyResult {
   /** The opportunity that was evaluated. */
   opportunityId: string;
-  /** Whether the opportunity passes all rules (no block actions). */
+  /**
+   * Whether the opportunity is compliant: true only when NO rule was
+   * violated (no `block` and no `require_approval`). An item awaiting
+   * approval is NOT compliant.
+   */
   passed: boolean;
+  /** Three-state compliance verdict (compliant / needs_approval / blocked). */
+  compliance: PolicyCompliance;
   /** The most restrictive action across all matching rules. */
   effectiveAction: PolicyAction;
   /** Individual evaluation results. */
@@ -49,6 +59,23 @@ const ACTION_SEVERITY: Record<PolicyAction, number> = {
   require_approval: 2,
   block: 3,
 };
+
+/**
+ * Severity of an action, failing CLOSED: an unrecognized action (e.g. a
+ * typo'd rule injected programmatically) is treated as the most
+ * restrictive action (`block`), never silently as `allow`.
+ */
+function actionSeverity(action: string): number {
+  return ACTION_SEVERITY[action as PolicyAction] ?? ACTION_SEVERITY.block;
+}
+
+/**
+ * Normalize an action string, failing CLOSED: anything that is not a
+ * recognized {@link PolicyAction} collapses to `block`.
+ */
+function normalizeAction(action: string): PolicyAction {
+  return action in ACTION_SEVERITY ? (action as PolicyAction) : 'block';
+}
 
 /**
  * Flatten an Opportunity into a context object suitable for the
@@ -126,15 +153,22 @@ export class PolicyEngine {
       try {
         const raw = await readFile(filePath, 'utf-8');
         const parsed: unknown = JSON.parse(raw);
-        const ps = parsed as PolicySet;
 
-        if (!ps.id || !ps.name || !Array.isArray(ps.rules)) {
+        // Strict schema validation — FAIL CLOSED. A file with an invalid
+        // action enum, missing `enabled`, or any other schema violation is
+        // rejected as a load error rather than loaded in a broken state
+        // (which would either never run or silently allow).
+        const result = PolicySetSchema.safeParse(parsed);
+        if (!result.success) {
           skipped++;
-          errors.push(`${file}: Missing required fields (id, name, rules)`);
+          const issues = result.error.issues
+            .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+            .join('; ');
+          errors.push(`${file}: Invalid policy set: ${issues}`);
           continue;
         }
 
-        this.policySets.set(ps.id, ps);
+        this.policySets.set(result.data.id, result.data);
         loaded++;
       } catch (err) {
         skipped++;
@@ -189,36 +223,53 @@ export class PolicyEngine {
   }
 
   /**
-   * Check whether an opportunity passes all policy rules.
+   * Check whether an opportunity is compliant with all policy rules.
    *
-   * An opportunity "passes" if no rule produces a `block` action.
+   * FAIL-CLOSED semantics:
+   * - An opportunity "passes" only when NO rule was violated. A fired
+   *   `require_approval` rule means NOT compliant (needs_approval), and a
+   *   fired `block` rule means blocked.
+   * - Any failed evaluation carrying an unrecognized action is treated
+   *   as `block`.
    *
    * @param opportunity - The opportunity to check
-   * @returns Result with pass/fail, violations, warnings, and effective action
+   * @returns Result with compliance verdict, violations, warnings, and effective action
    */
   passes(opportunity: Opportunity): PolicyResult {
     const evaluations = this.evaluate(opportunity);
 
-    const violations = evaluations.filter(
-      (e) => !e.passed && (e.action === 'block' || e.action === 'require_approval'),
-    );
+    // Unrecognized actions on failed evaluations collapse to 'block'.
+    const violations = evaluations.filter((e) => {
+      if (e.passed) return false;
+      const action = normalizeAction(e.action);
+      return action === 'block' || action === 'require_approval';
+    });
     const warnings = evaluations.filter(
-      (e) => !e.passed && e.action === 'warn',
+      (e) => !e.passed && normalizeAction(e.action) === 'warn',
     );
 
-    // The most restrictive action wins
+    // The most restrictive action wins; unknown actions count as block.
     let effectiveAction: PolicyAction = 'allow';
     for (const ev of evaluations) {
-      if (!ev.passed && ACTION_SEVERITY[ev.action] > ACTION_SEVERITY[effectiveAction]) {
-        effectiveAction = ev.action;
+      if (!ev.passed && actionSeverity(ev.action) > ACTION_SEVERITY[effectiveAction]) {
+        effectiveAction = normalizeAction(ev.action);
       }
     }
 
-    const passed = effectiveAction !== 'block';
+    // Compliance is the absence of violations — require_approval is NOT
+    // counted as compliant.
+    const passed = violations.length === 0;
+    const compliance: PolicyCompliance =
+      effectiveAction === 'block'
+        ? 'blocked'
+        : effectiveAction === 'require_approval'
+          ? 'needs_approval'
+          : 'compliant';
 
     return {
       opportunityId: opportunity.id,
       passed,
+      compliance,
       effectiveAction,
       evaluations,
       violations,

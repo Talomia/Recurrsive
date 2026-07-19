@@ -114,6 +114,8 @@ export {
   // Policy
   PolicyActionSchema,
   PolicyScopeSchema,
+  PolicyRuleSchema,
+  PolicySetSchema,
   type PolicyAction,
   type PolicyScope,
   type PolicyRule,

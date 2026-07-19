@@ -55,7 +55,12 @@ export { MaturityDimensionSchema, MaturityLevelSchema } from '../types/evolution
 export { ExperimentStatusSchema } from '../types/experiments.js';
 
 // Policy
-export { PolicyActionSchema, PolicyScopeSchema } from '../types/policy.js';
+export {
+  PolicyActionSchema,
+  PolicyScopeSchema,
+  PolicyRuleSchema,
+  PolicySetSchema,
+} from '../types/policy.js';
 
 // Config
 export { RecurrsiveConfigSchema } from '../types/config.js';

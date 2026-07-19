@@ -168,6 +168,11 @@ function tokenise(input: string): Token[] {
         num += input[pos]!;
         pos++;
       }
+      // FAIL CLOSED on malformed numbers: '1.2.3' must be a parse error,
+      // not silently truncated to 1.2 by parseFloat.
+      if (!/^-?[0-9]+(\.[0-9]+)?$/.test(num)) {
+        throw new Error(`Invalid number literal '${num}' at position ${start}`);
+      }
       tokens.push({ type: 'NUMBER', value: num, position: start });
       continue;
     }
@@ -444,11 +449,33 @@ class Parser {
   /**
    * Resolve a dotted path against the context object.
    *
+   * FAIL CLOSED on unknown identifiers: if the ROOT identifier is not a
+   * property of the context at all (e.g. a misspelled field name in a
+   * policy condition), this THROWS instead of silently resolving to
+   * undefined — a typo'd rule must surface as an error (which the engine
+   * converts to a `block`), never silently evaluate to false.
+   *
+   * Nested parts of a path that exists at the root may still resolve to
+   * undefined (optional fields are legitimate).
+   *
    * @param path - Dot-separated property path
-   * @returns The resolved value, or undefined
+   * @returns The resolved value, or undefined for missing NESTED fields
+   * @throws {Error} When the root identifier is absent from the context
    */
   private resolvePath(path: string): ExprValue {
     const parts = path.split('.');
+
+    const root = parts[0]!;
+    if (
+      this.context === null ||
+      typeof this.context !== 'object' ||
+      !(root in this.context)
+    ) {
+      throw new Error(
+        `Unknown identifier '${root}' in condition: not present in evaluation context`,
+      );
+    }
+
     let current: unknown = this.context;
 
     for (const part of parts) {

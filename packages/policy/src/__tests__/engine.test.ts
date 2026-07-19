@@ -209,7 +209,38 @@ describe('PolicyEngine', () => {
 
       expect(result.loaded).toBe(0);
       expect(result.skipped).toBe(1);
-      expect(result.errors[0]).toContain('Missing required fields');
+      expect(result.errors[0]).toContain('Invalid policy set');
+    });
+
+    it('rejects (fails closed on) a policy set missing "enabled"', async () => {
+      mockReaddir.mockResolvedValue(['no-enabled.json'] as any);
+      const { enabled: _enabled, ...withoutEnabled } = makePolicySet();
+      mockReadFile.mockResolvedValueOnce(JSON.stringify(withoutEnabled) as any);
+
+      const engine = new PolicyEngine();
+      const result = await engine.loadFromDirectory('/fake/dir');
+
+      expect(result.loaded).toBe(0);
+      expect(result.skipped).toBe(1);
+      expect(result.errors[0]).toContain('Invalid policy set');
+      expect(result.errors[0]).toContain('enabled');
+      expect(engine.getPolicies()).toHaveLength(0);
+    });
+
+    it('rejects (fails closed on) a rule with an invalid action enum', async () => {
+      mockReaddir.mockResolvedValue(['bad-action.json'] as any);
+      const ps = makePolicySet({
+        rules: [makeRule({ action: 'blok' as any })], // typo'd action
+      });
+      mockReadFile.mockResolvedValueOnce(JSON.stringify(ps) as any);
+
+      const engine = new PolicyEngine();
+      const result = await engine.loadFromDirectory('/fake/dir');
+
+      expect(result.loaded).toBe(0);
+      expect(result.skipped).toBe(1);
+      expect(result.errors[0]).toContain('Invalid policy set');
+      expect(engine.getPolicies()).toHaveLength(0);
     });
 
     it('skips and reports files with invalid JSON', async () => {
@@ -396,8 +427,11 @@ describe('PolicyEngine', () => {
       const opp = makeOpportunity({ severity: 'high' });
       const result = engine.passes(opp);
 
-      // require_approval is not block → still passes
-      expect(result.passed).toBe(true);
+      // require_approval is a violation → NOT compliant (an item awaiting
+      // approval must not be counted as passing), but it is less restrictive
+      // than block, so the three-state verdict is 'needs_approval'.
+      expect(result.passed).toBe(false);
+      expect(result.compliance).toBe('needs_approval');
       expect(result.effectiveAction).toBe('require_approval');
       expect(result.violations).toHaveLength(1);
       expect(result.violations[0]!.rule_id).toBe('approval-rule');
