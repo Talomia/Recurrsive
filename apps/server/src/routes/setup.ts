@@ -32,6 +32,35 @@ interface SetupBody {
 }
 
 // ---------------------------------------------------------------------------
+// First-admin creation lock
+// ---------------------------------------------------------------------------
+
+/**
+ * Serializes the `countUsers() === 0` check and the subsequent
+ * `createUser(admin)` so they execute as one atomic step per process.
+ *
+ * Without this, two concurrent POST /api/v1/setup requests can both observe
+ * zero users and both create an admin account (classic TOCTOU). The promise
+ * chain guarantees the check-and-create critical sections run strictly one
+ * after another, so exactly one request wins and every other sees the created
+ * user and gets 409.
+ *
+ * NOTE: this is an in-process lock. It is fully correct for the supported
+ * single-process deployment; a horizontally scaled deployment sharing one
+ * PostgreSQL store would additionally need a DB-level guard (e.g. a unique
+ * sentinel row) to be race-free across processes.
+ */
+let setupLock: Promise<unknown> = Promise.resolve();
+
+function withSetupLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = setupLock.then(fn);
+  // Keep the chain alive even when fn rejects, so one failed attempt does not
+  // wedge or reject subsequent setup requests.
+  setupLock = run.catch(() => undefined);
+  return run;
+}
+
+// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
@@ -75,7 +104,9 @@ export async function registerSetupRoutes(app: FastifyInstance): Promise<void> {
    * created, subsequent calls return 409 Conflict.
    */
   app.post<{ Body: SetupBody }>('/api/v1/setup', async (request, reply) => {
-    // Check if setup is already complete
+    // Fast-path rejection when setup is already complete. This check is
+    // advisory only — the authoritative, race-free check happens inside
+    // withSetupLock() below.
     if ((await countUsers()) > 0) {
       return reply.status(409).send({
         error: 'Conflict',
@@ -100,13 +131,26 @@ export async function registerSetupRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      const user = await createUser({
-        username,
-        email,
-        password,
-        role: 'admin',
-        displayName: displayName ?? username,
+      // Atomic create-if-zero: the user count is re-checked and the admin is
+      // created inside the lock, so two concurrent first-run requests cannot
+      // both become admin.
+      const user = await withSetupLock(async () => {
+        if ((await countUsers()) > 0) return null;
+        return createUser({
+          username,
+          email,
+          password,
+          role: 'admin',
+          displayName: displayName ?? username,
+        });
       });
+
+      if (!user) {
+        return reply.status(409).send({
+          error: 'Conflict',
+          message: 'Setup has already been completed. Use the admin panel to manage users.',
+        });
+      }
 
       const token = createToken(user.id, 'admin', undefined, user.username);
 

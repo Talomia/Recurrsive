@@ -32,7 +32,14 @@ export interface ServerOptions {
   host?: string;
   /** Enable Fastify request logging (default: true). */
   logger?: boolean;
-  /** CORS allowed origins (default: true = allow all). */
+  /**
+   * CORS allowed origins.
+   *
+   * Default: the `CORS_ORIGIN` env var (comma-separated allowlist) when set;
+   * otherwise allow-all in dev/test. In production (`NODE_ENV=production`)
+   * an explicit allowlist is REQUIRED — the server refuses to start with the
+   * allow-all default.
+   */
   corsOrigin?: boolean | string | string[];
   /** Max requests per minute per client (default: 100). Set 0 to disable. */
   rateLimitMax?: number;
@@ -72,10 +79,27 @@ export async function createServer(options?: ServerOptions): Promise<FastifyInst
   registerErrorHandler(app);
 
   // Register CORS — restrict origins in production
-  const corsOrigin = options?.corsOrigin
-    ?? (process.env['CORS_ORIGIN']
-      ? process.env['CORS_ORIGIN'].split(',').map((s) => s.trim())
-      : true); // Allow all in dev; set CORS_ORIGIN in production
+  let corsOrigin: boolean | string | string[] | undefined = options?.corsOrigin;
+  if (corsOrigin === undefined) {
+    const envOrigins = process.env['CORS_ORIGIN']
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (envOrigins && envOrigins.length > 0) {
+      corsOrigin = envOrigins;
+    } else if (process.env['NODE_ENV'] === 'production') {
+      // SECURITY: never default to allow-all CORS in production. An explicit
+      // allowlist must be provided via CORS_ORIGIN (comma-separated origins)
+      // or the corsOrigin server option; fail fast at startup otherwise.
+      throw new Error(
+        'CORS_ORIGIN must be set to an explicit, comma-separated origin allowlist ' +
+        'in production (or pass the corsOrigin server option). Refusing to start ' +
+        'with the allow-all CORS default.',
+      );
+    } else {
+      corsOrigin = true; // Allow all in dev/test only
+    }
+  }
   await app.register(cors, {
     origin: corsOrigin,
   });

@@ -10,6 +10,12 @@
  * @packageDocumentation
  */
 
+// SECURITY TODO(multi-tenant): Project records have no ownerId/tenantId field
+// and reads/writes are not filtered by principal — any authenticated user can
+// read (and analysts mutate) every project across all tenants. Object-level
+// authorization (add owner/tenant to each record + filter every read/mutation)
+// is deferred to a dedicated multi-tenancy batch.
+
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';

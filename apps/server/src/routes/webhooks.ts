@@ -150,6 +150,12 @@ export async function deliverWebhook(
       headers,
       body,
       signal: controller.signal,
+      // SECURITY: never follow redirects. The target URL is validated against
+      // private/internal networks at registration time, but a 3xx from the
+      // validated host could bounce the request (including the signed payload)
+      // to an internal/metadata address. A redirect is treated as a failed
+      // delivery (non-2xx) below.
+      redirect: 'manual',
     });
 
     const duration_ms = Math.round(performance.now() - start);
@@ -243,8 +249,11 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    * GET /api/v1/webhooks
    *
    * List all registered webhooks.
+   *
+   * Admin-only: webhook target URLs reveal internal integrations, and all
+   * webhook mutations are already admin-gated — reads keep parity.
    */
-  app.get('/api/v1/webhooks', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  app.get('/api/v1/webhooks', { preHandler: [authMiddleware, requireRole('admin')] }, async (_request, reply) => {
     const hooks = await store.all<WebhookRegistration>('webhooks');
 
     return reply.status(200).send({
@@ -525,10 +534,12 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
    * GET /api/v1/webhooks/:id/deliveries
    *
    * Get delivery history for a specific webhook.
+   *
+   * Admin-only, matching the webhook list/read routes above.
    */
   app.get<{ Params: { id: string } }>(
     '/api/v1/webhooks/:id/deliveries',
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware, requireRole('admin')] },
     async (request, reply) => {
       const { id } = request.params;
 

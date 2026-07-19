@@ -46,8 +46,16 @@ interface CreateApiKeyBody {
 // Login throttling
 // ---------------------------------------------------------------------------
 
-/** Max failed login attempts per (ip, username) within the window. */
+/** Max failed login attempts per username within the window. */
 const LOGIN_MAX_FAILURES = 5;
+/**
+ * Max failed login attempts per client IP within the window.
+ *
+ * Higher than the per-username cap so a shared NAT/proxy isn't locked out by
+ * one noisy user, but low enough to stop password-spraying (one guess against
+ * many usernames), which the username-scoped cap alone cannot see.
+ */
+const LOGIN_MAX_FAILURES_PER_IP = 20;
 /** Sliding-window length for failed-attempt counting. */
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
@@ -66,13 +74,13 @@ function pruneLoginFailures(now: number): void {
   }
 }
 
-/** Whether this (ip, username) pair is currently locked out, with retry-after seconds. */
-function loginThrottleState(key: string, now: number): { blocked: boolean; retryAfterSec: number } {
+/** Whether this key is currently locked out, with retry-after seconds. */
+function loginThrottleState(key: string, now: number, max: number): { blocked: boolean; retryAfterSec: number } {
   const rec = loginFailures.get(key);
   if (!rec || now - rec.windowStartedAt > LOGIN_WINDOW_MS) {
     return { blocked: false, retryAfterSec: 0 };
   }
-  if (rec.count >= LOGIN_MAX_FAILURES) {
+  if (rec.count >= max) {
     return { blocked: true, retryAfterSec: Math.ceil((rec.windowStartedAt + LOGIN_WINDOW_MS - now) / 1000) };
   }
   return { blocked: false, retryAfterSec: 0 };
@@ -86,6 +94,17 @@ function recordLoginFailure(key: string, now: number): void {
   } else {
     rec.count += 1;
   }
+}
+
+/**
+ * Test-only helper: clear all login-throttle state.
+ *
+ * Exists so integration tests exercising the IP-scoped cap (which counts
+ * failures across usernames for the shared test-client IP) can reset the
+ * window without waiting 15 minutes. Not used by production code.
+ */
+export function resetLoginThrottleForTests(): void {
+  loginFailures.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -118,28 +137,36 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    // Brute-force throttle: after LOGIN_MAX_FAILURES failed attempts against a
-    // given account within the window, reject with 429 before touching the
-    // credential check. Keyed on the username, not the IP: behind the reverse
-    // proxy `request.ip` is derived from X-Forwarded-For and is neither stable
-    // nor trustworthy, and account-scoped lockout is the correct defense
-    // against credential stuffing. A successful login immediately clears the
-    // window, so the temporary lockout is self-healing.
+    // Brute-force throttle, on two independent axes:
+    //
+    // 1. Per-username (LOGIN_MAX_FAILURES): account-scoped lockout, the
+    //    correct defense against credential stuffing of a single account.
+    // 2. Per-client-IP (LOGIN_MAX_FAILURES_PER_IP): caps password-spraying —
+    //    one guess against many usernames — which the username cap alone
+    //    cannot see. `request.ip` is Fastify's resolved client IP (trustProxy
+    //    derives it from X-Forwarded-For behind the reverse proxy).
+    //
+    // Either cap being exceeded rejects with 429 before touching the
+    // credential check. A successful login clears the username window (the
+    // lockout is self-healing); the IP window only ever counts failures.
     const now = Date.now();
-    const throttleKey = username.toLowerCase();
-    const throttle = loginThrottleState(throttleKey, now);
-    if (throttle.blocked) {
+    const usernameKey = `user:${username.toLowerCase()}`;
+    const ipKey = `ip:${request.ip}`;
+    const usernameThrottle = loginThrottleState(usernameKey, now, LOGIN_MAX_FAILURES);
+    const ipThrottle = loginThrottleState(ipKey, now, LOGIN_MAX_FAILURES_PER_IP);
+    if (usernameThrottle.blocked || ipThrottle.blocked) {
+      const retryAfterSec = Math.max(usernameThrottle.retryAfterSec, ipThrottle.retryAfterSec);
       logger.warn(`Login throttled for '${username}' from ${request.ip}`);
-      reply.header('Retry-After', throttle.retryAfterSec);
+      reply.header('Retry-After', retryAfterSec);
       return reply.status(429).send({
         error: 'Too Many Requests',
-        message: `Too many failed login attempts. Try again in ${throttle.retryAfterSec} seconds.`,
+        message: `Too many failed login attempts. Try again in ${retryAfterSec} seconds.`,
       });
     }
 
     const realUser = await authenticateUser(username, password);
     if (realUser) {
-      loginFailures.delete(throttleKey);
+      loginFailures.delete(usernameKey);
       const token = createToken(realUser.id, realUser.role as Role, undefined, realUser.username);
       logger.info(`User '${realUser.username}' logged in successfully`);
       return reply.status(200).send({
@@ -150,7 +177,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    recordLoginFailure(throttleKey, now);
+    recordLoginFailure(usernameKey, now);
+    recordLoginFailure(ipKey, now);
     logger.info(`Failed login attempt for username '${username}'`);
     return reply.status(401).send({
       error: 'Unauthorized',

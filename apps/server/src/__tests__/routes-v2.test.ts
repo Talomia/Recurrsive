@@ -26,7 +26,7 @@
  * Total: 130+ tests
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
 // ---------------------------------------------------------------------------
@@ -2360,5 +2360,181 @@ describe ('Admin password reset endpoint', () => {
     const body = res.json();
     expect(body.data).toHaveProperty('token');
     expect(body.data.user.username).toBe('reset-target-user');
+  });
+});
+
+// ===========================================================================
+// Least-privilege reads — sensitive read routes require admin
+// ===========================================================================
+
+describe ('Least-privilege reads (admin-only GET routes)', () => {
+  const viewerToken = createToken('test-viewer', 'viewer');
+  const viewerHeaders = { authorization: `Bearer ${viewerToken}` };
+  const analystToken = createToken('test-analyst', 'analyst');
+  const analystHeaders = { authorization: `Bearer ${analystToken}` };
+
+  const adminOnlyReads = [
+    '/api/v1/secrets',
+    '/api/v1/secrets/some-id',
+    '/api/v1/secrets/audit/log',
+    '/api/v1/secrets/health/rotation',
+    '/api/v1/sso/providers',
+    '/api/v1/sso/providers/okta',
+    '/api/v1/sso/sessions',
+    '/api/v1/webhooks',
+    '/api/v1/webhooks/wh_test/deliveries',
+  ];
+
+  it.each(adminOnlyReads)('viewer gets 403 on GET %s', async (url) => {
+    const res = await app.inject({ headers: viewerHeaders, method: 'GET', url });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it.each(adminOnlyReads)('analyst gets 403 on GET %s', async (url) => {
+    const res = await app.inject({ headers: analystHeaders, method: 'GET', url });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it ('unauthenticated request gets 401 on admin-only reads', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/secrets' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it ('admin can still read secrets list', async () => {
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/secrets' });
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+// ===========================================================================
+// Secret audit attribution — actor is the authenticated principal
+// ===========================================================================
+
+describe ('Secret audit actor attribution', () => {
+  it ('records the authenticated principal (not a hardcoded actor) on create/read/rotate/delete', async () => {
+    const createRes = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/secrets',
+      payload: { key: 'audit/actor-test', value: 's3cret-value' },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const secret = createRes.json().data;
+    // The admin token was minted for principal 'test-admin'
+    expect(secret.createdBy).toBe('test-admin');
+
+    // Read (logs a 'read' audit entry), rotate, then delete
+    await app.inject({ headers: authHeaders, method: 'GET', url: `/api/v1/secrets/${secret.id}` });
+    await app.inject({ headers: authHeaders, method: 'POST', url: `/api/v1/secrets/${secret.id}/rotate`, payload: {} });
+    await app.inject({ headers: authHeaders, method: 'DELETE', url: `/api/v1/secrets/${secret.id}` });
+
+    const auditRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/secrets/audit/log' });
+    expect(auditRes.statusCode).toBe(200);
+    const entries = auditRes.json().data.filter(
+      (e: { secretId: string }) => e.secretId === secret.id,
+    );
+    const actions = entries.map((e: { action: string }) => e.action).sort();
+    expect(actions).toEqual(['created', 'deleted', 'read', 'rotated']);
+    for (const entry of entries) {
+      expect(entry.actor).toBe('test-admin');
+      expect(entry.actor).not.toBe('api-user');
+    }
+  });
+});
+
+// ===========================================================================
+// Setup wizard — first-admin creation is atomic (no TOCTOU)
+// ===========================================================================
+// NOTE: keep this describe after all other user-dependent tests — it clears
+// the users table.
+
+describe ('Setup wizard — concurrent first-run requests (TOCTOU)', () => {
+  it ('exactly one of many concurrent setup requests creates the first admin', async () => {
+    const { store } = await import('../store.js');
+    await store.clear('users');
+    await store.clear('user_index_username');
+    await store.clear('user_index_email');
+
+    const attempts = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        app.inject({
+          method: 'POST',
+          url: '/api/v1/setup',
+          payload: {
+            username: `race-admin-${i}`,
+            email: `race-admin-${i}@test.com`,
+            password: 'race-password-123',
+          },
+        }),
+      ),
+    );
+
+    const created = attempts.filter((r) => r.statusCode === 201);
+    const conflicts = attempts.filter((r) => r.statusCode === 409);
+    expect(created).toHaveLength(1);
+    expect(conflicts).toHaveLength(4);
+
+    // Exactly one admin exists — not two
+    const { countUsers } = await import('../middleware/users.js');
+    expect(await countUsers()).toBe(1);
+  });
+});
+
+// ===========================================================================
+// CORS — production requires an explicit allowlist
+// ===========================================================================
+// NOTE: this describe must stay LAST in the file. The extra server
+// instances it creates share the process-wide store singleton, and closing
+// them closes the store's database connection for everything after.
+
+describe ('CORS production guard', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it ('createServer refuses to start in production without an explicit CORS allowlist', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('CORS_ORIGIN', '');
+    await expect(createServer({ logger: false, rateLimitMax: 0 })).rejects.toThrow(/CORS_ORIGIN/);
+  });
+
+  it ('createServer starts in production when CORS_ORIGIN is set', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('CORS_ORIGIN', 'https://app.example.com, https://admin.example.com');
+    const prodApp = await createServer({ logger: false, rateLimitMax: 0 });
+    try {
+      // Disallowed origin gets no CORS allow header back
+      const res = await prodApp.inject({
+        method: 'OPTIONS',
+        url: '/api/v1/health',
+        headers: { origin: 'https://evil.example.net', 'access-control-request-method': 'GET' },
+      });
+      expect(res.headers['access-control-allow-origin']).not.toBe('https://evil.example.net');
+      expect(res.headers['access-control-allow-origin']).not.toBe('*');
+      // Allowlisted origin is echoed back
+      const ok = await prodApp.inject({
+        method: 'OPTIONS',
+        url: '/api/v1/health',
+        headers: { origin: 'https://app.example.com', 'access-control-request-method': 'GET' },
+      });
+      expect(ok.headers['access-control-allow-origin']).toBe('https://app.example.com');
+    } finally {
+      await prodApp.close();
+    }
+  });
+
+  it ('dev default (no CORS_ORIGIN, non-production) stays permissive', async () => {
+    vi.stubEnv('CORS_ORIGIN', '');
+    const devApp = await createServer({ logger: false, rateLimitMax: 0 });
+    try {
+      const res = await devApp.inject({
+        method: 'OPTIONS',
+        url: '/api/v1/health',
+        headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
+      });
+      expect(res.headers['access-control-allow-origin']).toBeDefined();
+    } finally {
+      await devApp.close();
+    }
   });
 });

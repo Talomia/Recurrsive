@@ -10,6 +10,13 @@
  * @packageDocumentation
  */
 
+// SECURITY TODO(multi-tenant): Tenant-scoped records are not actually isolated
+// by principal — records lack an enforced owner/tenant membership check, so any
+// authenticated user can read (and act on) data across all tenants despite the
+// "tenant isolation" described above. Object-level authorization (bind every
+// record to a tenant + verify the caller's tenant membership on every read and
+// mutation) is deferred to a dedicated multi-tenancy batch.
+
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';

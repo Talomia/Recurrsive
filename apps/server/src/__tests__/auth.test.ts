@@ -40,7 +40,7 @@ import {
 } from '../middleware/api-keys.js';
 import { requireRole, hasMinRole, isValidRole, PERMISSIONS } from '../middleware/rbac.js';
 import type { Role } from '../middleware/rbac.js';
-import { registerAuthRoutes } from '../routes/auth.js';
+import { registerAuthRoutes, resetLoginThrottleForTests } from '../routes/auth.js';
 
 // ---------------------------------------------------------------------------
 // JWT unit tests
@@ -540,13 +540,52 @@ describe('Auth routes — /api/v1/auth/*  and  /api/v1/api-keys/*', () => {
     });
     expect(throttled.statusCode).toBe(429);
     expect(throttled.headers['retry-after']).toBeDefined();
-    // A different username from the same IP is unaffected.
+    // A different username from the same IP is unaffected (below the IP cap).
     const other = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
       payload: { username: 'someone-else', password: 'x' },
     });
     expect(other.statusCode).toBe(401);
+  });
+
+  it ('POST /api/v1/auth/login throttles password-spraying by client IP with 429', async () => {
+    // Start from a clean window so counts from earlier tests (same test IP)
+    // don't skew the assertion.
+    resetLoginThrottleForTests();
+
+    // 20 failures against DISTINCT usernames — each stays below the
+    // per-username cap of 5, so only the IP-scoped cap can trip.
+    for (let i = 0; i < 20; i++) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { username: `spray-target-${i}`, password: 'password-guess' },
+      });
+      expect(res.statusCode).toBe(401);
+    }
+
+    // The 21st attempt from the same IP is throttled even though this
+    // username has never been tried before.
+    const throttled = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { username: 'spray-target-fresh', password: 'password-guess' },
+    });
+    expect(throttled.statusCode).toBe(429);
+    expect(throttled.headers['retry-after']).toBeDefined();
+
+    // Even a VALID credential from the blocked IP is rejected until the
+    // window expires — the throttle runs before the credential check.
+    const validButBlocked = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { username: 'admin', password: 'admin-password' },
+    });
+    expect(validButBlocked.statusCode).toBe(429);
+
+    // Clean up so subsequent tests (same test-client IP) are not locked out.
+    resetLoginThrottleForTests();
   });
 
   // ── Refresh ────────────────────────────────────────────────────────────────

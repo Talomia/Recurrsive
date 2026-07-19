@@ -205,8 +205,12 @@ async function parseSAMLResponse(provider: string, samlResponse: string): Promis
 // ---------------------------------------------------------------------------
 
 export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
-  // List SSO configurations
-  app.get('/api/v1/sso/providers', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  // List SSO configurations.
+  // Admin-only: IdP configuration (entity IDs, SSO URLs, provisioning policy)
+  // is operator-level data, and all SSO-config mutations are already
+  // admin-gated — reads keep parity. Login initiation uses the separate
+  // unauthenticated GET /api/v1/sso/login/:provider route.
+  app.get('/api/v1/sso/providers', { preHandler: [authMiddleware, requireRole('admin')] }, async (_request, reply) => {
     const allConfigs = await store.all<SSOConfig & { _storeId?: string }>('sso_configs');
 
     // We need the store key (provider id) for the response. Since the store
@@ -240,8 +244,10 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ data: providers, total: providers.length });
   });
 
-  // Get SSO config details
-  app.get<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+  // Get SSO config details.
+  // Admin-only: returns the full config including the IdP certificate and
+  // group→role mapping — must not be readable by viewers/analysts.
+  app.get<{ Params: { id: string } }>('/api/v1/sso/providers/:id', { preHandler: [authMiddleware, requireRole('admin')] }, async (request, reply) => {
     const config = await store.get<SSOConfig>('sso_configs', request.params.id);
     if (!config) return reply.status(404).send({ error: 'Not Found', message: 'SSO provider not found' });
     return reply.send({ data: config });
@@ -410,8 +416,10 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
-  // List active SSO sessions
-  app.get('/api/v1/sso/sessions', { preHandler: [authMiddleware] }, async (_request, reply) => {
+  // List active SSO sessions.
+  // Admin-only: exposes every user's session metadata (emails, providers),
+  // and session revocation below is already admin-gated — reads keep parity.
+  app.get('/api/v1/sso/sessions', { preHandler: [authMiddleware, requireRole('admin')] }, async (_request, reply) => {
     const allSessions = await store.all<SSOSession>('sso_sessions');
     // The original returned sessionId as the map key. Since we store
     // sessions with their ID as the key and it's also embedded in the

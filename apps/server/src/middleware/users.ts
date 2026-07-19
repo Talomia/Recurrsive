@@ -188,11 +188,26 @@ export async function findUserById(id: string): Promise<User | undefined> {
 }
 
 /**
+ * Well-formed but unmatchable scrypt hash/salt used for timing equalization.
+ *
+ * When a login targets a username that doesn't exist (or a non-active
+ * account), we still run a full scrypt derivation against this dummy pair so
+ * the response time is indistinguishable from a wrong-password attempt.
+ * Skipping the derivation would let an attacker enumerate valid usernames by
+ * measuring response latency (scrypt dominates the request time).
+ */
+const DUMMY_PASSWORD_HASH = '00'.repeat(64); // 64-byte hash, hex-encoded
+const DUMMY_PASSWORD_SALT = '00'.repeat(32); // 32-byte salt, hex-encoded
+
+/**
  * Authenticate a user by username and password.
  *
  * Looks up the user by username, verifies the password using scrypt,
  * and returns the public user record if authentication succeeds.
  * Only active users can authenticate.
+ *
+ * Performs a dummy scrypt comparison when the user is unknown or not active,
+ * so response timing does not reveal whether an account exists.
  *
  * @param username - The username to authenticate.
  * @param password - The plaintext password to verify.
@@ -201,10 +216,13 @@ export async function findUserById(id: string): Promise<User | undefined> {
 export async function authenticateUser(username: string, password: string): Promise<PublicUser | null> {
   // Try exact username match first, then fall back to email match
   const user = (await findUserByUsername(username)) ?? (await findUserByEmail(username));
-  if (!user) return null;
 
-  // Only active users can log in
-  if (user.status !== 'active') return null;
+  // Unknown or non-active user: burn the same scrypt cost as a real
+  // verification (timing-enumeration resistance), then fail.
+  if (!user || user.status !== 'active') {
+    await verifyPassword(password, DUMMY_PASSWORD_HASH, DUMMY_PASSWORD_SALT);
+    return null;
+  }
 
   const valid = await verifyPassword(password, user.passwordHash, user.passwordSalt);
   if (!valid) return null;
