@@ -11,7 +11,7 @@
  * - Metadata has correct collector_id, timing, counts
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HeliconeCollector } from '../../helicone/collector.js';
 import type { CollectorConfig } from '@recurrsive/core';
 
@@ -118,7 +118,70 @@ describe('Collection — entity production', () => {
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.items_processed).toBe(0);
+    // The missing API key is reported, not silently swallowed.
+    expect(result.metadata.errors.length).toBe(1);
+    expect(result.metadata.errors[0]!.message).toContain('No Helicone API key');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Collection — With API Data
+// ---------------------------------------------------------------------------
+
+describe('Collection — with API data', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const stubApi = (rows: unknown[]) => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: rows }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })));
+  };
+
+  const keyedConfig: CollectorConfig = {
+    ...defaultConfig,
+    custom: { helicone_api_key: 'sk-helicone-test' },
+  };
+
+  it('includes total_cost only when the API returned cost values', async () => {
+    stubApi([
+      { request_id: 'r1', model: 'gpt-4o', cost: 0.05, latency: 900, created_at: '2025-01-01T00:00:00Z' },
+      { request_id: 'r2', model: 'gpt-4o', cost: 0.03, latency: 800, created_at: '2025-01-01T00:01:00Z' },
+    ]);
+    await collector.initialize(keyedConfig);
+    const result = await collector.collect();
+
+    const cost = result.entities.find((e) => e.type === 'cost_metric');
+    expect(cost!.properties['total_cost']).toBeCloseTo(0.08);
+    expect(cost!.properties['cost_sample_count']).toBe(2);
     expect(result.metadata.errors).toEqual([]);
+  });
+
+  it('omits total_cost and records a note when the cost field is absent', async () => {
+    stubApi([
+      { request_id: 'r1', model: 'gpt-4o', latency: 900, created_at: '2025-01-01T00:00:00Z' },
+    ]);
+    await collector.initialize(keyedConfig);
+    const result = await collector.collect();
+
+    const cost = result.entities.find((e) => e.type === 'cost_metric');
+    expect(cost).toBeDefined();
+    expect('total_cost' in cost!.properties).toBe(false);
+    expect('currency' in cost!.properties).toBe(false);
+    expect(result.metadata.errors.length).toBe(1);
+    expect(result.metadata.errors[0]!.message).toContain('cost');
+  });
+
+  it('records the failure when the API returns an error status', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401, statusText: 'Unauthorized' })));
+    await collector.initialize(keyedConfig);
+    const result = await collector.collect();
+
+    expect(result.entities).toEqual([]);
+    expect(result.metadata.errors.length).toBe(1);
+    expect(result.metadata.errors[0]!.message).toContain('401');
   });
 });
 
@@ -201,6 +264,7 @@ describe('Metadata', () => {
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.items_processed).toBe(0);
-    expect(result.metadata.errors).toEqual([]);
+    // No API key in the test environment: the absence is reported.
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
   });
 });

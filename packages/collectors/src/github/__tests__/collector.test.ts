@@ -109,6 +109,42 @@ const MOCK_DEPLOYMENTS = [
   { id: 2, environment: 'staging', sha: 'def5678abc', creator: { login: 'bob' }, description: null, created_at: '2025-01-02T00:00:00Z' },
 ];
 
+// Latest-first deployment statuses, as returned by
+// /deployments/{id}/statuses
+const MOCK_DEPLOYMENT_1_STATUSES = [{ state: 'success' }];
+const MOCK_DEPLOYMENT_2_STATUSES = [{ state: 'in_progress' }];
+
+// Workflow definition files served by the contents API.
+const CI_WORKFLOW_YAML = `name: CI Pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+  build:
+    needs: [test]
+    runs-on: ubuntu-latest
+`;
+
+const DEPLOY_WORKFLOW_YAML = `name: Deploy Production
+on: workflow_dispatch
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+`;
+
+const contentsResponse = (yaml: string) => ({
+  content: Buffer.from(yaml, 'utf8').toString('base64'),
+  encoding: 'base64',
+});
+
 /**
  * Set up fetch mock that routes GitHub API calls to mock responses.
  */
@@ -134,6 +170,10 @@ function setupFetchMock(): void {
     if (urlStr.includes('/actions/workflows/2/runs')) return makeResponse(MOCK_DEPLOY_RUNS_RESPONSE);
     if (urlStr.includes('/actions/workflows/1/runs')) return makeResponse(MOCK_CI_RUNS_RESPONSE);
     if (urlStr.includes('/actions/workflows')) return makeResponse(MOCK_WORKFLOWS_RESPONSE);
+    if (urlStr.includes('/contents/.github/workflows/ci.yml')) return makeResponse(contentsResponse(CI_WORKFLOW_YAML));
+    if (urlStr.includes('/contents/.github/workflows/deploy.yml')) return makeResponse(contentsResponse(DEPLOY_WORKFLOW_YAML));
+    if (urlStr.includes('/deployments/1/statuses')) return makeResponse(MOCK_DEPLOYMENT_1_STATUSES);
+    if (urlStr.includes('/deployments/2/statuses')) return makeResponse(MOCK_DEPLOYMENT_2_STATUSES);
     if (urlStr.includes('/deployments')) return makeResponse(MOCK_DEPLOYMENTS);
 
     return makeResponse({ message: 'Not Found' }, 404);
@@ -267,12 +307,59 @@ describe('Collection — entity production', () => {
 
     const types = new Set(result.entities.map((e) => e.type));
     expect(types.has('workflow')).toBe(true);
-    expect(types.has('pipeline')).toBe(true);
     expect(types.has('job')).toBe(true);
     expect(types.has('step')).toBe(true);
     expect(types.has('deployment')).toBe(true);
     expect(types.has('user')).toBe(true);
     expect(types.has('team')).toBe(true);
+    // No synthetic pipeline entity — the API never returned one.
+    expect(types.has('pipeline')).toBe(false);
+  });
+
+  it('derives workflow triggers from the workflow file on: key', async () => {
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const workflows = result.entities.filter((e) => e.type === 'workflow');
+    const ci = workflows.find((w) => w.name === 'CI Pipeline');
+    const deploy = workflows.find((w) => w.name === 'Deploy Production');
+    expect(ci?.properties['trigger']).toBe('push,pull_request');
+    expect(deploy?.properties['trigger']).toBe('workflow_dispatch');
+  });
+
+  it('reports the real deployment status from the statuses API', async () => {
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const deployments = result.entities.filter((e) => e.type === 'deployment');
+    const prod = deployments.find((d) => d.properties['environment'] === 'production');
+    const staging = deployments.find((d) => d.properties['environment'] === 'staging');
+    expect(prod?.properties['status']).toBe('success');
+    expect(staging?.properties['status']).toBe('in_progress');
+  });
+
+  it('omits deployment status when the statuses API returns none', async () => {
+    // Route statuses endpoints to empty arrays for this test.
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      if (urlStr.includes('/statuses')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'X-RateLimit-Remaining': '4999' },
+        });
+      }
+      return originalFetch(url as never, init);
+    }));
+
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const deployments = result.entities.filter((e) => e.type === 'deployment');
+    expect(deployments.length).toBe(2);
+    for (const d of deployments) {
+      expect('status' in d.properties).toBe(false);
+    }
   });
 
   it('produces user entities for all contributors', async () => {
@@ -299,11 +386,12 @@ describe('Collection — entity production', () => {
 // ---------------------------------------------------------------------------
 
 describe('Collection — relationship production', () => {
-  it('produces between 10 and 20 relationships', async () => {
+  it('produces exactly the relationships derivable from the API data', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
-    expect(result.relationships.length).toBeGreaterThanOrEqual(10);
-    expect(result.relationships.length).toBeLessThanOrEqual(20);
+    // 4 triggers (3 CI jobs + 1 deploy job) + 4 reviews + 2 depends_on
+    // (test needs lint, build needs test)
+    expect(result.relationships.length).toBe(10);
   });
 
   it('produces only valid RelationType values', async () => {
@@ -323,9 +411,30 @@ describe('Collection — relationship production', () => {
     const types = new Set(result.relationships.map((r) => r.type));
     expect(types.has('triggers')).toBe(true);
     expect(types.has('reviews')).toBe(true);
-    expect(types.has('owns')).toBe(true);
-    expect(types.has('deploys_to')).toBe(true);
     expect(types.has('depends_on')).toBe(true);
+    // Positional team→workflow and synthetic pipeline links are gone.
+    expect(types.has('owns')).toBe(false);
+    expect(types.has('deploys_to')).toBe(false);
+  });
+
+  it('derives job depends_on only from declared needs', async () => {
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const jobsByName = new Map(
+      result.entities.filter((e) => e.type === 'job').map((e) => [e.name, e.id]),
+    );
+    const dependsOn = result.relationships.filter((r) => r.type === 'depends_on');
+    const pairs = dependsOn.map((r) => [r.source_id, r.target_id].join('->'));
+
+    expect(pairs).toContain(
+      [jobsByName.get('CI Pipeline.test'), jobsByName.get('CI Pipeline.lint')].join('->'),
+    );
+    expect(pairs).toContain(
+      [jobsByName.get('CI Pipeline.build'), jobsByName.get('CI Pipeline.test')].join('->'),
+    );
+    // The deploy workflow declares no needs — no dependencies invented.
+    expect(dependsOn.length).toBe(2);
   });
 
   it('produces relationships with all required fields', async () => {

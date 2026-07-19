@@ -1,24 +1,16 @@
 /**
  * @module @recurrsive/collectors/arize/collector
  *
- * Arize Collector — ingests ML observability data including model
- * configurations, training/evaluation datasets, performance metrics,
- * model degradation alerts, ML pipelines, and ML engineers from an
- * Arize project and produces entities and relationships for the
- * knowledge graph.
+ * Arize Collector — intended to ingest ML observability data (models,
+ * datasets, performance metrics, drift alerts) from an Arize space.
  *
- * Connects to the real Arize API using credentials supplied via
- * collector config or environment variables. When credentials are
- * absent or the API is unreachable, the collector logs a warning
- * and returns empty results gracefully.
- *
- * Produces entities:
- * - `model` — ML models with version, framework, and performance info
- * - `dataset` — training and evaluation datasets
- * - `performance_metric` — accuracy, F1, precision, recall, AUC, drift scores
- * - `alert` — model degradation alerts
- * - `pipeline` — ML training and inference pipelines
- * - `user` — ML engineers and data scientists
+ * IMPORTANT: the integration is NOT implemented yet. Arize's public
+ * API is GraphQL (https://app.arize.com/graphql); the REST endpoints
+ * this collector previously called (`/v1/models`, `/v1/datasets`) are
+ * not part of Arize's API. Until a real GraphQL integration exists,
+ * this collector returns empty results and records an explicit
+ * "integration not implemented" entry in `metadata.errors` — it never
+ * fabricates entities.
  *
  * @packageDocumentation
  */
@@ -29,11 +21,8 @@ import type {
   CollectorResult,
   CollectorType,
   Entity,
-  Relationship,
 } from '@recurrsive/core';
 import {
-  generateId,
-  qualifiedName,
   nowISO,
   createLogger,
   CollectorError,
@@ -54,16 +43,18 @@ type ArizeEnvironment = 'production' | 'staging' | 'development';
 // ---------------------------------------------------------------------------
 
 /**
- * Collects ML observability data including model configurations,
- * training/evaluation datasets, performance metrics, model
- * degradation alerts, ML pipelines, and ML engineer profiles
- * from an Arize project.
+ * Placeholder for an Arize ML observability integration.
+ *
+ * The integration is not implemented: Arize's public API is GraphQL,
+ * and no GraphQL client exists here yet. {@link collect} always
+ * returns empty results with an explanatory `metadata.errors` entry —
+ * it never fabricates entities or relationships.
  *
  * Lifecycle:
  * 1. {@link initialize} — configure governance rules and environment.
  * 2. {@link validate} — verify the environment is supported.
- * 3. {@link collect} — fetch entities & relationships from the
- *    Arize API (or return empty results when credentials are absent).
+ * 3. {@link collect} — return empty results, recording why in
+ *    `metadata.errors` (missing credentials or unimplemented API).
  * 4. {@link dispose} — release resources.
  *
  * @example
@@ -150,12 +141,14 @@ export class ArizeCollector implements Collector {
   /**
    * Perform the full collection run.
    *
-   * Checks for Arize API credentials (via config or environment variables).
-   * If credentials are missing, logs a warning and returns empty results.
-   * If credentials are present, fetches models and datasets from the
-   * Arize API and builds entities and relationships from the response.
+   * The Arize integration is not implemented: Arize's public API is
+   * GraphQL, and no GraphQL client has been built yet. This method
+   * therefore always returns empty results, recording in
+   * `metadata.errors` exactly why nothing was collected (missing
+   * credentials, or credentials present but the integration missing).
+   * It never calls invented REST endpoints and never fabricates data.
    *
-   * @returns Entities, relationships, and run metadata.
+   * @returns Empty entities/relationships and run metadata explaining why.
    * @throws {CollectorError} If the collector has not been initialized.
    */
   async collect(): Promise<CollectorResult> {
@@ -175,91 +168,36 @@ export class ArizeCollector implements Collector {
     const spaceKey = (this.config.custom['arize_space_key'] as string) || process.env['ARIZE_SPACE_KEY'];
 
     if (!apiKey || !spaceKey) {
-      logger.warn('No Arize credentials configured, skipping collection');
-      const durationMs = Date.now() - startTime;
-      return {
-        entities: [],
-        relationships: [],
-        metadata: {
-          collector_id: this.id,
-          collected_at: nowISO(),
-          duration_ms: durationMs,
-          items_processed: 0,
-          errors: [],
-        },
-      };
+      const msg = 'No Arize credentials configured (arize_api_key / arize_space_key or ARIZE_API_KEY / ARIZE_SPACE_KEY); no data collected.';
+      logger.warn(msg);
+      errors.push({ message: msg });
+    } else {
+      // Credentials are present, but there is nothing honest to call:
+      // Arize's public API is GraphQL (https://app.arize.com/graphql),
+      // and the REST endpoints previously used here (/v1/models,
+      // /v1/datasets) are not part of Arize's API.
+      const msg =
+        'Arize integration not implemented: Arize exposes a GraphQL API, ' +
+        'and no GraphQL client has been built for this collector yet. ' +
+        'No data collected.';
+      logger.warn(msg);
+      errors.push({ message: msg });
     }
 
-    // --- Fetch from Arize API ---
-    const baseUrl = (this.config.custom['arize_url'] as string) || process.env['ARIZE_URL'] || 'https://app.arize.com';
-    const headers: Record<string, string> = {
-      'authorization': `Bearer ${apiKey}`,
-      'space-key': spaceKey,
-    };
-
-    let modelsData: unknown[] = [];
-    let datasetsData: unknown[] = [];
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10_000);
-
-      try {
-        const [modelsRes, datasetsRes] = await Promise.all([
-          fetch(`${baseUrl}/v1/models`, { headers, signal: controller.signal }),
-          fetch(`${baseUrl}/v1/datasets`, { headers, signal: controller.signal }),
-        ]);
-
-        if (modelsRes.ok) {
-          const body = await modelsRes.json() as { data?: unknown[] };
-          modelsData = body.data ?? [];
-        }
-        if (datasetsRes.ok) {
-          const body = await datasetsRes.json() as { data?: unknown[] };
-          datasetsData = body.data ?? [];
-        }
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    } catch (err) {
-      logger.warn('Failed to fetch from Arize API, returning empty results', { error: err });
-      const durationMs = Date.now() - startTime;
-      return {
-        entities: [],
-        relationships: [],
-        metadata: {
-          collector_id: this.id,
-          collected_at: nowISO(),
-          duration_ms: durationMs,
-          items_processed: 0,
-          errors: [],
-        },
-      };
-    }
-
-    // --- Build entities from response ---
-    const entities = this.buildEntities(modelsData, datasetsData);
-    const relationships = this.buildRelationships(entities);
-
-    // Apply governance masking
+    // Governance masking applied for consistency (no entities to mask).
+    const entities: Entity[] = [];
     const maskedEntities = entities.map((e) => this.governanceFilter.maskEntity(e));
 
     const durationMs = Date.now() - startTime;
 
-    logger.info('ArizeCollector collection complete', {
-      entities: maskedEntities.length,
-      relationships: relationships.length,
-      durationMs,
-    });
-
     return {
       entities: maskedEntities,
-      relationships,
+      relationships: [],
       metadata: {
         collector_id: this.id,
         collected_at: nowISO(),
         duration_ms: durationMs,
-        items_processed: modelsData.length + datasetsData.length,
+        items_processed: 0,
         errors,
       },
     };
@@ -273,143 +211,7 @@ export class ArizeCollector implements Collector {
     logger.info('ArizeCollector disposed', { environment: this.environment });
   }
 
-  // -----------------------------------------------------------------------
-  // Internal: Entity Helpers
-  // -----------------------------------------------------------------------
-
-  /**
-   * Create a single entity with common defaults.
-   */
-  private makeEntity(
-    type: Entity['type'],
-    name: string,
-    props: Record<string, unknown>,
-    tags: string[] = [],
-  ): Entity {
-    const now = nowISO();
-    return {
-      id: generateId(),
-      type,
-      name,
-      qualified_name: qualifiedName(this.environment, name),
-      source: this.id,
-      properties: props,
-      tags: ['arize', this.environment, ...tags],
-      created_at: now,
-      updated_at: now,
-      last_seen_at: now,
-    };
-  }
-
-  /**
-   * Create a single relationship with common defaults.
-   */
-  private makeRel(
-    type: Relationship['type'],
-    sourceId: string,
-    targetId: string,
-    props: Record<string, unknown> = {},
-  ): Relationship {
-    const now = nowISO();
-    return {
-      id: generateId(),
-      type,
-      source_id: sourceId,
-      target_id: targetId,
-      properties: props,
-      confidence: 1.0,
-      source: this.id,
-      created_at: now,
-      updated_at: now,
-    };
-  }
-
-  // -----------------------------------------------------------------------
-  // Internal: Entity Building
-  // -----------------------------------------------------------------------
-
-  /**
-   * Build knowledge graph entities from Arize API response data.
-   *
-   * Creates:
-   * - `model` entities from models API response
-   * - `dataset` entities from datasets API response
-   *
-   * @param modelsData - Raw model records from the Arize API.
-   * @param datasetsData - Raw dataset records from the Arize API.
-   * @returns Array of entities.
-   */
-  private buildEntities(modelsData: unknown[], datasetsData: unknown[]): Entity[] {
-    const entities: Entity[] = [];
-
-    // --- Model entities ---
-    for (const raw of modelsData) {
-      const model = raw as Record<string, unknown>;
-      const name = (model['name'] as string) || 'unknown-model';
-      entities.push(
-        this.makeEntity('model', name, {
-          version: model['version'] ?? 'unknown',
-          framework: model['framework'] ?? 'unknown',
-          model_type: model['model_type'] ?? 'unknown',
-          platform: 'arize',
-          environment: this.environment,
-          ...model,
-        }, ['ml-model']),
-      );
-    }
-
-    // --- Dataset entities ---
-    for (const raw of datasetsData) {
-      const dataset = raw as Record<string, unknown>;
-      const name = (dataset['name'] as string) || 'unknown-dataset';
-      entities.push(
-        this.makeEntity('dataset', name, {
-          dataset_type: dataset['dataset_type'] ?? 'unknown',
-          row_count: dataset['row_count'] ?? 0,
-          feature_count: dataset['feature_count'] ?? 0,
-          platform: 'arize',
-          environment: this.environment,
-          ...dataset,
-        }, ['ml-dataset']),
-      );
-    }
-
-    return entities;
-  }
-
-  // -----------------------------------------------------------------------
-  // Internal: Relationship Building
-  // -----------------------------------------------------------------------
-
-  /**
-   * Build relationships between entities.
-   *
-   * Creates:
-   * - `depends_on` — model depends on training dataset (matched by model name)
-   *
-   * @param entities - All entities built from this collection.
-   * @returns Array of relationships.
-   */
-  private buildRelationships(entities: Entity[]): Relationship[] {
-    const relationships: Relationship[] = [];
-
-    const models = entities.filter((e) => e.type === 'model');
-    const datasets = entities.filter((e) => e.type === 'dataset');
-
-    // Model → Dataset (depends_on) — models depend on their training datasets
-    for (const dataset of datasets) {
-      const dsType = dataset.properties['dataset_type'] as string;
-      if (dsType === 'training') {
-        const modelName = dataset.properties['model'] as string;
-        const modelEntity = models.find((m) => m.name === modelName);
-        if (modelEntity) {
-          relationships.push(this.makeRel('depends_on', modelEntity.id, dataset.id, {
-            dependency_type: 'training_data',
-          }));
-        }
-      }
-    }
-
-    return relationships;
-  }
+  // Note: entity/relationship builders were removed together with the
+  // fabricated REST calls. They should be reintroduced when a real
+  // Arize GraphQL integration is implemented.
 }

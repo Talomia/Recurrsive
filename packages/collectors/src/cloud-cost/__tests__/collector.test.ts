@@ -118,7 +118,95 @@ describe('Collection — no credentials', () => {
     expect(result.metadata.items_processed).toBe(0);
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
-    expect(result.metadata.errors).toEqual([]);
+    // The missing data source is reported, not silently swallowed.
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Collection — With CSV Data
+// ---------------------------------------------------------------------------
+
+describe('Collection — with CSV data', () => {
+  const writeCsvAndCollect = async (csv: string) => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'cloud-cost-test-'));
+    const csvPath = join(dir, 'costs.csv');
+    try {
+      writeFileSync(csvPath, csv);
+      await collector.initialize({
+        ...defaultConfig,
+        custom: { cloud_cost_csv_path: csvPath },
+      });
+      return await collector.collect();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('emits only entities present in the CSV — no synthesized environments', async () => {
+    const result = await writeCsvAndCollect(
+      'service,resource,monthly_cost,region,status\n' +
+      'EC2,i-abc123,120.50,us-east-1,running\n' +
+      'S3,bucket-logs,10.25,us-east-1,active\n',
+    );
+
+    const types = new Set(result.entities.map((e) => e.type));
+    expect(types.has('cost_metric')).toBe(true);
+    expect(types.has('infrastructure_resource')).toBe(true);
+    expect(types.has('pipeline')).toBe(true);
+    expect(types.has('environment')).toBe(false);
+
+    // No status→environment guessing.
+    const relTypes = new Set(result.relationships.map((r) => r.type));
+    expect(relTypes.has('deploys_to')).toBe(false);
+  });
+
+  it('omits billing period and currency when the CSV has no such columns', async () => {
+    const result = await writeCsvAndCollect(
+      'service,resource,monthly_cost,region,status\n' +
+      'EC2,i-abc123,120.50,us-east-1,running\n',
+    );
+    const metric = result.entities.find((e) => e.type === 'cost_metric');
+    expect(metric).toBeDefined();
+    expect('period_start' in metric!.properties).toBe(false);
+    expect('period_end' in metric!.properties).toBe(false);
+    expect('currency' in metric!.properties).toBe(false);
+  });
+
+  it('takes billing period and currency from the CSV when present', async () => {
+    const result = await writeCsvAndCollect(
+      'service,resource,monthly_cost,region,status,period_start,period_end,currency\n' +
+      'EC2,i-abc123,120.50,us-east-1,running,2025-03-01,2025-03-31,USD\n' +
+      'EC2,i-def456,80.00,us-east-1,running,2025-03-01,2025-03-31,USD\n',
+    );
+    const metric = result.entities.find((e) => e.type === 'cost_metric');
+    expect(metric!.properties['period_start']).toBe('2025-03-01');
+    expect(metric!.properties['period_end']).toBe('2025-03-31');
+    expect(metric!.properties['currency']).toBe('USD');
+    expect(metric!.properties['total_cost']).toBeCloseTo(200.5);
+  });
+
+  it('handles quoted CSV fields with embedded commas', async () => {
+    const result = await writeCsvAndCollect(
+      'service,resource,monthly_cost,region,status\n' +
+      '"Amazon EC2","web, primary",99.99,us-east-1,running\n',
+    );
+    const resource = result.entities.find((e) => e.type === 'infrastructure_resource');
+    expect(resource!.name).toBe('web, primary');
+    expect(resource!.properties['service']).toBe('Amazon EC2');
+    expect(resource!.properties['monthly_cost']).toBeCloseTo(99.99);
+  });
+
+  it('reports unknown status when the CSV omits it, never running', async () => {
+    const result = await writeCsvAndCollect(
+      'service,resource,monthly_cost,region\n' +
+      'EC2,i-abc123,120.50,us-east-1\n',
+    );
+    const resource = result.entities.find((e) => e.type === 'infrastructure_resource');
+    expect(resource!.properties['status']).toBe('unknown');
   });
 });
 
@@ -202,6 +290,7 @@ describe('Metadata', () => {
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.items_processed).toBe(0);
-    expect(result.metadata.errors).toEqual([]);
+    // No data source in the test environment: the absence is reported.
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
   });
 });

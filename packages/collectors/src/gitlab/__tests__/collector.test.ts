@@ -202,11 +202,12 @@ describe('Validation', () => {
 // ---------------------------------------------------------------------------
 
 describe('Collection — entity production', () => {
-  it('produces between 20 and 40 entities', async () => {
+  it('produces exactly the entities present in the API data', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
-    expect(result.entities.length).toBeGreaterThanOrEqual(20);
-    expect(result.entities.length).toBeLessThanOrEqual(40);
+    // 5 users + 3 MR workflows + 2 pipelines + 5 jobs + 2 environments
+    // + 2 deployments (no synthetic steps)
+    expect(result.entities.length).toBe(19);
   });
 
   it('produces entities with all required fields', async () => {
@@ -245,10 +246,22 @@ describe('Collection — entity production', () => {
     expect(types.has('workflow')).toBe(true);
     expect(types.has('pipeline')).toBe(true);
     expect(types.has('job')).toBe(true);
-    expect(types.has('step')).toBe(true);
     expect(types.has('deployment')).toBe(true);
     expect(types.has('environment')).toBe(true);
     expect(types.has('user')).toBe(true);
+    // GitLab's API exposes no per-job steps, so none are synthesized.
+    expect(types.has('step')).toBe(false);
+  });
+
+  it('preserves nested subgroup paths in qualified names', async () => {
+    const nested = new GitLabCollector('https://gitlab.com/org/subgroup/project');
+    await nested.initialize(defaultConfig);
+    const result = await nested.collect();
+    const users = result.entities.filter((e) => e.type === 'user');
+    expect(users.length).toBeGreaterThan(0);
+    for (const user of users) {
+      expect(user.qualified_name.startsWith('org/subgroup/project:')).toBe(true);
+    }
   });
 
   it('produces user entities for all members', async () => {
@@ -339,6 +352,27 @@ describe('Collection — relationship production', () => {
       expect(rel.created_at).toBeDefined();
       expect(rel.updated_at).toBeDefined();
     }
+  });
+
+  it('creates depends_on only across declared stages', async () => {
+    await collector.initialize(defaultConfig);
+    const result = await collector.collect();
+
+    const jobsById = new Map(
+      result.entities.filter((e) => e.type === 'job').map((e) => [e.id, e.name]),
+    );
+    const dependsOn = result.relationships.filter((r) => r.type === 'depends_on');
+    const pairs = dependsOn.map(
+      (r) => `${jobsById.get(r.source_id)}->${jobsById.get(r.target_id)}`,
+    );
+
+    // Pipeline 1001 stage order by job id: test, build, deploy.
+    expect(pairs).toContain('pipeline-1001.build->pipeline-1001.lint');
+    expect(pairs).toContain('pipeline-1001.build->pipeline-1001.unit-test');
+    expect(pairs).toContain('pipeline-1001.deploy-staging->pipeline-1001.build');
+    // No within-stage edges (lint/unit-test run in parallel) and no
+    // edges for the single-stage pipeline 1002.
+    expect(dependsOn.length).toBe(3);
   });
 
   it('all relationships reference valid entity IDs', async () => {

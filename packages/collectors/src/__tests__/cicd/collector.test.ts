@@ -103,6 +103,67 @@ jobs:
     await collector.dispose();
   });
 
+  it('parses block-form needs lists as dependencies, not steps', async () => {
+    const workflowDir = path.join(tmpDir, '.github', 'workflows');
+    await fs.mkdir(workflowDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(workflowDir, 'deploy.yml'),
+      `name: Deploy
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build
+        run: npm run build
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test
+        run: npm test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - test
+    steps:
+      - name: Deploy
+        run: echo "Deploying..."
+`,
+    );
+
+    const collector = new CICDCollector(tmpDir);
+    await collector.initialize({ governance: { masked_fields: [], excluded_patterns: [], pii_detection: false, audit_log: false, retention_days: 90 }, custom: {} });
+
+    const result = await collector.collect();
+
+    const deployJob = result.entities.find(
+      (e) => e.type === 'job' && e.name === 'gha.Deploy.deploy',
+    );
+    expect(deployJob).toBeDefined();
+    // The block-form needs list is captured as dependencies…
+    expect(deployJob!.properties['needs']).toEqual(['build', 'test']);
+    // …and its dash items are not miscounted as steps.
+    expect(deployJob!.properties['step_count']).toBe(1);
+
+    const jobIds = new Map(
+      result.entities.filter((e) => e.type === 'job').map((e) => [e.name, e.id]),
+    );
+    const dependsOn = result.relationships.filter(
+      (r) => r.type === 'depends_on' && r.source_id === jobIds.get('gha.Deploy.deploy'),
+    );
+    const targets = dependsOn.map((r) => r.target_id).sort();
+    expect(targets).toEqual(
+      [jobIds.get('gha.Deploy.build'), jobIds.get('gha.Deploy.test')].sort(),
+    );
+
+    await collector.dispose();
+  });
+
   it('handles no workflows gracefully', async () => {
     const collector = new CICDCollector(tmpDir);
     await collector.initialize({ governance: { masked_fields: [], excluded_patterns: [], pii_detection: false, audit_log: false, retention_days: 90 }, custom: {} });

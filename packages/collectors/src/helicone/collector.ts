@@ -99,7 +99,7 @@ export class HeliconeCollector implements Collector {
   /** @inheritdoc */
   readonly name = 'Helicone Collector';
   /** @inheritdoc */
-  readonly description = 'Collects LLM cost tracking and usage analytics data including cost metrics, models, performance, alerts, and rate limits from Helicone';
+  readonly description = 'Collects LLM cost tracking and usage analytics data including cost metrics, models, performance metrics, and users from Helicone';
   /** @inheritdoc */
   readonly type: CollectorType = 'observability';
   /** @inheritdoc */
@@ -191,7 +191,9 @@ export class HeliconeCollector implements Collector {
       process.env['HELICONE_API_KEY'];
 
     if (!apiKey) {
-      logger.warn('No Helicone API key configured, skipping collection');
+      const msg = 'No Helicone API key configured (helicone_api_key or HELICONE_API_KEY); no data collected.';
+      logger.warn(msg);
+      errors.push({ message: msg });
       return {
         entities: [],
         relationships: [],
@@ -200,7 +202,7 @@ export class HeliconeCollector implements Collector {
           collected_at: nowISO(),
           duration_ms: Date.now() - startTime,
           items_processed: 0,
-          errors: [],
+          errors,
         },
       };
     }
@@ -232,6 +234,7 @@ export class HeliconeCollector implements Collector {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('Helicone API request failed, returning empty results', { error: message });
+      errors.push({ message: `Helicone API request failed: ${message}` });
       return {
         entities: [],
         relationships: [],
@@ -240,13 +243,13 @@ export class HeliconeCollector implements Collector {
           collected_at: nowISO(),
           duration_ms: Date.now() - startTime,
           items_processed: 0,
-          errors: [],
+          errors,
         },
       };
     }
 
     // --- Build entities from API data ---
-    const entities = this.buildEntitiesFromRequests(requests);
+    const entities = this.buildEntitiesFromRequests(requests, errors);
     const relationships = this.buildRelationships(entities);
 
     // Apply governance masking
@@ -346,28 +349,50 @@ export class HeliconeCollector implements Collector {
    * - `user` entities — unique users observed
    *
    * @param requests - Raw request objects from the Helicone API.
+   * @param errors - Run error list; degradation notes are appended here.
    * @returns Array of entities.
    */
-  private buildEntitiesFromRequests(requests: HeliconeRequest[]): Entity[] {
+  private buildEntitiesFromRequests(
+    requests: HeliconeRequest[],
+    errors: Array<{ message: string; details?: unknown }>,
+  ): Entity[] {
     const entities: Entity[] = [];
 
     // --- Aggregate cost by model ---
-    const costByModel = new Map<string, { totalCost: number; requestCount: number }>();
+    // The `cost` field mapping against Helicone's response schema is
+    // unverified; when a request carries no cost, nothing is assumed.
+    const costByModel = new Map<string, { totalCost: number; requestCount: number; costSampleCount: number }>();
     for (const req of requests) {
       const model = req.model ?? 'unknown';
-      const existing = costByModel.get(model) ?? { totalCost: 0, requestCount: 0 };
-      existing.totalCost += req.cost ?? 0;
+      const existing = costByModel.get(model) ?? { totalCost: 0, requestCount: 0, costSampleCount: 0 };
+      if (typeof req.cost === 'number') {
+        existing.totalCost += req.cost;
+        existing.costSampleCount += 1;
+      }
       existing.requestCount += 1;
       costByModel.set(model, existing);
     }
 
+    let missingCostNoted = false;
     for (const [model, agg] of costByModel) {
+      const hasCostData = agg.costSampleCount > 0;
+      if (!hasCostData && !missingCostNoted) {
+        errors.push({
+          message:
+            'Helicone response rows carried no numeric `cost` field for one or ' +
+            'more models; total_cost omitted for those cost metrics (cost field ' +
+            'mapping unverified against the Helicone response schema).',
+        });
+        missingCostNoted = true;
+      }
       entities.push(
         this.makeEntity('cost_metric', `${model}-cost`, {
           model,
-          total_cost: agg.totalCost,
+          // total_cost only when the API actually returned cost values.
+          ...(hasCostData
+            ? { total_cost: agg.totalCost, cost_sample_count: agg.costSampleCount, currency: 'USD' }
+            : {}),
           request_count: agg.requestCount,
-          currency: 'USD',
           environment: this.environment,
         }, ['cost']),
       );
@@ -434,8 +459,6 @@ export class HeliconeCollector implements Collector {
    * Creates:
    * - `uses_model` — cost_metric tracks cost for a specific model
    * - `monitors` — performance_metric monitors a model
-   * - `owns` — user owns an alert or config
-   * - `contains` — cost_metric contains alert data for same model
    *
    * @param entities - All entities built from this collection.
    * @returns Array of relationships.
@@ -443,12 +466,9 @@ export class HeliconeCollector implements Collector {
   private buildRelationships(entities: Entity[]): Relationship[] {
     const relationships: Relationship[] = [];
 
-    const users = entities.filter((e) => e.type === 'user');
     const costMetrics = entities.filter((e) => e.type === 'cost_metric');
     const models = entities.filter((e) => e.type === 'model');
     const perfMetrics = entities.filter((e) => e.type === 'performance_metric');
-    const alerts = entities.filter((e) => e.type === 'alert');
-    const configs = entities.filter((e) => e.type === 'config');
 
     // Cost Metric → Model (uses_model) — each cost metric tracks a model
     for (const cost of costMetrics) {
@@ -473,48 +493,10 @@ export class HeliconeCollector implements Collector {
       }
     }
 
-    // User → Alert (owns) — distribute alerts across users
-    for (let i = 0; i < alerts.length; i++) {
-      const alert = alerts[i]!;
-      const user = users[i % users.length]!;
-      relationships.push(this.makeRel('owns', user.id, alert.id, {
-        role: 'alert_owner',
-      }));
-    }
-
-    // User → Config (owns) — distribute configs across users
-    for (let i = 0; i < configs.length; i++) {
-      const config = configs[i]!;
-      const user = users[i % users.length]!;
-      relationships.push(this.makeRel('owns', user.id, config.id, {
-        role: 'config_owner',
-      }));
-    }
-
-    // Cost Metric → Alert (contains) — cost metrics contain related alerts
-    for (const alert of alerts) {
-      const alertModel = alert.properties['model'] as string;
-      const relatedCost = costMetrics.find(
-        (c) => c.properties['model'] === alertModel,
-      );
-      if (relatedCost) {
-        relationships.push(this.makeRel('contains', relatedCost.id, alert.id, {
-          alert_name: alert.name,
-          model_name: alertModel,
-        }));
-      }
-    }
-
-    // Config → Model (monitors) — rate limit configs monitor a model
-    for (const config of configs) {
-      const modelName = config.properties['model'] as string;
-      const modelEntity = models.find((m) => m.name === modelName);
-      if (modelEntity) {
-        relationships.push(this.makeRel('monitors', config.id, modelEntity.id, {
-          config_type: config.properties['config_type'],
-        }));
-      }
-    }
+    // Note: this collector never produces alert or config entities, so
+    // no user→alert/config ownership links are fabricated. (The removed
+    // positional distribution also crashed via modulo-by-zero when no
+    // user entities existed.)
 
     return relationships;
   }

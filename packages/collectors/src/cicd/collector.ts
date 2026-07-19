@@ -77,6 +77,9 @@ function parseGitHubWorkflow(content: string, filePath: string): WorkflowInfo {
   let currentJob: JobInfo | null = null;
   let currentStep: StepInfo | null = null;
   let inOn = false;
+  // Tracks whether indent-6 `- item` lines belong to a block-form
+  // `needs:` list (vs the `steps:` list) for the current job.
+  let inNeedsBlock = false;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -152,6 +155,7 @@ function parseGitHubWorkflow(content: string, filePath: string): WorkflowInfo {
           steps: [],
           needs: [],
         };
+        inNeedsBlock = false;
         continue;
       }
 
@@ -159,6 +163,8 @@ function parseGitHubWorkflow(content: string, filePath: string): WorkflowInfo {
 
       // Job properties (indent 4)
       if (indent === 4) {
+        // Any new indent-4 key ends a block-form `needs:` list.
+        inNeedsBlock = false;
         if (trimmed.startsWith('runs-on:')) {
           currentJob.runsOn = trimmed.slice(8).trim().replace(/^['"]|['"]$/g, '');
         } else if (trimmed.startsWith('name:')) {
@@ -174,8 +180,18 @@ function parseGitHubWorkflow(content: string, filePath: string): WorkflowInfo {
               .filter(Boolean);
           } else if (val) {
             currentJob.needs = [val.replace(/^['"]|['"]$/g, '')];
+          } else {
+            // Block-form list: subsequent `- item` lines are needs
+            // entries, not steps.
+            inNeedsBlock = true;
           }
         }
+        continue;
+      }
+
+      // Needs list items (indent 6, inside a block-form `needs:` list)
+      if (indent === 6 && trimmed.startsWith('- ') && inNeedsBlock) {
+        currentJob.needs.push(trimmed.slice(2).trim().replace(/^['"]|['"]$/g, ''));
         continue;
       }
 
@@ -205,11 +221,6 @@ function parseGitHubWorkflow(content: string, filePath: string): WorkflowInfo {
           currentStep.run = trimmed.slice(4).trim();
         }
         continue;
-      }
-
-      // Needs array items (indent 6)
-      if (indent === 6 && trimmed.startsWith('- ') && !currentStep) {
-        currentJob.needs.push(trimmed.slice(2).trim().replace(/^['"]|['"]$/g, ''));
       }
     }
   }

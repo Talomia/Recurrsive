@@ -14,11 +14,9 @@
  * - `workflow` — merge request workflows
  * - `pipeline` — CI/CD pipelines
  * - `job` — individual pipeline jobs
- * - `step` — steps within jobs
  * - `deployment` — deployment events
  * - `environment` — deployment target environments
  * - `user` — GitLab users (MR authors, reviewers, members)
- * - `team` — project groups
  *
  * @packageDocumentation
  */
@@ -115,14 +113,17 @@ interface CollectedMR {
 interface CollectedPipeline {
   id: number;
   ref: string;
-  status: 'success' | 'failed' | 'running' | 'pending';
+  /** Status exactly as reported by the GitLab API, or 'unknown'. */
+  status: string;
   triggeredBy: string;
-  jobs: Array<{ name: string; stage: string; steps: string[] }>;
+  /** Jobs sorted by id ascending (GitLab creates jobs in stage order). */
+  jobs: Array<{ name: string; stage: string }>;
 }
 
 interface CollectedEnvironment {
   name: string;
-  tier: 'production' | 'staging' | 'development';
+  /** Tier exactly as reported by the GitLab API, or 'unknown'. */
+  tier: string;
   url: string;
 }
 
@@ -130,7 +131,8 @@ interface CollectedDeployment {
   environment: string;
   sha: string;
   deployer: string;
-  status: 'success' | 'failed' | 'running';
+  /** Status exactly as reported by the GitLab API, or 'unknown'. */
+  status: string;
   pipelineId: number;
 }
 
@@ -184,6 +186,9 @@ export class GitLabCollector implements Collector {
   private apiBase = 'https://gitlab.com';
   /** URL-encoded project path (e.g. `org%2Fproject`). */
   private projectId = '';
+
+  /** Per-request timeout for GitLab API calls, in milliseconds. */
+  private static readonly FETCH_TIMEOUT_MS = 10_000;
 
   /**
    * @param gitlabUrl - GitLab project URL (e.g. `https://gitlab.com/org/project`).
@@ -377,25 +382,30 @@ export class GitLabCollector implements Collector {
         const pageParam = basePath.includes('per_page') ? `&page=${page}` : `?page=${page}`;
         const url = `${this.apiBase}/api/v4${basePath}${pageParam}`;
 
-        const response = await fetch(url, {
-          headers: {
-            'PRIVATE-TOKEN': this.token,
-            'Accept': 'application/json',
-          },
-        });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), GitLabCollector.FETCH_TIMEOUT_MS);
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            headers: {
+              'PRIVATE-TOKEN': this.token,
+              'Accept': 'application/json',
+            },
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
 
         // Check rate limit (GitLab uses RateLimit-Remaining)
         const remaining = response.headers.get('RateLimit-Remaining');
-        if (remaining !== null && parseInt(remaining, 10) <= 0) {
-          const resetTime = response.headers.get('RateLimit-Reset');
-          const msg = `GitLab API rate limit exhausted. Resets at ${resetTime}`;
-          logger.warn(msg);
-          errors.push({ message: msg });
-          break;
-        }
+        const rateLimited = remaining !== null && parseInt(remaining, 10) <= 0;
+        const resetTime = response.headers.get('RateLimit-Reset');
 
         if (!response.ok) {
-          const msg = `GitLab API error: ${response.status} ${response.statusText} for ${url}`;
+          const msg = rateLimited
+            ? `GitLab API rate limit exhausted (${response.status} for ${url}). Resets at ${resetTime}`
+            : `GitLab API error: ${response.status} ${response.statusText} for ${url}`;
           logger.warn(msg);
           errors.push({ message: msg, details: { status: response.status } });
           break;
@@ -405,6 +415,15 @@ export class GitLabCollector implements Collector {
 
         if (!Array.isArray(data) || data.length === 0) break;
         results.push(...data);
+
+        // Rate limit exhausted: keep what this (successful) response
+        // returned, but stop paginating further.
+        if (rateLimited) {
+          const msg = `GitLab API rate limit exhausted after ${url}; stopping pagination. Resets at ${resetTime}`;
+          logger.warn(msg);
+          errors.push({ message: msg });
+          break;
+        }
 
         // Check if there's a next page
         const nextPage = response.headers.get('X-Next-Page');
@@ -477,22 +496,22 @@ export class GitLabCollector implements Collector {
         50,
       );
 
-      const jobs = rawJobs.map((job) => ({
-        name: job.name,
-        stage: job.stage,
-        // GitLab doesn't expose individual steps within a job via API,
-        // so we create a single step representing the job script
-        steps: [`Run ${job.name}`],
-      }));
-
-      const status = (['success', 'failed', 'running', 'pending'].includes(pipeline.status)
-        ? pipeline.status
-        : 'pending') as CollectedPipeline['status'];
+      // GitLab does not expose individual steps within a job via the
+      // API, so no step entities are synthesized. Jobs are sorted by id
+      // ascending: GitLab creates jobs in declared stage order, so first
+      // appearance of each stage reflects the pipeline's stage order.
+      const jobs = [...rawJobs]
+        .sort((a, b) => a.id - b.id)
+        .map((job) => ({
+          name: job.name,
+          stage: job.stage,
+        }));
 
       collectedPipelines.push({
         id: pipeline.id,
         ref: pipeline.ref,
-        status,
+        // Report the status exactly as GitLab returned it — never guessed.
+        status: pipeline.status || 'unknown',
         triggeredBy: pipeline.user?.username || 'unknown',
         jobs,
       });
@@ -512,16 +531,12 @@ export class GitLabCollector implements Collector {
       errors,
       100,
     );
-    return rawEnvs.map((env) => {
-      const tier = (['production', 'staging', 'development'].includes(env.tier || '')
-        ? env.tier
-        : 'development') as CollectedEnvironment['tier'];
-      return {
-        name: env.name,
-        tier,
-        url: env.external_url || '',
-      };
-    });
+    return rawEnvs.map((env) => ({
+      name: env.name,
+      // Report the tier exactly as GitLab returned it — never guessed.
+      tier: env.tier || 'unknown',
+      url: env.external_url || '',
+    }));
   }
 
   /**
@@ -535,18 +550,15 @@ export class GitLabCollector implements Collector {
       errors,
       100,
     );
-    return rawDeployments.map((d) => {
-      const status = (['success', 'failed', 'running'].includes(d.status)
-        ? d.status
-        : 'success') as CollectedDeployment['status'];
-      return {
-        environment: d.environment || 'unknown',
-        sha: d.sha?.substring(0, 8) || 'unknown',
-        deployer: d.user?.username || 'unknown',
-        status,
-        pipelineId: d.deployable?.pipeline?.id || 0,
-      };
-    });
+    return rawDeployments.map((d) => ({
+      environment: d.environment || 'unknown',
+      sha: d.sha?.substring(0, 8) || 'unknown',
+      deployer: d.user?.username || 'unknown',
+      // Report the status exactly as GitLab returned it; 'unknown' when
+      // absent — never defaulted to a success state.
+      status: d.status || 'unknown',
+      pipelineId: d.deployable?.pipeline?.id || 0,
+    }));
   }
 
   // -----------------------------------------------------------------------
@@ -601,12 +613,14 @@ export class GitLabCollector implements Collector {
   }
 
   /**
-   * Extract the project name from the URL.
+   * Extract the full project path from the URL. GitLab projects may be
+   * nested in subgroups (e.g. `org/subgroup/project`), so the whole
+   * path is preserved — never truncated to the first two segments.
    */
   private projectName(): string {
     try {
       const parts = new URL(this.gitlabUrl).pathname.split('/').filter(Boolean);
-      return parts.slice(0, 2).join('/') || 'unknown/project';
+      return parts.join('/').replace(/\.git$/, '') || 'unknown/project';
     } catch {
       return 'unknown/project';
     }
@@ -624,7 +638,6 @@ export class GitLabCollector implements Collector {
    * - `workflow` entities for each merge request workflow
    * - `pipeline` entities for each CI/CD pipeline
    * - `job` entities for each job within pipelines
-   * - `step` entities for each step within jobs
    * - `environment` entities for each deployment environment
    * - `deployment` entities for each deployment event
    *
@@ -679,25 +692,16 @@ export class GitLabCollector implements Collector {
         }, ['gitlab-ci', pipeline.status]),
       );
 
+      // Note: GitLab's API does not expose steps within a job, so no
+      // step entities are produced — they would be fabrications.
       for (const job of pipeline.jobs) {
         entities.push(
           this.makeEntity('job', `pipeline-${pipeline.id}.${job.name}`, {
             stage: job.stage,
-            step_count: job.steps.length,
             pipeline_id: pipeline.id,
             platform: 'gitlab-ci',
           }, ['gitlab-ci', job.stage]),
         );
-
-        for (const stepName of job.steps) {
-          entities.push(
-            this.makeEntity('step', `pipeline-${pipeline.id}.${job.name}.${stepName}`, {
-              job_name: job.name,
-              pipeline_id: pipeline.id,
-              platform: 'gitlab-ci',
-            }, ['gitlab-ci']),
-          );
-        }
       }
     }
 
@@ -739,9 +743,8 @@ export class GitLabCollector implements Collector {
    * Creates:
    * - `triggers` — user triggers pipeline
    * - `reviews` — user reviews merge request
-   * - `owns` — team owns project (workflow)
    * - `deploys_to` — deployment deploys to environment
-   * - `depends_on` — job depends on previous job in pipeline
+   * - `depends_on` — job depends on jobs in the preceding declared stage
    * - `contains` — pipeline contains jobs
    *
    * @param entities - All entities built from this collection.
@@ -757,7 +760,6 @@ export class GitLabCollector implements Collector {
     const relationships: Relationship[] = [];
 
     const users = entities.filter((e) => e.type === 'user');
-    const teams = entities.filter((e) => e.type === 'team');
     const pipelineEntities = entities.filter((e) => e.type === 'pipeline');
     const jobs = entities.filter((e) => e.type === 'job');
     const workflows = entities.filter((e) => e.type === 'workflow');
@@ -792,13 +794,6 @@ export class GitLabCollector implements Collector {
       }
     }
 
-    // Team → Workflow (owns)
-    if (teams.length > 0 && workflows.length > 0) {
-      for (let i = 0; i < workflows.length && i < teams.length; i++) {
-        relationships.push(this.makeRel('owns', teams[i]!.id, workflows[i]!.id));
-      }
-    }
-
     // Deployment → Environment (deploys_to)
     for (const deploy of deployments) {
       const envName = deploy.properties['environment'] as string;
@@ -828,15 +823,44 @@ export class GitLabCollector implements Collector {
       }
     }
 
-    // Job → Job (depends_on) — sequential jobs within same pipeline
+    // Job → Job (depends_on) — only across declared stages: each job
+    // depends on the jobs of the immediately preceding stage (GitLab's
+    // stage semantics). Jobs within the same stage run in parallel, so
+    // no dependency is created between them. Single-stage pipelines get
+    // no depends_on edges at all.
     for (const pipeline of pipelines) {
-      const pipelineJobs = jobs.filter(
-        (j) => j.properties['pipeline_id'] === pipeline.id,
-      );
-      for (let i = 1; i < pipelineJobs.length; i++) {
-        relationships.push(
-          this.makeRel('depends_on', pipelineJobs[i]!.id, pipelineJobs[i - 1]!.id),
+      // Stage order = first appearance in the id-sorted job list.
+      const stageOrder: string[] = [];
+      for (const job of pipeline.jobs) {
+        if (!stageOrder.includes(job.stage)) stageOrder.push(job.stage);
+      }
+      if (stageOrder.length < 2) continue;
+
+      const jobEntityFor = (name: string): Entity | undefined =>
+        jobs.find(
+          (j) =>
+            j.properties['pipeline_id'] === pipeline.id &&
+            j.name === `pipeline-${pipeline.id}.${name}`,
         );
+
+      for (let s = 1; s < stageOrder.length; s++) {
+        const currentStageJobs = pipeline.jobs.filter((j) => j.stage === stageOrder[s]);
+        const previousStageJobs = pipeline.jobs.filter((j) => j.stage === stageOrder[s - 1]);
+        for (const current of currentStageJobs) {
+          const currentEntity = jobEntityFor(current.name);
+          if (!currentEntity) continue;
+          for (const previous of previousStageJobs) {
+            const previousEntity = jobEntityFor(previous.name);
+            if (!previousEntity) continue;
+            relationships.push(
+              this.makeRel('depends_on', currentEntity.id, previousEntity.id, {
+                derived_from: 'stage_order',
+                source_stage: current.stage,
+                target_stage: previous.stage,
+              }),
+            );
+          }
+        }
       }
     }
 

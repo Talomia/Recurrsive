@@ -228,9 +228,11 @@ export class LangfuseCollector implements Collector {
       (this.config.custom['langfuse_secret_key'] as string | undefined) ||
       process.env['LANGFUSE_SECRET_KEY'];
 
-    // If no credentials, return empty results
+    // If no credentials, return empty results — and say why.
     if (!publicKey || !secretKey) {
-      logger.warn('No Langfuse credentials configured, skipping collection');
+      const msg = 'No Langfuse credentials configured (langfuse_public_key / langfuse_secret_key or LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY); no data collected.';
+      logger.warn(msg);
+      errors.push({ message: msg });
 
       const durationMs = Date.now() - startTime;
       return {
@@ -241,7 +243,7 @@ export class LangfuseCollector implements Collector {
           collected_at: nowISO(),
           duration_ms: durationMs,
           items_processed: 0,
-          errors: [],
+          errors,
         },
       };
     }
@@ -255,64 +257,79 @@ export class LangfuseCollector implements Collector {
     // Build auth header
     const authHeader = `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString('base64')}`;
 
-    let traces: LangfuseTrace[] = [];
+    const traces: LangfuseTrace[] = [];
     let prompts: LangfusePrompt[] = [];
 
-    // Fetch traces and prompts from the API
-    try {
+    const fetchWithTimeout = async (url: string): Promise<Response> => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
-
       try {
-        const [tracesRes, promptsRes] = await Promise.all([
-          fetch(`${baseUrl}/api/public/traces?limit=50`, {
-            headers: { Authorization: authHeader },
-            signal: controller.signal,
-          }),
-          fetch(`${baseUrl}/api/public/prompts`, {
-            headers: { Authorization: authHeader },
-            signal: controller.signal,
-          }),
-        ]);
-
-        if (tracesRes.ok) {
-          const tracesBody = (await tracesRes.json()) as LangfuseTracesResponse;
-          traces = tracesBody.data ?? [];
-        } else {
-          const msg = `Traces API returned ${tracesRes.status}: ${tracesRes.statusText}`;
-          logger.warn(msg);
-          errors.push({ message: msg });
-        }
-
-        if (promptsRes.ok) {
-          const promptsBody = (await promptsRes.json()) as LangfusePromptsResponse;
-          prompts = promptsBody.data ?? [];
-        } else {
-          const msg = `Prompts API returned ${promptsRes.status}: ${promptsRes.statusText}`;
-          logger.warn(msg);
-          errors.push({ message: msg });
-        }
+        return await fetch(url, {
+          headers: { Authorization: authHeader },
+          signal: controller.signal,
+        });
       } finally {
         clearTimeout(timeout);
       }
+    };
+
+    // --- Fetch traces with bounded pagination ---
+    // Langfuse paginates the traces list; we walk up to MAX_TRACE_PAGES
+    // pages and record an explicit truncation note when more data exists.
+    const TRACE_PAGE_LIMIT = 50;
+    const MAX_TRACE_PAGES = 5;
+    let totalTraceItems: number | undefined;
+
+    try {
+      for (let page = 1; page <= MAX_TRACE_PAGES; page++) {
+        const tracesRes = await fetchWithTimeout(
+          `${baseUrl}/api/public/traces?limit=${TRACE_PAGE_LIMIT}&page=${page}`,
+        );
+
+        if (!tracesRes.ok) {
+          const msg = `Traces API returned ${tracesRes.status}: ${tracesRes.statusText}`;
+          logger.warn(msg);
+          errors.push({ message: msg });
+          break;
+        }
+
+        const tracesBody = (await tracesRes.json()) as LangfuseTracesResponse;
+        const pageData = tracesBody.data ?? [];
+        traces.push(...pageData);
+        totalTraceItems = tracesBody.meta?.totalItems ?? totalTraceItems;
+
+        // Stop when the API has no more data.
+        if (pageData.length < TRACE_PAGE_LIMIT) break;
+        if (totalTraceItems != null && traces.length >= totalTraceItems) break;
+      }
+
+      if (totalTraceItems != null && traces.length < totalTraceItems) {
+        const msg = `Langfuse traces truncated: collected ${traces.length} of ${totalTraceItems} traces (pagination bounded at ${MAX_TRACE_PAGES} pages of ${TRACE_PAGE_LIMIT}).`;
+        logger.warn(msg);
+        errors.push({ message: msg });
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.warn('Failed to fetch from Langfuse API', { error: message });
-      errors.push({ message: `Langfuse API fetch failed: ${message}` });
+      logger.warn('Failed to fetch traces from Langfuse API', { error: message });
+      errors.push({ message: `Langfuse traces fetch failed: ${message}` });
+    }
 
-      // Return empty results on fetch failure
-      const durationMs = Date.now() - startTime;
-      return {
-        entities: [],
-        relationships: [],
-        metadata: {
-          collector_id: this.id,
-          collected_at: nowISO(),
-          duration_ms: durationMs,
-          items_processed: 0,
-          errors,
-        },
-      };
+    // --- Fetch prompts ---
+    try {
+      const promptsRes = await fetchWithTimeout(`${baseUrl}/api/public/prompts`);
+
+      if (promptsRes.ok) {
+        const promptsBody = (await promptsRes.json()) as LangfusePromptsResponse;
+        prompts = promptsBody.data ?? [];
+      } else {
+        const msg = `Prompts API returned ${promptsRes.status}: ${promptsRes.statusText}`;
+        logger.warn(msg);
+        errors.push({ message: msg });
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('Failed to fetch prompts from Langfuse API', { error: message });
+      errors.push({ message: `Langfuse prompts fetch failed: ${message}` });
     }
 
     // Build entities from API data
@@ -469,7 +486,8 @@ export class LangfuseCollector implements Collector {
         this.makeEntity('performance_metric', `${modelName}-avg-latency`, {
           metric_type: 'latency',
           value: Math.round(avgLatency * 100) / 100,
-          unit: 'ms',
+          // Langfuse reports observation latency in seconds, not ms.
+          unit: 's',
           model: modelName,
           environment: this.environment,
         }, ['observability', 'latency']),
@@ -546,12 +564,9 @@ export class LangfuseCollector implements Collector {
    *
    * Only relationships that are backed by actually-collected Langfuse data
    * are emitted (evidence-only):
-   * - `uses_model` — prompt uses a specific model
    * - `monitors` — performance_metric monitors a model
-   * - `owns` — user owns a prompt
    * - `calls` — pipeline calls a model, derived from the models observed in
    *   the trace's observations
-   * - `evaluates_with` — evaluation evaluates a model
    *
    * @param entities - All entities built from this collection.
    * @param traces - Traces fetched from the Langfuse API, used to derive the
@@ -561,24 +576,15 @@ export class LangfuseCollector implements Collector {
   private buildRelationships(entities: Entity[], traces: LangfuseTrace[]): Relationship[] {
     const relationships: Relationship[] = [];
 
-    const users = entities.filter((e) => e.type === 'user');
-    const prompts = entities.filter((e) => e.type === 'prompt');
     const models = entities.filter((e) => e.type === 'model');
     const metrics = entities.filter((e) => e.type === 'performance_metric');
     const pipelines = entities.filter((e) => e.type === 'pipeline');
-    const evaluations = entities.filter((e) => e.type === 'evaluation');
 
-    // Prompt → Model (uses_model) — each prompt uses a specific model
-    for (const prompt of prompts) {
-      const modelName = prompt.properties['model'] as string;
-      const modelEntity = models.find((m) => m.name === modelName);
-      if (modelEntity) {
-        relationships.push(this.makeRel('uses_model', prompt.id, modelEntity.id, {
-          prompt_name: prompt.name,
-          model_name: modelName,
-        }));
-      }
-    }
+    // Note: earlier versions carried prompt→model (uses_model),
+    // user→prompt (owns), and evaluation→model (evaluates_with) blocks
+    // keyed on properties this collector never sets ('model' on prompts,
+    // 'author', evaluation entities). They could never fire and were
+    // removed as dead code.
 
     // Performance Metric → Model (monitors) — metrics monitor model performance
     for (const metric of metrics) {
@@ -587,17 +593,6 @@ export class LangfuseCollector implements Collector {
       if (modelEntity) {
         relationships.push(this.makeRel('monitors', metric.id, modelEntity.id, {
           metric_type: metric.properties['metric_type'],
-        }));
-      }
-    }
-
-    // User → Prompt (owns) — prompt authors own their prompts
-    for (const prompt of prompts) {
-      const authorName = prompt.properties['author'] as string;
-      const authorEntity = users.find((u) => u.name === authorName);
-      if (authorEntity) {
-        relationships.push(this.makeRel('owns', authorEntity.id, prompt.id, {
-          role: 'prompt_author',
         }));
       }
     }
@@ -625,18 +620,6 @@ export class LangfuseCollector implements Collector {
             model_name: modelName,
           }));
         }
-      }
-    }
-
-    // Evaluation → Model (evaluates_with) — evaluations score model output
-    for (const evalEntity of evaluations) {
-      const modelName = evalEntity.properties['model'] as string;
-      const modelEntity = models.find((m) => m.name === modelName);
-      if (modelEntity) {
-        relationships.push(this.makeRel('evaluates_with', evalEntity.id, modelEntity.id, {
-          scoring_method: evalEntity.properties['scoring_method'],
-          avg_score: evalEntity.properties['avg_score'],
-        }));
       }
     }
 

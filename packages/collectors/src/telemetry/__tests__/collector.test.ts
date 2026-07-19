@@ -13,6 +13,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { OpenTelemetryCollector } from '../../telemetry/collector.js';
 import type { CollectorConfig } from '@recurrsive/core';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -120,7 +123,54 @@ describe('Collection — no OTEL data files', () => {
     expect(result.metadata.items_processed).toBe(0);
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
-    expect(result.metadata.errors).toEqual([]);
+    // The empty result is explained, not silently swallowed.
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
+    expect(result.metadata.errors[0]!.message).toContain('No OTEL data collected');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Collection — With OTEL Data Files
+// ---------------------------------------------------------------------------
+
+describe('Collection — with OTEL data files', () => {
+  it('emits only entities present in the data, never synthesized ones', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'otel-test-'));
+    const tracesPath = join(dir, 'traces.json');
+    const metricsPath = join(dir, 'metrics.json');
+    try {
+      writeFileSync(tracesPath, JSON.stringify([
+        { traceId: 't1', spanId: 's1', operationName: 'GET /users', serviceName: 'api', durationMs: 12, status: 'ok' },
+        { traceId: 't1', spanId: 's2', operationName: 'SELECT users', serviceName: 'db', durationMs: 4, status: 'ok' },
+      ]));
+      writeFileSync(metricsPath, JSON.stringify([
+        { name: 'cpu_usage', unit: '%', value: 95, resource: 'host-1', metricType: 'gauge' },
+        { name: 'error_rate', unit: 'ratio', value: 0.9, resource: 'api', metricType: 'gauge' },
+      ]));
+
+      await collector.initialize({
+        ...defaultConfig,
+        custom: { otel_traces_path: tracesPath, otel_metrics_path: metricsPath },
+      });
+      const result = await collector.collect();
+
+      const types = new Set(result.entities.map((e) => e.type));
+      expect(types.has('performance_metric')).toBe(true);
+      expect(types.has('infrastructure_resource')).toBe(true);
+      // Nothing invented — even for "concerning" metric values.
+      expect(types.has('deployment')).toBe(false);
+      expect(types.has('environment')).toBe(false);
+      expect(types.has('alert')).toBe(false);
+
+      // 2 metrics + 2 metric resources (host-1, api) + 1 span-only service (db)
+      expect(result.entities.length).toBe(5);
+      expect(result.metadata.errors).toEqual([]);
+
+      const relTypes = new Set(result.relationships.map((r) => r.type));
+      expect(relTypes).toEqual(new Set(['monitors']));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -204,6 +254,7 @@ describe('Metadata', () => {
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.items_processed).toBe(0);
-    expect(result.metadata.errors).toEqual([]);
+    // No data files in the test environment: the absence is reported.
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
   });
 });

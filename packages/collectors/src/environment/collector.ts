@@ -205,6 +205,18 @@ function parseK8sManifest(content: string, filePath: string): K8sResource | null
   let inLabels = false;
   let inSpec = false;
   let currentContainer: { name: string; image: string; ports: number[] } | null = null;
+  // Container list tracking: containers live under spec.containers (Pod)
+  // or spec.template.spec.containers (Deployment/StatefulSet/DaemonSet).
+  let inContainers = false;
+  let containersIndent = -1;
+  let containerItemIndent = -1;
+
+  const flushContainer = (): void => {
+    if (currentContainer) {
+      containers.push(currentContainer);
+      currentContainer = null;
+    }
+  };
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -212,16 +224,53 @@ function parseK8sManifest(content: string, filePath: string): K8sResource | null
 
     const lineIndent = line.length - line.trimStart().length;
 
+    // Track the containers block (any nesting depth under spec)
+    if (inContainers) {
+      if (lineIndent <= containersIndent) {
+        // Block ended — fall through to the regular key handling below.
+        flushContainer();
+        inContainers = false;
+        containerItemIndent = -1;
+      } else if (trimmed.startsWith('- ') || trimmed === '-') {
+        const rest = trimmed.replace(/^-\s*/, '');
+        if (rest.startsWith('containerPort:')) {
+          // Port list item inside the current container.
+          const port = parseInt(rest.split(':')[1]!.trim(), 10);
+          if (currentContainer && !isNaN(port)) currentContainer.ports.push(port);
+        } else if (containerItemIndent === -1 || lineIndent === containerItemIndent) {
+          // New container list item.
+          containerItemIndent = lineIndent;
+          flushContainer();
+          currentContainer = { name: '', image: '', ports: [] };
+          if (rest.startsWith('name:')) currentContainer.name = rest.split(':').slice(1).join(':').trim();
+          else if (rest.startsWith('image:')) currentContainer.image = rest.split(':').slice(1).join(':').trim();
+        }
+        continue;
+      } else if (currentContainer) {
+        if (trimmed.startsWith('name:') && !currentContainer.name) {
+          currentContainer.name = trimmed.split(':').slice(1).join(':').trim();
+        } else if (trimmed.startsWith('image:')) {
+          currentContainer.image = trimmed.split(':').slice(1).join(':').trim();
+        }
+        continue;
+      } else {
+        continue;
+      }
+    }
+
+    if (inSpec && /^containers:\s*$/.test(trimmed)) {
+      inContainers = true;
+      containersIndent = lineIndent;
+      containerItemIndent = -1;
+      continue;
+    }
+
     // Top level
     if (lineIndent === 0) {
       inMetadata = false;
       inLabels = false;
       inSpec = false;
-
-      if (currentContainer) {
-        containers.push(currentContainer);
-        currentContainer = null;
-      }
+      flushContainer();
 
       if (trimmed.startsWith('kind:')) kind = trimmed.split(':')[1]!.trim();
       if (trimmed === 'metadata:') inMetadata = true;
@@ -245,6 +294,8 @@ function parseK8sManifest(content: string, filePath: string): K8sResource | null
       }
     }
   }
+
+  flushContainer();
 
   if (!kind || !name) return null;
 
@@ -403,23 +454,27 @@ export class EnvironmentCollector implements Collector {
         }
       }
 
-      // Second pass: resolve depends_on for services defined later
+      // Second pass: resolve depends_on for services defined later.
+      // Deduplicate against the specific (source, target) pair — a
+      // service depending on several others must get an edge for each.
       for (const svc of services) {
         const svcEntity = entities.find(
           (e) => e.qualified_name === qualifiedName(`compose.${svc.name}`) && e.type === 'infrastructure_resource',
         );
         if (!svcEntity) continue;
         for (const dep of svc.depends_on) {
-          const existing = relationships.find(
-            (r) => r.source_id === svcEntity.id && r.type === 'depends_on',
-          );
-          if (existing) continue;
           const depEntity = entities.find(
             (e) => e.qualified_name === qualifiedName(`compose.${dep}`) && e.type === 'infrastructure_resource',
           );
-          if (depEntity) {
-            relationships.push(this.makeRel('depends_on', svcEntity.id, depEntity.id));
-          }
+          if (!depEntity) continue;
+          const existing = relationships.find(
+            (r) =>
+              r.type === 'depends_on' &&
+              r.source_id === svcEntity.id &&
+              r.target_id === depEntity.id,
+          );
+          if (existing) continue;
+          relationships.push(this.makeRel('depends_on', svcEntity.id, depEntity.id));
         }
       }
     }

@@ -135,9 +135,15 @@ volumes:
     const containsRels = result.relationships.filter((r) => r.type === 'contains');
     expect(containsRels.length).toBe(3);
 
-    // Should have depends_on relationships
+    // web depends on BOTH db and redis — one edge per declared target
     const dependsRels = result.relationships.filter((r) => r.type === 'depends_on');
-    expect(dependsRels.length).toBeGreaterThanOrEqual(1);
+    expect(dependsRels.length).toBe(2);
+    for (const rel of dependsRels) {
+      expect(rel.source_id).toBe(webService!.id);
+    }
+    const redisService = services.find((e) => e.name.includes('redis'));
+    const targets = dependsRels.map((r) => r.target_id).sort();
+    expect(targets).toEqual([dbService!.id, redisService!.id].sort());
 
     await collector.dispose();
   });
@@ -179,6 +185,43 @@ spec:
     expect(deployment!.properties['namespace']).toBe('production');
     expect(deployment!.properties['replicas']).toBe(3);
     expect((deployment!.properties['labels'] as Record<string, string>)['app']).toBe('api-server');
+
+    await collector.dispose();
+  });
+
+  it('counts containers declared under spec.template.spec.containers', async () => {
+    const k8sDir = path.join(tmpDir, 'k8s');
+    await fs.mkdir(k8sDir, { recursive: true });
+
+    await fs.writeFile(
+      path.join(k8sDir, 'deployment.yml'),
+      `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: production
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.25
+          ports:
+            - containerPort: 80
+        - name: sidecar
+          image: envoyproxy/envoy:v1.30
+`,
+    );
+
+    const collector = new EnvironmentCollector(tmpDir);
+    await collector.initialize({ governance: { masked_fields: [], excluded_patterns: [], pii_detection: false, audit_log: false, retention_days: 90 }, custom: {} });
+
+    const result = await collector.collect();
+
+    const deployment = result.entities.find((e) => e.properties['source'] === 'kubernetes');
+    expect(deployment).toBeDefined();
+    expect(deployment!.properties['container_count']).toBe(2);
 
     await collector.dispose();
   });

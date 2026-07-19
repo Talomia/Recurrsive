@@ -117,7 +117,9 @@ describe('Collection — entity production', () => {
 
     expect(result.metadata.collector_id).toBe('langfuse');
     expect(result.metadata.items_processed).toBe(0);
-    expect(result.metadata.errors).toEqual([]);
+    // The missing credentials are reported, not silently swallowed.
+    expect(result.metadata.errors.length).toBe(1);
+    expect(result.metadata.errors[0]!.message).toContain('No Langfuse credentials');
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
   });
@@ -206,6 +208,7 @@ describe('Metadata', () => {
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.items_processed).toBe(0);
-    expect(result.metadata.errors).toEqual([]);
+    // No credentials in the test environment: the absence is reported.
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
   });
 });

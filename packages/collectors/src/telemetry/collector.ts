@@ -9,11 +9,9 @@
  * If no files are found, returns empty results.
  *
  * Produces entities:
- * - `performance_metric` — latency, throughput, error-rate metrics
- * - `infrastructure_resource` — hosts, containers, pods
- * - `deployment` — service deployment records
- * - `environment` — staging / production environments
- * - `alert` — firing or resolved alert rules
+ * - `performance_metric` — metric data points from the metrics file
+ * - `infrastructure_resource` — resources named in metrics and services
+ *   named in spans
  *
  * @packageDocumentation
  */
@@ -203,21 +201,32 @@ export class OpenTelemetryCollector implements Collector {
 
     try {
       const tracesRaw = await readFile(tracesPath, 'utf-8');
-      spans = JSON.parse(tracesRaw) as OtelSpan[];
+      try {
+        spans = JSON.parse(tracesRaw) as OtelSpan[];
+      } catch (err) {
+        errors.push({ message: `Failed to parse OTEL traces file ${tracesPath}: ${err instanceof Error ? err.message : String(err)}` });
+      }
     } catch {
-      // File not found or invalid JSON — continue
+      // Traces file not found — recorded below if metrics are also absent
     }
 
     try {
       const metricsRaw = await readFile(metricsPath, 'utf-8');
-      metrics = JSON.parse(metricsRaw) as OtelMetric[];
+      try {
+        metrics = JSON.parse(metricsRaw) as OtelMetric[];
+      } catch (err) {
+        errors.push({ message: `Failed to parse OTEL metrics file ${metricsPath}: ${err instanceof Error ? err.message : String(err)}` });
+      }
     } catch {
-      // File not found or invalid JSON — continue
+      // Metrics file not found — recorded below if spans are also absent
     }
 
-    // If neither file exists, return empty results
+    // If neither file yielded data, return empty results — and say why.
     if (!spans && !metrics) {
       const durationMs = Date.now() - startTime;
+      errors.push({
+        message: `No OTEL data collected: neither ${tracesPath} nor ${metricsPath} could be read`,
+      });
       logger.warn('No OTEL data files found, skipping collection', {
         tracesPath,
         metricsPath,
@@ -230,7 +239,7 @@ export class OpenTelemetryCollector implements Collector {
           collected_at: nowISO(),
           duration_ms: durationMs,
           items_processed: 0,
-          errors: [],
+          errors,
         },
       };
     }
@@ -334,9 +343,9 @@ export class OpenTelemetryCollector implements Collector {
    * - `performance_metric` entities for each metric data point
    * - `infrastructure_resource` entities for unique resources from
    *   metrics and unique services from spans
-   * - `deployment` entities from unique service names in spans
-   * - `environment` entities (production, staging)
-   * - `alert` entities for metrics that may indicate issues
+   *
+   * Only data actually present in the OTEL files is emitted — no
+   * deployments, environments, or alerts are synthesized.
    *
    * @param spans - Parsed span data from .otel-traces.json.
    * @param metrics - Parsed metric data from .otel-metrics.json.
@@ -359,16 +368,15 @@ export class OpenTelemetryCollector implements Collector {
     }
 
     // --- Infrastructure resource entities from metrics ---
+    // The OTEL files only carry a resource name, so no kind, region, or
+    // capacity figures are asserted — they would be fabrications.
     const resourceNames = new Set(metrics.map((m) => m.resource));
     for (const resourceName of resourceNames) {
       entities.push(
         this.makeEntity('infrastructure_resource', resourceName, {
-          kind: 'host',
-          region: 'unknown',
-          cpu_cores: 0,
-          memory_mb: 0,
+          source_field: 'metric.resource',
           otlp_endpoint: this.otlpEndpoint,
-        }, ['host', 'unknown']),
+        }, ['metric-resource']),
       );
     }
 
@@ -379,56 +387,17 @@ export class OpenTelemetryCollector implements Collector {
         entities.push(
           this.makeEntity('infrastructure_resource', svcName, {
             kind: 'service',
-            region: 'unknown',
-            cpu_cores: 0,
-            memory_mb: 0,
+            source_field: 'span.serviceName',
             otlp_endpoint: this.otlpEndpoint,
-          }, ['service', 'unknown']),
+          }, ['service']),
         );
       }
     }
 
-    // --- Environment entities ---
-    const environments = ['production', 'staging'];
-    for (const env of environments) {
-      entities.push(
-        this.makeEntity('environment', env, {
-          environment_name: env,
-          otlp_endpoint: this.otlpEndpoint,
-        }, [env]),
-      );
-    }
-
-    // --- Deployment entities from unique services in spans ---
-    for (const svcName of serviceNames) {
-      entities.push(
-        this.makeEntity('deployment', `${svcName}-production`, {
-          service: svcName,
-          environment: 'production',
-          version: 'unknown',
-          status: 'active',
-          otlp_endpoint: this.otlpEndpoint,
-        }, ['production', svcName]),
-      );
-    }
-
-    // --- Alert entities from metrics with concerning values ---
-    for (const metric of metrics) {
-      if (
-        (metric.name.includes('error') && metric.value > 0.5) ||
-        (metric.name.includes('cpu') && metric.value > 80)
-      ) {
-        entities.push(
-          this.makeEntity('alert', `High${metric.name}`, {
-            severity: metric.value > 90 ? 'critical' : 'warning',
-            condition: `${metric.name} > threshold`,
-            target_metric: metric.name,
-            status: 'firing',
-            otlp_endpoint: this.otlpEndpoint,
-          }, [metric.value > 90 ? 'critical' : 'warning', 'firing']),
-        );
-      }
-    }
+    // Note: no deployment, environment, or alert entities are created —
+    // the OTEL data files carry no such records, and inventing them
+    // (e.g. "<service>-production" deployments or "firing" alerts)
+    // would misrepresent the source.
 
     return entities;
   }
@@ -442,10 +411,6 @@ export class OpenTelemetryCollector implements Collector {
    *
    * Creates:
    * - `monitors` — infrastructure_resource → performance_metric
-   * - `alerts_on` — alert → performance_metric
-   * - `depends_on` — deployment → infrastructure_resource
-   * - `routes_to` — environment → deployment
-   * - `deploys_to` — deployment → environment
    *
    * @param entities - All entities built from this collection.
    * @returns Array of relationships.
@@ -455,9 +420,6 @@ export class OpenTelemetryCollector implements Collector {
 
     const metrics = entities.filter((e) => e.type === 'performance_metric');
     const resources = entities.filter((e) => e.type === 'infrastructure_resource');
-    const deployments = entities.filter((e) => e.type === 'deployment');
-    const environments = entities.filter((e) => e.type === 'environment');
-    const alerts = entities.filter((e) => e.type === 'alert');
 
     // Infrastructure resource → Performance metric (monitors)
     for (const resource of resources) {
@@ -467,53 +429,6 @@ export class OpenTelemetryCollector implements Collector {
       for (const metric of resourceMetrics) {
         relationships.push(this.makeRel('monitors', resource.id, metric.id, {
           resource_name: resource.name,
-        }));
-      }
-    }
-
-    // Alert → Performance metric (alerts_on)
-    for (const alert of alerts) {
-      const targetMetric = metrics.find(
-        (m) => m.name === alert.properties['target_metric'],
-      );
-      if (targetMetric) {
-        relationships.push(this.makeRel('alerts_on', alert.id, targetMetric.id, {
-          condition: alert.properties['condition'],
-        }));
-      }
-    }
-
-    // Deployment → Infrastructure resource (depends_on)
-    for (const deploy of deployments) {
-      // Each deployment depends on the first matching infrastructure resource
-      const matchingResource = resources.find(
-        (r) => r.properties['kind'] === 'pod' || r.properties['kind'] === 'container' || r.properties['kind'] === 'service',
-      );
-      if (matchingResource) {
-        relationships.push(this.makeRel('depends_on', deploy.id, matchingResource.id, {
-          service: deploy.properties['service'],
-        }));
-      }
-    }
-
-    // Environment → Deployment (routes_to)
-    for (const env of environments) {
-      const envDeployments = deployments.filter(
-        (d) => d.properties['environment'] === env.name,
-      );
-      for (const deploy of envDeployments) {
-        relationships.push(this.makeRel('routes_to', env.id, deploy.id));
-      }
-    }
-
-    // Deployment → Environment (deploys_to)
-    for (const deploy of deployments) {
-      const targetEnv = environments.find(
-        (e) => e.name === deploy.properties['environment'],
-      );
-      if (targetEnv) {
-        relationships.push(this.makeRel('deploys_to', deploy.id, targetEnv.id, {
-          version: deploy.properties['version'],
         }));
       }
     }

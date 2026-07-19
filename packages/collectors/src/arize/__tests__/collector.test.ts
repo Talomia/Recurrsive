@@ -118,10 +118,23 @@ describe('Collection — empty results without credentials', () => {
     expect(result.metadata.items_processed).toBe(0);
   });
 
-  it('returns empty errors array when no credentials are configured', async () => {
+  it('records a descriptive error when no credentials are configured', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
-    expect(result.metadata.errors).toEqual([]);
+    expect(result.metadata.errors.length).toBe(1);
+    expect(result.metadata.errors[0]!.message).toContain('No Arize credentials configured');
+  });
+
+  it('records an integration-not-implemented error when credentials are present', async () => {
+    await collector.initialize({
+      ...defaultConfig,
+      custom: { arize_api_key: 'key', arize_space_key: 'space' },
+    });
+    const result = await collector.collect();
+    expect(result.entities).toEqual([]);
+    expect(result.relationships).toEqual([]);
+    expect(result.metadata.errors.length).toBe(1);
+    expect(result.metadata.errors[0]!.message).toContain('not implemented');
   });
 
   it('returns valid metadata even without credentials', async () => {
@@ -213,6 +226,7 @@ describe('Metadata', () => {
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.items_processed).toBe(0);
-    expect(result.metadata.errors).toEqual([]);
+    // The reason for the empty result is always recorded.
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
   });
 });

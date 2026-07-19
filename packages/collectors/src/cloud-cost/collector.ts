@@ -13,12 +13,9 @@
  * If no credentials or CSV path are configured, returns empty results.
  *
  * Produces entities:
- * - `cost_metric` — monthly/daily/weekly cost aggregations
- * - `alert` — budget limits and spend alerts
+ * - `cost_metric` — per-service cost aggregations from the CSV
  * - `infrastructure_resource` — cloud resources with costs
- * - `pipeline` — cloud service pipelines (compute, storage, etc.)
- * - `environment` — production, staging, dev environments with cost allocation
- * - `user` — budget owners and cost centre managers
+ * - `pipeline` — cloud service categories present in the CSV
  *
  * @packageDocumentation
  */
@@ -58,6 +55,12 @@ interface CostCsvRow {
   monthly_cost: number;
   region: string;
   status: string;
+  /** Billing period start, only when the CSV provides it. */
+  period_start?: string;
+  /** Billing period end, only when the CSV provides it. */
+  period_end?: string;
+  /** Currency code, only when the CSV provides it. */
+  currency?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,10 +238,11 @@ export class CloudCostCollector implements Collector {
     // --- AWS credentials present but no CSV ---
     if (awsAccessKey) {
       const durationMs = Date.now() - startTime;
-      logger.warn(
-        'AWS Cost Explorer direct API integration not yet implemented. ' +
-        'Export costs to CSV and set CLOUD_COST_CSV_PATH.',
-      );
+      const msg =
+        'AWS Cost Explorer direct API integration not implemented. ' +
+        'Export costs to CSV and set CLOUD_COST_CSV_PATH.';
+      logger.warn(msg);
+      errors.push({ message: msg });
       return {
         entities: [],
         relationships: [],
@@ -247,14 +251,18 @@ export class CloudCostCollector implements Collector {
           collected_at: nowISO(),
           duration_ms: durationMs,
           items_processed: 0,
-          errors: [],
+          errors,
         },
       };
     }
 
     // --- No credentials or CSV path ---
     const durationMs = Date.now() - startTime;
-    logger.warn('No cloud cost credentials configured, skipping collection');
+    const msg =
+      'No cloud cost data source configured: set cloud_cost_csv_path / ' +
+      'CLOUD_COST_CSV_PATH (or AWS credentials) to enable collection.';
+    logger.warn(msg);
+    errors.push({ message: msg });
     return {
       entities: [],
       relationships: [],
@@ -263,7 +271,7 @@ export class CloudCostCollector implements Collector {
         collected_at: nowISO(),
         duration_ms: durationMs,
         items_processed: 0,
-        errors: [],
+        errors,
       },
     };
   }
@@ -282,24 +290,87 @@ export class CloudCostCollector implements Collector {
 
   /**
    * Parse CSV content into structured rows.
-   * Expected format: service,resource,monthly_cost,region,status
-   * First line is treated as header.
+   *
+   * The header row is used to locate columns by name. Core columns:
+   * `service,resource,monthly_cost,region,status` (positional fallback
+   * when the header lacks a name). Optional columns `period_start`,
+   * `period_end`, and `currency` are picked up only when the header
+   * declares them. Quoted fields (RFC 4180 style, including embedded
+   * commas and doubled quotes) are handled.
    */
   private parseCsv(content: string): CostCsvRow[] {
-    const lines = content.trim().split('\n');
+    const lines = content.trim().split(/\r?\n/);
     if (lines.length <= 1) return [];
 
-    // Skip header line
+    const header = this.splitCsvLine(lines[0]!).map((h) => h.trim().toLowerCase());
+    const indexOf = (name: string, fallback: number): number => {
+      const i = header.indexOf(name);
+      return i >= 0 ? i : fallback;
+    };
+    const serviceIdx = indexOf('service', 0);
+    const resourceIdx = indexOf('resource', 1);
+    const costIdx = indexOf('monthly_cost', 2);
+    const regionIdx = indexOf('region', 3);
+    const statusIdx = indexOf('status', 4);
+    // Optional columns — no positional fallback: absent means absent.
+    const periodStartIdx = header.indexOf('period_start');
+    const periodEndIdx = header.indexOf('period_end');
+    const currencyIdx = header.indexOf('currency');
+
     return lines.slice(1).map((line) => {
-      const parts = line.split(',').map((p) => p.trim());
-      return {
-        service: parts[0] ?? '',
-        resource: parts[1] ?? '',
-        monthly_cost: parseFloat(parts[2] ?? '0') || 0,
-        region: parts[3] ?? 'unknown',
-        status: parts[4] ?? 'running',
+      const parts = this.splitCsvLine(line).map((p) => p.trim());
+      const optional = (idx: number): string | undefined =>
+        idx >= 0 && parts[idx] ? parts[idx] : undefined;
+      const row: CostCsvRow = {
+        service: parts[serviceIdx] ?? '',
+        resource: parts[resourceIdx] ?? '',
+        monthly_cost: parseFloat(parts[costIdx] ?? '0') || 0,
+        region: parts[regionIdx] || 'unknown',
+        // Never assume a resource is running when the CSV doesn't say so.
+        status: parts[statusIdx] || 'unknown',
       };
+      const periodStart = optional(periodStartIdx);
+      const periodEnd = optional(periodEndIdx);
+      const currency = optional(currencyIdx);
+      if (periodStart !== undefined) row.period_start = periodStart;
+      if (periodEnd !== undefined) row.period_end = periodEnd;
+      if (currency !== undefined) row.currency = currency;
+      return row;
     }).filter((row) => row.service && row.resource);
+  }
+
+  /**
+   * Split a single CSV line into fields, honouring double-quoted
+   * fields with embedded commas and doubled ("") escape quotes.
+   */
+  private splitCsvLine(line: string): string[] {
+    const fields: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]!;
+      if (inQuotes) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          current += ch;
+        }
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        fields.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    fields.push(current);
+    return fields;
   }
 
   // -----------------------------------------------------------------------
@@ -364,7 +435,11 @@ export class CloudCostCollector implements Collector {
    * - `cost_metric` entities for aggregate costs by service
    * - `infrastructure_resource` entities for each resource row
    * - `pipeline` entities for unique service categories
-   * - `environment` entities (production, staging, dev)
+   *
+   * Only data present in the CSV is emitted — no environment entities
+   * are synthesized, and billing periods come from the CSV's own
+   * `period_start`/`period_end` columns (omitted when absent), never
+   * from the wall clock.
    *
    * @param rows - Parsed CSV rows.
    * @returns Array of entities.
@@ -378,13 +453,30 @@ export class CloudCostCollector implements Collector {
       serviceCosts.set(row.service, (serviceCosts.get(row.service) ?? 0) + row.monthly_cost);
     }
     for (const [service, totalCost] of serviceCosts) {
+      const serviceRows = rows.filter((r) => r.service === service);
+
+      // Billing period from the CSV data itself (min start / max end);
+      // omitted when the CSV carries no period columns.
+      const periodStarts = serviceRows
+        .map((r) => r.period_start)
+        .filter((p): p is string => typeof p === 'string')
+        .sort();
+      const periodEnds = serviceRows
+        .map((r) => r.period_end)
+        .filter((p): p is string => typeof p === 'string')
+        .sort();
+      const currencies = new Set(
+        serviceRows.map((r) => r.currency).filter((c): c is string => typeof c === 'string'),
+      );
+
       entities.push(
         this.makeEntity('cost_metric', `${service}-monthly-cost`, {
           granularity: 'monthly',
           total_cost: totalCost,
-          currency: 'USD',
-          period_start: new Date().toISOString().slice(0, 7) + '-01',
-          period_end: new Date().toISOString().slice(0, 10),
+          // Currency only when the CSV declares one (unambiguously).
+          ...(currencies.size === 1 ? { currency: [...currencies][0] } : {}),
+          ...(periodStarts.length > 0 ? { period_start: periodStarts[0] } : {}),
+          ...(periodEnds.length > 0 ? { period_end: periodEnds[periodEnds.length - 1] } : {}),
           provider: this.provider,
         }, ['cost-report', 'monthly']),
       );
@@ -418,22 +510,9 @@ export class CloudCostCollector implements Collector {
       );
     }
 
-    // --- Environment entities ---
-    const envs = [
-      { name: 'production', tier: 'production' as const },
-      { name: 'staging', tier: 'staging' as const },
-      { name: 'dev', tier: 'development' as const },
-    ];
-    for (const env of envs) {
-      entities.push(
-        this.makeEntity('environment', env.name, {
-          tier: env.tier,
-          monthly_cost: 0,
-          resource_count: 0,
-          provider: this.provider,
-        }, [env.tier]),
-      );
-    }
+    // Note: no environment entities are created — the cost CSV carries
+    // no environment data, and inventing production/staging/dev
+    // entities would misrepresent the source.
 
     return entities;
   }
@@ -447,7 +526,10 @@ export class CloudCostCollector implements Collector {
    *
    * Creates:
    * - `contains` — pipeline (service) contains infrastructure_resource
-   * - `deploys_to` — infrastructure_resource deployed to environment
+   *
+   * No deploys_to relationships are created: the cost CSV carries no
+   * environment data, and a resource's status says nothing about which
+   * environment it belongs to.
    *
    * @param entities - All entities built from this collection.
    * @returns Array of relationships.
@@ -457,7 +539,6 @@ export class CloudCostCollector implements Collector {
 
     const resources = entities.filter((e) => e.type === 'infrastructure_resource');
     const services = entities.filter((e) => e.type === 'pipeline');
-    const environments = entities.filter((e) => e.type === 'environment');
 
     // Pipeline (service) → Infrastructure Resource (contains)
     for (const resource of resources) {
@@ -469,23 +550,6 @@ export class CloudCostCollector implements Collector {
       if (serviceEntity) {
         relationships.push(this.makeRel('contains', serviceEntity.id, resource.id, {
           service: serviceName,
-        }));
-      }
-    }
-
-    // Infrastructure Resource → Environment (deploys_to)
-    const prodEnv = environments.find((e) => e.name === 'production');
-    const devEnv = environments.find((e) => e.name === 'dev');
-
-    for (const resource of resources) {
-      const status = resource.properties['status'] as string;
-      if (status === 'running' && prodEnv) {
-        relationships.push(this.makeRel('deploys_to', resource.id, prodEnv.id, {
-          environment: 'production',
-        }));
-      } else if (status === 'stopped' && devEnv) {
-        relationships.push(this.makeRel('deploys_to', resource.id, devEnv.id, {
-          environment: 'dev',
         }));
       }
     }
