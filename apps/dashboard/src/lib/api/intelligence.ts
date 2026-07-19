@@ -69,8 +69,10 @@ export interface SimulationScenario {
   id: string;
   name: string;
   type: 'monte-carlo' | 'stress-test' | 'what-if' | 'chaos';
-  status: 'completed' | 'running' | 'queued' | 'failed';
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  /** `not_simulated`: the server recorded the scenario but ran no dynamic simulation. */
+  status: 'completed' | 'running' | 'queued' | 'failed' | 'not_simulated';
+  /** `unknown` when the server produced no risk assessment (no analysis data). */
+  riskLevel: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
   impactScore: number;
   duration: string;
   createdAt: string;
@@ -79,10 +81,12 @@ export interface SimulationScenario {
 }
 
 export interface ConfidenceData {
-  brierScore: number;
-  brierTrend: number;
-  totalPredictions: number;
-  accuracy: number;
+  /** Null when no prediction data is available (nothing measured yet). */
+  brierScore: number | null;
+  /** Null — the server does not track a Brier trend, so none can be reported. */
+  brierTrend: number | null;
+  totalPredictions: number | null;
+  accuracy: number | null;
   calibration: { predicted: string; count: number; actualRate: number; deviation: number }[];
   analyzerAccuracy: { name: string; accuracy: number; predictions: number; brierScore: number }[];
   recentPredictions: { id: string; description: string; predicted: number; actual: boolean | null; date: string; source: string }[];
@@ -188,11 +192,20 @@ interface ServerSimulation {
   type: string;
   parameters: Record<string, unknown>;
   status: string;
+  /**
+   * A static severity-derived risk assessment (basis: 'severity_prior'), or
+   * null when the project has no analysis data. The server runs no dynamic
+   * simulation, so there is no timeline and no outcome metrics.
+   */
   results: {
+    is_estimate?: boolean;
+    basis?: string;
+    note?: string;
     impactScore: number;
     riskLevel: string;
     findings: Array<{ area: string; impact: string; probability: number; recommendation: string }>;
-    timeline: Array<{ timestamp: string; event: string; metric: string; value: number }>;
+    /** Legacy field — the server no longer emits a timeline. */
+    timeline?: Array<{ timestamp: string; event: string; metric: string; value: number }>;
   } | null;
   createdAt: string;
   completedAt: string | null;
@@ -216,13 +229,14 @@ export async function getSimulations(): Promise<SimulationScenario[]> {
     const sims = res.data ?? [];
     return sims.map((s) => {
       const results = s.results;
-      // Only surface honest, severity-derived signals. Absolute-unit
-      // predictions (latency/cost/availability) are intentionally not shown —
-      // the server no longer fabricates them.
+      // Only surface honest, severity-derived signals, labeled as estimates.
+      // Absolute-unit predictions (latency/cost/availability) are intentionally
+      // not shown — the server no longer fabricates them.
       const metrics: SimulationScenario['metrics'] = results
         ? [
-            { label: 'Impact Score', value: `${results.impactScore}/10` },
-            { label: 'Risk Level', value: results.riskLevel },
+            { label: 'Impact Score (severity-derived estimate)', value: `${results.impactScore}/10` },
+            { label: 'Risk Level (severity-derived estimate)', value: results.riskLevel },
+            { label: 'Basis', value: 'static severity prior — no dynamic simulation ran' },
           ]
         : [];
       const timeline: SimulationScenario['timeline'] = (results?.timeline ?? []).map((t) => ({
@@ -241,7 +255,9 @@ export async function getSimulations(): Promise<SimulationScenario[]> {
         name: s.name,
         type: SIM_TYPE_MAP[s.type] ?? 'what-if',
         status: (s.status === 'pending' ? 'queued' : s.status) as SimulationScenario['status'],
-        riskLevel: (results?.riskLevel ?? 'low') as SimulationScenario['riskLevel'],
+        // No results means no risk assessment exists — say 'unknown' rather
+        // than defaulting to a rosy 'low'.
+        riskLevel: (results?.riskLevel ?? 'unknown') as SimulationScenario['riskLevel'],
         impactScore: results?.impactScore ?? 0,
         duration,
         createdAt: s.createdAt,
@@ -290,7 +306,9 @@ export async function getConfidenceData(): Promise<ConfidenceData> {
 
     return {
       brierScore: overview.overallBrierScore,
-      brierTrend: 0, // Server doesn't track trend; default to neutral
+      // The server does not track a Brier trend. null means "not tracked" —
+      // a 0 here would falsely claim a measured flat trend.
+      brierTrend: null,
       totalPredictions: overview.totalPredictions,
       accuracy: overview.overallAccuracy,
 
@@ -322,8 +340,10 @@ export async function getConfidenceData(): Promise<ConfidenceData> {
       })),
     };
   } catch {
+    // Fetch failed — we know nothing, so report nothing. Zeros here would
+    // masquerade as measured statistics (a perfect Brier score of 0!).
     return {
-      brierScore: 0, brierTrend: 0, totalPredictions: 0, accuracy: 0,
+      brierScore: null, brierTrend: null, totalPredictions: null, accuracy: null,
       calibration: [], analyzerAccuracy: [], recentPredictions: [],
     };
   }

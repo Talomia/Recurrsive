@@ -28,7 +28,12 @@ interface Project {
   repository: string;
   language: string;
   framework: string;
-  healthScore: number;
+  /**
+   * Health score from the most recent analysis, or null when the project has
+   * never been analyzed. Never a placeholder 0 — that would read as a real
+   * (terrible) score.
+   */
+  healthScore: number | null;
   lastAnalysis: string | null;
   createdAt: string;
   updatedAt: string;
@@ -74,18 +79,29 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         id: p.id,
         name: p.name,
         slug: p.slug,
-        healthScore: p.healthScore,
+        healthScore: p.healthScore ?? null,
+        // Surface WHY a score is missing instead of a silent null/zero.
+        analysisStatus: typeof p.healthScore === 'number' ? 'analyzed' as const : 'not_analyzed' as const,
         language: p.language,
         framework: p.framework,
         lastAnalysis: p.lastAnalysis,
       }));
 
+      // Only analyzed projects participate in ranking math and the average —
+      // folding unanalyzed projects in as zeros would fabricate both.
+      const analyzed = comparison.filter(c => typeof c.healthScore === 'number');
+      const ranked = [
+        ...analyzed.sort((a, b) => (b.healthScore as number) - (a.healthScore as number)),
+        ...comparison.filter(c => c.healthScore === null),
+      ];
+
       return reply.status(200).send({
-        data: comparison.sort((a, b) => b.healthScore - a.healthScore),
+        data: ranked,
         total: comparison.length,
-        avgHealth: comparison.length > 0
-          ? Math.round(comparison.reduce((s, p) => s + p.healthScore, 0) / comparison.length)
-          : 0,
+        analyzedCount: analyzed.length,
+        avgHealth: analyzed.length > 0
+          ? Math.round(analyzed.reduce((s, p) => s + (p.healthScore as number), 0) / analyzed.length)
+          : null,
       });
     } catch (err) {
       return reply.status(500).send({ error: 'Internal server error', message: 'Failed to compare projects.' });
@@ -194,7 +210,8 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         repository: repository,
         language: body.language ?? 'Unknown',
         framework: body.framework ?? 'Unknown',
-        healthScore: 0,
+        // Not analyzed yet — null, not a fake score of 0.
+        healthScore: null,
         lastAnalysis: null,
         createdAt: now,
         updatedAt: now,

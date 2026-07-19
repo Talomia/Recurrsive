@@ -340,12 +340,35 @@ describe ('Projects endpoints', () => {
     }
   });
 
-  it ('Health scores are 0-100', async () => {
+  it ('Health scores are null until analyzed, 0-100 once analyzed', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/projects' });
     const body = res.json();
     for (const project of body.data) {
-      expect(project.healthScore).toBeGreaterThanOrEqual(0);
-      expect(project.healthScore).toBeLessThanOrEqual(100);
+      if (project.healthScore === null) {
+        // Never analyzed — no score exists, and none is fabricated.
+        expect(project.lastAnalysis).toBeNull();
+      } else {
+        expect(project.healthScore).toBeGreaterThanOrEqual(0);
+        expect(project.healthScore).toBeLessThanOrEqual(100);
+      }
+    }
+  });
+
+  it ('compare/health excludes unanalyzed projects from avgHealth', async () => {
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/projects/compare/health' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // Projects in this suite were created but never analyzed — the average
+    // must be null (no scores to average), never 0 folded in from placeholders.
+    expect(body).toHaveProperty('analyzedCount');
+    if (body.analyzedCount === 0) {
+      expect(body.avgHealth).toBeNull();
+    } else {
+      expect(typeof body.avgHealth).toBe('number');
+    }
+    for (const p of body.data) {
+      expect(['analyzed', 'not_analyzed']).toContain(p.analysisStatus);
+      if (p.analysisStatus === 'not_analyzed') expect(p.healthScore).toBeNull();
     }
   });
 });
@@ -795,10 +818,14 @@ describe ('Simulation endpoints', () => {
     expect(body.data).toHaveProperty('id');
     expect(body.data.name).toBe('Test Load Simulation');
     expect(body.data.type).toBe('load-test');
-    expect(body.data.status).toBe('completed');
+    // No dynamic simulation engine exists — the scenario is recorded, never
+    // "completed". Parameters are stored but not consumed.
+    expect(body.data.status).toBe('not_simulated');
+    expect(body.data.completedAt).toBeNull();
+    expect(body.data.parameters).toEqual({ concurrency: 100, duration: '1h' });
   });
 
-  it ('Simulation has results with honest severity-derived signals', async () => {
+  it ('Simulation results are honest: null without analysis data, never a fabricated assessment', async () => {
     const res = await app.inject({
       headers: authHeaders,
       method: 'POST',
@@ -810,12 +837,22 @@ describe ('Simulation endpoints', () => {
     });
     const body = res.json();
     expect(body.data).toHaveProperty('results');
-    expect(body.data.results).not.toBeNull();
-    expect(body.data.results).toHaveProperty('impactScore');
-    expect(body.data.results).toHaveProperty('riskLevel');
-    // No fabricated absolute-unit predictions — the metrics block was removed
-    // because there is no empirical basis for latency/cost/availability numbers.
-    expect(body.data.results).not.toHaveProperty('metrics');
+    if (body.data.results === null) {
+      // No analysis has run for this project — nothing to assess, and no
+      // rosy "low risk" default is emitted.
+      expect(body.data.status).toBe('not_simulated');
+    } else {
+      // With analysis data, results must be labeled severity-derived priors,
+      // not simulation outcomes, and carry no fabricated absolute-unit
+      // predictions (latency/cost/availability) or event timeline.
+      expect(body.data.results.is_estimate).toBe(true);
+      expect(body.data.results.basis).toBe('severity_prior');
+      expect(typeof body.data.results.note).toBe('string');
+      expect(body.data.results).toHaveProperty('impactScore');
+      expect(body.data.results).toHaveProperty('riskLevel');
+      expect(body.data.results).not.toHaveProperty('metrics');
+      expect(body.data.results).not.toHaveProperty('timeline');
+    }
   });
 
   it ('Pull requests endpoint works', async () => {
@@ -883,16 +920,53 @@ describe ('Cloud endpoints', () => {
     expect(body.data).toHaveProperty('sampleSize');
   });
 
-  it ('Report has percentiles', async () => {
+  it ('Report suppresses percentiles below the minimum sample size', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/cloud/benchmarks/report' });
     const body = res.json();
-    if (body.data.sampleSize > 0) {
-      expect(body.data).toHaveProperty('percentiles');
+    if (body.data.sampleSize > 0 && body.data.sampleSize < 5) {
+      // Percentiles over a handful of entries are noise, not statistics.
+      expect(body.data.percentiles).toBeNull();
+      expect(typeof body.data.percentilesNote).toBe('string');
+    } else if (body.data.sampleSize >= 5) {
       expect(body.data.percentiles).toHaveProperty('p25');
       expect(body.data.percentiles).toHaveProperty('p50');
       expect(body.data.percentiles).toHaveProperty('p75');
       expect(body.data.percentiles).toHaveProperty('p90');
     }
+  });
+
+  it ('Percentiles are linearly interpolated once the sample is large enough', async () => {
+    // Submit five entries with known overall scores → deterministic quantiles.
+    const overalls = [10, 20, 30, 40, 50];
+    for (const overall of overalls) {
+      const res = await app.inject({
+        headers: authHeaders,
+        method: 'POST',
+        url: '/api/v1/cloud/benchmarks',
+        payload: {
+          industry: 'percentile-test',
+          scores: { overall, architecture: overall, security: overall, performance: overall, reliability: overall, documentation: overall },
+        },
+      });
+      expect(res.statusCode).toBe(201);
+    }
+    const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/cloud/benchmarks/report?industry=percentile-test' });
+    const body = res.json();
+    expect(body.data.sampleSize).toBe(5);
+    // Linear (type-7) quantiles of [10,20,30,40,50]
+    expect(body.data.percentiles).toEqual({ p25: 20, p50: 30, p75: 40, p90: 46 });
+  });
+
+  it ('POST /api/v1/cloud/benchmarks rejects submissions without scores', async () => {
+    const res = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: '/api/v1/cloud/benchmarks',
+      payload: { industry: 'fintech', teamSize: 'medium' },
+    });
+    // Synthetic all-50 placeholder entries must never be stored — they would
+    // pollute every percentile computed from the benchmark pool.
+    expect(res.statusCode).toBe(400);
   });
 
   it ('GET /api/v1/cloud/patterns returns learned patterns', async () => {

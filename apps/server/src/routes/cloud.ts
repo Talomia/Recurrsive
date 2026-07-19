@@ -34,9 +34,13 @@ interface BenchmarkEntry {
   anonymizedTenantId: string;
   /** Industry vertical. */
   industry: string;
-  /** Team size bracket. */
-  teamSize: 'small' | 'medium' | 'large' | 'enterprise';
-  /** Health score dimensions. */
+  /** Team size bracket, or null when the submitter did not provide one. */
+  teamSize: 'small' | 'medium' | 'large' | 'enterprise' | null;
+  /**
+   * Health score dimensions. REQUIRED on submission — synthetic defaults
+   * (e.g. all-50 entries) would pollute every percentile computed from this
+   * collection.
+   */
   scores: {
     overall: number;
     architecture: number;
@@ -45,25 +49,31 @@ interface BenchmarkEntry {
     reliability: number;
     documentation: number;
   };
-  /** Analysis metadata. */
+  /** Analysis metadata, or null when the submitter did not provide it. */
   meta: {
     codebaseSize: 'small' | 'medium' | 'large';
     primaryLanguage: string;
     analyzersUsed: number;
     collectorsUsed: number;
-  };
+  } | null;
   submittedAt: string;
 }
+
+/** Minimum sample size below which percentiles are statistically meaningless. */
+const MIN_PERCENTILE_SAMPLE = 5;
 
 interface BenchmarkReport {
   industry: string;
   sampleSize: number;
+  /** Linearly interpolated percentiles, or null when sampleSize < MIN_PERCENTILE_SAMPLE. */
   percentiles: {
     p25: number;
     p50: number;
     p75: number;
     p90: number;
-  };
+  } | null;
+  /** Present when percentiles are suppressed, explaining why. */
+  percentilesNote?: string;
   dimensionAverages: Record<string, number>;
   topImprovementAreas: string[];
 }
@@ -141,12 +151,13 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     schema: {
       body: {
         type: 'object',
-        required: ['industry'],
+        required: ['industry', 'scores'],
         properties: {
           industry: { type: 'string', minLength: 1 },
           teamSize: { type: 'string', enum: ['small', 'medium', 'large', 'enterprise'] },
           scores: {
             type: 'object',
+            required: ['overall', 'architecture', 'security', 'performance', 'reliability', 'documentation'],
             properties: {
               overall: { type: 'number' },
               architecture: { type: 'number' },
@@ -172,14 +183,19 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const body = request.body as Partial<BenchmarkEntry>;
     if (!body.industry) return reply.status(400).send({ error: 'Bad Request', message: 'industry is required' });
+    // Reject submissions without real scores — inventing an all-50 entry
+    // would silently corrupt every percentile computed from this collection.
+    if (!body.scores) {
+      return reply.status(400).send({ error: 'Bad Request', message: 'scores are required — benchmark entries must carry real measured health scores' });
+    }
 
     const entry: BenchmarkEntry = {
       id: generateId(),
       anonymizedTenantId: `anon-${generateId().slice(0, 8)}`,
       industry: body.industry,
-      teamSize: body.teamSize ?? 'medium',
-      scores: body.scores ?? { overall: 50, architecture: 50, security: 50, performance: 50, reliability: 50, documentation: 50 },
-      meta: body.meta ?? { codebaseSize: 'medium', primaryLanguage: 'TypeScript', analyzersUsed: 8, collectorsUsed: 5 },
+      teamSize: body.teamSize ?? null,
+      scores: body.scores,
+      meta: body.meta ?? null,
       submittedAt: nowISO(),
     };
     await store.set<BenchmarkEntry>('cloud_benchmarks', entry.id, entry);
@@ -197,13 +213,38 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const scores = entries.map(e => e.scores.overall).sort((a, b) => a - b);
-    const p = (pct: number) => scores[Math.floor(scores.length * pct)] ?? 0;
+
+    // Linearly interpolated quantile (the "linear"/type-7 method): the old
+    // nearest-rank floor(n * p) index was biased and could even read past the
+    // array. Percentiles are suppressed entirely below MIN_PERCENTILE_SAMPLE —
+    // "p90" over a couple of entries is noise dressed up as a statistic.
+    const quantile = (pct: number): number => {
+      const idx = (scores.length - 1) * pct;
+      const lo = Math.floor(idx);
+      const hi = Math.ceil(idx);
+      const frac = idx - lo;
+      return scores[lo]! + (scores[hi]! - scores[lo]!) * frac;
+    };
+    const percentiles = entries.length >= MIN_PERCENTILE_SAMPLE
+      ? {
+          p25: Math.round(quantile(0.25) * 10) / 10,
+          p50: Math.round(quantile(0.5) * 10) / 10,
+          p75: Math.round(quantile(0.75) * 10) / 10,
+          p90: Math.round(quantile(0.9) * 10) / 10,
+        }
+      : null;
 
     const dims = ['architecture', 'security', 'performance', 'reliability', 'documentation'];
     const dimAvgs: Record<string, number> = {};
     for (const dim of dims) {
-      const vals = entries.map(e => (e.scores as Record<string, number>)[dim] ?? 0);
-      dimAvgs[dim] = Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10;
+      // Average only over entries that actually carry this dimension — folding
+      // in zeros for missing values would drag the average down artificially.
+      const vals = entries
+        .map(e => (e.scores as Record<string, number>)[dim])
+        .filter((v): v is number => typeof v === 'number');
+      if (vals.length > 0) {
+        dimAvgs[dim] = Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10;
+      }
     }
 
     // Find weakest dimensions
@@ -211,7 +252,10 @@ export async function registerCloudRoutes(app: FastifyInstance): Promise<void> {
     const report: BenchmarkReport = {
       industry: industry ?? 'all',
       sampleSize: entries.length,
-      percentiles: { p25: Math.round(p(0.25) * 10) / 10, p50: Math.round(p(0.5) * 10) / 10, p75: Math.round(p(0.75) * 10) / 10, p90: Math.round(p(0.9) * 10) / 10 },
+      percentiles,
+      ...(percentiles === null
+        ? { percentilesNote: `Suppressed: at least ${MIN_PERCENTILE_SAMPLE} benchmark entries are required for meaningful percentiles (have ${entries.length}).` }
+        : {}),
       dimensionAverages: dimAvgs,
       topImprovementAreas: sorted.slice(0, 3).map(([dim]) => dim),
     };

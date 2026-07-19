@@ -22,9 +22,11 @@
 
 import type { FastifyInstance } from 'fastify';
 import { createLogger, VERSION } from '@recurrsive/core';
+import type { Finding } from '@recurrsive/core';
 import { state } from '../state.js';
 import { store } from '../store.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { computeHealthScore } from '../health-score.js';
 import { ALL_ANALYZER_IDS, ALL_COLLECTOR_IDS } from './config.js';
 
 const logger = createLogger({ context: { component: 'server:routes:graphql' } });
@@ -43,13 +45,13 @@ const SCHEMA_SDL = `type Query {
   opportunities(limit: Int, projectId: String): [Opportunity!]!
 }
 
-type Project { id: ID!, name: String!, slug: String!, healthScore: Float!, language: String! }
+type Project { id: ID!, name: String!, slug: String!, healthScore: Float, language: String! }
 type Finding { id: ID!, ruleId: String!, title: String!, severity: String!, analyzerId: String!, description: String! }
 type Analyzer { id: ID!, name: String!, version: String! }
 type Collector { id: ID!, name: String!, type: String!, version: String! }
-type HealthScore { overall: Float!, dimensions: [Dimension!]! }
+type HealthScore { status: String!, overall: Float, dimensions: [Dimension!]! }
 type Dimension { name: String!, score: Float! }
-type Opportunity { id: ID!, title: String!, impact: String!, effort: String!, category: String! }`;
+type Opportunity { id: ID!, title: String!, impact: String, effort: String, category: String! }`;
 
 // ---------------------------------------------------------------------------
 // Collector catalog — the real built-in collectors and their domains. These
@@ -71,7 +73,8 @@ interface StoredProject {
   name: string;
   slug: string;
   language: string;
-  healthScore: number;
+  /** Null when the project has never been analyzed. */
+  healthScore: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,9 +324,9 @@ type ResolverFn = (
  * persisted cache directly from the store, so a freshly-restarted server still
  * serves the project's data instead of an empty result until re-initialized.
  */
-async function cacheForArg(args: Record<string, ArgValue>): Promise<{ findings: unknown[]; opportunities: unknown[]; health_score?: unknown } | null> {
+async function cacheForArg(args: Record<string, ArgValue>): Promise<{ findings: unknown[]; opportunities: unknown[] } | null> {
   const projectId = typeof args['projectId'] === 'string' ? (args['projectId'] as string) : undefined;
-  return (await state.loadCacheForProject(projectId)) as unknown as { findings: unknown[]; opportunities: unknown[]; health_score?: unknown } | null;
+  return (await state.loadCacheForProject(projectId)) as unknown as { findings: unknown[]; opportunities: unknown[] } | null;
 }
 
 function buildResolvers(): Record<string, ResolverFn> {
@@ -336,7 +339,7 @@ function buildResolvers(): Record<string, ResolverFn> {
           id: p.id,
           name: p.name,
           slug: p.slug,
-          healthScore: p.healthScore,
+          healthScore: p.healthScore ?? null,
           language: p.language,
         },
         fields,
@@ -353,7 +356,7 @@ function buildResolvers(): Record<string, ResolverFn> {
           id: p.id,
           name: p.name,
           slug: p.slug,
-          healthScore: p.healthScore,
+          healthScore: p.healthScore ?? null,
           language: p.language,
         },
         fields,
@@ -430,16 +433,26 @@ function buildResolvers(): Record<string, ResolverFn> {
     },
 
     healthScore: async (args, fields) => {
+      // Compute from the real findings via the canonical computeHealthScore.
+      // (The cache never stored a `health_score` object — the old code read a
+      // nonexistent field and therefore always reported a fabricated 0.)
       const cache = await cacheForArg(args);
-      const healthData = cache?.health_score as Record<string, unknown> | undefined;
-      const result: Record<string, unknown> = {};
-      if (fields.length === 0 || fields.includes('overall')) {
-        result['overall'] = healthData?.['overall'] ?? 0;
+      if (!cache) {
+        // No analysis has run for this project: overall is null, not 0.
+        return selectFields(
+          { status: 'not_analyzed', overall: null, dimensions: [] },
+          fields,
+        );
       }
-      if (fields.length === 0 || fields.includes('dimensions')) {
-        result['dimensions'] = (healthData?.['dimensions'] as Array<Record<string, unknown>> | undefined) ?? [];
-      }
-      return result;
+      const hs = computeHealthScore((cache.findings ?? []) as Finding[]);
+      return selectFields(
+        {
+          status: hs.status,
+          overall: hs.overall,
+          dimensions: hs.dimensions.map((d) => ({ name: d.dimension, score: d.score })),
+        },
+        fields,
+      );
     },
 
     opportunities: async (args, fields) => {
@@ -449,11 +462,16 @@ function buildResolvers(): Record<string, ResolverFn> {
       if (sourceOpps && sourceOpps.length > 0) {
         let results = sourceOpps.map((o) => {
           const raw = o as Record<string, unknown>;
+          // Map the REAL opportunity fields: expected_impact.summary and
+          // effort.t_shirt. A missing value is null — never a fabricated
+          // 'medium' default, and never an "[object Object]" serialization.
+          const expectedImpact = raw['expected_impact'] as { summary?: unknown } | undefined;
+          const effortEstimate = raw['effort'] as { t_shirt?: unknown } | undefined;
           return {
             id: raw['id'] as string,
             title: (raw['title'] as string) ?? 'Untitled opportunity',
-            impact: (raw['impact'] as string) ?? 'medium',
-            effort: (raw['effort'] as string) ?? 'medium',
+            impact: typeof expectedImpact?.summary === 'string' ? expectedImpact.summary : null,
+            effort: typeof effortEstimate?.t_shirt === 'string' ? effortEstimate.t_shirt : null,
             category: (raw['category'] as string) ?? 'general',
           };
         });
@@ -562,7 +580,7 @@ function buildIntrospection(): { types: TypeMeta[]; queryType: { name: string } 
         { name: 'id', type: 'ID!' },
         { name: 'name', type: 'String!' },
         { name: 'slug', type: 'String!' },
-        { name: 'healthScore', type: 'Float!' },
+        { name: 'healthScore', type: 'Float' },
         { name: 'language', type: 'String!' },
       ],
     },
@@ -601,7 +619,8 @@ function buildIntrospection(): { types: TypeMeta[]; queryType: { name: string } 
       name: 'HealthScore',
       kind: 'OBJECT',
       fields: [
-        { name: 'overall', type: 'Float!' },
+        { name: 'status', type: 'String!' },
+        { name: 'overall', type: 'Float' },
         { name: 'dimensions', type: '[Dimension!]!' },
       ],
     },
@@ -619,8 +638,8 @@ function buildIntrospection(): { types: TypeMeta[]; queryType: { name: string } 
       fields: [
         { name: 'id', type: 'ID!' },
         { name: 'title', type: 'String!' },
-        { name: 'impact', type: 'String!' },
-        { name: 'effort', type: 'String!' },
+        { name: 'impact', type: 'String' },
+        { name: 'effort', type: 'String' },
         { name: 'category', type: 'String!' },
       ],
     },

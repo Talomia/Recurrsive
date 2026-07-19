@@ -248,7 +248,7 @@ export default function MarketplacePage() {
                 { label: 'Extensions', value: stats.totalExtensions },
                 { label: 'Downloads', value: stats.totalDownloads.toLocaleString() },
                 { label: 'Authors', value: stats.totalAuthors },
-                { label: 'Avg Rating', value: `${stats.averageRating.toFixed(1)} ★` },
+                { label: 'Avg Rating', value: stats.averageRating != null ? `${stats.averageRating.toFixed(1)} ★` : 'Not rated' },
               ].map((s) => (
                 <div
                   key={s.label}

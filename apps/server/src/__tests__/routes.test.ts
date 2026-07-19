@@ -1236,7 +1236,9 @@ describe ('Analytics Routes', () => {
     expect(typeof body.data.analysis_runs).toBe('number');
     expect(typeof body.data.total_findings).toBe('number');
     expect(typeof body.data.resolution_rate).toBe('number');
-    expect(typeof body.data.avg_health_score).toBe('number');
+    // No analysis has run in this suite — a health score of 0 would be a
+    // fabricated statistic, so the honest value is null.
+    expect(body.data.avg_health_score).toBeNull();
   });
 
   it ('GET /api/v1/analytics/top-categories returns categories', async () => {

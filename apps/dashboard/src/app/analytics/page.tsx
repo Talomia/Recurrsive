@@ -382,10 +382,12 @@ export default function AnalyticsPage() {
               />
               <SummaryCard
                 label="Avg Health Score"
-                value={summary.avg_health_score}
+                value={summary.avg_health_score ?? "Not analyzed"}
                 icon={Heart}
                 color={
-                  summary.avg_health_score >= 80
+                  summary.avg_health_score == null
+                    ? "text-text-muted"
+                    : summary.avg_health_score >= 80
                     ? "text-green-400"
                     : summary.avg_health_score >= 60
                     ? "text-amber-400"

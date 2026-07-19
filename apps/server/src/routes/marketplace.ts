@@ -245,15 +245,22 @@ export async function registerMarketplaceRoutes(app: FastifyInstance): Promise<v
     const all = await store.all<MarketplaceExtension>('extensions');
     const published = all.filter((e) => e.status === 'published');
     const totalDownloads = published.reduce((sum, e) => sum + e.downloads, 0);
-    const avgRating = published.length > 0
-      ? published.reduce((sum, e) => sum + e.rating, 0) / published.length
-      : 0;
+    // Average only over extensions that have actually been rated, weighted by
+    // how many ratings each received. Folding never-rated extensions in as
+    // rating-0 entries would fabricate a deflated marketplace average; with no
+    // ratings at all, the honest answer is null, not 0.
+    const rated = published.filter((e) => e.ratingCount > 0);
+    const totalRatings = rated.reduce((sum, e) => sum + e.ratingCount, 0);
+    const averageRating = totalRatings > 0
+      ? Math.round((rated.reduce((sum, e) => sum + e.rating * e.ratingCount, 0) / totalRatings) * 10) / 10
+      : null;
 
     return reply.send({
       data: {
         totalExtensions: published.length,
         totalDownloads,
-        averageRating: Math.round(avgRating * 10) / 10,
+        averageRating,
+        ratingCount: totalRatings,
         categoryCounts: {
           analyzer: published.filter((e) => e.category === 'analyzer').length,
           collector: published.filter((e) => e.category === 'collector').length,

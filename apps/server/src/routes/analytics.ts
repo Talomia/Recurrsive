@@ -23,7 +23,13 @@ import { computeHealthScore } from '../health-score.js';
 export interface TrendPoint {
   date: string;
   findings: number;
-  resolved: number;
+  /**
+   * Findings resolved as of that run. Analysis history does not record a
+   * per-run resolution count, so this is always null — reporting the run's
+   * opportunity count (or any other stand-in) here would be a fabricated
+   * statistic.
+   */
+  resolved: number | null;
   health: number;
 }
 
@@ -33,7 +39,11 @@ export interface AnalyticsSummary {
   total_findings: number;
   findings_resolved: number;
   resolution_rate: number;
-  avg_health_score: number;
+  /**
+   * Mean of the health scores across successful analysis runs, or null when
+   * no analysis has produced a score yet.
+   */
+  avg_health_score: number | null;
   trends: TrendPoint[];
 }
 
@@ -86,15 +96,24 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
           ? Math.round((findingsResolved / totalFindings) * 1000) / 10
           : 0;
 
-      const overall = computeHealthScore(cache.findings, cache.opportunities).overall;
       const trends: TrendPoint[] = history
-        .filter((h) => h.status === 'success')
+        .filter((h) => h.status === 'success' && typeof h.healthScore === 'number')
         .map((h) => ({
           date: h.startedAt.split('T')[0]!,
           findings: h.findingCount,
-          resolved: h.opportunityCount,
-          health: h.healthScore ?? 0,
+          // Per-run resolution counts are not recorded — null, never the
+          // opportunity count masquerading as "resolved".
+          resolved: null,
+          health: h.healthScore!,
         }));
+
+      // A real average over the per-run scores. When history carries no
+      // scored runs (e.g. it was pruned), fall back to the single current
+      // score — an average of the one data point we actually have.
+      const runScores = trends.map((t) => t.health);
+      const avgHealthScore = runScores.length > 0
+        ? Math.round((runScores.reduce((s, v) => s + v, 0) / runScores.length) * 10) / 10
+        : computeHealthScore(cache.findings, cache.opportunities).overall;
 
       return reply.status(200).send({
         data: {
@@ -102,20 +121,21 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
           total_findings: totalFindings,
           findings_resolved: findingsResolved,
           resolution_rate: resolutionRate,
-          avg_health_score: overall,
+          avg_health_score: avgHealthScore,
           trends,
         },
       });
     }
 
-    // No analysis data yet — return empty defaults
+    // No analysis data yet — counts are genuinely zero, but a health score of
+    // 0 would be a fabricated statistic, so it is null.
     return reply.status(200).send({
       data: {
         analysis_runs: 0,
         total_findings: 0,
         findings_resolved: 0,
         resolution_rate: 0,
-        avg_health_score: 0,
+        avg_health_score: null,
         trends: [],
       } satisfies AnalyticsSummary,
     });

@@ -124,7 +124,11 @@ export function registerAnalyticsResources(server: McpServer): void {
       ];
 
       for (const t of trends) {
-        lines.push(`| ${t.date} | ${t.health} | ${t.resolved} | ${t.findings} |`);
+        // health/resolved can be null (not-analyzed / not-tracked) — render an
+        // em dash rather than the literal string "null".
+        const health = t.health ?? '—';
+        const resolved = t.resolved ?? '—';
+        lines.push(`| ${t.date} | ${health} | ${resolved} | ${t.findings} |`);
       }
 
       if (dimensions.length > 0) {
