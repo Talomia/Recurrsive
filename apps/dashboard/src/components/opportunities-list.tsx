@@ -10,18 +10,17 @@ interface OpportunitiesListProps {
   projectId?: string | null;
 }
 
-function getScoreColor(score: number): string {
-  if (score >= 90) return "text-red-400";
-  if (score >= 75) return "text-orange-400";
-  if (score >= 60) return "text-amber-400";
-  return "text-blue-400";
+/** Confidence is 0–1 from the server; render as a percentage or "—". */
+function formatConfidence(confidence: number | null): string {
+  return confidence == null ? "—" : `${Math.round(confidence * 100)}%`;
 }
 
-function getScoreBarColor(score: number): string {
-  if (score >= 90) return "bg-red-500";
-  if (score >= 75) return "bg-orange-500";
-  if (score >= 60) return "bg-amber-500";
-  return "bg-blue-500";
+function getConfidenceColor(confidence: number | null): string {
+  if (confidence == null) return "text-text-muted";
+  if (confidence >= 0.8) return "text-green-400";
+  if (confidence >= 0.6) return "text-blue-400";
+  if (confidence >= 0.4) return "text-amber-400";
+  return "text-red-400";
 }
 
 export default function OpportunitiesList({
@@ -61,19 +60,16 @@ export default function OpportunitiesList({
             className="flex items-start gap-4 rounded-xl bg-white/[0.02] border border-white/5 p-4 hover:bg-white/[0.04] hover:border-white/8 transition-all duration-200 animate-fade-in-up"
             style={{ animationDelay: `${i * 0.07}s` }}
           >
-            {/* Score */}
-            <div className="shrink-0 flex flex-col items-center gap-1 pt-0.5">
+            {/* Confidence — a real 0–1 value from the analysis */}
+            <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5 min-w-[48px]">
               <span
-                className={`text-lg font-bold tabular-nums ${getScoreColor(opp.score)}`}
+                className={`text-lg font-bold tabular-nums ${getConfidenceColor(opp.confidence)}`}
               >
-                {opp.score}
+                {formatConfidence(opp.confidence)}
               </span>
-              <div className="h-1 w-8 rounded-full bg-white/5 overflow-hidden" aria-hidden="true">
-                <div
-                  className={`h-full rounded-full ${getScoreBarColor(opp.score)}`}
-                  style={{ width: `${opp.score}%` }}
-                />
-              </div>
+              <span className="text-[9px] text-text-muted uppercase tracking-wider">
+                confidence
+              </span>
             </div>
 
             {/* Content */}
@@ -88,9 +84,11 @@ export default function OpportunitiesList({
                 {opp.categories.map((cat) => (
                   <CategoryBadge key={cat} category={cat} />
                 ))}
-                <span className="text-[10px] text-text-muted ml-1">
-                  {opp.id}
-                </span>
+                {opp.effort && (
+                  <span className="text-[10px] text-text-muted ml-1">
+                    Effort: {opp.effort.tShirt.toUpperCase()}
+                  </span>
+                )}
               </div>
             </div>
           </Link>

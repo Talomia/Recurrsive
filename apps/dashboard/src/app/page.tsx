@@ -93,7 +93,7 @@ const SEVERITY_TEXT: Record<string, string> = {
 
 function priorityScore(opp: Opportunity): number {
   const severityWeight: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-  return (severityWeight[opp.severity] ?? 1) * opp.confidence;
+  return (severityWeight[opp.severity] ?? 1) * (opp.confidence ?? 0.5);
 }
 
 /** Card header with title + "view all" style link. */
@@ -914,8 +914,11 @@ function StrategicRecommendation({
     opportunity.severity === 'critical' || opportunity.severity === 'high'
       ? 'high'
       : opportunity.severity === 'medium' ? 'medium' : 'low';
+  // Effort is a t-shirt size object (or null); map it to the coarse band.
+  const effortTShirt = opportunity.effort?.tShirt?.toLowerCase() ?? '';
   const effort: 'high' | 'medium' | 'low' =
-    opportunity.effort > 60 ? 'high' : opportunity.effort > 30 ? 'medium' : 'low';
+    effortTShirt === 'xl' || effortTShirt === 'l' ? 'high'
+      : effortTShirt === 'm' ? 'medium' : 'low';
 
   return (
     <Link
@@ -925,7 +928,7 @@ function StrategicRecommendation({
     >
       <h4 className="text-sm font-semibold text-text-primary mb-1">{opportunity.title}</h4>
       <p className="text-xs text-text-secondary mb-3 line-clamp-2">
-        {opportunity.description ?? 'No description'}
+        {opportunity.problem || opportunity.recommendation || 'No description'}
       </p>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">

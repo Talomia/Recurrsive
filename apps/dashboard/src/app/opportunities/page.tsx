@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, Filter, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Shield, Zap, ExternalLink, Lightbulb, Download } from "lucide-react";
+import { Search, Filter, AlertCircle, Shield, Zap, ExternalLink, Lightbulb, Download, Wrench, Layers } from "lucide-react";
 import Header from "@/components/header";
 import ScoreGauge from "@/components/score-gauge";
 import CategoryBadge, { SeverityBadge } from "@/components/category-badge";
@@ -20,38 +20,57 @@ type TabKey = "overview" | "evidence" | "analysis" | "implementation";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "evidence", label: "Evidence" },
-  { key: "analysis", label: "Analysis" },
+  { key: "analysis", label: "Impact Analysis" },
   { key: "implementation", label: "Implementation Plan" },
 ];
 
-function getMetricColor(label: string, value: number): string {
-  if (label === "Risk" || label === "Effort") {
-    if (value <= 30) return "text-green-400";
-    if (value <= 60) return "text-amber-400";
-    return "text-red-400";
-  }
-  if (value >= 80) return "text-green-400";
-  if (value >= 60) return "text-blue-400";
-  if (value >= 40) return "text-amber-400";
+// ─── Real-metric display helpers ─────────────────────────────────────────────
+
+/** Confidence is 0–1 from the server; render as a percentage. */
+function formatConfidence(confidence: number | null): string {
+  return confidence == null ? "—" : `${Math.round(confidence * 100)}%`;
+}
+
+function confidenceColor(confidence: number | null): string {
+  if (confidence == null) return "text-text-muted";
+  if (confidence >= 0.8) return "text-green-400";
+  if (confidence >= 0.6) return "text-blue-400";
+  if (confidence >= 0.4) return "text-amber-400";
   return "text-red-400";
 }
 
-function getMetricBarColor(label: string, value: number): string {
-  if (label === "Risk" || label === "Effort") {
-    if (value <= 30) return "bg-green-500";
-    if (value <= 60) return "bg-amber-500";
-    return "bg-red-500";
-  }
-  if (value >= 80) return "bg-green-500";
-  if (value >= 60) return "bg-blue-500";
-  if (value >= 40) return "bg-amber-500";
-  return "bg-red-500";
+/** Effort is a t-shirt size (+ optional hour estimate) — never a made-up number. */
+function formatEffort(effort: Opportunity["effort"]): string {
+  if (!effort) return "—";
+  const size = effort.tShirt.toUpperCase();
+  return effort.estimatedHours != null ? `${size} · ${effort.estimatedHours}h` : size;
 }
 
+function effortColor(effort: Opportunity["effort"]): string {
+  if (!effort) return "text-text-muted";
+  const t = effort.tShirt.toLowerCase();
+  if (t === "xs" || t === "s") return "text-green-400";
+  if (t === "m") return "text-amber-400";
+  return "text-red-400";
+}
 
+function riskColor(level: string | null): string {
+  switch (level) {
+    case "critical": return "text-red-400";
+    case "high": return "text-orange-400";
+    case "medium": return "text-amber-400";
+    case "low": return "text-green-400";
+    case "negligible": return "text-green-400";
+    default: return "text-text-muted";
+  }
+}
 
-const CATEGORY_OPTIONS = ["All Categories", "Security", "Performance", "Cost", "DevOps", "Architecture", "Database", "Reliability", "Frontend"] as const;
-const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low"] as const;
+function formatMetricValue(v: string | number | null): string {
+  return v == null ? "—" : String(v);
+}
+
+const CATEGORY_OPTIONS = ["All Categories", "security", "performance", "cost", "architecture", "reliability", "developer_experience", "documentation", "infrastructure"] as const;
+const SEVERITY_OPTIONS = ["All Severities", "critical", "high", "medium", "low", "info"] as const;
 
 export default function OpportunitiesPage() {
   const searchParams = useSearchParams();
@@ -171,22 +190,23 @@ export default function OpportunitiesPage() {
     );
   }
 
+  // Real server-provided facts only — no synthetic impact/ROI numbers.
   const metrics = [
-    { label: "Impact", value: selected.impact, icon: TrendingUp },
-    { label: "Confidence", value: selected.confidence, icon: Shield },
-    { label: "Effort", value: selected.effort, icon: Zap },
-    { label: "Risk", value: selected.risk, icon: AlertCircle },
-    { label: "ROI", value: selected.roi, icon: CheckCircle2 },
+    { label: "Confidence", value: formatConfidence(selected.confidence), color: confidenceColor(selected.confidence), icon: Shield },
+    { label: "Effort", value: formatEffort(selected.effort), color: effortColor(selected.effort), icon: Zap },
+    { label: "Risk", value: selected.riskLevel ?? "—", color: riskColor(selected.riskLevel), icon: AlertCircle },
   ];
 
   // Export exactly what's on screen (respects active filters) — real data only.
   const exportCsv = () => {
     downloadCsv(
       'opportunities.csv',
-      ['ID', 'Title', 'Severity', 'Score', 'Categories', 'Impact', 'Confidence', 'Effort', 'Risk', 'ROI'],
+      ['ID', 'Title', 'Severity', 'Status', 'Categories', 'Confidence', 'Effort', 'Risk'],
       filtered.map((o) => [
-        o.id, o.title, o.severity, o.score, o.categories.join('; '),
-        o.impact, o.confidence, o.effort, o.risk, o.roi,
+        o.id, o.title, o.severity, o.status, o.categories.join('; '),
+        o.confidence == null ? '' : o.confidence,
+        o.effort?.tShirt ?? '',
+        o.riskLevel ?? '',
       ]),
     );
   };
@@ -297,37 +317,9 @@ export default function OpportunitiesPage() {
                       </div>
                       <div className="mt-2 flex items-center gap-2">
                         <SeverityBadge severity={opp.severity} />
-                        <span className="text-[10px] text-text-muted">{opp.id}</span>
-                      </div>
-                    </div>
-                    {/* Score */}
-                    <div className="shrink-0 flex flex-col items-center gap-1">
-                      <span
-                        className={clsx(
-                          "text-xl font-bold tabular-nums",
-                          opp.score >= 90
-                            ? "text-red-400"
-                            : opp.score >= 75
-                              ? "text-orange-400"
-                              : opp.score >= 60
-                                ? "text-amber-400"
-                                : "text-blue-400"
-                        )}
-                      >
-                        {opp.score}
-                      </span>
-                      <div className="h-1 w-8 rounded-full bg-white/5 overflow-hidden">
-                        <div
-                          className={clsx(
-                            "h-full rounded-full",
-                            opp.score >= 90
-                              ? "bg-red-500"
-                              : opp.score >= 75
-                                ? "bg-orange-500"
-                                : "bg-amber-500"
-                          )}
-                          style={{ width: `${opp.score}%` }}
-                        />
+                        <span className="text-[10px] text-text-muted">
+                          Confidence {formatConfidence(opp.confidence)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -360,42 +352,30 @@ export default function OpportunitiesPage() {
               </Link>
             </h2>
             <p className="mt-2 text-sm text-text-secondary leading-relaxed">
-              {selected.description}
+              {selected.problem}
             </p>
           </div>
 
-          {/* Score + Metrics */}
+          {/* Score (only when the server computed one) + real metrics */}
           <div className="flex items-start gap-8 flex-wrap">
-            <div className="flex flex-col items-center">
-              <ScoreGauge value={selected.score} size={110} label="Score" />
-            </div>
-            <div className="flex-1 grid grid-cols-5 gap-4 min-w-[300px]">
-              {metrics.map(({ label, value, icon: Icon }) => (
+            {selected.score != null && (
+              <div className="flex flex-col items-center">
+                <ScoreGauge value={Math.round(selected.score * 100)} size={110} label="Score" />
+              </div>
+            )}
+            <div className="flex-1 grid grid-cols-3 gap-4 min-w-[300px]">
+              {metrics.map(({ label, value, color, icon: Icon }) => (
                 <div
                   key={label}
                   className="flex flex-col items-center gap-2 rounded-xl bg-white/[0.03] border border-white/5 p-3"
                 >
                   <Icon className="h-4 w-4 text-text-muted" />
-                  <span
-                    className={clsx(
-                      "text-lg font-bold tabular-nums",
-                      getMetricColor(label, value)
-                    )}
-                  >
+                  <span className={clsx("text-lg font-bold tabular-nums capitalize", color)}>
                     {value}
                   </span>
                   <span className="text-[10px] text-text-muted font-medium">
                     {label}
                   </span>
-                  <div className="h-1 w-full rounded-full bg-white/5 overflow-hidden">
-                    <div
-                      className={clsx(
-                        "h-full rounded-full transition-all",
-                        getMetricBarColor(label, value)
-                      )}
-                      style={{ width: `${value}%` }}
-                    />
-                  </div>
                 </div>
               ))}
             </div>
@@ -425,48 +405,63 @@ export default function OpportunitiesPage() {
           <div className="animate-fade-in-up">
             {activeTab === "overview" && (
               <div className="space-y-6">
-                {/* Root Causes */}
+                {/* Problem */}
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary mb-3">
-                    Root Causes
+                    Problem
                   </h4>
-                  <div className="space-y-2">
-                    {selected.rootCauses.map((cause, i) => (
-                      <div
-                        key={i}
-                        className="flex items-start gap-3 rounded-lg bg-white/[0.02] border border-white/5 p-3"
-                      >
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-[10px] font-bold text-red-400">
-                          {i + 1}
-                        </span>
-                        <p className="text-sm text-text-secondary">{cause}</p>
-                      </div>
-                    ))}
-                  </div>
+                  {selected.problem ? (
+                    <p className="text-sm text-text-secondary leading-relaxed rounded-lg bg-white/[0.02] border border-white/5 p-3">
+                      {selected.problem}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-text-muted italic">No problem statement provided.</p>
+                  )}
                 </div>
 
-                {/* Affected Components */}
+                {/* Recommendation */}
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary mb-3">
-                    Affected Components
+                    Recommendation
                   </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selected.affectedComponents.map((comp) => (
-                      <span
-                        key={comp}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/5 px-3 py-1.5 text-xs font-medium text-text-secondary"
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full bg-accent-blue" />
-                        {comp}
-                      </span>
-                    ))}
-                  </div>
+                  {selected.recommendation ? (
+                    <p className="text-sm text-text-secondary leading-relaxed rounded-lg bg-white/[0.02] border border-white/5 p-3">
+                      {selected.recommendation}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-text-muted italic">No recommendation provided.</p>
+                  )}
+                </div>
+
+                {/* Affected Services */}
+                <div>
+                  <h4 className="text-sm font-semibold text-text-primary mb-3">
+                    Affected Services
+                  </h4>
+                  {selected.affectedServices.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selected.affectedServices.map((svc) => (
+                        <span
+                          key={svc}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/5 px-3 py-1.5 text-xs font-medium text-text-secondary"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-accent-blue" />
+                          {svc}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-muted italic">No affected services identified.</p>
+                  )}
                 </div>
               </div>
             )}
 
             {activeTab === "evidence" && (
               <div className="space-y-3">
+                {selected.evidence.length === 0 && (
+                  <p className="text-xs text-text-muted italic">No evidence collected for this opportunity.</p>
+                )}
                 {selected.evidence.map((ev, i) => (
                   <div
                     key={i}
@@ -480,8 +475,8 @@ export default function OpportunitiesPage() {
                     </div>
                     <p className="text-sm text-text-secondary">{ev.description}</p>
                     <p className="mt-2 text-xs font-medium text-text-primary">
-                      Value:{" "}
-                      <span className="text-accent-cyan">{ev.value}</span>
+                      Confidence:{" "}
+                      <span className="text-accent-cyan">{formatConfidence(ev.confidence)}</span>
                     </p>
                   </div>
                 ))}
@@ -492,18 +487,44 @@ export default function OpportunitiesPage() {
               <div className="space-y-4">
                 <div className="rounded-xl bg-white/[0.02] border border-white/5 p-5">
                   <h4 className="text-sm font-semibold text-text-primary mb-3">
-                    Impact Analysis
+                    Expected Impact
                   </h4>
-                  <p className="text-sm text-text-secondary leading-relaxed">
-                    {selected.description}
-                  </p>
+                  {selected.impactSummary ? (
+                    <p className="text-sm text-text-secondary leading-relaxed">
+                      {selected.impactSummary}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-text-muted italic">No impact summary provided.</p>
+                  )}
+
+                  {selected.impactMetrics.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {selected.impactMetrics.map((m, i) => (
+                        <div key={i} className="rounded-lg bg-white/[0.03] p-3 flex items-center justify-between gap-3 flex-wrap">
+                          <div>
+                            <p className="text-xs font-medium text-text-primary">{m.name}</p>
+                            {m.isEstimate && (
+                              <span className="text-[10px] text-amber-400">estimate — not a measured value</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-text-secondary tabular-nums">
+                            {formatMetricValue(m.currentValue)} → {formatMetricValue(m.expectedValue)}
+                            {m.changePercent != null && (
+                              <span className="ml-2 text-text-muted">({m.changePercent > 0 ? "+" : ""}{m.changePercent}%)</span>
+                            )}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div className="rounded-lg bg-white/[0.03] p-3">
                       <p className="text-xs text-text-muted mb-1">
-                        Affected Components
+                        Affected Services
                       </p>
                       <p className="text-lg font-bold text-text-primary">
-                        {selected.affectedComponents.length}
+                        {selected.affectedServices.length}
                       </p>
                     </div>
                     <div className="rounded-lg bg-white/[0.03] p-3">
@@ -520,36 +541,67 @@ export default function OpportunitiesPage() {
             )}
 
             {activeTab === "implementation" && (
-              <div>
-                <h4 className="text-sm font-semibold text-text-primary mb-4">
-                  Recommended Solution
-                </h4>
-                <div className="space-y-3">
-                  {selected.solution.map((step) => (
-                    <div
-                      key={step.step}
-                      className="flex gap-4 rounded-xl bg-white/[0.02] border border-white/5 p-4"
-                    >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-blue/10 text-sm font-bold text-blue-400">
-                        {step.step}
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-sm font-semibold text-text-primary mb-3">
+                    Recommended Solution
+                  </h4>
+                  {selected.recommendation ? (
+                    <div className="flex gap-4 rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-blue/10">
+                        <Wrench className="h-4 w-4 text-blue-400" />
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-text-primary">
-                            {step.title}
-                          </p>
-                          <span className="text-xs text-text-muted">
-                            {step.effort}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-text-secondary leading-relaxed">
-                          {step.description}
-                        </p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-text-muted shrink-0 mt-1" />
+                      <p className="text-sm text-text-secondary leading-relaxed">
+                        {selected.recommendation}
+                      </p>
                     </div>
-                  ))}
+                  ) : (
+                    <p className="text-xs text-text-muted italic">No recommendation provided.</p>
+                  )}
                 </div>
+
+                {selected.effort && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-text-primary mb-3">
+                      Effort Estimate
+                    </h4>
+                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4 space-y-2">
+                      <p className="text-sm text-text-secondary">
+                        Size: <span className={clsx("font-bold", effortColor(selected.effort))}>{selected.effort.tShirt.toUpperCase()}</span>
+                        {selected.effort.estimatedHours != null && (
+                          <span className="ml-3">≈ {selected.effort.estimatedHours} engineering hours</span>
+                        )}
+                        {selected.effort.estimatedDays != null && (
+                          <span className="ml-3">≈ {selected.effort.estimatedDays} calendar days</span>
+                        )}
+                      </p>
+                      {selected.effort.skillsRequired.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Layers className="h-3.5 w-3.5 text-text-muted" />
+                          {selected.effort.skillsRequired.map((s) => (
+                            <span key={s} className="rounded-lg bg-white/5 border border-white/5 px-2 py-0.5 text-xs text-text-secondary">{s}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selected.riskLevel && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-text-primary mb-3">
+                      Implementation Risk
+                    </h4>
+                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                      <p className={clsx("text-sm font-bold capitalize", riskColor(selected.riskLevel))}>
+                        {selected.riskLevel}
+                      </p>
+                      {selected.riskDescription && (
+                        <p className="mt-1 text-xs text-text-secondary leading-relaxed">{selected.riskDescription}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -56,13 +56,17 @@ interface Finding {
   assignee: string;
 }
 
+// Raw core Opportunity shape (this route returns the cache objects directly):
+// effort is a t-shirt-size object, confidence is 0–1, the problem statement is
+// `problem` (there is no `description`).
 interface Opportunity {
   id: string;
   title: string;
   severity: string;
   confidence: number;
-  effort: number;
-  description?: string;
+  effort?: { t_shirt?: string; estimated_hours?: number };
+  problem?: string;
+  recommendation?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -552,12 +556,17 @@ export default function ProjectDetailPage() {
                     <span className={`h-2.5 w-2.5 rounded-full shrink-0 mt-1.5 ${s.dot}`} />
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-semibold text-text-primary">{opp.title}</h4>
-                      {opp.description && (
-                        <p className="text-xs text-text-secondary mt-1 line-clamp-2">{opp.description}</p>
+                      {(opp.problem || opp.recommendation) && (
+                        <p className="text-xs text-text-secondary mt-1 line-clamp-2">{opp.problem || opp.recommendation}</p>
                       )}
                       <div className="flex items-center gap-4 mt-2 text-[10px] text-text-muted">
-                        <span>Confidence: {Math.round(opp.confidence * 100)}%</span>
-                        <span>Effort: {opp.effort}h</span>
+                        {typeof opp.confidence === 'number' && (
+                          <span>Confidence: {Math.round(opp.confidence * 100)}%</span>
+                        )}
+                        {opp.effort?.t_shirt && (
+                          <span>Effort: {opp.effort.t_shirt.toUpperCase()}
+                            {opp.effort.estimated_hours != null ? ` (~${opp.effort.estimated_hours}h)` : ''}</span>
+                        )}
                       </div>
                     </div>
                   </div>

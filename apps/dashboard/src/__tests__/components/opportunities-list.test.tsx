@@ -17,70 +17,33 @@ vi.mock('@/components/category-badge', () => ({
   ),
 }));
 
-const SAMPLE_OPPORTUNITIES: Opportunity[] = [
-  {
-    id: 'opp-1',
-    title: 'Extract shared utilities',
-    description: 'Move common helpers to a shared module',
+// Honest shape mapped from the real core Opportunity (confidence 0–1, effort
+// is a t-shirt object, no fabricated score/impact/roi constants).
+function makeOpp(over: Partial<Opportunity> & Pick<Opportunity, 'id' | 'title' | 'confidence'>): Opportunity {
+  return {
+    problem: 'problem',
+    recommendation: 'do the thing',
     categories: ['refactoring'],
     severity: 'high',
-    score: 85,
-    impact: 80,
-    confidence: 90,
-    effort: 30,
-    risk: 20,
-    roi: 70,
-    rootCauses: ['Code duplication'],
+    status: 'proposed',
+    score: null,
+    effort: { tShirt: 'm', estimatedHours: null, estimatedDays: null, skillsRequired: [], dependencies: [] },
+    riskLevel: 'low',
+    riskDescription: null,
+    impactSummary: null,
+    impactMetrics: [],
+    affectedServices: [],
     evidence: [],
-    affectedComponents: ['utils.ts'],
-    solution: [],
-    status: 'open',
-    source: 'analysis',
-    location: { file: 'utils.ts', line: 10 },
+    locations: [],
     createdAt: '2024-01-01',
-  },
-  {
-    id: 'opp-2',
-    title: 'Add error boundaries',
-    description: 'Components lack error boundaries',
-    categories: ['reliability'],
-    severity: 'medium',
-    score: 65,
-    impact: 60,
-    confidence: 85,
-    effort: 20,
-    risk: 10,
-    roi: 50,
-    rootCauses: ['Missing error handling'],
-    evidence: [],
-    affectedComponents: ['App.tsx'],
-    solution: [],
-    status: 'open',
-    source: 'analysis',
-    location: { file: 'App.tsx', line: 5 },
-    createdAt: '2024-01-02',
-  },
-  {
-    id: 'opp-3',
-    title: 'Optimize re-renders',
-    description: 'Unnecessary re-renders in list components',
-    categories: ['performance'],
-    severity: 'low',
-    score: 45,
-    impact: 40,
-    confidence: 75,
-    effort: 15,
-    risk: 5,
-    roi: 30,
-    rootCauses: ['Missing memoization'],
-    evidence: [],
-    affectedComponents: ['List.tsx'],
-    solution: [],
-    status: 'open',
-    source: 'analysis',
-    location: { file: 'List.tsx', line: 20 },
-    createdAt: '2024-01-03',
-  },
+    ...over,
+  };
+}
+
+const SAMPLE_OPPORTUNITIES: Opportunity[] = [
+  makeOpp({ id: 'opp-1', title: 'Extract shared utilities', confidence: 0.9, categories: ['refactoring'], severity: 'high' }),
+  makeOpp({ id: 'opp-2', title: 'Add error boundaries', confidence: 0.85, categories: ['reliability'], severity: 'medium' }),
+  makeOpp({ id: 'opp-3', title: 'Optimize re-renders', confidence: 0.75, categories: ['performance'], severity: 'low' }),
 ];
 
 describe('OpportunitiesList', () => {
@@ -96,11 +59,11 @@ describe('OpportunitiesList', () => {
     expect(screen.getByText('Optimize re-renders')).toBeInTheDocument();
   });
 
-  it('renders scores', () => {
+  it('renders real confidence percentages (not a fabricated score)', () => {
     render(<OpportunitiesList opportunities={SAMPLE_OPPORTUNITIES} />);
-    expect(screen.getByText('85')).toBeInTheDocument();
-    expect(screen.getByText('65')).toBeInTheDocument();
-    expect(screen.getByText('45')).toBeInTheDocument();
+    expect(screen.getByText('90%')).toBeInTheDocument();
+    expect(screen.getByText('85%')).toBeInTheDocument();
+    expect(screen.getByText('75%')).toBeInTheDocument();
   });
 
   it('renders category badges', () => {
