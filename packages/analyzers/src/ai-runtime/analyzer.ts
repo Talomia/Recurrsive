@@ -222,8 +222,12 @@ export class AIRuntimeAnalyzer implements Analyzer {
 
     for (const fn of functions) {
       const outRels = await ctx.graph.getRelationships(fn.id, 'out');
+      // Only real model/agent invocations count — a plain `calls` edge is any
+      // same-file function call (the TS parser emits one per call), so
+      // including it made this rule fire on virtually every function and
+      // falsely assert "makes LLM API calls" about code that makes none.
       const callsModel = outRels.some(
-        (r) => r.type === 'uses_model' || r.type === 'invokes_agent' || r.type === 'calls',
+        (r) => r.type === 'uses_model' || r.type === 'invokes_agent',
       );
 
       if (!callsModel) continue;

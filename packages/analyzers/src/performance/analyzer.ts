@@ -418,10 +418,14 @@ export class PerformanceAnalyzer implements Analyzer {
         fn.tags.includes('sync-blocking') ||
         fn.tags.includes('blocking-io');
 
-      // Check for known synchronous API patterns in the name
+      // Check for known synchronous Node API patterns in the name. The generic
+      // "ends in Sync" test must NOT match "...Async" (which also ends in
+      // "sync" case-insensitively) — that flagged every async function as a
+      // synchronous blocker, the exact opposite of the truth. Match a real
+      // `Sync` suffix not preceded by `a`/`A`, and anchor the known-API list.
       const nameHasSyncPattern =
-        /readFileSync|writeFileSync|execSync|spawnSync/i.test(fn.name) ||
-        /Sync$/i.test(fn.name);
+        /(?:readFile|writeFile|readdir|exec|spawn|execFile|appendFile|mkdir|rmdir|readlink|realpath|stat)Sync$/.test(fn.name) ||
+        /(?<![aA])Sync$/.test(fn.name);
 
       if (isSyncBlocker || nameHasSyncPattern) {
         const loc = locationFromEntity(fn);
