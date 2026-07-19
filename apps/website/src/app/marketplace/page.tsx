@@ -76,11 +76,11 @@ export default function MarketplacePage() {
     }
 
     const controller = new AbortController();
-    const apiKey = process.env.NEXT_PUBLIC_API_KEY;
 
+    // The extension list endpoint is public (optionalAuth on the server), so no
+    // API key is sent — never expose a NEXT_PUBLIC_* key to visitors.
     fetch(`${API_BASE}/api/v1/marketplace/extensions?source=community`, {
       signal: controller.signal,
-      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
     })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

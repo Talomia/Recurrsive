@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   Package,
-  Send,
   Check,
   ArrowRight,
   FileCode2,
@@ -15,8 +14,10 @@ import {
   CheckCircle2,
   Github,
   Sparkles,
-  Loader2,
+  Info,
 } from 'lucide-react';
+
+const REPO_URL = 'https://github.com/Talomia/Recurrsive';
 
 const GUIDELINES = [
   {
@@ -75,13 +76,12 @@ const labelStyle: React.CSSProperties = {
   marginBottom: '6px',
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
-
-type Status = 'idle' | 'submitting' | 'success' | 'error';
-
 export default function MarketplaceSubmitPage() {
-  const [status, setStatus] = useState<Status>('idle');
-  const [message, setMessage] = useState('');
+  // Submissions go through GitHub. Publishing an extension into a Recurrsive
+  // server's marketplace registry (POST /api/v1/marketplace/extensions) requires
+  // an authenticated maintainer, so a public form POST would always be rejected.
+  // Instead, the form composes a pre-filled GitHub issue for maintainer review.
+  const [issueUrl, setIssueUrl] = useState('');
   const [form, setForm] = useState({
     name: '',
     category: '',
@@ -94,37 +94,35 @@ export default function MarketplaceSubmitPage() {
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm({ ...form, [key]: e.target.value });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus('submitting');
-
-    try {
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY;
-      const res = await fetch(`${API_BASE}/api/v1/marketplace/extensions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiKey ? { 'X-API-Key': apiKey } : {}),
-        },
-        body: JSON.stringify({
-          name: form.name,
-          category: form.category,
-          description: form.description,
-          repositoryUrl: form.repositoryUrl,
-          author: form.author,
-          version: form.version || '0.1.0',
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.message ?? `Request failed (${res.status})`);
-      setMessage(body?.message ?? 'Extension submitted for review.');
-      setStatus('success');
-    } catch {
-      setStatus('error');
-    }
+  const buildIssueUrl = () => {
+    const title = `[Marketplace Submission] ${form.name}`;
+    const body = [
+      '## Extension Submission',
+      '',
+      `**Name:** ${form.name}`,
+      `**Category:** ${form.category}`,
+      `**Author:** ${form.author}`,
+      `**Version:** ${form.version || '0.1.0'}`,
+      `**Repository:** ${form.repositoryUrl}`,
+      '',
+      '### Description',
+      '',
+      form.description,
+      '',
+      '### Pre-Submission Checklist',
+      '',
+      ...CHECKLIST.map((item) => `- [ ] ${item}`),
+    ].join('\n');
+    const params = new URLSearchParams({ title, body });
+    return `${REPO_URL}/issues/new?${params.toString()}`;
   };
 
-  const submitting = status === 'submitting';
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = buildIssueUrl();
+    setIssueUrl(url);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div style={{ paddingTop: 'var(--nav-height)' }}>
@@ -151,7 +149,7 @@ export default function MarketplaceSubmitPage() {
             }}
           >
             Share your analyzers, collectors, policies, and intelligence packs with the
-            Recurrsive community.
+            Recurrsive community. Submissions are reviewed by maintainers on GitHub.
           </p>
         </div>
       </section>
@@ -247,9 +245,9 @@ export default function MarketplaceSubmitPage() {
                       Plugin SDK docs
                     </Link>{' '}
                     or ask in{' '}
-                    <Link href="https://github.com/Talomia/Recurrsive/discussions" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
+                    <a href={`${REPO_URL}/discussions`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
                       GitHub Discussions
-                    </Link>
+                    </a>
                     .
                   </p>
                 </div>
@@ -262,7 +260,7 @@ export default function MarketplaceSubmitPage() {
                 Extension Details
               </h3>
 
-              {status === 'success' ? (
+              {issueUrl ? (
                 <div
                   className="glass-card animate-fade-in"
                   style={{
@@ -286,79 +284,57 @@ export default function MarketplaceSubmitPage() {
                   >
                     <Check size={32} style={{ color: 'var(--green)' }} />
                   </div>
-                  <h3 style={{ marginBottom: 'var(--space-sm)' }}>Extension submitted</h3>
-                  <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)' }}>
-                    {message}
-                  </p>
-                  <Link href="/marketplace" className="btn btn-secondary">
-                    Back to Marketplace <ArrowRight size={16} />
-                  </Link>
-                </div>
-              ) : !API_BASE ? (
-                // No server configured for this site — do not fake a submission.
-                <div
-                  className="glass-card"
-                  style={{ padding: 'var(--space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Github size={22} style={{ color: 'var(--text-accent)' }} />
-                    <h4 style={{ fontSize: '1.05rem' }}>Submit via GitHub</h4>
-                  </div>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.7 }}>
-                    Extensions are published to a running Recurrsive server&apos;s marketplace API.
-                    This site isn&apos;t connected to one, so it can&apos;t accept submissions
-                    directly. To propose an extension, open an issue on GitHub with a link to your
-                    public repository — the maintainers will review it.
-                  </p>
-                  <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                    <a
-                      href="https://github.com/Talomia/Recurrsive/issues/new"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-primary"
-                    >
-                      <Github size={16} /> Open a GitHub Issue
+                  <h3 style={{ marginBottom: 'var(--space-sm)' }}>Almost there</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)', lineHeight: 1.7 }}>
+                    We opened a pre-filled GitHub issue in a new tab — review it and press
+                    &ldquo;Create&rdquo; there to complete your submission. If the tab didn&apos;t
+                    open,{' '}
+                    <a href={issueUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
+                      use this link
                     </a>
-                    <Link href="/docs/plugin-sdk" className="btn btn-secondary">
-                      Plugin SDK Docs
+                    .
+                  </p>
+                  <div style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setIssueUrl('')}>
+                      Edit Details
+                    </button>
+                    <Link href="/marketplace" className="btn btn-secondary">
+                      Back to Marketplace <ArrowRight size={16} />
                     </Link>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit}>
-                  <div className="glass-card" style={{ opacity: submitting ? 0.8 : 1, transition: 'opacity 0.25s' }}>
-                    {status === 'error' && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '10px',
-                          padding: 'var(--space-md)',
-                          marginBottom: 'var(--space-lg)',
-                          borderRadius: 'var(--radius-md)',
-                          background: 'rgba(239, 68, 68, 0.1)',
-                          border: '1px solid rgba(239, 68, 68, 0.2)',
-                        }}
-                      >
-                        <AlertTriangle size={18} style={{ color: 'var(--red)', flexShrink: 0, marginTop: 2 }} />
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                          Submission failed. The marketplace API rejected the request or was
-                          unreachable — you can also{' '}
-                          <a href="https://github.com/Talomia/Recurrsive/issues/new" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)', textDecoration: 'underline' }}>
-                            open a GitHub issue
-                          </a>{' '}
-                          instead.
-                        </p>
-                      </div>
-                    )}
+                  <div className="glass-card">
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '10px',
+                        padding: 'var(--space-md)',
+                        marginBottom: 'var(--space-lg)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'rgba(59, 130, 246, 0.08)',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                      }}
+                    >
+                      <Info size={18} style={{ color: 'var(--blue)', flexShrink: 0, marginTop: 2 }} />
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                        Community submissions are reviewed on GitHub — this form prepares a
+                        pre-filled issue for you (a free GitHub account is required to post it).
+                        Publishing into a server&apos;s marketplace registry is then done by an
+                        authenticated maintainer.
+                      </p>
+                    </div>
+
                     <div style={{ marginBottom: 'var(--space-lg)' }}>
                       <label htmlFor="ext-name" style={labelStyle}>Extension Name *</label>
-                      <input id="ext-name" type="text" required placeholder="My Awesome Analyzer" style={inputStyle} disabled={submitting} value={form.name} onChange={set('name')} />
+                      <input id="ext-name" type="text" required placeholder="My Awesome Analyzer" style={inputStyle} value={form.name} onChange={set('name')} />
                     </div>
 
                     <div style={{ marginBottom: 'var(--space-lg)' }}>
                       <label htmlFor="ext-category" style={labelStyle}>Category *</label>
-                      <select id="ext-category" required style={{ ...inputStyle, cursor: submitting ? 'not-allowed' : 'pointer' }} disabled={submitting} value={form.category} onChange={set('category')}>
+                      <select id="ext-category" required style={{ ...inputStyle, cursor: 'pointer' }} value={form.category} onChange={set('category')}>
                         <option value="">Select category…</option>
                         <option value="analyzer">Analyzer</option>
                         <option value="collector">Collector</option>
@@ -375,7 +351,6 @@ export default function MarketplaceSubmitPage() {
                         rows={4}
                         placeholder="Describe what your extension does, what problems it solves, and key features…"
                         style={{ ...inputStyle, resize: 'vertical' }}
-                        disabled={submitting}
                         value={form.description}
                         onChange={set('description')}
                       />
@@ -389,7 +364,6 @@ export default function MarketplaceSubmitPage() {
                         required
                         placeholder="https://github.com/your-org/your-extension"
                         style={inputStyle}
-                        disabled={submitting}
                         value={form.repositoryUrl}
                         onChange={set('repositoryUrl')}
                       />
@@ -398,17 +372,16 @@ export default function MarketplaceSubmitPage() {
                     <div className="grid-2" style={{ marginBottom: 'var(--space-xl)' }}>
                       <div>
                         <label htmlFor="ext-author" style={labelStyle}>Author *</label>
-                        <input id="ext-author" type="text" required placeholder="Your Name or Org" style={inputStyle} disabled={submitting} value={form.author} onChange={set('author')} />
+                        <input id="ext-author" type="text" required placeholder="Your Name or Org" style={inputStyle} value={form.author} onChange={set('author')} />
                       </div>
                       <div>
                         <label htmlFor="ext-version" style={labelStyle}>Version *</label>
-                        <input id="ext-version" type="text" required placeholder="1.0.0" style={inputStyle} disabled={submitting} value={form.version} onChange={set('version')} />
+                        <input id="ext-version" type="text" required placeholder="1.0.0" style={inputStyle} value={form.version} onChange={set('version')} />
                       </div>
                     </div>
 
                     <button
                       type="submit"
-                      disabled={submitting}
                       className="btn btn-primary btn-lg"
                       style={{
                         width: '100%',
@@ -416,19 +389,9 @@ export default function MarketplaceSubmitPage() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '8px',
-                        cursor: submitting ? 'not-allowed' : 'pointer',
-                        opacity: submitting ? 0.75 : 1,
                       }}
                     >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="animate-spin" size={18} /> Submitting…
-                        </>
-                      ) : (
-                        <>
-                          <Send size={18} /> Submit Extension
-                        </>
-                      )}
+                      <Github size={18} /> Continue on GitHub
                     </button>
                   </div>
                 </form>
