@@ -472,12 +472,15 @@ describe('DocsAnalyzer', () => {
   // ── Rule 4: Stale Documentation ─────────────────────────────────────
 
   describe('stale documentation', () => {
-    it('detects document updated more than 180 days ago', async () => {
+    it('detects document with last_modified more than 180 days ago (even when updated_at is fresh)', async () => {
+      // entity.updated_at is set to "now" on every ingestion, so only
+      // properties.last_modified (the real file mtime / git date) counts.
       const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString();
       const doc = makeEntity({
         type: 'document',
         name: 'architecture-overview',
-        updated_at: oldDate,
+        updated_at: new Date().toISOString(),
+        properties: { last_modified: oldDate },
       });
       const ctx = makeContext({
         file: [],
@@ -506,7 +509,7 @@ describe('DocsAnalyzer', () => {
       const adr = makeEntity({
         type: 'adr',
         name: 'ADR-001',
-        updated_at: oldDate,
+        properties: { last_modified: oldDate },
       });
       const ctx = makeContext({
         file: [],
@@ -529,12 +532,40 @@ describe('DocsAnalyzer', () => {
       expect(staleFindings).toHaveLength(1);
     });
 
+    it('skips documents without a real last_modified timestamp (stale updated_at alone is ingestion noise)', async () => {
+      const oldDate = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+      const doc = makeEntity({
+        type: 'document',
+        name: 'no-mtime-doc',
+        updated_at: oldDate,
+      });
+      const ctx = makeContext({
+        file: [],
+        repository: [],
+        module: [],
+        function: [],
+        class: [],
+        adr: [],
+        pipeline: [],
+        agent: [],
+        mcp_server: [],
+        document: [doc],
+        rfc: [],
+        api_contract: [],
+        endpoint: [],
+      });
+
+      const findings = await analyzer.analyze(ctx);
+      const staleFindings = findings.filter((f) => f.title.includes('Stale documentation'));
+      expect(staleFindings).toHaveLength(0);
+    });
+
     it('skips recently updated documents', async () => {
       const recentDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const doc = makeEntity({
         type: 'document',
         name: 'recent-doc',
-        updated_at: recentDate,
+        properties: { last_modified: recentDate },
       });
       const ctx = makeContext({
         file: [],

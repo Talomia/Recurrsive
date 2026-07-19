@@ -52,6 +52,14 @@ export interface RunOptions {
  * Run a single analyzer lifecycle (initialize → analyze → finalize) with
  * an optional timeout.
  *
+ * CAVEAT — the timeout rejects the returned promise but does NOT cancel
+ * the analyzer itself: the underlying async work (graph queries etc.)
+ * keeps running in the background until it settles on its own. Its late
+ * resolve/reject is a harmless no-op on the already-settled promise, but
+ * the analyzer may keep consuming graph-client resources after the run
+ * has "timed out". True cancellation would require an AbortSignal in the
+ * Analyzer contract.
+ *
  * @param analyzer - The analyzer to run.
  * @param ctx - Analysis context.
  * @param timeout_ms - Maximum wall-clock time allowed.

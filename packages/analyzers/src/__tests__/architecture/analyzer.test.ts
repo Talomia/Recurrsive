@@ -537,6 +537,22 @@ describe('ArchitectureAnalyzer', () => {
       const absFindings = findings.filter((f) => f.title.includes('Missing shared abstraction'));
       expect(absFindings).toHaveLength(0);
     });
+
+    it('does not pool classes lacking a contains edge into a shared "unknown" module', async () => {
+      // Classes with no containment info come from anywhere in the repo —
+      // grouping them together fabricated a fake module and bogus findings.
+      const cls1 = makeEntity({ type: 'class', name: 'LooseA' });
+      const cls2 = makeEntity({ type: 'class', name: 'LooseB' });
+      const cls3 = makeEntity({ type: 'class', name: 'LooseC' });
+
+      const relsFn: GetRelsFn = () => [];
+
+      const ctx = makeContext({ class: [cls1, cls2, cls3] }, relsFn);
+      const findings = await analyzer.analyze(ctx);
+
+      const absFindings = findings.filter((f) => f.title.includes('Missing shared abstraction'));
+      expect(absFindings).toHaveLength(0);
+    });
   });
 
   // ── Rule 6: Layer Violations ───────────────────────────────────────
@@ -677,6 +693,19 @@ describe('ArchitectureAnalyzer', () => {
       const fn2 = makeEntity({ type: 'function', name: 'go' });
 
       const ctx = makeContext({ function: [fn1, fn2] });
+      const findings = await analyzer.analyze(ctx);
+
+      const dupFindings = findings.filter((f) => f.title.includes('duplicate functionality'));
+      expect(dupFindings).toHaveLength(0);
+    });
+
+    it('skips convention-mandated names (main, handler, toString, init)', async () => {
+      // Every module has a main/handler/toString by design — repeating
+      // names carry no duplication signal.
+      const fns = ['main', 'main', 'handler', 'handler', 'toString', 'toString', 'init', 'init']
+        .map((name) => makeEntity({ type: 'function', name }));
+
+      const ctx = makeContext({ function: fns });
       const findings = await analyzer.analyze(ctx);
 
       const dupFindings = findings.filter((f) => f.title.includes('duplicate functionality'));

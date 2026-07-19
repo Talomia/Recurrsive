@@ -191,6 +191,40 @@ describe('AgeGraphClient', () => {
       mockPoolConnect.mockRejectedValue(new Error('connection failed'));
       await expect(client.getEntity('x')).rejects.toThrow(GraphError);
     });
+
+    it('does not strip ::vertex/::path annotations inside JSON string contents', async () => {
+      // Regression: a global replace of /::(vertex|edge|path|agtype)/ also
+      // corrupted string CONTENTS — `boost::filesystem::path` came back as
+      // `boost::filesystem`. Only structural annotations may be stripped.
+      const vertexJson = JSON.stringify({
+        id: 1,
+        label: 'class',
+        properties: {
+          id: 'entity-1',
+          type: 'class',
+          name: 'path',
+          qualified_name: 'boost::filesystem::path',
+          description: 'uses my::edge and a::agtype alias',
+          source: 'test',
+          created_at: now,
+          updated_at: now,
+          last_seen_at: now,
+        },
+      });
+
+      mockClientQuery
+        .mockResolvedValueOnce({ rows: [] }) // SET search_path
+        .mockResolvedValueOnce({ rows: [] }) // LOAD 'age'
+        .mockResolvedValueOnce({ rows: [] }) // SET statement_timeout
+        .mockResolvedValueOnce({
+          rows: [{ n: vertexJson + '::vertex' }],
+        });
+
+      const result = await client.getEntity('entity-1');
+      expect(result).not.toBeNull();
+      expect(result!.qualified_name).toBe('boost::filesystem::path');
+      expect(result!.description).toBe('uses my::edge and a::agtype alias');
+    });
   });
 
   // ── getEntities ────────────────────────────────────────────────────────
@@ -463,6 +497,97 @@ describe('AgeGraphClient', () => {
       await expect(client.upsertEntity(makeEntity())).rejects.toThrow(
         GraphError,
       );
+    });
+
+    describe('relabel transaction atomicity', () => {
+      const existingVertex = JSON.stringify({
+        id: 1,
+        label: 'class',
+        properties: {
+          id: 'entity-1',
+          type: 'class',
+          name: 'wasAClass',
+          qualified_name: 'src:wasAClass',
+          source: 'test',
+          properties: '{}',
+          tags: '[]',
+          created_at: now,
+          updated_at: now,
+          last_seen_at: now,
+        },
+      }) + '::vertex';
+
+      const existingEdge = JSON.stringify({
+        id: 2,
+        label: 'calls',
+        properties: {
+          id: 'rel-1',
+          type: 'calls',
+          source_id: 'entity-1',
+          target_id: 'entity-2',
+          properties: '{}',
+          confidence: 1,
+          source: 'test',
+          created_at: now,
+          updated_at: now,
+        },
+      }) + '::edge';
+
+      it('runs delete + recreate + edge re-insert inside BEGIN/COMMIT on one client', async () => {
+        mockClientQuery.mockImplementation((sql: unknown) => {
+          if (typeof sql !== 'string') return Promise.resolve({ rows: [] });
+          if (sql.includes("MATCH (n {id: 'entity-1'}) RETURN n")) {
+            return Promise.resolve({ rows: [{ n: existingVertex }] });
+          }
+          if (sql.includes('RETURN DISTINCT r')) {
+            return Promise.resolve({ rows: [{ r: existingEdge }] });
+          }
+          return Promise.resolve({ rows: [] });
+        });
+
+        await client.upsertEntity(makeEntity({ id: 'entity-1', type: 'function' }));
+
+        const sqls = mockClientQuery.mock.calls
+          .map((c: unknown[]) => c[0])
+          .filter((s): s is string => typeof s === 'string');
+
+        const begin = sqls.findIndex((s) => s === 'BEGIN');
+        const del = sqls.findIndex((s) => s.includes('DETACH DELETE'));
+        const create = sqls.findIndex((s) => s.includes('CREATE (n:function'));
+        const relink = sqls.findIndex((s) => s.includes('MERGE (a)-[r:calls'));
+        const commit = sqls.findIndex((s) => s === 'COMMIT');
+
+        expect(begin).toBeGreaterThan(-1);
+        expect(commit).toBeGreaterThan(-1);
+        expect(begin).toBeLessThan(del);
+        expect(del).toBeLessThan(create);
+        expect(create).toBeLessThan(relink);
+        expect(relink).toBeLessThan(commit);
+        expect(sqls).not.toContain('ROLLBACK');
+      });
+
+      it('rolls back (and does not commit) when a statement inside the transaction fails', async () => {
+        mockClientQuery.mockImplementation((sql: unknown) => {
+          if (typeof sql !== 'string') return Promise.resolve({ rows: [] });
+          if (sql.includes("MATCH (n {id: 'entity-1'}) RETURN n")) {
+            return Promise.resolve({ rows: [{ n: existingVertex }] });
+          }
+          if (sql.includes('CREATE (n:function')) {
+            return Promise.reject(new Error('recreate failed'));
+          }
+          return Promise.resolve({ rows: [] });
+        });
+
+        await expect(
+          client.upsertEntity(makeEntity({ id: 'entity-1', type: 'function' })),
+        ).rejects.toThrow(GraphError);
+
+        const sqls = mockClientQuery.mock.calls
+          .map((c: unknown[]) => c[0])
+          .filter((s): s is string => typeof s === 'string');
+        expect(sqls).toContain('ROLLBACK');
+        expect(sqls).not.toContain('COMMIT');
+      });
     });
   });
 

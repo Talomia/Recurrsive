@@ -285,6 +285,30 @@ describe('AIAnalyzer', () => {
       expect(errFindings).toHaveLength(0);
     });
 
+    it('skips Go functions (no try/catch in Go; extractor cannot observe error handling)', async () => {
+      const fn = makeEntity({
+        type: 'function',
+        name: 'GenerateText',
+        properties: { language: 'go', has_loop: false },
+      });
+      const modelRel = makeRel({
+        type: 'uses_model',
+        source_id: fn.id,
+        target_id: nextId(),
+      });
+
+      const relsFn: GetRelsFn = (id, dir) => {
+        if (id === fn.id && dir === 'out') return [modelRel];
+        return [];
+      };
+
+      const ctx = makeContext({ function: [fn] }, relsFn);
+      const findings = await analyzer.analyze(ctx);
+
+      const errFindings = findings.filter((f) => f.title.includes('without error handling'));
+      expect(errFindings).toHaveLength(0);
+    });
+
     it('detects invokes_agent without error handling', async () => {
       const fn = makeEntity({ type: 'function', name: 'callAgent' });
       const agentRel = makeRel({

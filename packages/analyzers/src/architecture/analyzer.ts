@@ -521,12 +521,17 @@ export class ArchitectureAnalyzer implements Analyzer {
     const findings: Finding[] = [];
     const classes = await ctx.graph.getEntities('class');
 
-    // Group classes by module (via containing file or module)
+    // Group classes by module (via containing file or module). Classes
+    // WITHOUT a `contains` edge must be skipped, not pooled together: a
+    // shared 'unknown' bucket lumped unrelated classes from across the
+    // whole repo into one fake "module", producing bogus "Missing shared
+    // abstraction" findings about classes that never coexist.
     const classesByModule = new Map<string, Entity[]>();
     for (const cls of classes) {
       const inRels = await ctx.graph.getRelationships(cls.id, 'in');
       const containedBy = inRels.find((r) => r.type === 'contains');
-      const moduleId = containedBy?.source_id ?? 'unknown';
+      if (!containedBy) continue;
+      const moduleId = containedBy.source_id;
       const existing = classesByModule.get(moduleId) ?? [];
       existing.push(cls);
       classesByModule.set(moduleId, existing);
@@ -698,6 +703,39 @@ export class ArchitectureAnalyzer implements Analyzer {
    * @param ctx - Analysis context.
    * @returns Findings for duplicate functionality.
    */
+  /**
+   * Convention-mandated or ubiquitous function names (normalized: lowercase,
+   * no separators/digits) that legitimately recur across a codebase and are
+   * NOT evidence of duplicated functionality.
+   */
+  private static readonly GENERIC_FUNCTION_NAMES: ReadonlySet<string> = new Set([
+    'main',
+    'init',
+    'initialize',
+    'setup',
+    'teardown',
+    'run',
+    'start',
+    'stop',
+    'execute',
+    'handler',
+    'handle',
+    'callback',
+    'constructor',
+    'tostring',
+    'string', // Go's Stringer interface
+    'equals',
+    'hashcode',
+    'clone',
+    'close',
+    'open',
+    'dispose',
+    'render',
+    'index',
+    'default',
+    'new',
+  ]);
+
   private async detectDuplicateFunctionality(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
     const functions = await ctx.graph.getEntities('function');
@@ -707,11 +745,15 @@ export class ArchitectureAnalyzer implements Analyzer {
     const normalize = (name: string): string =>
       name.toLowerCase().replace(/[_-]/g, '').replace(/\d+/g, '');
 
-    // Group by normalized name
+    // Group by normalized name. Ubiquitous, convention-mandated names
+    // (main, handler, toString, init, …) recur in every module by design —
+    // grouping them repo-wide flagged every entry point / interface method
+    // as "duplicate functionality" with zero signal.
     const groups = new Map<string, Entity[]>();
     for (const fn of functions) {
       const key = normalize(fn.name);
       if (key.length < 3) continue; // skip tiny names
+      if (ArchitectureAnalyzer.GENERIC_FUNCTION_NAMES.has(key)) continue;
       const existing = groups.get(key) ?? [];
       existing.push(fn);
       groups.set(key, existing);

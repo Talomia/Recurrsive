@@ -446,15 +446,15 @@ export class DocsAnalyzer implements Analyzer {
     const thresholdMs = STALE_DOCS_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
 
     for (const doc of allDocs) {
-      const updatedAt = doc.updated_at
-        ? new Date(doc.updated_at).getTime()
-        : null;
+      // Only `properties.last_modified` (the document's real modification
+      // time, e.g. from git) can indicate staleness. `entity.updated_at` is
+      // set to "now" on EVERY ingestion, so including it made this rule
+      // permanently dead — the max was always ~0 days old. Docs without a
+      // real last-modified timestamp are skipped (not detectable).
       const lastModified = doc.properties['last_modified'] as string | undefined;
-      const lastModifiedTime = lastModified
-        ? new Date(lastModified).getTime()
-        : null;
-
-      const latestUpdate = Math.max(updatedAt ?? 0, lastModifiedTime ?? 0);
+      if (!lastModified) continue;
+      const latestUpdate = new Date(lastModified).getTime();
+      if (Number.isNaN(latestUpdate)) continue;
 
       if (latestUpdate > 0 && now - latestUpdate > thresholdMs) {
         const daysStale = Math.floor((now - latestUpdate) / (24 * 60 * 60 * 1000));

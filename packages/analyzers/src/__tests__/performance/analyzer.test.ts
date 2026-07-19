@@ -1,9 +1,10 @@
 /**
  * Tests for PerformanceAnalyzer.
  *
- * Covers all 7 rules: sequential LLM calls, N+1 queries,
+ * Covers all 6 rules: sequential LLM calls, N+1 queries,
  * missing caching, large context windows, synchronous blocking,
- * missing pagination, and unbounded loops.
+ * and unbounded loops. (Missing pagination is owned by the
+ * api-contract analyzer to avoid double-reporting.)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -523,118 +524,40 @@ describe('PerformanceAnalyzer', () => {
       const syncFindings = findings.filter((f) => f.title.includes('Synchronous blocking'));
       expect(syncFindings).toHaveLength(0);
     });
+
+    it('does NOT assert definite blocking for generic Sync-suffixed names (initSync/dataSync)', async () => {
+      // wasm-bindgen's initSync and tfjs's dataSync are not Node blocking
+      // I/O APIs — they must not get the HIGH/0.95 definite claim.
+      // (dataSync is excluded entirely by the `...aSync` guard; initSync is
+      // downgraded to a hedged "possible" finding.)
+      const fns = [
+        makeEntity({ type: 'function', name: 'initSync' }),
+        makeEntity({ type: 'function', name: 'dataSync' }),
+      ];
+      const ctx = makeContext({ function: fns });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.startsWith('Synchronous blocking'))).toHaveLength(0);
+      const possible = findings.filter((f) => f.title.startsWith('Possible synchronous blocking'));
+      expect(possible).toHaveLength(1);
+      expect(possible[0]!.title).toContain('initSync');
+      expect(possible[0]!.severity).toBe('medium');
+      expect(possible[0]!.confidence).toBeLessThanOrEqual(0.5);
+      expect(possible[0]!.description).toContain('may also be an unrelated naming convention');
+    });
   });
 
-  // ── Rule 6: Missing Pagination ─────────────────────────────────────
+  // ── Missing Pagination (moved to api-contract analyzer) ──────────────
 
-  describe('missing pagination', () => {
-    it('detects GET list endpoints without pagination', async () => {
+  describe('missing pagination (not owned by this analyzer)', () => {
+    it('does not report missing pagination — the api-contract analyzer owns that rule', async () => {
+      // Previously BOTH analyzers reported every unpaginated list endpoint,
+      // double-counting the same issue.
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/users',
         properties: { method: 'GET', path: '/api/users' },
-      });
-      const ctx = makeContext({ endpoint: [endpoint] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const pageFindings = findings.filter((f) => f.title.includes('Missing pagination'));
-      expect(pageFindings).toHaveLength(1);
-      expect(pageFindings[0]!.severity).toBe('medium');
-      expect(pageFindings[0]!.title).toContain('/api/users');
-    });
-
-    it('detects endpoints tagged as list without pagination', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/data',
-        properties: { method: 'GET', path: '/api/data' },
-        tags: ['list'],
-      });
-      const ctx = makeContext({ endpoint: [endpoint] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const pageFindings = findings.filter((f) => f.title.includes('Missing pagination'));
-      expect(pageFindings).toHaveLength(1);
-    });
-
-    it('detects endpoints with returns_array without pagination', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/data',
-        properties: { method: 'GET', path: '/api/data', returns_array: true },
-      });
-      const ctx = makeContext({ endpoint: [endpoint] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const pageFindings = findings.filter((f) => f.title.includes('Missing pagination'));
-      expect(pageFindings).toHaveLength(1);
-    });
-
-    it('skips paginated endpoints', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users', paginated: true },
-      });
-      const ctx = makeContext({ endpoint: [endpoint] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const pageFindings = findings.filter((f) => f.title.includes('Missing pagination'));
-      expect(pageFindings).toHaveLength(0);
-    });
-
-    it('skips endpoints tagged as paginated', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users' },
-        tags: ['paginated'],
-      });
-      const ctx = makeContext({ endpoint: [endpoint] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const pageFindings = findings.filter((f) => f.title.includes('Missing pagination'));
-      expect(pageFindings).toHaveLength(0);
-    });
-
-    it('skips endpoints with pagination parameters', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'GET', path: '/api/users', parameters: ['page', 'limit'] },
-      });
-      const ctx = makeContext({ endpoint: [endpoint] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const pageFindings = findings.filter((f) => f.title.includes('Missing pagination'));
-      expect(pageFindings).toHaveLength(0);
-    });
-
-    it('skips non-GET endpoints', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/users',
-        properties: { method: 'POST', path: '/api/users' },
-      });
-      const ctx = makeContext({ endpoint: [endpoint] });
-
-      const findings = await analyzer.analyze(ctx);
-
-      const pageFindings = findings.filter((f) => f.title.includes('Missing pagination'));
-      expect(pageFindings).toHaveLength(0);
-    });
-
-    it('skips non-list GET endpoints (singular resource)', async () => {
-      const endpoint = makeEntity({
-        type: 'endpoint',
-        name: '/api/profile',
-        properties: { method: 'GET', path: '/api/profile' },
       });
       const ctx = makeContext({ endpoint: [endpoint] });
 

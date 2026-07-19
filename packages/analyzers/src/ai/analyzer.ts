@@ -279,6 +279,15 @@ export class AIAnalyzer implements Analyzer {
 
       if (!callsModel) continue;
 
+      // Go has no try/catch, and the Go extractor never emits
+      // has_try_catch/has_error_handler (only has_loop) — so this rule
+      // would flag EVERY Go LLM-caller as "without try/catch", which is
+      // not detectable, not observed. Skip Go functions entirely.
+      const language = (
+        (fn.properties['language'] as string | undefined) ?? ''
+      ).toLowerCase();
+      if (language === 'go') continue;
+
       const hasErrorHandling =
         fn.properties['has_try_catch'] === true ||
         fn.properties['has_error_handler'] === true ||

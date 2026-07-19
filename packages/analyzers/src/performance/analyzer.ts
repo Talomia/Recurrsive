@@ -25,8 +25,11 @@ import { createFinding, createEvidence, locationFromEntity } from '../base/helpe
  * 3. Missing caching for repeated operations
  * 4. Large context windows
  * 5. Synchronous blocking on async operations
- * 6. Missing pagination
- * 7. Unbounded loops on collections
+ * 6. Unbounded loops on collections
+ *
+ * Missing pagination is intentionally NOT checked here — the api-contract
+ * analyzer owns that rule (its detection is a superset), and both firing
+ * double-reported every unpaginated list endpoint.
  */
 export class PerformanceAnalyzer implements Analyzer {
   readonly id = 'performance.general';
@@ -49,7 +52,6 @@ export class PerformanceAnalyzer implements Analyzer {
       missingCache,
       largeContext,
       syncBlocking,
-      missingPagination,
       unboundedLoops,
     ] = await Promise.all([
       this.detectSequentialLLMCalls(ctx),
@@ -57,7 +59,6 @@ export class PerformanceAnalyzer implements Analyzer {
       this.detectMissingCaching(ctx),
       this.detectLargeContextWindows(ctx),
       this.detectSynchronousBlocking(ctx),
-      this.detectMissingPagination(ctx),
       this.detectUnboundedLoops(ctx),
     ]);
 
@@ -67,7 +68,6 @@ export class PerformanceAnalyzer implements Analyzer {
       ...missingCache,
       ...largeContext,
       ...syncBlocking,
-      ...missingPagination,
       ...unboundedLoops,
     );
 
@@ -425,33 +425,46 @@ export class PerformanceAnalyzer implements Analyzer {
       // "sync" case-insensitively) — that flagged every async function as a
       // synchronous blocker, the exact opposite of the truth. Match a real
       // `Sync` suffix not preceded by `a`/`A`, and anchor the known-API list.
-      const nameHasSyncPattern =
-        /(?:readFile|writeFile|readdir|exec|spawn|execFile|appendFile|mkdir|rmdir|readlink|realpath|stat)Sync$/.test(fn.name) ||
-        /(?<![aA])Sync$/.test(fn.name);
+      const knownSyncApi =
+        /(?:readFile|writeFile|readdir|exec|spawn|execFile|appendFile|mkdir|rmdir|readlink|realpath|stat|lstat|copyFile|unlink|rename|access|truncate|link|symlink|mkdtemp|rm|chmod|chown)Sync$/.test(fn.name);
+      // A generic `...Sync` suffix is only a NAMING HINT, not proof of
+      // blocking I/O: `initSync` (wasm-bindgen), `dataSync` (tfjs), or
+      // app-level "sync data to server" helpers all end in Sync without
+      // blocking file/network I/O. Report those at reduced severity and
+      // confidence instead of a definite HIGH/0.95 claim.
+      const genericSyncSuffix = !knownSyncApi && /(?<![aA])Sync$/.test(fn.name);
 
-      if (isSyncBlocker || nameHasSyncPattern) {
+      if (isSyncBlocker || knownSyncApi || genericSyncSuffix) {
+        const definite = isSyncBlocker || knownSyncApi;
         const loc = locationFromEntity(fn);
         findings.push(
           createFinding({
             analyzer_id: this.id,
-            title: `Synchronous blocking: ${fn.name}`,
-            description: `Function '${fn.name}' performs synchronous I/O operations that block the event loop. This can cause the entire application to freeze during the operation.`,
-            severity: 'high',
+            title: definite
+              ? `Synchronous blocking: ${fn.name}`
+              : `Possible synchronous blocking: ${fn.name}`,
+            description: definite
+              ? `Function '${fn.name}' performs synchronous I/O operations that block the event loop. This can cause the entire application to freeze during the operation.`
+              : `Function '${fn.name}' has a 'Sync' name suffix, which often denotes a synchronous (blocking) API — but may also be an unrelated naming convention (e.g. WASM initSync, data-sync helpers). Verify whether it performs blocking I/O.`,
+            severity: definite ? 'high' : 'medium',
             category: 'performance',
             evidence: [
               createEvidence({
                 type: 'code',
                 source: this.id,
-                description: 'Synchronous blocking operation detected',
+                description: definite
+                  ? 'Synchronous blocking operation detected'
+                  : `Function name ends in 'Sync' (naming hint only; not a confirmed blocking API)`,
                 entity_ids: [fn.id],
-                confidence: 0.9,
-                data: { name_match: nameHasSyncPattern },
+                confidence: definite ? 0.9 : 0.5,
+                data: { name_match: knownSyncApi || genericSyncSuffix, known_sync_api: knownSyncApi },
               }),
             ],
             locations: loc ? [loc] : [],
-            suggested_fix:
-              'Replace synchronous operations with their async equivalents (e.g., fs.readFile instead of fs.readFileSync). Use worker threads for CPU-intensive tasks.',
-            confidence: nameHasSyncPattern ? 0.95 : 0.8,
+            suggested_fix: definite
+              ? 'Replace synchronous operations with their async equivalents (e.g., fs.readFile instead of fs.readFileSync). Use worker threads for CPU-intensive tasks.'
+              : `Check whether '${fn.name}' performs blocking I/O. If it does, replace it with an async equivalent; if the name just means "synchronize", consider renaming to avoid confusion.`,
+            confidence: definite ? (knownSyncApi ? 0.95 : 0.8) : 0.5,
             tags: ['sync-blocking', 'performance', 'event-loop'],
           }),
         );
@@ -461,81 +474,7 @@ export class PerformanceAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 6: Missing Pagination ─────────────────────────────────────
-
-  /**
-   * Detect list endpoints and queries without pagination.
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for missing pagination.
-   */
-  private async detectMissingPagination(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const endpoints = await ctx.graph.getEntities('endpoint');
-
-    for (const endpoint of endpoints) {
-      // Check if this is a list endpoint. Read the method from `method`, falling
-      // back to `http_method` (the property the parsers actually emit). Only
-      // GET endpoints can be list endpoints — an empty/unknown method must not
-      // qualify, so this rule can never fire on mutation endpoints.
-      const method = (
-        (endpoint.properties['method'] as string | undefined) ??
-        (endpoint.properties['http_method'] as string | undefined) ??
-        ''
-      ).toUpperCase();
-      const path = (endpoint.properties['path'] as string | undefined) ?? endpoint.name;
-      const isListEndpoint =
-        method === 'GET' &&
-        (/\/\w+s$/.test(path) ||
-          endpoint.tags.includes('list') ||
-          endpoint.properties['returns_array'] === true);
-
-      if (!isListEndpoint) continue;
-
-      const hasPagination =
-        endpoint.properties['paginated'] === true ||
-        endpoint.tags.includes('paginated') ||
-        endpoint.tags.includes('pagination');
-
-      // Check for pagination parameters
-      const params = (endpoint.properties['parameters'] as string[] | undefined) ?? [];
-      const hasPaginationParams = params.some(
-        (p) => /^(page|limit|offset|cursor|after|before|per_page|page_size)$/i.test(String(p)),
-      );
-
-      if (!hasPagination && !hasPaginationParams) {
-        const loc = locationFromEntity(endpoint);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing pagination: ${endpoint.name}`,
-            description: `List endpoint '${endpoint.name}' (${method} ${path}) does not implement pagination. As data grows, this will cause increasingly slow responses and potential OOM errors.`,
-            severity: 'medium',
-            category: 'performance',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'List endpoint without pagination parameters',
-                entity_ids: [endpoint.id],
-                confidence: 0.8,
-                data: { method, path, has_pagination: hasPagination },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Add cursor-based or offset pagination with a sensible default page size (e.g., 20–100 items). Include next/previous links in the response.',
-            confidence: 0.75,
-            tags: ['missing-pagination', 'performance', 'api'],
-          }),
-        );
-      }
-    }
-
-    return findings;
-  }
-
-  // ── Rule 7: Unbounded Loops ────────────────────────────────────────
+  // ── Rule 6: Unbounded Loops ────────────────────────────────────────
 
   /**
    * Detect loops without size limits operating on collections.

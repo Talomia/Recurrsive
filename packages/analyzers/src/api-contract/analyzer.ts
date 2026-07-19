@@ -198,12 +198,19 @@ export class APIContractAnalyzer implements Analyzer {
         endpoint.tags.includes('paginated') ||
         endpoint.tags.includes('pagination');
 
-      // Check query params for pagination indicators
-      const params = endpoint.properties['parameters'] as Array<Record<string, unknown>> | undefined;
-      const paginationParams = ['page', 'limit', 'offset', 'cursor', 'per_page', 'page_size', 'pageSize'];
-      const hasParamPagination = params?.some(
-        (p) => paginationParams.includes(((p['name'] as string) ?? '').toLowerCase()),
-      );
+      // Check query params for pagination indicators. Producers emit
+      // `parameters` either as string[] or as [{ name: … }] objects —
+      // accept both shapes (this rule is the single owner of the
+      // missing-pagination check; the performance analyzer used to
+      // double-report it and handled the string[] shape).
+      const params = endpoint.properties['parameters'] as
+        | Array<Record<string, unknown> | string>
+        | undefined;
+      const paginationParams = ['page', 'limit', 'offset', 'cursor', 'after', 'before', 'per_page', 'page_size', 'pagesize'];
+      const hasParamPagination = params?.some((p) => {
+        const name = typeof p === 'string' ? p : ((p['name'] as string) ?? '');
+        return paginationParams.includes(name.toLowerCase());
+      });
 
       if (!hasPagination && !hasParamPagination) {
         const loc = locationFromEntity(endpoint);

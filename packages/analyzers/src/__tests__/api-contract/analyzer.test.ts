@@ -250,6 +250,40 @@ describe('APIContractAnalyzer', () => {
       expect(pagFindings[0]!.title).toContain('GET /api/orders');
     });
 
+    it('recognizes pagination parameters given as a string array', async () => {
+      // Some producers emit `parameters` as string[] rather than
+      // [{ name }] objects — both shapes must suppress the finding.
+      const endpoint = makeEntity({
+        type: 'endpoint',
+        name: '/api/users',
+        properties: { method: 'GET', path: '/api/users', parameters: ['page', 'limit'] },
+      });
+      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      const pagFindings = findings.filter((f) => f.title.includes('Missing pagination'));
+      expect(pagFindings).toHaveLength(0);
+    });
+
+    it('recognizes pagination parameters given as objects (incl. pageSize casing)', async () => {
+      const endpoint = makeEntity({
+        type: 'endpoint',
+        name: '/api/users',
+        properties: {
+          method: 'GET',
+          path: '/api/users',
+          parameters: [{ name: 'pageSize' }],
+        },
+      });
+      const ctx = makeContext({ endpoint: [endpoint], api_contract: [] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      const pagFindings = findings.filter((f) => f.title.includes('Missing pagination'));
+      expect(pagFindings).toHaveLength(0);
+    });
+
     it('does not flag mutation (POST) endpoints even on a plural path', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',

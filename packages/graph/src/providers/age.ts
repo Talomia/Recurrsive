@@ -198,12 +198,58 @@ export interface ExtendedGraphClient extends GraphClient {
  * @param raw - Raw agtype string from a query result.
  * @returns Parsed JavaScript value.
  */
+/**
+ * Remove AGE type annotations (`::vertex`, `::edge`, `::path`, `::agtype`)
+ * that appear OUTSIDE JSON string literals. Annotations can occur mid-value
+ * (a `::path` result embeds `::vertex`/`::edge` after each element), so a
+ * simple trailing strip is not enough — instead scan the payload tracking
+ * JSON string boundaries (including escapes) and drop annotations only in
+ * structural positions.
+ */
+function stripAgtypeAnnotations(raw: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw.charAt(i);
+    if (inString) {
+      out += ch;
+      if (ch === '\\' && i + 1 < raw.length) {
+        // Escaped character (e.g. \" or \\) — copy it verbatim so an
+        // escaped quote does not terminate the string.
+        out += raw.charAt(i + 1);
+        i++;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+      continue;
+    }
+    if (ch === ':' && raw.charAt(i + 1) === ':') {
+      // Longest annotation is 8 chars; slice one extra char for the \b check.
+      const m = /^::(vertex|edge|path|agtype)\b/.exec(raw.slice(i, i + 9));
+      if (m) {
+        i += m[0].length - 1;
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+}
+
 function parseAgtype(raw: unknown): unknown {
   if (raw === null || raw === undefined) return null;
   if (typeof raw !== 'string') return raw;
 
-  // Strip trailing AGE type annotations like ::vertex, ::edge, ::path
-  const cleaned = raw.replace(/::(vertex|edge|path|agtype)\b/g, '').trim();
+  // Strip AGE type annotations like ::vertex, ::edge, ::path — but ONLY
+  // outside JSON string literals. A naive global replace corrupts string
+  // contents (e.g. a qualified_name of `boost::filesystem::path` would
+  // round-trip as `boost::filesystem`).
+  const cleaned = stripAgtypeAnnotations(raw).trim();
 
   try {
     return JSON.parse(cleaned);
@@ -425,6 +471,24 @@ export class AgeGraphClient implements ExtendedGraphClient {
       await this.prepareConnection(client);
       // Set a per-query timeout to prevent slow Cypher scans from hanging
       await client.query(`SET statement_timeout = '30s';`);
+      return await this.executeCypherOn(client, cypher, returnColumns);
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Execute a Cypher query on an ALREADY-PREPARED client connection.
+   * Used directly for multi-statement transactions where all statements
+   * must share one connection; {@link executeCypher} wraps this with
+   * pool checkout + connection preparation.
+   */
+  private async executeCypherOn(
+    client: pg.PoolClient,
+    cypher: string,
+    returnColumns: string = 'result agtype',
+  ): Promise<unknown[]> {
+    try {
       const sql = `SELECT * FROM cypher('${this.graphName}', ${dollarQuote(cypher)}) AS (${returnColumns});`;
       const result = await client.query(sql);
       return result.rows.map((row: Record<string, unknown>) => {
@@ -445,8 +509,6 @@ export class AgeGraphClient implements ExtendedGraphClient {
         );
       }
       throw error;
-    } finally {
-      client.release();
     }
   }
 
@@ -723,17 +785,56 @@ export class AgeGraphClient implements ExtendedGraphClient {
           // AGE cannot relabel a vertex in place. Recreate it under the
           // new label, preserving its relationships — parity with the
           // SQLite provider where `type` is a plain column update.
-          const existingRels = await this.getRelationships(entity.id, 'both');
-          await this.executeCypher(
-            `MATCH (n {id: '${safeId}'}) DETACH DELETE n RETURN count(n) AS deleted`,
-            'deleted agtype',
-          );
-          await this.executeCypher(
-            `CREATE (n:${entity.type} ${props}) RETURN n`,
-            'n agtype',
-          );
-          for (const rel of existingRels) {
-            await this.upsertRelationship(rel);
+          //
+          // This MUST be atomic: a crash between the DETACH DELETE and the
+          // edge re-inserts would silently drop every relationship on the
+          // vertex (SQLite does a single atomic UPDATE). Run the whole
+          // read-delete-recreate-relink sequence on ONE client inside an
+          // explicit transaction.
+          const client = await this.pool.connect();
+          try {
+            await this.prepareConnection(client);
+            await client.query(`SET statement_timeout = '30s';`);
+            await client.query('BEGIN');
+            try {
+              const relRows = await this.executeCypherOn(
+                client,
+                `MATCH (n {id: '${safeId}'})-[r]-(m) RETURN DISTINCT r`,
+                'r agtype',
+              );
+              const existingRels = relRows.map((row) =>
+                edgeToRelationship(
+                  (row as Record<string, unknown>)['r'] as Record<string, unknown>,
+                ),
+              );
+              await this.executeCypherOn(
+                client,
+                `MATCH (n {id: '${safeId}'}) DETACH DELETE n RETURN count(n) AS deleted`,
+                'deleted agtype',
+              );
+              await this.executeCypherOn(
+                client,
+                `CREATE (n:${entity.type} ${props}) RETURN n`,
+                'n agtype',
+              );
+              for (const rel of existingRels) {
+                validateCypherLabel(rel.type, 'relationship');
+                const relProps = relationshipToAgeProps(rel);
+                await this.executeCypherOn(
+                  client,
+                  `MATCH (a {id: '${escapeCypher(rel.source_id)}'}), (b {id: '${escapeCypher(rel.target_id)}'}) MERGE (a)-[r:${rel.type} {id: '${escapeCypher(rel.id)}'}]->(b) SET r += ${relProps} RETURN r`,
+                  'r agtype',
+                );
+              }
+              await client.query('COMMIT');
+            } catch (txError) {
+              await client.query('ROLLBACK').catch(() => {
+                // Connection may already be unusable — release below.
+              });
+              throw txError;
+            }
+          } finally {
+            client.release();
           }
           return entity;
         }

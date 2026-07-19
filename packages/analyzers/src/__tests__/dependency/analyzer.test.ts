@@ -255,6 +255,41 @@ describe('DependencyAnalyzer', () => {
       expect(vulnFindings).toHaveLength(1);
     });
 
+    it('does NOT assert a definite CVE for a range whose lockfile may resolve safe (^4.17.20)', async () => {
+      // ^4.17.20 typically resolves to the patched 4.17.21 via the lockfile;
+      // asserting "Known vulnerability" at critical/0.9 would be fabricated.
+      const dep = makeEntity({
+        type: 'dependency',
+        name: 'lodash',
+        properties: { version: '^4.17.20' },
+      });
+      const ctx = makeContext({ dependency: [dep], file: [] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('Known vulnerability'))).toHaveLength(0);
+      const rangeFindings = findings.filter((f) =>
+        f.title.includes('Possibly vulnerable dependency range'),
+      );
+      expect(rangeFindings).toHaveLength(1);
+      expect(rangeFindings[0]!.severity).toBe('high');
+      expect(rangeFindings[0]!.confidence).toBeLessThanOrEqual(0.5);
+      expect(rangeFindings[0]!.description).toContain('MAY resolve below the fixed version');
+    });
+
+    it('does not flag a range whose minimum is at/above the safe version (^4.17.21)', async () => {
+      const dep = makeEntity({
+        type: 'dependency',
+        name: 'lodash',
+        properties: { version: '^4.17.21' },
+      });
+      const ctx = makeContext({ dependency: [dep], file: [] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('vulnerab'))).toHaveLength(0);
+    });
+
     it('detects log4j as a known vulnerable pattern', async () => {
       const dep = makeEntity({
         type: 'dependency',

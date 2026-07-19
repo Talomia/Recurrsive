@@ -328,9 +328,15 @@ export class DependencyAnalyzer implements Analyzer {
           dep.properties['has_vulnerability'] === true;
 
         let isVulnerable = hasVulnTag;
+        // Range specifiers (^, ~, >=, …) only tell us the MINIMUM version the
+        // package manager may install. `^4.17.20` typically resolves to a
+        // patched 4.17.21 via the lockfile, so asserting a definite CVE from
+        // the range alone would be dishonest — we have no lockfile-resolved
+        // version in the graph to check against.
+        const isRangeSpecifier = version !== '' && !this.isExactVersion(version);
 
         if (version && !isVulnerable) {
-          // Simple version comparison: check if current < safe
+          // Simple version comparison: check if current (or range minimum) < safe
           isVulnerable = this.isVersionLessThan(version, vuln.safeVersion);
         }
 
@@ -341,33 +347,45 @@ export class DependencyAnalyzer implements Analyzer {
 
         if (isVulnerable) {
           const loc = locationFromEntity(dep);
+          const definite = hasVulnTag || !isRangeSpecifier;
           findings.push(
             createFinding({
               analyzer_id: this.id,
-              title: `Known vulnerability: ${dep.name}`,
-              description:
-                `Dependency '${dep.name}'${version ? ` (${version})` : ''} has a known vulnerability: ` +
-                `${vuln.description}. Update to version ${vuln.safeVersion} or later.`,
-              severity: 'critical',
+              title: definite
+                ? `Known vulnerability: ${dep.name}`
+                : `Possibly vulnerable dependency range: ${dep.name}`,
+              description: definite
+                ? `Dependency '${dep.name}'${version ? ` (${version})` : ''} has a known vulnerability: ` +
+                  `${vuln.description}. Update to version ${vuln.safeVersion} or later.`
+                : `Dependency '${dep.name}' declares version range '${version}', whose minimum is below ` +
+                  `the fixed version ${vuln.safeVersion} (${vuln.description}). The lockfile may already ` +
+                  `resolve a patched version — this range MAY resolve below the fixed version, so verify ` +
+                  `the installed version.`,
+              severity: definite ? 'critical' : 'high',
               category: 'security',
               evidence: [
                 createEvidence({
                   type: 'code',
                   source: this.id,
-                  description: vuln.description,
+                  description: definite
+                    ? vuln.description
+                    : `${vuln.description} (declared range minimum below fix; resolved version unknown)`,
                   entity_ids: [dep.id],
-                  confidence: 0.9,
+                  confidence: definite ? 0.9 : 0.5,
                   data: {
                     package: dep.name,
                     current_version: version,
                     safe_version: vuln.safeVersion,
+                    ...(definite ? {} : { declared_range: version, resolved_version_known: false }),
                   },
                 }),
               ],
               locations: loc ? [loc] : [],
-              suggested_fix:
-                `Update '${dep.name}' to at least version ${vuln.safeVersion}. Run 'npm audit fix' or manually update the dependency.`,
-              confidence: 0.9,
+              suggested_fix: definite
+                ? `Update '${dep.name}' to at least version ${vuln.safeVersion}. Run 'npm audit fix' or manually update the dependency.`
+                : `Check the lockfile-resolved version of '${dep.name}'. If it is below ${vuln.safeVersion}, ` +
+                  `update the range minimum (e.g. to ^${vuln.safeVersion}) or run 'npm audit fix'.`,
+              confidence: definite ? 0.9 : 0.5,
               tags: ['known-cve', 'security', 'supply-chain', dep.name.toLowerCase()],
             }),
           );
@@ -708,6 +726,16 @@ export class DependencyAnalyzer implements Analyzer {
   }
 
   // ── Utility ────────────────────────────────────────────────────────
+
+  /**
+   * True when `v` pins an exact version (`1.2.3`, `v1.2.3`, `=1.2.3`,
+   * optionally with a prerelease/build suffix). Anything else — `^`, `~`,
+   * `>=`, wildcards, hyphen ranges, `||` — is a range specifier whose
+   * resolved version depends on the lockfile.
+   */
+  private isExactVersion(v: string): boolean {
+    return /^[=v]?\d+(\.\d+){0,2}([-+][0-9A-Za-z.-]+)?$/.test(v.trim());
+  }
 
   /**
    * Simple semver comparison: returns true if `a < b`.
