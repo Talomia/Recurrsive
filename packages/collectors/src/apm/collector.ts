@@ -12,11 +12,9 @@
  *
  * Produces entities:
  * - `performance_metric` — response times, error rates, throughput
- * - `infrastructure_resource` — hosts, containers, services
- * - `alert` — performance threshold alerts
- * - `incident` — active incidents
- * - `environment` — production, staging, dev environments
- * - `user` — DevOps team members
+ *   (New Relic application summaries)
+ * - `infrastructure_resource` — hosts (Datadog), services (New Relic),
+ *   dashboards (Grafana)
  *
  * @packageDocumentation
  */
@@ -162,7 +160,8 @@ export class APMCollector implements Collector {
     const startTime = Date.now();
     const errors: Array<{ message: string; details?: unknown }> = [];
 
-    // Build empty result helper
+    // Build empty result helper — carries any recorded errors so failures
+    // and missing credentials degrade honestly instead of silently.
     const emptyResult = (): CollectorResult => ({
       entities: [],
       relationships: [],
@@ -171,7 +170,7 @@ export class APMCollector implements Collector {
         collected_at: nowISO(),
         duration_ms: Date.now() - startTime,
         items_processed: 0,
-        errors: [],
+        errors,
       },
     });
 
@@ -187,6 +186,7 @@ export class APMCollector implements Collector {
 
       if (!apiKey || !appKey) {
         logger.warn(`No APM credentials configured for ${this.platform}, skipping collection`);
+        errors.push({ message: `No Datadog credentials configured (need datadog_api_key and datadog_app_key); skipping collection` });
         return emptyResult();
       }
     } else if (this.platform === 'newrelic') {
@@ -195,18 +195,30 @@ export class APMCollector implements Collector {
 
       if (!apiKey) {
         logger.warn(`No APM credentials configured for ${this.platform}, skipping collection`);
+        errors.push({ message: `No New Relic credentials configured (need newrelic_api_key); skipping collection` });
         return emptyResult();
       }
     } else if (this.platform === 'grafana') {
       apiKey = (this.config.custom['grafana_api_key'] as string) || process.env['GRAFANA_API_KEY'];
-      baseUrl = (this.config.custom['grafana_url'] as string) || process.env['GRAFANA_URL'] || 'https://grafana.com/api';
+      // There is no meaningful default Grafana instance URL — grafana.com is
+      // the cloud portal, not the user's instance API. Require explicit config.
+      const grafanaUrl = (this.config.custom['grafana_url'] as string) || process.env['GRAFANA_URL'];
 
       if (!apiKey) {
         logger.warn(`No APM credentials configured for ${this.platform}, skipping collection`);
+        errors.push({ message: `No Grafana credentials configured (need grafana_api_key); skipping collection` });
         return emptyResult();
       }
+      if (!grafanaUrl) {
+        const msg = 'No Grafana instance URL configured (set grafana_url or GRAFANA_URL); the collector cannot guess the instance URL, skipping collection';
+        logger.warn(msg);
+        errors.push({ message: msg });
+        return emptyResult();
+      }
+      baseUrl = grafanaUrl;
     } else {
       logger.warn(`No APM credentials configured for ${this.platform}, skipping collection`);
+      errors.push({ message: `No APM credentials configured for ${this.platform}; skipping collection` });
       return emptyResult();
     }
 
@@ -227,8 +239,8 @@ export class APMCollector implements Collector {
         url = `${baseUrl}/v2/applications.json`;
         headers['Api-Key'] = apiKey!;
       } else {
-        // grafana
-        url = `${baseUrl}/api/dashboards`;
+        // grafana — dashboard search endpoint on the configured instance
+        url = `${baseUrl}/api/search?type=dash-db`;
         headers['Authorization'] = `Bearer ${apiKey!}`;
       }
 
@@ -248,6 +260,7 @@ export class APMCollector implements Collector {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn(`Failed to fetch from ${this.platform} API`, { error: message });
+      errors.push({ message: `${this.platform} API fetch failed: ${message}` });
       return emptyResult();
     }
 
@@ -347,11 +360,10 @@ export class APMCollector implements Collector {
    *
    * Parses the platform-specific response and creates:
    * - `infrastructure_resource` entities
-   * - `performance_metric` entities
-   * - `alert` entities
-   * - `incident` entities
-   * - `environment` entities
-   * - `user` entities
+   * - `performance_metric` entities (New Relic application summaries)
+   *
+   * Only data actually present in the API response is emitted; absent
+   * fields are omitted rather than defaulted.
    *
    * @param data - Raw API response data.
    * @returns Array of entities.
@@ -366,35 +378,33 @@ export class APMCollector implements Collector {
     const record = data as Record<string, unknown>;
 
     if (this.platform === 'datadog') {
-      // Parse Datadog /api/v1/hosts response
+      // Parse Datadog /api/v1/hosts response. Host metrics are nested under
+      // host.metrics (cpu/memory) and host metadata under host.meta — when a
+      // value is absent it is omitted, never defaulted to 0.
       const hostList = Array.isArray(record['host_list']) ? record['host_list'] : [];
       for (const host of hostList) {
         const h = host as Record<string, unknown>;
-        entities.push(
-          this.makeEntity('infrastructure_resource', String(h['name'] ?? 'unknown-host'), {
-            resource_type: 'host',
-            cpu_percent: h['cpu'] ?? 0,
-            memory_percent: h['memory'] ?? 0,
-            status: h['up'] === true ? 'healthy' : 'degraded',
-            region: h['aws_region'] ?? h['region'] ?? 'unknown',
-            platform: this.platform,
-          }, ['host']),
-        );
-      }
 
-      // Extract metrics if present
-      const metrics = Array.isArray(record['metrics']) ? record['metrics'] : [];
-      for (const metric of metrics) {
-        const m = metric as Record<string, unknown>;
+        const props: Record<string, unknown> = {
+          resource_type: 'host',
+          status: h['up'] === true ? 'healthy' : h['up'] === false ? 'degraded' : 'unknown',
+          platform: this.platform,
+        };
+
+        const hostMetrics = (typeof h['metrics'] === 'object' && h['metrics'] !== null)
+          ? (h['metrics'] as Record<string, unknown>)
+          : {};
+        if (typeof hostMetrics['cpu'] === 'number') props['cpu_percent'] = hostMetrics['cpu'];
+        if (typeof hostMetrics['memory'] === 'number') props['memory_percent'] = hostMetrics['memory'];
+
+        const meta = (typeof h['meta'] === 'object' && h['meta'] !== null)
+          ? (h['meta'] as Record<string, unknown>)
+          : {};
+        if (typeof meta['platform'] === 'string') props['os_platform'] = meta['platform'];
+        if (typeof meta['agent_version'] === 'string') props['agent_version'] = meta['agent_version'];
+
         entities.push(
-          this.makeEntity('performance_metric', String(m['name'] ?? 'unknown-metric'), {
-            metric_type: m['type'] ?? 'unknown',
-            value: m['value'] ?? 0,
-            unit: m['unit'] ?? 'unknown',
-            service: m['service'] ?? 'unknown',
-            period: m['period'] ?? '5m',
-            platform: this.platform,
-          }, ['apm-metric']),
+          this.makeEntity('infrastructure_resource', String(h['name'] ?? 'unknown-host'), props, ['host']),
         );
       }
     } else if (this.platform === 'newrelic') {

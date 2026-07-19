@@ -13,8 +13,7 @@
  * - `alert` — grouped/deduplicated error patterns (error groups)
  * - `config` — alerting rules
  * - `infrastructure_resource` — services experiencing errors
- * - `environment` — production/staging/dev environments
- * - `user` — SRE team members who own alert rules
+ * - `user` — issue assignees and alert rule owners
  *
  * @packageDocumentation
  */
@@ -219,6 +218,11 @@ export class ErrorTrackingCollector implements Collector {
         hasOrg: !!org,
         hasProject: !!project,
       });
+      errors.push({
+        message:
+          'No Sentry credentials configured (need sentry_auth_token, sentry_org, and sentry_project); skipping collection',
+        details: { hasToken: !!authToken, hasOrg: !!org, hasProject: !!project },
+      });
       return {
         entities: [],
         relationships: [],
@@ -227,7 +231,7 @@ export class ErrorTrackingCollector implements Collector {
           collected_at: nowISO(),
           duration_ms: durationMs,
           items_processed: 0,
-          errors: [],
+          errors,
         },
       };
     }
@@ -236,32 +240,48 @@ export class ErrorTrackingCollector implements Collector {
       process.env['SENTRY_URL'] ||
       'https://sentry.io';
 
-    // Fetch issues from Sentry
+    // Fetch issues from Sentry (paginated via Link/cursor headers, bounded)
+    const maxIssues = 500;
     let issues: SentryIssue[] = [];
     let rules: SentryAlertRule[] = [];
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
+      let issuesUrl: string | null =
+        `${baseUrl}/api/0/projects/${org}/${project}/issues/?query=is:unresolved`;
 
-      const issuesResponse = await fetch(
-        `${baseUrl}/api/0/projects/${org}/${project}/issues/?query=is:unresolved`,
-        {
+      while (issuesUrl && issues.length < maxIssues) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+
+        const issuesResponse = await fetch(issuesUrl, {
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json',
           },
           signal: controller.signal,
-        },
-      );
+        });
 
-      clearTimeout(timeout);
+        clearTimeout(timeout);
 
-      if (!issuesResponse.ok) {
-        throw new Error(`Sentry API returned ${issuesResponse.status}: ${issuesResponse.statusText}`);
+        if (!issuesResponse.ok) {
+          throw new Error(`Sentry API returned ${issuesResponse.status}: ${issuesResponse.statusText}`);
+        }
+
+        const page = (await issuesResponse.json()) as SentryIssue[];
+        issues.push(...(Array.isArray(page) ? page : []));
+
+        issuesUrl = this.parseSentryNextLink(issuesResponse.headers.get('Link'));
+
+        if (issuesUrl && issues.length >= maxIssues) {
+          const msg = `Sentry issues truncated at ${maxIssues}; more pages were available but not fetched`;
+          logger.warn(msg);
+          errors.push({ message: msg });
+        }
       }
 
-      issues = (await issuesResponse.json()) as SentryIssue[];
+      if (issues.length > maxIssues) {
+        issues = issues.slice(0, maxIssues);
+      }
     } catch (err) {
       const durationMs = Date.now() - startTime;
       logger.warn('Failed to fetch Sentry issues', { error: err });
@@ -298,9 +318,16 @@ export class ErrorTrackingCollector implements Collector {
 
       if (rulesResponse.ok) {
         rules = (await rulesResponse.json()) as SentryAlertRule[];
+      } else {
+        const msg = `Sentry alert rules fetch failed: ${rulesResponse.status} ${rulesResponse.statusText}; continuing without alert rules`;
+        logger.warn(msg);
+        errors.push({ message: msg, details: { status: rulesResponse.status } });
       }
-    } catch {
-      // Alert rules are optional — continue without them
+    } catch (err) {
+      // Alert rules are optional — continue without them, but record the failure
+      const msg = `Sentry alert rules fetch failed: ${err instanceof Error ? err.message : String(err)}; continuing without alert rules`;
+      logger.warn(msg);
+      errors.push({ message: msg });
     }
 
     // Build entities and relationships
@@ -337,6 +364,29 @@ export class ErrorTrackingCollector implements Collector {
   async dispose(): Promise<void> {
     this.initialized = false;
     logger.info('ErrorTrackingCollector disposed', { platform: this.platform });
+  }
+
+  // -----------------------------------------------------------------------
+  // Internal: Pagination Helpers
+  // -----------------------------------------------------------------------
+
+  /**
+   * Parse a Sentry `Link` header and return the URL of the next page,
+   * or `null` when there are no further results.
+   *
+   * Sentry link headers look like:
+   * `<url>; rel="previous"; results="false"; cursor="...", <url>; rel="next"; results="true"; cursor="..."`
+   */
+  private parseSentryNextLink(header: string | null): string | null {
+    if (!header) return null;
+    for (const part of header.split(',')) {
+      if (part.includes('rel="next"')) {
+        if (part.includes('results="false"')) return null;
+        const match = part.match(/<([^>]+)>/);
+        return match ? match[1]! : null;
+      }
+    }
+    return null;
   }
 
   // -----------------------------------------------------------------------
@@ -402,7 +452,6 @@ export class ErrorTrackingCollector implements Collector {
    * - `alert` entities for groups of similar error types
    * - `config` entities for each alert rule
    * - `infrastructure_resource` entities for unique services (culprits)
-   * - `environment` entities (production, staging, dev)
    * - `user` entities for unique issue assignees and rule owners
    *
    * @param issues - Sentry issues from the API.
@@ -492,24 +541,8 @@ export class ErrorTrackingCollector implements Collector {
       entities.push(
         this.makeEntity('user', username, {
           username,
-          role: 'sre',
           platform: this.platform,
-        }, ['sre']),
-      );
-    }
-
-    // --- Environment entities ---
-    const envs = [
-      { name: 'prod', tier: 'production' as const },
-      { name: 'staging', tier: 'staging' as const },
-      { name: 'dev', tier: 'development' as const },
-    ];
-    for (const env of envs) {
-      entities.push(
-        this.makeEntity('environment', env.name, {
-          tier: env.tier,
-          platform: this.platform,
-        }, [env.tier]),
+        }),
       );
     }
 
@@ -524,10 +557,9 @@ export class ErrorTrackingCollector implements Collector {
    * Build relationships between entities.
    *
    * Creates:
-   * - `monitors` — config (alert rule) monitors alert (error group)
+   * - `monitors` — config (alert rule) monitors alert (error group), only
+   *   when the rule's conditions actually reference the group's error type
    * - `contains` — infrastructure_resource contains incidents
-   * - `triggers` — incident triggers config (alert rule)
-   * - `deploys_to` — infrastructure_resource deploys to environment
    * - `owns` — user owns config (alert rule)
    *
    * @param entities - All entities built from this collection.
@@ -541,15 +573,22 @@ export class ErrorTrackingCollector implements Collector {
     const alertGroups = entities.filter((e) => e.type === 'alert');
     const alertRules = entities.filter((e) => e.type === 'config');
     const services = entities.filter((e) => e.type === 'infrastructure_resource');
-    const environments = entities.filter((e) => e.type === 'environment');
 
-    // Config (alert rule) → Alert (error group) (monitors)
+    // Config (alert rule) → Alert (error group) (monitors) — only when the
+    // rule's conditions reference the group's error type. Sentry rule
+    // conditions rarely name error types, so this is intentionally sparse
+    // rather than a fabricated every-rule × every-group cross-product.
     for (const rule of alertRules) {
+      const condition = String(rule.properties['condition'] ?? '').toLowerCase();
+      if (!condition) continue;
       for (const group of alertGroups) {
-        relationships.push(this.makeRel('monitors', rule.id, group.id, {
-          rule_name: rule.name,
-          group_name: group.name,
-        }));
+        const pattern = String(group.properties['pattern'] ?? '').toLowerCase();
+        if (pattern && condition.includes(pattern)) {
+          relationships.push(this.makeRel('monitors', rule.id, group.id, {
+            rule_name: rule.name,
+            group_name: group.name,
+          }));
+        }
       }
     }
 
@@ -561,29 +600,6 @@ export class ErrorTrackingCollector implements Collector {
       for (const incident of svcIncidents) {
         relationships.push(this.makeRel('contains', svc.id, incident.id, {
           service: svc.name,
-        }));
-      }
-    }
-
-    // Incident → Config (triggers) — fatal severity triggers alert rules
-    for (const incident of incidents) {
-      if (incident.properties['severity'] === 'fatal') {
-        for (const rule of alertRules) {
-          relationships.push(this.makeRel('triggers', incident.id, rule.id, {
-            event_title: incident.name,
-            rule_name: rule.name,
-          }));
-        }
-      }
-    }
-
-    // Infrastructure Resource → Environment (deploys_to)
-    const prodEnv = environments.find((e) => e.name === 'prod');
-    if (prodEnv) {
-      for (const svc of services) {
-        relationships.push(this.makeRel('deploys_to', svc.id, prodEnv.id, {
-          service: svc.name,
-          environment: 'prod',
         }));
       }
     }

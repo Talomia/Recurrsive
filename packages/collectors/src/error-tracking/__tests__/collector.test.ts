@@ -132,14 +132,16 @@ describe('Collection — no Sentry credentials', () => {
     expect(result.relationships.length).toBe(0);
   });
 
-  it('returns valid metadata with no credentials', async () => {
+  it('returns valid metadata with a descriptive error when no credentials are configured', async () => {
     await collector.initialize(defaultConfig);
     const result = await collector.collect();
     expect(result.metadata.collector_id).toBe('error-tracking');
     expect(result.metadata.items_processed).toBe(0);
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
-    expect(result.metadata.errors).toEqual([]);
+    // Honest degradation: missing credentials are surfaced in metadata.errors
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
+    expect(result.metadata.errors[0]!.message).toContain('Sentry credentials');
   });
 });
 
@@ -223,6 +225,7 @@ describe('Metadata', () => {
     expect(result.metadata.duration_ms).toBeGreaterThanOrEqual(0);
     expect(result.metadata.collected_at).toBeDefined();
     expect(result.metadata.items_processed).toBe(0);
-    expect(result.metadata.errors).toEqual([]);
+    // No credentials in the test environment → honest degradation error
+    expect(result.metadata.errors.length).toBeGreaterThan(0);
   });
 });
