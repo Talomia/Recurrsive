@@ -247,10 +247,13 @@ export class CostAnalyzer implements Analyzer {
       if (!hasLoop) continue;
 
       const outRels = await ctx.graph.getRelationships(fn.id, 'out');
+      // Only real external-call edge types count. A bare `calls` edge is any
+      // same-file function call (the parser emits one per call site), so
+      // including it made `has_loop && calls` fire on nearly every function
+      // that iterates — asserting batchable API/DB work that isn't there.
       const hasApiCall = outRels.some(
         (r) =>
           r.type === 'uses_model' ||
-          r.type === 'calls' ||
           r.type === 'queries_table' ||
           r.type === 'writes_to',
       );

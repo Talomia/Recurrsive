@@ -452,4 +452,42 @@ def main():
       expect(fn!.properties['has_loop']).toBe(false);
     });
   });
+
+  // ── Flask endpoints ─────────────────────────────────────────────────
+
+  describe('Flask endpoints', () => {
+    it('honors the methods= kwarg on @app.route — one endpoint per method', () => {
+      // Regression: methods=['POST'] was ignored, recording every
+      // @app.route as GET.
+      const source = [
+        "@app.route('/items', methods=['GET', 'POST'])",
+        'def items():',
+        '    pass',
+        '',
+        "@app.route('/users', methods=['POST'])",
+        'def create_user():',
+        '    pass',
+        '',
+      ].join('\n');
+      const endpoints = extractor
+        .extract(source, 'app/views.py')
+        .filter((e) => e.type === 'endpoint');
+      const names = endpoints.map((e) => e.name).sort();
+      expect(names).toEqual(['GET /items', 'POST /items', 'POST /users']);
+    });
+
+    it('defaults @app.route without methods= to GET', () => {
+      const source = [
+        "@app.route('/plain')",
+        'def plain():',
+        '    pass',
+        '',
+      ].join('\n');
+      const endpoints = extractor
+        .extract(source, 'app/views.py')
+        .filter((e) => e.type === 'endpoint');
+      expect(endpoints.map((e) => e.name)).toEqual(['GET /plain']);
+      expect(endpoints[0]!.properties['http_method']).toBe('GET');
+    });
+  });
 });

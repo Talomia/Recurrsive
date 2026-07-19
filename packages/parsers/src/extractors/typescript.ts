@@ -176,6 +176,71 @@ function findBlockEnd(source: string, startIndex: number): number {
 }
 
 /**
+ * Compute the brace nesting depth at every character index of `text`,
+ * ignoring braces inside strings, template literals, and comments.
+ *
+ * `depths[i]` is the depth BEFORE consuming `text[i]`, so for a class body
+ * that starts with its opening `{`, direct class members sit at depth 1.
+ *
+ * @param text - Source fragment (e.g. a class body including braces).
+ * @returns Array of depths, one per character.
+ */
+function computeBraceDepths(text: string): Int32Array {
+  const depths = new Int32Array(text.length);
+  let depth = 0;
+  let inString: string | null = null;
+  let escaped = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < text.length; i++) {
+    depths[i] = depth;
+    const ch = text[i]!;
+
+    if (inLineComment) {
+      if (ch === '\n') inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === '*' && text[i + 1] === '/') {
+        inBlockComment = false;
+        i++;
+        if (i < text.length) depths[i] = depth;
+      }
+      continue;
+    }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (inString) {
+      if (ch === inString) inString = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString = ch;
+      continue;
+    }
+    if (ch === '/' && text[i + 1] === '/') {
+      inLineComment = true;
+      continue;
+    }
+    if (ch === '/' && text[i + 1] === '*') {
+      inBlockComment = true;
+      continue;
+    }
+    if (ch === '{') depth++;
+    else if (ch === '}') depth = Math.max(0, depth - 1);
+  }
+
+  return depths;
+}
+
+/**
  * Detect control-flow features (try/catch error handling and loops)
  * within a function or method body.
  *
@@ -191,6 +256,7 @@ function findBlockEnd(source: string, startIndex: number): number {
 export function detectBodyFeatures(body: string): {
   has_try_catch: boolean;
   has_loop: boolean;
+  has_validation_call: boolean;
 } {
   const has_try_catch = /\btry\s*\{/.test(body) && /\bcatch\b/.test(body);
   const has_loop =
@@ -198,7 +264,16 @@ export function detectBodyFeatures(body: string): {
     /\bwhile\s*\(/.test(body) ||
     /\bdo\s*\{/.test(body) ||
     /\.\s*(?:forEach|map|filter|reduce|flatMap)\s*\(/.test(body);
-  return { has_try_catch, has_loop };
+  // Schema/validation calls actually present in the body text. Analyzers that
+  // reason about output validation must key off this real, body-derived flag
+  // rather than a `content` property function entities never carry.
+  const has_validation_call =
+    /\bz\s*\.\s*\w+\s*\(/.test(body) || // zod schema builders
+    /\.\s*(?:parse|safeParse|parseAsync|safeParseAsync)\s*\(/.test(body) ||
+    /\bvalidate\w*\s*\(/i.test(body) ||
+    /\b(?:ajv|joi|yup)\b/i.test(body) ||
+    /\bjson_?schema\b/i.test(body);
+  return { has_try_catch, has_loop, has_validation_call };
 }
 
 // ─── Regex Patterns ───────────────────────────────────────────────────────────
@@ -239,9 +314,18 @@ const TYPE_ALIAS_RE = new RegExp(
   'g',
 );
 
-/** Method inside a class body (simplified — no nesting awareness). */
+/**
+ * Method inside a class body.
+ *
+ * Group 1 captures the ENTIRE modifier run (e.g. `private static async `),
+ * not just the last modifier — a `(?:(mod)\s+)*` group would retain only the
+ * final repetition and misreport `private static async foo()` as public.
+ * Matches are further filtered in {@link TypeScriptExtractor._extractMethods}:
+ * only matches at direct class-member brace depth count, so call statements
+ * like `name(args);` inside method bodies are not fabricated into methods.
+ */
 const METHOD_RE = new RegExp(
-  `(?:(private|protected|public|static|readonly|abstract|override|async|get|set)\\s+)*(\\w+)\\s*(?:<[^>]*>)?\\s*\\(([^)]*)\\)\\s*(?::\\s*([^{;]+?))?\\s*[{;]`,
+  `((?:(?:private|protected|public|static|readonly|abstract|override|async|get|set)\\s+)*)(\\w+)\\s*(?:<[^>]*>)?\\s*\\(([^)]*)\\)\\s*(?::\\s*([^{;]+?))?\\s*[{;]`,
   'g',
 );
 
@@ -282,6 +366,64 @@ const NEXTJS_ROUTE_RE =
 /** Hono routes: `app.get('/path', ...)` with Hono-style */
 const HONO_ROUTE_RE =
   /(?:app|router|hono)\.(get|post|put|patch|delete|all|options|head)\s*\(\s*['"]([^'"]+)['"]/g;
+
+/**
+ * Identifiers in a route registration's argument list that indicate auth
+ * middleware. Scanned over the REAL registration text, so the resulting
+ * `has_auth_middleware` flag is an observed value, not an assumed marker.
+ */
+const AUTH_MIDDLEWARE_RE =
+  /\b(?:auth|requireAuth\w*|require_auth\w*|ensure_?auth\w*|is_?authenticated|with_?auth\w*|authenticate\w*|authoriz\w*|passport|jwt|verify_?token|check_?auth\w*|login_?required|requires?_?login|api_?key_?auth|bearer_?auth|session_?auth)\b/i;
+
+/**
+ * Identifiers in a route registration's argument list that indicate input
+ * validation middleware (celebrate/Joi, express-validator, zod adapters, …).
+ */
+const VALIDATION_MIDDLEWARE_RE =
+  /\b(?:validate\w*|validation\w*|validator\w*|celebrate|check_?schema|z_?validator|schema_?validator)\b|\.\s*(?:parse|safeParse)\s*\(|(?<![.\w])(?:body|param|query|header|cookie)\s*\(\s*['"]/i;
+
+/**
+ * Extract the full argument text of a call whose match begins at
+ * `matchIndex`, by balancing parentheses (string-aware) from the first `(`.
+ *
+ * @param source     - Full source text.
+ * @param matchIndex - Index where the call expression match begins.
+ * @returns The text between the call's outer parentheses (may be truncated
+ *          at end-of-source for unbalanced input).
+ */
+function extractCallArgs(source: string, matchIndex: number): string {
+  const openParen = source.indexOf('(', matchIndex);
+  if (openParen === -1) return '';
+
+  let depth = 0;
+  let inString: string | null = null;
+  let escaped = false;
+  for (let i = openParen; i < source.length; i++) {
+    const ch = source[i]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (inString) {
+      if (ch === inString) inString = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString = ch;
+      continue;
+    }
+    if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth === 0) return source.substring(openParen + 1, i);
+    }
+  }
+  return source.substring(openParen + 1);
+}
 
 // ─── Call-site Pattern ────────────────────────────────────────────────────────
 
@@ -462,7 +604,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const blockEnd = findBlockEnd(source, braceStart);
       const endLine = lineAt(source, blockEnd);
       const jsdoc = extractJSDoc(source, startLine);
-      const { has_try_catch, has_loop } = detectBodyFeatures(
+      const { has_try_catch, has_loop, has_validation_call } = detectBodyFeatures(
         source.substring(braceStart, blockEnd),
       );
 
@@ -486,6 +628,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
           is_default: isDefault,
           has_try_catch,
           has_loop,
+          has_validation_call,
           jsdoc: jsdoc ?? null,
           decorators,
           kind: 'function_declaration',
@@ -549,7 +692,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
           );
         }
       }
-      const { has_try_catch, has_loop } = detectBodyFeatures(body);
+      const { has_try_catch, has_loop, has_validation_call } = detectBodyFeatures(body);
 
       const relationships: ExtractedRelationship[] = [];
       if (isExported) {
@@ -568,6 +711,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
           is_default: false,
           has_try_catch,
           has_loop,
+          has_validation_call,
           jsdoc: jsdoc ?? null,
           decorators,
           kind: 'arrow_function',
@@ -688,25 +832,56 @@ export class TypeScriptExtractor implements LanguageExtractor {
       'const', 'let', 'var', 'this', 'super', 'yield', 'await',
     ]);
 
+    // Brace depth per character so we only accept matches at direct
+    // class-member depth (1). Call statements like `name(args);` inside a
+    // method body sit at depth >= 2 and previously produced phantom "method"
+    // entities that polluted docs/dead-code/duplicate analysis.
+    const depths = computeBraceDepths(classBody);
+
     while ((match = re.exec(classBody)) !== null) {
       const modifiers = match[1] ?? '';
+      const modifierTokens = modifiers.trim().split(/\s+/).filter(Boolean);
       const name = match[2]!;
       const params = match[3] ?? '';
-      const returnType = match[4]?.trim() ?? 'void';
+      const returnTypeRaw = match[4]?.trim();
+      const returnType = returnTypeRaw ?? 'void';
 
       // Skip non-methods
       if (keywords.has(name)) continue;
 
+      // Only class-member depth counts as a method declaration.
+      if ((depths[match.index] ?? 0) !== 1) continue;
+
+      // Reject matches that begin mid-statement on the same line (after `=`,
+      // `.`, `(`, `,`, a `return`/`await`, etc.) — those are call expressions
+      // or initializer values, not member declarations. Walk back over
+      // same-line whitespace only; hitting a newline means statement start.
+      let prevIdx = match.index - 1;
+      while (prevIdx >= 0 && (classBody[prevIdx] === ' ' || classBody[prevIdx] === '\t')) {
+        prevIdx--;
+      }
+      if (prevIdx >= 0) {
+        const prevCh = classBody[prevIdx]!;
+        const allowedPrev = new Set(['\n', '\r', '{', '}', ';', ')', '/']);
+        if (!allowedPrev.has(prevCh)) continue;
+      }
+
+      // A `;`-terminated match with no modifiers and no return type is a bare
+      // call statement (`name(args);`), not an abstract/overload signature.
+      if (match[0].endsWith(';') && modifierTokens.length === 0 && returnTypeRaw === undefined) {
+        continue;
+      }
+
       const absoluteIndex = classOffset + match.index;
       const startLine = lineAt(fullSource, absoluteIndex);
 
-      const isStatic = modifiers.includes('static');
-      const isPrivate = modifiers.includes('private');
-      const isProtected = modifiers.includes('protected');
-      const isAsync = modifiers.includes('async');
-      const isAbstract = modifiers.includes('abstract');
-      const isGetter = modifiers.includes('get');
-      const isSetter = modifiers.includes('set');
+      const isStatic = modifierTokens.includes('static');
+      const isPrivate = modifierTokens.includes('private');
+      const isProtected = modifierTokens.includes('protected');
+      const isAsync = modifierTokens.includes('async');
+      const isAbstract = modifierTokens.includes('abstract');
+      const isGetter = modifierTokens.includes('get');
+      const isSetter = modifierTokens.includes('set');
 
       let visibility: string = 'public';
       if (isPrivate) visibility = 'private';
@@ -720,7 +895,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
         braceOrSemiIndex >= 0 ? findBlockEnd(fullSource, braceOrSemiIndex) : -1;
       const endLine =
         methodBlockEnd >= 0 ? lineAt(fullSource, methodBlockEnd) : startLine;
-      const { has_try_catch, has_loop } = detectBodyFeatures(
+      const { has_try_catch, has_loop, has_validation_call } = detectBodyFeatures(
         methodBlockEnd >= 0
           ? fullSource.substring(braceOrSemiIndex, methodBlockEnd)
           : '',
@@ -742,6 +917,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
           is_setter: isSetter,
           has_try_catch,
           has_loop,
+          has_validation_call,
           visibility,
           jsdoc: jsdoc ?? null,
           kind: 'method',
@@ -892,6 +1068,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const path = match[2]!;
       const startLine = lineAt(source, match.index);
       const name = `${method} ${path}`;
+      const args = extractCallArgs(source, match.index);
 
       entities.push({
         type: 'endpoint' as EntityType,
@@ -901,6 +1078,10 @@ export class TypeScriptExtractor implements LanguageExtractor {
           http_method: method,
           path,
           framework: 'express',
+          // Observed from the actual registration arguments (middleware list
+          // and inline handler), not an assumed marker.
+          has_auth_middleware: AUTH_MIDDLEWARE_RE.test(args),
+          has_validation_middleware: VALIDATION_MIDDLEWARE_RE.test(args),
         },
         source_location: {
           file: filePath,
@@ -923,6 +1104,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const qn = qname(filePath, name);
       if (seenEndpoints.has(qn)) continue;
       seenEndpoints.add(qn);
+      const fastifyArgs = extractCallArgs(source, match.index);
 
       entities.push({
         type: 'endpoint' as EntityType,
@@ -932,6 +1114,8 @@ export class TypeScriptExtractor implements LanguageExtractor {
           http_method: method,
           path,
           framework: 'fastify',
+          has_auth_middleware: AUTH_MIDDLEWARE_RE.test(fastifyArgs),
+          has_validation_middleware: VALIDATION_MIDDLEWARE_RE.test(fastifyArgs),
         },
         source_location: {
           file: filePath,
@@ -953,6 +1137,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
       const qn = qname(filePath, name);
       if (seenEndpoints.has(qn)) continue;
       seenEndpoints.add(qn);
+      const honoArgs = extractCallArgs(source, match.index);
 
       entities.push({
         type: 'endpoint' as EntityType,
@@ -962,6 +1147,8 @@ export class TypeScriptExtractor implements LanguageExtractor {
           http_method: method,
           path,
           framework: 'hono',
+          has_auth_middleware: AUTH_MIDDLEWARE_RE.test(honoArgs),
+          has_validation_middleware: VALIDATION_MIDDLEWARE_RE.test(honoArgs),
         },
         source_location: {
           file: filePath,

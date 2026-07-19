@@ -483,6 +483,27 @@ export class ParsingPipeline {
     const withFile = entityMap.get(`${filePath}:${targetName}`);
     if (withFile) return withFile;
 
+    // Method-call targets arrive with a receiver prefix (`this.foo`,
+    // `obj.foo`) while method entities are stored under their bare name
+    // (qualified as `file:Class:foo`). Resolve the bare last segment, but
+    // only within the SAME FILE — resolving receivers globally would
+    // fabricate call edges between unrelated same-named functions. Without
+    // this, `this.foo()` never resolved to `foo`, so every method looked
+    // caller-less and dead-code analysis flagged the entire codebase.
+    if (targetName.includes('.')) {
+      const bare = targetName.split('.').pop()!;
+      if (bare.length > 0) {
+        const bareWithFile = entityMap.get(`${filePath}:${bare}`);
+        if (bareWithFile) return bareWithFile;
+        for (const entity of entityMap.values()) {
+          if (entity.name === bare && entity.source_location?.file === filePath) {
+            return entity;
+          }
+        }
+      }
+      return undefined;
+    }
+
     // Scan for simple name match (first match wins)
     for (const entity of entityMap.values()) {
       if (entity.name === targetName) return entity;

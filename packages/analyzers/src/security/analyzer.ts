@@ -28,8 +28,16 @@ const PII_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
  *
  * ### Rules
  * 1. PII in prompts — personal information in prompt templates
- * 2. Missing input validation — mutation endpoints without validation
- * 3. Missing authentication — endpoints without auth middleware
+ * 2. Missing input validation — mutation endpoints whose route registration
+ *    shows no validation middleware, flagged per-endpoint only when validation
+ *    IS detectable elsewhere in the project (proving the signal works here);
+ *    otherwise collapsed into one systemic "not detectable" finding.
+ * 3. Missing authentication — same shape, keyed off the parser-observed
+ *    `has_auth_middleware` flag scanned from real route-registration
+ *    arguments. Previously both rules keyed off markers
+ *    (`authenticated`/`has_validation`, tags `validated`/`protected`) that NO
+ *    producer emitted, so they fired HIGH on 100% of endpoints and a finalize
+ *    pass triple-counted a systemic finding on top.
  *
  * ### Removed rules (producer/consumer contract mismatch)
  * The following rules were removed because no parser or collector in the
@@ -75,45 +83,12 @@ export class SecurityAnalyzer implements Analyzer {
   }
 
   /** @inheritdoc */
-  async finalize(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-
-    // Systemic check: no endpoints have authentication
-    const endpoints = await ctx.graph.getEntities('endpoint');
-    if (endpoints.length >= 3) {
-      const authenticated = endpoints.filter(
-        (e) => e.properties['authenticated'] === true || (e.tags ?? []).includes('authenticated'),
-      );
-      if (authenticated.length === 0) {
-        findings.push(
-          createFinding({
-            title: 'No authenticated endpoints in the project',
-            description:
-              `None of the ${endpoints.length} API endpoints have authentication markers. ` +
-              `This suggests authentication is either not implemented or not detectable from ` +
-              `the codebase. Consider adding auth middleware or documenting public endpoints.`,
-            severity: 'high',
-            category: 'security',
-            analyzer_id: this.id,
-            evidence: [
-              createEvidence({
-                type: 'metric',
-                source: 'security.vulnerabilities',
-                description: `${endpoints.length} endpoints, 0 authenticated`,
-                entity_ids: [],
-                confidence: 0.9,
-                data: { total: endpoints.length, authenticated: 0 },
-              }),
-            ],
-            locations: [],
-            confidence: 0.9,
-            tags: ['authentication', 'security', 'endpoints'],
-          }),
-        );
-      }
-    }
-
-    return findings;
+  async finalize(_ctx: AnalysisContext): Promise<Finding[]> {
+    // The former systemic "No authenticated endpoints" check lived here and
+    // stacked on top of the per-endpoint rules, triple-counting the same
+    // (unobservable) condition. The systemic case is now handled once inside
+    // detectMissingAuthentication with honest "not detectable" wording.
+    return [];
   }
 
   // ── Rule 1: PII in Prompts ─────────────────────────────────────────
@@ -132,6 +107,8 @@ export class SecurityAnalyzer implements Analyzer {
       const content =
         (prompt.properties['template'] as string | undefined) ??
         (prompt.properties['content'] as string | undefined) ??
+        // The Langfuse collector stores prompt text under `prompt`.
+        (prompt.properties['prompt'] as string | undefined) ??
         '';
 
       const detectedPII: string[] = [];
@@ -182,11 +159,16 @@ export class SecurityAnalyzer implements Analyzer {
 
   /**
    * Detect data-accepting endpoints (POST/PUT/PATCH/DELETE) without input
-   * validation.
+   * validation, based on the parser-observed `has_validation_middleware`
+   * flag (scanned from the real route-registration arguments).
    *
-   * The HTTP method is read from `method` (falling back to `http_method`, the
-   * property the parsers actually emit). Endpoints with an empty/unknown method
-   * are skipped so this never fires on read-only or unidentifiable endpoints.
+   * Per-endpoint findings are emitted only when validation IS detectably
+   * present on at least one endpoint in the project — that proves the signal
+   * works for this codebase, so its absence on a specific endpoint is
+   * meaningful. When NO endpoint shows detectable validation, the honest
+   * statement is systemic: validation is not detectable, which may mean
+   * global middleware this pipeline cannot see. That yields ONE medium
+   * finding instead of a fabricated HIGH per endpoint.
    *
    * @param ctx - Analysis context.
    * @returns Findings for missing input validation.
@@ -195,51 +177,98 @@ export class SecurityAnalyzer implements Analyzer {
     const findings: Finding[] = [];
     const endpoints = await ctx.graph.getEntities('endpoint');
 
-    for (const endpoint of endpoints) {
+    const hasValidationSignal = (e: (typeof endpoints)[number]): boolean =>
+      e.properties['has_validation_middleware'] === true ||
+      e.properties['has_validation'] === true ||
+      e.tags.includes('validated') ||
+      e.tags.includes('input-validated') ||
+      e.tags.includes('schema-validated');
+
+    const mutationEndpoints = endpoints.filter((endpoint) => {
       const method = (
         (endpoint.properties['method'] as string | undefined) ??
         (endpoint.properties['http_method'] as string | undefined) ??
         ''
       ).toUpperCase();
-      // Only flag mutation endpoints that accept a request body. An empty or
+      // Only mutation endpoints that accept a request body. An empty or
       // unknown method must NOT qualify — otherwise every GET (and every
       // endpoint whose method we couldn't resolve) would false-positive.
-      if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) continue;
+      return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+    });
 
-      const hasValidation =
-        endpoint.properties['has_validation'] === true ||
-        endpoint.tags.includes('validated') ||
-        endpoint.tags.includes('input-validated') ||
-        endpoint.tags.includes('schema-validated');
+    const anyValidated = endpoints.some(hasValidationSignal);
 
-      if (!hasValidation) {
+    if (anyValidated) {
+      // Validation is detectable in this project — flag mutation endpoints
+      // where the parser explicitly observed NO validation middleware.
+      for (const endpoint of mutationEndpoints) {
+        if (hasValidationSignal(endpoint)) continue;
+        // Require the explicit parser observation; endpoints where the scan
+        // never ran (property absent) stay unflagged rather than assumed.
+        if (endpoint.properties['has_validation_middleware'] !== false) continue;
+
+        const method = (
+          (endpoint.properties['method'] as string | undefined) ??
+          (endpoint.properties['http_method'] as string | undefined) ??
+          ''
+        ).toUpperCase();
         const path = (endpoint.properties['path'] as string | undefined) ?? endpoint.name;
         const loc = locationFromEntity(endpoint);
         findings.push(
           createFinding({
             analyzer_id: this.id,
             title: `Missing input validation: ${method} ${path}`,
-            description: `Endpoint '${method} ${path}' does not validate input. All endpoints that accept user data must validate inputs to prevent injection attacks, data corruption, and unexpected behavior.`,
-            severity: 'high',
+            description: `Endpoint '${method} ${path}' shows no validation middleware in its route registration, while other endpoints in this project do validate input. Endpoints that accept user data should validate inputs to prevent injection attacks and data corruption.`,
+            severity: 'medium',
             category: 'security',
             evidence: [
               createEvidence({
                 type: 'code',
                 source: this.id,
-                description: 'Endpoint accepts data without validation',
+                description: 'No validation middleware observed in route registration arguments',
                 entity_ids: [endpoint.id],
-                confidence: 0.8,
+                confidence: 0.7,
                 data: { method, path },
               }),
             ],
             locations: loc ? [loc] : [],
             suggested_fix:
               'Add request body validation using Zod, Joi, or class-validator. Validate query parameters, path parameters, and headers as well.',
-            confidence: 0.75,
+            confidence: 0.7,
             tags: ['input-validation', 'security', 'api'],
           }),
         );
       }
+    } else if (mutationEndpoints.length >= 3) {
+      // No validation is detectable anywhere — one honest systemic finding.
+      findings.push(
+        createFinding({
+          analyzer_id: this.id,
+          title: 'Input validation not detectable on any mutation endpoint',
+          description:
+            `None of the ${mutationEndpoints.length} data-accepting endpoints (POST/PUT/PATCH/DELETE) ` +
+            `show detectable input validation. This may mean validation is missing, or that it is ` +
+            `applied via global middleware this analysis cannot observe. Verify request payloads are ` +
+            `validated before use.`,
+          severity: 'medium',
+          category: 'security',
+          evidence: [
+            createEvidence({
+              type: 'metric',
+              source: this.id,
+              description: `${mutationEndpoints.length} mutation endpoints, 0 with detectable validation`,
+              entity_ids: mutationEndpoints.slice(0, 10).map((e) => e.id),
+              confidence: 0.7,
+              data: { mutation_endpoints: mutationEndpoints.length, validated: 0 },
+            }),
+          ],
+          locations: [],
+          suggested_fix:
+            'Validate request bodies with Zod, Joi, or class-validator — per-route or via shared middleware. If validation exists globally, this finding can be suppressed by tagging endpoints as "validated".',
+          confidence: 0.6,
+          tags: ['input-validation', 'security', 'api', 'systemic'],
+        }),
+      );
     }
 
     return findings;
@@ -248,7 +277,16 @@ export class SecurityAnalyzer implements Analyzer {
   // ── Rule 3: Missing Authentication ─────────────────────────────────
 
   /**
-   * Detect endpoints without authentication middleware.
+   * Detect endpoints without authentication, based on the parser-observed
+   * `has_auth_middleware` flag (scanned from real route-registration
+   * arguments — passport/jwt/requireAuth/etc. identifiers).
+   *
+   * Per-endpoint findings are emitted only when auth IS detectably present
+   * on at least one endpoint in the project. When no endpoint shows
+   * detectable auth, the honest statement is a single systemic
+   * "not detectable" finding at medium severity — auth may be enforced by
+   * global middleware or a gateway this pipeline cannot observe, so
+   * asserting per-endpoint "Missing authentication" would fabricate.
    *
    * @param ctx - Analysis context.
    * @returns Findings for missing authentication.
@@ -260,21 +298,31 @@ export class SecurityAnalyzer implements Analyzer {
     // Skip known public endpoints
     const publicPaths = ['/health', '/ready', '/readiness', '/liveness', '/metrics', '/favicon.ico', '/robots.txt'];
 
-    for (const endpoint of endpoints) {
+    const hasAuthSignal = (e: (typeof endpoints)[number]): boolean =>
+      e.properties['has_auth_middleware'] === true ||
+      e.properties['authenticated'] === true ||
+      e.properties['has_auth'] === true ||
+      e.tags.includes('authenticated') ||
+      e.tags.includes('auth-required') ||
+      e.tags.includes('protected');
+
+    const nonPublicEndpoints = endpoints.filter((endpoint) => {
       const path = ((endpoint.properties['path'] as string | undefined) ?? endpoint.name).toLowerCase();
+      if (publicPaths.some((pp) => path.includes(pp))) return false;
+      if (endpoint.tags.includes('public') || endpoint.properties['public'] === true) return false;
+      return true;
+    });
 
-      // Skip public endpoints
-      if (publicPaths.some((pp) => path.includes(pp))) continue;
-      if (endpoint.tags.includes('public') || endpoint.properties['public'] === true) continue;
+    const anyAuthenticated = endpoints.some(hasAuthSignal);
 
-      const hasAuth =
-        endpoint.properties['authenticated'] === true ||
-        endpoint.properties['has_auth'] === true ||
-        endpoint.tags.includes('authenticated') ||
-        endpoint.tags.includes('auth-required') ||
-        endpoint.tags.includes('protected');
+    if (anyAuthenticated) {
+      // Auth is detectable in this project — flag endpoints where the parser
+      // explicitly observed NO auth middleware in the registration.
+      for (const endpoint of nonPublicEndpoints) {
+        if (hasAuthSignal(endpoint)) continue;
+        if (endpoint.properties['has_auth_middleware'] !== false) continue;
 
-      if (!hasAuth) {
+        const path = ((endpoint.properties['path'] as string | undefined) ?? endpoint.name).toLowerCase();
         const method = (
           (endpoint.properties['method'] as string | undefined) ??
           (endpoint.properties['http_method'] as string | undefined) ??
@@ -285,14 +333,14 @@ export class SecurityAnalyzer implements Analyzer {
           createFinding({
             analyzer_id: this.id,
             title: `Missing authentication: ${method} ${path}`,
-            description: `Endpoint '${method} ${path}' does not have authentication configured. Unauthenticated endpoints can be accessed by anyone, potentially exposing sensitive data or functionality.`,
+            description: `Endpoint '${method} ${path}' shows no authentication middleware in its route registration, while other endpoints in this project do. Unauthenticated endpoints can be accessed by anyone, potentially exposing sensitive data or functionality.`,
             severity: 'high',
             category: 'security',
             evidence: [
               createEvidence({
                 type: 'code',
                 source: this.id,
-                description: 'Endpoint without authentication middleware',
+                description: 'No auth middleware observed in route registration arguments',
                 entity_ids: [endpoint.id],
                 confidence: 0.7,
                 data: { method, path },
@@ -306,6 +354,36 @@ export class SecurityAnalyzer implements Analyzer {
           }),
         );
       }
+    } else if (nonPublicEndpoints.length >= 3) {
+      // No auth is detectable anywhere — one honest systemic finding.
+      findings.push(
+        createFinding({
+          analyzer_id: this.id,
+          title: 'Authentication not detectable on any endpoint',
+          description:
+            `None of the ${nonPublicEndpoints.length} non-public API endpoints show detectable ` +
+            `authentication. This may mean authentication is missing, or that it is enforced by ` +
+            `global middleware or an API gateway this analysis cannot observe. Verify how these ` +
+            `endpoints are protected.`,
+          severity: 'medium',
+          category: 'security',
+          evidence: [
+            createEvidence({
+              type: 'metric',
+              source: this.id,
+              description: `${nonPublicEndpoints.length} endpoints, 0 with detectable authentication`,
+              entity_ids: nonPublicEndpoints.slice(0, 10).map((e) => e.id),
+              confidence: 0.7,
+              data: { total: nonPublicEndpoints.length, authenticated: 0 },
+            }),
+          ],
+          locations: [],
+          suggested_fix:
+            'Add authentication middleware per route or globally. If endpoints are intentionally public or protected upstream, tag them as "public" or "authenticated" to record that decision.',
+          confidence: 0.6,
+          tags: ['missing-auth', 'security', 'authentication', 'systemic'],
+        }),
+      );
     }
 
     return findings;

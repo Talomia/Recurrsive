@@ -275,15 +275,22 @@ const CHAIN_PATTERNS: Array<{ re: RegExp; framework: string; label: string }> = 
 ];
 
 // -- Model Config --
-const MODEL_CONFIG_PATTERNS: Array<{ re: RegExp; label: string }> = [
-  { re: /model\s*[=:]\s*['"]gpt-/g, label: 'GPT Model Config' },
-  { re: /model\s*[=:]\s*['"]claude-/g, label: 'Claude Model Config' },
-  { re: /model\s*[=:]\s*['"]gemini-/g, label: 'Gemini Model Config' },
-  { re: /model\s*[=:]\s*['"]llama/gi, label: 'Llama Model Config' },
-  { re: /model\s*[=:]\s*['"]mistral/gi, label: 'Mistral Model Config' },
-  { re: /temperature\s*[=:]\s*[\d.]+/g, label: 'Temperature Setting' },
-  { re: /max_tokens\s*[=:]\s*\d+/g, label: 'Max Tokens Setting' },
-  { re: /top_p\s*[=:]\s*[\d.]+/g, label: 'Top-P Setting' },
+// Model-name patterns capture the FULL quoted model string (group 1) so the
+// emitted entity carries the real hardcoded model name.
+const MODEL_NAME_CONFIG_PATTERNS: Array<{ re: RegExp; provider: string; label: string }> = [
+  { re: /model\s*[=:]\s*['"](gpt-[^'"]*)['"]/g, provider: 'openai', label: 'GPT Model Config' },
+  { re: /model\s*[=:]\s*['"](o[13](?:-[^'"]*)?)['"]/g, provider: 'openai', label: 'OpenAI Reasoning Model Config' },
+  { re: /model\s*[=:]\s*['"](claude-[^'"]*)['"]/g, provider: 'anthropic', label: 'Claude Model Config' },
+  { re: /model\s*[=:]\s*['"](gemini-[^'"]*)['"]/g, provider: 'google', label: 'Gemini Model Config' },
+  { re: /model\s*[=:]\s*['"](llama[^'"]*)['"]/gi, provider: 'meta', label: 'Llama Model Config' },
+  { re: /model\s*[=:]\s*['"](mistral[^'"]*)['"]/gi, provider: 'mistral', label: 'Mistral Model Config' },
+];
+
+// Sampling/limit settings capture the numeric value (group 1).
+const MODEL_SETTING_PATTERNS: Array<{ re: RegExp; setting: string; label: string }> = [
+  { re: /temperature\s*[=:]\s*([\d.]+)/g, setting: 'temperature', label: 'Temperature Setting' },
+  { re: /max_tokens\s*[=:]\s*(\d+)/g, setting: 'max_tokens', label: 'Max Tokens Setting' },
+  { re: /top_p\s*[=:]\s*([\d.]+)/g, setting: 'top_p', label: 'Top-P Setting' },
 ];
 
 // -- Evaluation --
@@ -423,21 +430,52 @@ export class AIPatternDetector {
   /**
    * Detect agent definitions (LangGraph, CrewAI, AutoGen, etc.).
    *
+   * Emits AT MOST ONE agent entity per file+framework. Frameworks like
+   * LangGraph hit many regex patterns per file (`StateGraph`, every
+   * `.add_node`, every `.add_edge`) — those are all facets of the SAME agent,
+   * and emitting one entity per hit fabricated a graph full of duplicate
+   * agents that downstream analyzers each flagged separately.
+   *
    * @param source   - Full source text.
    * @param filePath - File path.
    * @param _language - Language name.
    * @returns Detected agent definition patterns.
    */
   private detectAgentDefinitions(source: string, filePath: string, _language: string): AIPattern[] {
+    const frameworksWithEntity = new Set<string>();
+    const matchCounts = new Map<string, number>();
+
+    // First pass: count hits per framework so the single emitted entity can
+    // report how many pattern facets support it.
+    for (const p of AGENT_PATTERNS) {
+      const re = new RegExp(p.re.source, p.re.flags);
+      while (re.exec(source) !== null) {
+        matchCounts.set(p.framework, (matchCounts.get(p.framework) ?? 0) + 1);
+      }
+    }
+
     return this._scan(source, filePath, AGENT_PATTERNS, (match, p, location) => {
-      const entity: ExtractedEntity = {
-        type: 'agent' as EntityType,
-        name: p.label,
-        qualified_name: qname(filePath, 'agent', p.label),
-        properties: { framework: p.framework, pattern: match[0] },
-        source_location: location,
-        relationships: [],
-      };
+      // Only the first hit for a framework carries the agent entity (and the
+      // invokes_agent relationship anchored to it); subsequent hits are
+      // recorded as patterns but add no graph entities.
+      const isFirstForFramework = !frameworksWithEntity.has(p.framework);
+      if (isFirstForFramework) frameworksWithEntity.add(p.framework);
+
+      const entities: ExtractedEntity[] = isFirstForFramework
+        ? [{
+            type: 'agent' as EntityType,
+            name: `${p.framework} agent`,
+            qualified_name: qname(filePath, 'agent', p.framework),
+            properties: {
+              framework: p.framework,
+              pattern: match[0],
+              first_label: p.label,
+              pattern_match_count: matchCounts.get(p.framework) ?? 1,
+            },
+            source_location: location,
+            relationships: [],
+          }]
+        : [];
 
       return {
         type: 'agent_definition' as AIPatternType,
@@ -445,10 +483,10 @@ export class AIPatternDetector {
         description: `Agent definition (${p.framework}): ${match[0].trim()}`,
         source_location: location,
         properties: { framework: p.framework, matched_text: match[0].trim() },
-        entities: [entity],
-        relationships: [
-          { type: 'invokes_agent' as RelationType, source: filePath, target: p.label },
-        ],
+        entities,
+        relationships: isFirstForFramework
+          ? [{ type: 'invokes_agent' as RelationType, source: filePath, target: p.label }]
+          : [],
       };
     });
   }
@@ -613,6 +651,13 @@ export class AIPatternDetector {
   /**
    * Detect model configuration patterns (model names, temperature, etc.).
    *
+   * Hardcoded model names produce `model` entities (with `hardcoded: true`
+   * and the real `model_name`), and sampling/limit settings produce `config`
+   * entities — this is where source text exists, so analyzers can report
+   * hardcoded configuration from produced data instead of reading a file
+   * `content` property that no producer sets. Entities are deduplicated per
+   * file + model name / setting.
+   *
    * @param source   - Full source text.
    * @param filePath - File path.
    * @param _language - Language name.
@@ -620,22 +665,83 @@ export class AIPatternDetector {
    */
   private detectModelConfigs(source: string, filePath: string, _language: string): AIPattern[] {
     const patterns: AIPattern[] = [];
-    for (const p of MODEL_CONFIG_PATTERNS) {
+    const seenQnames = new Set<string>();
+
+    for (const p of MODEL_NAME_CONFIG_PATTERNS) {
       const re = new RegExp(p.re.source, p.re.flags);
       let match: RegExpExecArray | null;
       while ((match = re.exec(source)) !== null) {
         const location = loc(source, match, filePath);
+        const modelName = match[1]!;
+        const qn = qname(filePath, 'model_config', modelName);
+        const isNew = !seenQnames.has(qn);
+        if (isNew) seenQnames.add(qn);
+
+        const entities: ExtractedEntity[] = isNew
+          ? [{
+              type: 'model' as EntityType,
+              name: modelName,
+              qualified_name: qn,
+              properties: {
+                model_name: modelName,
+                provider: p.provider,
+                hardcoded: true,
+                pattern: match[0],
+              },
+              source_location: location,
+              relationships: [],
+            }]
+          : [];
+
         patterns.push({
           type: 'model_config' as AIPatternType,
           name: p.label,
           description: `Model configuration: ${match[0].trim()}`,
           source_location: location,
-          properties: { matched_text: match[0].trim() },
-          entities: [],
+          properties: { matched_text: match[0].trim(), model_name: modelName },
+          entities,
           relationships: [],
         });
       }
     }
+
+    for (const p of MODEL_SETTING_PATTERNS) {
+      const re = new RegExp(p.re.source, p.re.flags);
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(source)) !== null) {
+        const location = loc(source, match, filePath);
+        const qn = qname(filePath, 'model_config', p.setting);
+        const isNew = !seenQnames.has(qn);
+        if (isNew) seenQnames.add(qn);
+
+        const entities: ExtractedEntity[] = isNew
+          ? [{
+              type: 'config' as EntityType,
+              name: p.label,
+              qualified_name: qn,
+              properties: {
+                setting: p.setting,
+                value: match[1],
+                hardcoded: true,
+                pattern: match[0],
+              },
+              source_location: location,
+              relationships: [],
+            }]
+          : [];
+
+        patterns.push({
+          type: 'model_config' as AIPatternType,
+          name: p.label,
+          description: `Model configuration: ${match[0].trim()}`,
+          source_location: location,
+          properties: { matched_text: match[0].trim(), setting: p.setting, value: match[1] },
+          entities,
+          relationships: [],
+        });
+      }
+    }
+
     return patterns;
   }
 

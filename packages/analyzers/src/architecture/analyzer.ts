@@ -344,8 +344,22 @@ export class ArchitectureAnalyzer implements Analyzer {
   // ── Rule 3: Dead Code ──────────────────────────────────────────────
 
   /**
+   * File extensions whose extractor emits a call graph (`calls`
+   * relationships). Dead-code reasoning is only sound for these — the
+   * Python and Go extractors emit NO call edges, so "zero callers" there
+   * is an artifact of the pipeline, not evidence of dead code.
+   */
+  private static readonly CALL_GRAPH_EXTENSIONS = new Set([
+    'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts',
+  ]);
+
+  /**
    * Find functions with zero incoming `calls` relationships and no
    * `exports` relationship, suggesting they are dead code.
+   *
+   * Suppressed for functions from languages whose extractor produces no
+   * call graph, and for entities without a source file (collector-produced
+   * functions), where absence of callers is unobservable rather than real.
    *
    * @param ctx - Analysis context.
    * @returns Findings for each dead code candidate.
@@ -355,6 +369,12 @@ export class ArchitectureAnalyzer implements Analyzer {
     const functions = await ctx.graph.getEntities('function');
 
     for (const fn of functions) {
+      // Only reason about dead code where the extractor emits call edges.
+      const file = fn.source_location?.file;
+      if (!file) continue;
+      const ext = file.split('.').pop()?.toLowerCase() ?? '';
+      if (!ArchitectureAnalyzer.CALL_GRAPH_EXTENSIONS.has(ext)) continue;
+
       const inRels = await ctx.graph.getRelationships(fn.id, 'in');
       const hasCaller = inRels.some((r) => r.type === 'calls');
       const isExported = inRels.some((r) => r.type === 'exports') ||
@@ -704,12 +724,20 @@ export class ArchitectureAnalyzer implements Analyzer {
       if (reported.has(key)) continue;
       reported.add(key);
 
-      // Additional check: compare parameter counts if available
+      // Additional check: compare parameter counts if available. Parsers emit
+      // a `parameters` ARRAY (not `parameter_count`/`params`) — reading the
+      // wrong keys made every count -1 and the "same parameter count"
+      // evidence unconditionally true.
       const paramCounts = group.map((f) => {
-        const params = f.properties['parameter_count'] ?? f.properties['params'];
-        return typeof params === 'number' ? params : -1;
+        const params = f.properties['parameters'];
+        if (Array.isArray(params)) return params.length;
+        const count = f.properties['parameter_count'] ?? f.properties['params'];
+        return typeof count === 'number' ? count : -1;
       });
-      const sameParams = paramCounts.every((p) => p === paramCounts[0]);
+      // Only assert equality when every count was actually observed.
+      const sameParams =
+        paramCounts.every((p) => p >= 0) &&
+        paramCounts.every((p) => p === paramCounts[0]);
 
       const names = group.map((f) => f.name).join(', ');
       const entityIds = group.map((f) => f.id);

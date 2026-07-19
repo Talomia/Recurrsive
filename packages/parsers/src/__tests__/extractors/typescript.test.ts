@@ -186,6 +186,96 @@ class Calculator {
       expect(methods.some((m) => m.name === 'add')).toBe(true);
       expect(methods.some((m) => m.name === 'subtract')).toBe(true);
     });
+
+    it('does NOT fabricate methods from call statements inside method bodies', () => {
+      // Regression: `name(args);` statements inside a method body previously
+      // matched METHOD_RE and were emitted as public "method" entities,
+      // polluting docs, dead-code, and duplicate-functionality analysis.
+      const source = `class Greeter {
+  greet(name: string): string {
+    validateName(name);
+    logCall(name);
+    formatOutput(name);
+    return 'hi ' + name;
+  }
+}
+`;
+      const entities = extractor.extract(source, 'greeter.ts');
+      const methods = entities.filter(
+        (e) => e.type === 'function' && e.properties['kind'] === 'method',
+      );
+      expect(methods.map((m) => m.name)).toEqual(['greet']);
+    });
+
+    it('does NOT fabricate methods from field-initializer calls', () => {
+      const source = `class Widget {
+  state = createState();
+  render(): void {
+    draw();
+  }
+}
+`;
+      const entities = extractor.extract(source, 'widget.ts');
+      const methods = entities.filter(
+        (e) => e.type === 'function' && e.properties['kind'] === 'method',
+      );
+      expect(methods.map((m) => m.name)).toEqual(['render']);
+    });
+
+    it('honors every modifier in a multi-modifier run', () => {
+      // Regression: `(?:(mod)\s+)*` kept only the LAST modifier, so
+      // `private static async` methods were misreported as public.
+      const source = `class Service {
+  private static async doWork(x: number): Promise<void> {
+    await run(x);
+  }
+  protected get value(): number { return 1; }
+}
+`;
+      const entities = extractor.extract(source, 'service.ts');
+      const doWork = entities.find((e) => e.name === 'doWork');
+      expect(doWork).toBeDefined();
+      expect(doWork!.properties['visibility']).toBe('private');
+      expect(doWork!.properties['is_static']).toBe(true);
+      expect(doWork!.properties['is_async']).toBe(true);
+
+      const value = entities.find((e) => e.name === 'value');
+      expect(value).toBeDefined();
+      expect(value!.properties['visibility']).toBe('protected');
+      expect(value!.properties['is_getter']).toBe(true);
+    });
+
+    it('keeps abstract method signatures terminated by semicolons', () => {
+      const source = `abstract class Base {
+  abstract handle(input: string): void;
+}
+`;
+      const entities = extractor.extract(source, 'base.ts');
+      const handle = entities.find((e) => e.name === 'handle');
+      expect(handle).toBeDefined();
+      expect(handle!.properties['is_abstract']).toBe(true);
+    });
+  });
+
+  // ── Route middleware observation ──────────────────────────────────────
+
+  describe('route middleware observation', () => {
+    it('records observed auth/validation middleware on route registrations', () => {
+      const source = `
+app.post('/api/users', requireAuth, validateBody(userSchema), handler);
+app.get('/api/open', (req, res) => { res.send('ok'); });
+`;
+      const entities = extractor.extract(source, 'routes.ts');
+      const secured = entities.find((e) => e.name === 'POST /api/users');
+      expect(secured).toBeDefined();
+      expect(secured!.properties['has_auth_middleware']).toBe(true);
+      expect(secured!.properties['has_validation_middleware']).toBe(true);
+
+      const open = entities.find((e) => e.name === 'GET /api/open');
+      expect(open).toBeDefined();
+      expect(open!.properties['has_auth_middleware']).toBe(false);
+      expect(open!.properties['has_validation_middleware']).toBe(false);
+    });
   });
 
   // ── Interface Declarations ────────────────────────────────────────────

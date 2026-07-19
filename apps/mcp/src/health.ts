@@ -46,6 +46,97 @@ export function computeHealthScore(findings: Finding[]): number {
 }
 
 /**
+ * Map each finding category (OpportunityCategory) to a maturity dimension.
+ * Mirrors `CATEGORY_TO_DIMENSION` in `apps/server/src/health-score.ts`.
+ *
+ * Every category a finding can actually carry maps to exactly one dimension,
+ * and no dimension is reported that no finding can ever populate. The
+ * `testing` maturity dimension is intentionally omitted: no analyzer emits a
+ * `testing` category, so reporting it would always show a fabricated 100.
+ */
+const CATEGORY_TO_DIMENSION: Record<string, string> = {
+  architecture: 'architecture',
+  security: 'security',
+  privacy: 'security',
+  compliance: 'security',
+  reliability: 'reliability',
+  performance: 'operational',
+  cost: 'operational',
+  infrastructure: 'operational',
+  data: 'data',
+  documentation: 'documentation',
+  ai_quality: 'ai',
+  ux: 'product',
+  accessibility: 'product',
+  product: 'product',
+  developer_experience: 'developer_experience',
+};
+
+/**
+ * Maturity dimensions reported — only those a finding category maps to.
+ * Mirrors `DIMENSIONS` in `apps/server/src/health-score.ts`.
+ */
+const DIMENSIONS: string[] = [
+  'architecture',
+  'security',
+  'reliability',
+  'operational',
+  'data',
+  'documentation',
+  'ai',
+  'product',
+  'developer_experience',
+];
+
+/** Per-dimension maturity summary for MCP tool output. */
+export interface MaturityScoreSummary {
+  dimension: string;
+  score: number;
+  level: string;
+  issueCount: number;
+  topRisks: string[];
+}
+
+/**
+ * Compute per-dimension maturity scores from analyzer findings, mirroring
+ * the canonical server logic (`apps/server/src/health-score.ts`):
+ * `score = round(100 * e^(-count / 10))` with level thresholds 80/60/40/20.
+ *
+ * @param findings - All analyzer findings.
+ * @returns Per-dimension maturity summaries.
+ */
+export function computeMaturityScores(findings: Finding[]): MaturityScoreSummary[] {
+  const findingsByDimension = new Map<string, Finding[]>();
+  for (const finding of findings) {
+    const dim = CATEGORY_TO_DIMENSION[finding.category];
+    if (!dim) continue;
+    const list = findingsByDimension.get(dim);
+    if (list) list.push(finding);
+    else findingsByDimension.set(dim, [finding]);
+  }
+
+  return DIMENSIONS.map((dim) => {
+    const dimFindings = findingsByDimension.get(dim) ?? [];
+    const count = dimFindings.length;
+    const score = Math.round(100 * Math.exp(-count / 10));
+
+    const level =
+      score >= 80 ? 'optimizing'
+        : score >= 60 ? 'managed'
+          : score >= 40 ? 'defined'
+            : score >= 20 ? 'developing'
+              : 'initial';
+
+    const topRisks = dimFindings
+      .filter((f) => f.severity === 'critical' || f.severity === 'high')
+      .slice(0, 3)
+      .map((f) => f.title);
+
+    return { dimension: dim, score, level, issueCount: count, topRisks };
+  });
+}
+
+/**
  * Count findings by severity — a real, measured value suitable for reporting
  * alongside (or instead of) a single score.
  *

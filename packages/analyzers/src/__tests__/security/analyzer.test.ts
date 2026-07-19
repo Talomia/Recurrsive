@@ -2,7 +2,11 @@
  * Tests for SecurityAnalyzer.
  *
  * Covers the 3 rules that evaluate produced data: PII in prompts, missing
- * input validation (mutation endpoints), and missing authentication. Also
+ * input validation, and missing authentication. The validation/auth rules key
+ * off the parser-observed `has_validation_middleware`/`has_auth_middleware`
+ * flags scanned from real route registrations: per-endpoint findings fire
+ * only when the signal is proven to work in the project (some endpoint has
+ * it), otherwise a single systemic "not detectable" finding is emitted. Also
  * asserts that the removed rules (hardcoded secrets, unsafe deserialization,
  * permissive CORS, dependency vulnerabilities, SQL injection) no longer fire
  * on inputs that previously triggered them — none of the data they required is
@@ -229,35 +233,93 @@ describe('SecurityAnalyzer', () => {
   // ── Rule 2: Missing Input Validation ─────────────────────────────────
 
   describe('missing input validation', () => {
-    it('detects POST endpoints without validation (method property)', async () => {
+    // Per-endpoint findings require BOTH: (a) validation is detectably
+    // present somewhere in the project (so its absence is meaningful signal,
+    // not a blind spot), and (b) the parser explicitly observed
+    // `has_validation_middleware: false` on the flagged endpoint.
+    it('detects unvalidated POST endpoints when validation is detectable elsewhere (method property)', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/users',
-        properties: { method: 'POST', path: '/api/users' },
+        properties: { method: 'POST', path: '/api/users', has_validation_middleware: false },
       });
-      const ctx = makeContext({ endpoint: [endpoint] });
+      const validated = makeEntity({
+        type: 'endpoint',
+        name: 'POST /api/orders',
+        properties: { http_method: 'POST', path: '/api/orders', has_validation_middleware: true },
+      });
+      const ctx = makeContext({ endpoint: [endpoint, validated] });
 
       const findings = await analyzer.analyze(ctx);
 
       const valFindings = findings.filter((f) => f.title.includes('Missing input validation'));
       expect(valFindings).toHaveLength(1);
-      expect(valFindings[0]!.severity).toBe('high');
+      expect(valFindings[0]!.severity).toBe('medium');
       expect(valFindings[0]!.title).toContain('POST /api/users');
     });
 
-    it('detects POST endpoints via http_method (the property parsers emit)', async () => {
+    it('detects unvalidated POST endpoints via http_method (the property parsers emit)', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: 'POST /api/users',
-        properties: { http_method: 'POST', path: '/api/users', framework: 'express' },
+        properties: {
+          http_method: 'POST',
+          path: '/api/users',
+          framework: 'express',
+          has_validation_middleware: false,
+        },
       });
-      const ctx = makeContext({ endpoint: [endpoint] });
+      const validated = makeEntity({
+        type: 'endpoint',
+        name: 'PUT /api/orders',
+        properties: { http_method: 'PUT', path: '/api/orders', has_validation_middleware: true },
+      });
+      const ctx = makeContext({ endpoint: [endpoint, validated] });
 
       const findings = await analyzer.analyze(ctx);
 
       const valFindings = findings.filter((f) => f.title.includes('Missing input validation'));
       expect(valFindings).toHaveLength(1);
       expect(valFindings[0]!.title).toContain('POST /api/users');
+    });
+
+    it('collapses to ONE systemic medium finding when no endpoint shows detectable validation', async () => {
+      const endpoints = ['/a', '/b', '/c'].map((path) =>
+        makeEntity({
+          type: 'endpoint',
+          name: `POST ${path}`,
+          properties: { http_method: 'POST', path, has_validation_middleware: false },
+        }),
+      );
+      const ctx = makeContext({ endpoint: endpoints });
+
+      const findings = await analyzer.analyze(ctx);
+
+      // No fabricated per-endpoint assertions.
+      expect(findings.filter((f) => f.title.startsWith('Missing input validation:'))).toHaveLength(0);
+      const systemic = findings.filter((f) =>
+        f.title.includes('Input validation not detectable'),
+      );
+      expect(systemic).toHaveLength(1);
+      expect(systemic[0]!.severity).toBe('medium');
+      expect(systemic[0]!.description).toContain('cannot observe');
+    });
+
+    it('does not fire per-endpoint findings from mere absence of markers', async () => {
+      // One unvalidated mutation endpoint, nothing validated anywhere, and
+      // fewer than 3 mutation endpoints: the old rule fired HIGH here from a
+      // marker no producer emits; now nothing fires.
+      const endpoint = makeEntity({
+        type: 'endpoint',
+        name: 'POST /api/users',
+        properties: { http_method: 'POST', path: '/api/users' },
+      });
+      const ctx = makeContext({ endpoint: [endpoint] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('input validation'))).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Input validation'))).toHaveLength(0);
     });
 
     it('skips endpoints with validated tag', async () => {
@@ -303,13 +365,18 @@ describe('SecurityAnalyzer', () => {
       expect(valFindings).toHaveLength(0);
     });
 
-    it('detects DELETE endpoints without validation', async () => {
+    it('detects unvalidated DELETE endpoints when validation is detectable elsewhere', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: '/api/users/:id',
-        properties: { http_method: 'DELETE', path: '/api/users/:id' },
+        properties: { http_method: 'DELETE', path: '/api/users/:id', has_validation_middleware: false },
       });
-      const ctx = makeContext({ endpoint: [endpoint] });
+      const validated = makeEntity({
+        type: 'endpoint',
+        name: 'POST /api/orders',
+        properties: { http_method: 'POST', path: '/api/orders', has_validation_middleware: true },
+      });
+      const ctx = makeContext({ endpoint: [endpoint, validated] });
 
       const findings = await analyzer.analyze(ctx);
 
@@ -321,13 +388,21 @@ describe('SecurityAnalyzer', () => {
   // ── Rule 3: Missing Authentication ──────────────────────────────────
 
   describe('missing authentication', () => {
-    it('detects endpoints without auth and resolves the method into the title', async () => {
+    // Per-endpoint findings require BOTH: (a) auth is detectably present
+    // somewhere in the project, and (b) the parser explicitly observed
+    // `has_auth_middleware: false` on the flagged endpoint.
+    it('detects unauthenticated endpoints when auth is detectable elsewhere, resolving the method into the title', async () => {
       const endpoint = makeEntity({
         type: 'endpoint',
         name: 'GET /api/admin',
-        properties: { http_method: 'GET', path: '/api/admin' },
+        properties: { http_method: 'GET', path: '/api/admin', has_auth_middleware: false },
       });
-      const ctx = makeContext({ endpoint: [endpoint] });
+      const authed = makeEntity({
+        type: 'endpoint',
+        name: 'GET /api/me',
+        properties: { http_method: 'GET', path: '/api/me', has_auth_middleware: true },
+      });
+      const ctx = makeContext({ endpoint: [endpoint, authed] });
 
       const findings = await analyzer.analyze(ctx);
 
@@ -336,6 +411,50 @@ describe('SecurityAnalyzer', () => {
       expect(authFindings[0]!.severity).toBe('high');
       // Method must be resolved from http_method, not rendered as empty.
       expect(authFindings[0]!.title).toContain('GET /api/admin');
+    });
+
+    it('collapses to ONE systemic medium finding when no endpoint shows detectable auth', async () => {
+      const endpoints = ['/api/a', '/api/b', '/api/c', '/api/d'].map((path) =>
+        makeEntity({
+          type: 'endpoint',
+          name: `GET ${path}`,
+          properties: { http_method: 'GET', path, has_auth_middleware: false },
+        }),
+      );
+      const ctx = makeContext({ endpoint: endpoints });
+
+      const findings = await analyzer.analyze(ctx);
+
+      // No fabricated per-endpoint "Missing authentication: …" assertions.
+      expect(findings.filter((f) => f.title.startsWith('Missing authentication:'))).toHaveLength(0);
+      const systemic = findings.filter((f) =>
+        f.title.includes('Authentication not detectable'),
+      );
+      expect(systemic).toHaveLength(1);
+      expect(systemic[0]!.severity).toBe('medium');
+      expect(systemic[0]!.description).toContain('cannot observe');
+    });
+
+    it('does not fire per-endpoint findings from mere absence of markers', async () => {
+      // Two endpoints, no auth detectable anywhere, below the systemic
+      // threshold: the old rule fired HIGH on both from markers no producer
+      // emits; now nothing fires.
+      const e1 = makeEntity({
+        type: 'endpoint',
+        name: 'GET /api/admin',
+        properties: { http_method: 'GET', path: '/api/admin' },
+      });
+      const e2 = makeEntity({
+        type: 'endpoint',
+        name: 'POST /api/admin',
+        properties: { http_method: 'POST', path: '/api/admin' },
+      });
+      const ctx = makeContext({ endpoint: [e1, e2] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('authentication'))).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Authentication'))).toHaveLength(0);
     });
 
     it('skips public endpoints like /health', async () => {

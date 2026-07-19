@@ -16,24 +16,18 @@ import type {
 } from '@recurrsive/core';
 import { createFinding, createEvidence, locationFromEntity } from '../base/helpers.js';
 
-/** Regex patterns matching hardcoded model name strings. */
-const MODEL_NAME_PATTERNS = [
-  /["'`]gpt-4[^"'`]*["'`]/i,
-  /["'`]gpt-3\.5[^"'`]*["'`]/i,
-  /["'`]claude[^"'`]*["'`]/i,
-  /["'`]gemini[^"'`]*["'`]/i,
-  /["'`]llama[^"'`]*["'`]/i,
-  /["'`]mistral[^"'`]*["'`]/i,
-  /["'`]o1[^"'`]*["'`]/i,
-  /["'`]o3[^"'`]*["'`]/i,
-  /["'`]text-embedding[^"'`]*["'`]/i,
-];
+/** File-name fragments identifying configuration files (never flagged as hardcoded). */
+const CONFIG_FILE_FRAGMENTS = ['.config.', '.env', 'config/', '/config'];
 
-/** Regex patterns for temperature hardcoding. */
-const TEMPERATURE_PATTERNS = [
-  /temperature\s*[:=]\s*\d+\.?\d*/i,
-  /temp\s*[:=]\s*\d+\.?\d*/i,
-];
+/**
+ * Whether an entity's source file looks like configuration — hardcoded
+ * model/temperature values in config files are configuration, not a smell.
+ */
+function isConfigFile(file: string | undefined): boolean {
+  if (!file) return false;
+  const lower = file.toLowerCase();
+  return CONFIG_FILE_FRAGMENTS.some((frag) => lower.includes(frag));
+}
 
 /**
  * Analyzes AI/LLM integration patterns for quality and resilience
@@ -205,57 +199,60 @@ export class AIAnalyzer implements Analyzer {
    * Detect hardcoded model name strings in source code instead of
    * config references.
    *
+   * Reads the `model` entities the AI-pattern detector emits for
+   * `model: 'gpt-…'`-style matches (with `hardcoded: true` and the real
+   * `model_name`). The previous implementation read a file `content`
+   * property that no producer sets — the git collector deliberately stores
+   * no file content — so the rule was permanently dead.
+   *
    * @param ctx - Analysis context.
    * @returns Findings for hardcoded model strings.
    */
   private async detectHardcodedModels(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const files = await ctx.graph.getEntities('file');
-    const configs = await ctx.graph.getEntities('config');
-    const configIds = new Set(configs.map((c) => c.id));
+    const models = await ctx.graph.getEntities('model');
 
-    for (const file of files) {
-      // Skip config files themselves
-      if (configIds.has(file.id)) continue;
-      if (file.name.includes('.config.') || file.name.includes('.env')) continue;
+    // Group parser-detected hardcoded model configs by source file.
+    const byFile = new Map<string, typeof models>();
+    for (const model of models) {
+      if (model.properties['hardcoded'] !== true) continue;
+      const file = model.source_location?.file;
+      if (isConfigFile(file)) continue;
+      const key = file ?? model.qualified_name;
+      const list = byFile.get(key) ?? [];
+      list.push(model);
+      byFile.set(key, list);
+    }
 
-      const content = (file.properties['content'] as string | undefined) ?? '';
-      const matchedModels: string[] = [];
-
-      for (const pattern of MODEL_NAME_PATTERNS) {
-        const match = pattern.exec(content);
-        if (match) {
-          matchedModels.push(match[0]);
-        }
-      }
-
-      if (matchedModels.length > 0) {
-        const loc = locationFromEntity(file);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Hardcoded model name in ${file.name}`,
-            description: `File '${file.name}' contains hardcoded model names: ${matchedModels.join(', ')}. Model names should come from configuration to enable easy switching and A/B testing.`,
-            severity: 'medium',
-            category: 'ai_quality',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: `Found hardcoded model strings: ${matchedModels.join(', ')}`,
-                entity_ids: [file.id],
-                confidence: 0.9,
-                data: { matched_models: matchedModels },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Move model names to environment variables or a configuration file. Use a model registry pattern for centralized management.',
-            confidence: 0.85,
-            tags: ['hardcoded-model', 'ai', 'configuration'],
-          }),
-        );
-      }
+    for (const [file, fileModels] of byFile) {
+      const names = fileModels.map(
+        (m) => (m.properties['model_name'] as string | undefined) ?? m.name,
+      );
+      const loc = locationFromEntity(fileModels[0]!);
+      findings.push(
+        createFinding({
+          analyzer_id: this.id,
+          title: `Hardcoded model name in ${file}`,
+          description: `File '${file}' contains hardcoded model names: ${names.join(', ')}. Model names should come from configuration to enable easy switching and A/B testing.`,
+          severity: 'medium',
+          category: 'ai_quality',
+          evidence: [
+            createEvidence({
+              type: 'code',
+              source: this.id,
+              description: `Found hardcoded model strings: ${names.join(', ')}`,
+              entity_ids: fileModels.map((m) => m.id),
+              confidence: 0.9,
+              data: { matched_models: names },
+            }),
+          ],
+          locations: loc ? [loc] : [],
+          suggested_fix:
+            'Move model names to environment variables or a configuration file. Use a model registry pattern for centralized management.',
+          confidence: 0.85,
+          tags: ['hardcoded-model', 'ai', 'configuration'],
+        }),
+      );
     }
 
     return findings;
@@ -397,7 +394,9 @@ export class AIAnalyzer implements Analyzer {
     for (const prompt of prompts) {
       const template = (prompt.properties['template'] as string | undefined) ?? '';
       const content = (prompt.properties['content'] as string | undefined) ?? '';
-      const text = template || content;
+      // The Langfuse collector stores prompt text under `prompt`.
+      const promptText = (prompt.properties['prompt'] as string | undefined) ?? '';
+      const text = template || content || promptText;
 
       // Check for template variables that suggest user input
       const hasUserInput =
@@ -463,6 +462,9 @@ export class AIAnalyzer implements Analyzer {
 
       const hasValidation =
         fn.properties['validates_output'] === true ||
+        // Real, parser-observed flag: the function body contains schema/
+        // validation calls (zod parse/safeParse, validate*, ajv/joi/yup).
+        fn.properties['has_validation_call'] === true ||
         fn.tags.includes('output-validated') ||
         fn.tags.includes('schema-validated');
 
@@ -535,16 +537,23 @@ export class AIAnalyzer implements Analyzer {
           createFinding({
             analyzer_id: this.id,
             title: `Agent loop risk: ${agent.name}`,
-            description: `Agent '${agent.name}' lacks both a max iterations limit and an explicit termination condition. This creates a risk of infinite loops that consume unbounded tokens and cost.`,
-            severity: 'critical',
+            // Termination configuration (max_iterations, recursion_limit,
+            // stop conditions) is NOT observable to this pipeline — no parser
+            // or collector extracts it — so this can only say "not
+            // detectable", never assert absence. Severity is medium
+            // (informational nudge), not critical: a critical that fired on
+            // every detected agent would dominate the severity-weighted
+            // health score with an unverifiable claim.
+            description: `Agent '${agent.name}' has no detectable max-iterations limit or termination condition. Termination settings are often configured at runtime and may not be visible to static analysis — verify this agent has bounded iterations and a stop condition, since unbounded loops consume unbounded tokens and cost.`,
+            severity: 'medium',
             category: 'ai_quality',
             evidence: [
               createEvidence({
                 type: 'code',
                 source: this.id,
-                description: 'Agent without termination conditions',
+                description: 'No termination configuration detectable for agent',
                 entity_ids: [agent.id],
-                confidence: 0.85,
+                confidence: 0.6,
                 data: {
                   has_max_iterations: hasMaxIterations,
                   has_termination_condition: hasTerminationCondition,
@@ -554,7 +563,7 @@ export class AIAnalyzer implements Analyzer {
             locations: loc ? [loc] : [],
             suggested_fix:
               'Add a max_iterations limit and explicit termination conditions. Include a budget cap and monitoring for runaway agent loops.',
-            confidence: 0.85,
+            confidence: 0.6,
             tags: ['agent-loop', 'ai', 'runaway', 'cost'],
           }),
         );
@@ -583,6 +592,8 @@ export class AIAnalyzer implements Analyzer {
       const content =
         (prompt.properties['template'] as string | undefined) ??
         (prompt.properties['content'] as string | undefined) ??
+        // The Langfuse collector stores prompt text under `prompt`.
+        (prompt.properties['prompt'] as string | undefined) ??
         '';
       const estimatedTokens = Math.ceil(content.length / TOKEN_ESTIMATE_FACTOR);
 
@@ -692,51 +703,52 @@ export class AIAnalyzer implements Analyzer {
    * Detect temperature values hardcoded in source code instead of
    * being configurable.
    *
+   * Reads the `config` entities the AI-pattern detector emits for
+   * `temperature: 0.7`-style matches (`setting: 'temperature'`). The
+   * previous implementation read a file `content` property no producer
+   * sets, so the rule was permanently dead.
+   *
    * @param ctx - Analysis context.
    * @returns Findings for hardcoded temperature values.
    */
   private async detectHardcodedTemperature(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const files = await ctx.graph.getEntities('file');
+    const configs = await ctx.graph.getEntities('config');
 
-    for (const file of files) {
-      if (file.name.includes('.config.') || file.name.includes('.env')) continue;
+    for (const config of configs) {
+      if (config.properties['setting'] !== 'temperature') continue;
+      if (config.properties['hardcoded'] !== true) continue;
+      const file = config.source_location?.file;
+      if (isConfigFile(file)) continue;
 
-      const content = (file.properties['content'] as string | undefined) ?? '';
-      const matched: string[] = [];
-
-      for (const pattern of TEMPERATURE_PATTERNS) {
-        const match = pattern.exec(content);
-        if (match) matched.push(match[0]);
-      }
-
-      if (matched.length > 0) {
-        const loc = locationFromEntity(file);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Hardcoded temperature in ${file.name}`,
-            description: `File '${file.name}' has hardcoded temperature values: ${matched.join(', ')}. Temperature should be configurable per-use-case for tuning and experimentation.`,
-            severity: 'low',
-            category: 'ai_quality',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: `Hardcoded temperature: ${matched.join(', ')}`,
-                entity_ids: [file.id],
-                confidence: 0.7,
-                data: { matched_patterns: matched },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Move temperature values to configuration. Consider per-task temperature profiles (creative tasks: 0.7–1.0, deterministic tasks: 0–0.3).',
-            confidence: 0.65,
-            tags: ['hardcoded-temperature', 'ai', 'configuration'],
-          }),
-        );
-      }
+      const matched = (config.properties['pattern'] as string | undefined) ??
+        `temperature=${String(config.properties['value'] ?? '?')}`;
+      const fileName = file ?? config.qualified_name;
+      const loc = locationFromEntity(config);
+      findings.push(
+        createFinding({
+          analyzer_id: this.id,
+          title: `Hardcoded temperature in ${fileName}`,
+          description: `File '${fileName}' has hardcoded temperature values: ${matched}. Temperature should be configurable per-use-case for tuning and experimentation.`,
+          severity: 'low',
+          category: 'ai_quality',
+          evidence: [
+            createEvidence({
+              type: 'code',
+              source: this.id,
+              description: `Hardcoded temperature: ${matched}`,
+              entity_ids: [config.id],
+              confidence: 0.7,
+              data: { matched_patterns: [matched] },
+            }),
+          ],
+          locations: loc ? [loc] : [],
+          suggested_fix:
+            'Move temperature values to configuration. Consider per-task temperature profiles (creative tasks: 0.7–1.0, deterministic tasks: 0–0.3).',
+          confidence: 0.65,
+          tags: ['hardcoded-temperature', 'ai', 'configuration'],
+        }),
+      );
     }
 
     return findings;

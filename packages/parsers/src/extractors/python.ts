@@ -174,12 +174,21 @@ function extractDocstring(lines: string[], startLine: number): string | undefine
 export function detectBodyFeatures(bodyText: string): {
   has_try_catch: boolean;
   has_loop: boolean;
+  has_validation_call: boolean;
 } {
   const has_try_catch =
     /(^|\n)\s*try\s*:/.test(bodyText) && /(^|\n)\s*except\b/.test(bodyText);
   const has_loop =
     /\bfor\b\s+[\w(]/.test(bodyText) || /\bwhile\b\s+[^\n:]+:/.test(bodyText);
-  return { has_try_catch, has_loop };
+  // Schema/validation calls actually present in the body text (pydantic,
+  // marshmallow, jsonschema, generic validate*). A real, body-derived flag
+  // for analyzers reasoning about output validation.
+  const has_validation_call =
+    /\bvalidate\w*\s*\(/i.test(bodyText) ||
+    /\bmodel_validate\w*\s*\(/.test(bodyText) ||
+    /\bparse_obj\w*\s*\(/.test(bodyText) ||
+    /\b(?:pydantic|marshmallow|jsonschema|cerberus|voluptuous)\b/i.test(bodyText);
+  return { has_try_catch, has_loop, has_validation_call };
 }
 
 // ─── Regex Patterns ───────────────────────────────────────────────────────────
@@ -206,9 +215,13 @@ const FROM_IMPORT_RE = /^from\s+([\w.]+)\s+import\s+(.+)/gm;
 
 // ─── Endpoint Patterns ───────────────────────────────────────────────────────
 
-/** Flask: `@app.route('/path', methods=['GET', 'POST'])` */
+/**
+ * Flask: `@app.route('/path', methods=['GET', 'POST'])`.
+ * Group 3 captures the remaining decorator arguments so the `methods=` kwarg
+ * can be honored — previously every `@app.route` was recorded as GET only.
+ */
 const FLASK_ROUTE_RE =
-  /@(?:app|blueprint|bp)\.(route|get|post|put|patch|delete)\s*\(\s*['"](\/[^'"]*)['"]/gm;
+  /@(?:app|blueprint|bp)\.(route|get|post|put|patch|delete)\s*\(\s*['"](\/[^'"]*)['"]([^)]*)\)/gm;
 
 /** FastAPI: `@app.get('/path')`, `@router.post('/path')` */
 const FASTAPI_ROUTE_RE =
@@ -403,7 +416,7 @@ export class PythonExtractor implements LanguageExtractor {
       const isAsync = asyncKw === 'async';
       const docstring = extractDocstring(lines, startLineIdx);
       const decorators = decoratorsByLine.get(startLine) ?? [];
-      const { has_try_catch, has_loop } = detectBodyFeatures(
+      const { has_try_catch, has_loop, has_validation_call } = detectBodyFeatures(
         lines.slice(startLineIdx, endLineIdx + 1).join('\n'),
       );
 
@@ -427,6 +440,7 @@ export class PythonExtractor implements LanguageExtractor {
           is_dunder: isDunder,
           has_try_catch,
           has_loop,
+          has_validation_call,
           docstring: docstring ?? null,
           decorators,
           indent_level: indent.length,
@@ -528,30 +542,51 @@ export class PythonExtractor implements LanguageExtractor {
     while ((match = flaskRe.exec(source)) !== null) {
       const methodOrRoute = match[1]!;
       const path = match[2]!;
-      const method = methodOrRoute === 'route' ? 'GET' : methodOrRoute.toUpperCase();
-      const name = `${method} ${path}`;
-      const qn = qname(filePath, name);
-      if (seenEndpoints.has(qn)) continue;
-      seenEndpoints.add(qn);
+      const restArgs = match[3] ?? '';
 
-      entities.push({
-        type: 'endpoint' as EntityType,
-        name,
-        qualified_name: qn,
-        properties: {
-          http_method: method,
-          path,
-          framework: 'flask',
-        },
-        source_location: {
-          file: filePath,
-          start_line: lineAt(source, match.index),
-          end_line: lineAt(source, match.index),
-          start_column: columnAt(source, match.index),
-          end_column: 0,
-        },
-        relationships: [],
-      });
+      // Honor the `methods=[...]` kwarg on @app.route — one endpoint per
+      // declared method. Without it, Flask defaults `route` to GET.
+      let methods: string[];
+      if (methodOrRoute === 'route') {
+        const methodsMatch = /methods\s*=\s*[[(]([^\])]*)[\])]/.exec(restArgs);
+        if (methodsMatch) {
+          methods = methodsMatch[1]!
+            .split(',')
+            .map((m) => m.trim().replace(/^['"]|['"]$/g, '').toUpperCase())
+            .filter((m) => m.length > 0);
+          if (methods.length === 0) methods = ['GET'];
+        } else {
+          methods = ['GET'];
+        }
+      } else {
+        methods = [methodOrRoute.toUpperCase()];
+      }
+
+      for (const method of methods) {
+        const name = `${method} ${path}`;
+        const qn = qname(filePath, name);
+        if (seenEndpoints.has(qn)) continue;
+        seenEndpoints.add(qn);
+
+        entities.push({
+          type: 'endpoint' as EntityType,
+          name,
+          qualified_name: qn,
+          properties: {
+            http_method: method,
+            path,
+            framework: 'flask',
+          },
+          source_location: {
+            file: filePath,
+            start_line: lineAt(source, match.index),
+            end_line: lineAt(source, match.index),
+            start_column: columnAt(source, match.index),
+            end_column: 0,
+          },
+          relationships: [],
+        });
+      }
     }
 
     // FastAPI routes

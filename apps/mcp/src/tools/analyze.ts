@@ -17,20 +17,17 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type {
   Opportunity,
-  Finding,
   Entity,
   Relationship,
-  MaturityDimension,
 } from '@recurrsive/core';
 import {
   OpportunityCategorySchema,
   SeveritySchema,
   OpportunityStatusSchema,
   EntityTypeSchema,
-  SEVERITY_WEIGHTS,
 } from '@recurrsive/core';
 import { state } from '../state.js';
-import { computeHealthScore } from '../health.js';
+import { computeHealthScore, computeMaturityScores } from '../health.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -60,78 +57,6 @@ function formatOpportunitySummary(opp: Opportunity): string {
     '',
     `**Expected Impact:** ${opp.expected_impact.summary}`,
   ].join('\n');
-}
-
-/**
- * Compute per-dimension maturity scores from analyzer findings.
- *
- * Findings — not opportunities — drive the dimension breakdown so that a
- * project analyzed without reasoning (zero opportunities) still reports an
- * honest picture instead of an all-100 table.
- *
- * @param findings - All analyzer findings.
- * @returns Array of maturity score summaries per dimension.
- */
-function computeMaturityScores(
-  findings: Finding[],
-): Array<{ dimension: string; score: number; level: string; issueCount: number; topRisks: string[] }> {
-  const dimensions: MaturityDimension[] = [
-    'architecture',
-    'ai',
-    'security',
-    'operational',
-    'product',
-    'developer_experience',
-    'reliability',
-    'data',
-    'documentation',
-    'testing',
-  ];
-
-  const categoryToDimension: Record<string, MaturityDimension> = {
-    architecture: 'architecture',
-    ai_quality: 'ai',
-    security: 'security',
-    infrastructure: 'operational',
-    product: 'product',
-    developer_experience: 'developer_experience',
-    reliability: 'reliability',
-    data: 'data',
-    documentation: 'documentation',
-    performance: 'operational',
-    cost: 'operational',
-    ux: 'product',
-    accessibility: 'product',
-    privacy: 'security',
-    compliance: 'security',
-  };
-
-  return dimensions.map((dim) => {
-    const dimFindings = findings.filter((f) => categoryToDimension[f.category] === dim);
-
-    // Severity-weighted penalty from the canonical severity weights.
-    let dimScore = 100;
-    for (const f of dimFindings) {
-      const weight = SEVERITY_WEIGHTS[f.severity] ?? 1;
-      dimScore -= weight * 5;
-    }
-    dimScore = Math.max(0, Math.min(100, dimScore));
-
-    // Map score to maturity level
-    let level: string;
-    if (dimScore >= 90) level = 'optimizing';
-    else if (dimScore >= 70) level = 'managed';
-    else if (dimScore >= 50) level = 'defined';
-    else if (dimScore >= 30) level = 'developing';
-    else level = 'initial';
-
-    const topRisks = dimFindings
-      .filter((f) => f.severity === 'critical' || f.severity === 'high')
-      .slice(0, 3)
-      .map((f) => f.title);
-
-    return { dimension: dim, score: dimScore, level, issueCount: dimFindings.length, topRisks };
-  });
 }
 
 // ---------------------------------------------------------------------------

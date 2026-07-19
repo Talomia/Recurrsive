@@ -441,7 +441,9 @@ describe('DependencyAnalyzer', () => {
   // ── Rule 8: Deprecated Dependencies ────────────────────────────────────
 
   describe('deprecated dependencies', () => {
-    it('detects known deprecated packages like moment', async () => {
+    it('does NOT label maintained packages like moment as deprecated — suggests alternative at info', async () => {
+      // moment is in maintenance mode but NOT deprecated; asserting
+      // "deprecated" would be false. It gets an info-level suggestion instead.
       const dep = makeEntity({
         type: 'dependency',
         name: 'moment',
@@ -451,9 +453,28 @@ describe('DependencyAnalyzer', () => {
       const findings = await analyzer.analyze(ctx);
 
       const depFindings = findings.filter((f) => f.title.includes('Deprecated dependency'));
-      expect(depFindings).toHaveLength(1);
-      expect(depFindings[0]!.severity).toBe('medium');
-      expect(depFindings[0]!.description).toContain('date-fns');
+      expect(depFindings).toHaveLength(0);
+
+      const altFindings = findings.filter((f) => f.title.includes('Consider built-in alternative'));
+      expect(altFindings).toHaveLength(1);
+      expect(altFindings[0]!.severity).toBe('info');
+      expect(altFindings[0]!.description).toContain('date-fns');
+    });
+
+    it('does NOT flag maintained packages uuid/mkdirp/rimraf as deprecated', async () => {
+      const deps = ['uuid', 'mkdirp', 'rimraf'].map((name) =>
+        makeEntity({ type: 'dependency', name }),
+      );
+      const ctx = makeContext({ dependency: deps, file: [] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('Deprecated dependency'))).toHaveLength(0);
+      const altFindings = findings.filter((f) => f.title.includes('Consider built-in alternative'));
+      expect(altFindings).toHaveLength(3);
+      for (const f of altFindings) {
+        expect(f.severity).toBe('info');
+      }
     });
 
     it('detects known deprecated packages like request', async () => {

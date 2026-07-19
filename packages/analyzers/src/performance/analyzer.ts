@@ -360,6 +360,8 @@ export class PerformanceAnalyzer implements Analyzer {
       const content =
         (prompt.properties['template'] as string | undefined) ??
         (prompt.properties['content'] as string | undefined) ??
+        // The Langfuse collector stores prompt text under `prompt`.
+        (prompt.properties['prompt'] as string | undefined) ??
         '';
       const estimatedTokens = Math.ceil(content.length / 4);
 

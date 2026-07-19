@@ -34,20 +34,33 @@ const KNOWN_VULNERABLE_PACKAGES: Array<{
   { name: 'log4j-core', safeVersion: '2.17.1', description: 'Remote code execution (CVE-2021-44228)' },
 ];
 
-/** Packages that are commonly deprecated and have recommended replacements. */
+/**
+ * Packages that are GENUINELY deprecated (archived/unmaintained, deprecation
+ * announced by their authors). Only these may be reported as "deprecated" —
+ * actively maintained packages (uuid, mkdirp, rimraf, moment, …) must never
+ * be labeled deprecated; asserting so would be false.
+ */
 const DEPRECATED_PACKAGES: Array<{ name: string; replacement: string }> = [
   { name: 'request', replacement: 'node-fetch, axios, or undici' },
-  { name: 'moment', replacement: 'date-fns, dayjs, or Temporal API' },
   { name: 'tslint', replacement: 'eslint with @typescript-eslint' },
   { name: 'nomnom', replacement: 'commander or yargs' },
   { name: 'istanbul', replacement: 'nyc or c8' },
   { name: 'jade', replacement: 'pug' },
-  { name: 'consolidate', replacement: 'direct template engine usage' },
-  { name: 'querystring', replacement: 'URLSearchParams (built-in)' },
-  { name: 'mkdirp', replacement: 'fs.mkdirSync with { recursive: true }' },
-  { name: 'rimraf', replacement: 'fs.rmSync with { recursive: true }' },
   { name: 'popper.js', replacement: '@popperjs/core' },
-  { name: 'uuid', replacement: 'crypto.randomUUID() (Node 19+)' },
+];
+
+/**
+ * Actively maintained packages whose functionality now has a built-in or
+ * broadly preferred alternative. These are informational suggestions only —
+ * NOT deprecations — and are reported at `info` severity.
+ */
+const BUILTIN_ALTERNATIVE_PACKAGES: Array<{ name: string; alternative: string }> = [
+  { name: 'moment', alternative: 'date-fns, dayjs, or the Temporal API' },
+  { name: 'consolidate', alternative: 'direct template engine usage' },
+  { name: 'querystring', alternative: 'URLSearchParams (built-in)' },
+  { name: 'mkdirp', alternative: 'fs.mkdirSync with { recursive: true } (built-in)' },
+  { name: 'rimraf', alternative: 'fs.rmSync with { recursive: true } (built-in)' },
+  { name: 'uuid', alternative: 'crypto.randomUUID() (built-in, Node 19+)' },
 ];
 
 /**
@@ -646,6 +659,46 @@ export class DependencyAnalyzer implements Analyzer {
               `Replace '${dep.name}' with ${replacement}. Check the migration guide if available.`,
             confidence: 0.8,
             tags: ['deprecated-dependency', 'security', 'maintenance'],
+          }),
+        );
+        continue;
+      }
+
+      // Maintained packages with a built-in/preferred alternative: an
+      // informational suggestion, never a (false) deprecation claim.
+      const builtinAlternative = BUILTIN_ALTERNATIVE_PACKAGES.find(
+        (d) => d.name.toLowerCase() === depName,
+      );
+      if (builtinAlternative) {
+        const loc = locationFromEntity(dep);
+        findings.push(
+          createFinding({
+            analyzer_id: this.id,
+            title: `Consider built-in alternative to ${dep.name}`,
+            description:
+              `Dependency '${dep.name}' is still maintained, but its functionality is now ` +
+              `available via ${builtinAlternative.alternative}. Switching can reduce the ` +
+              `dependency footprint. This is a suggestion, not a deprecation.`,
+            severity: 'info',
+            category: 'security',
+            evidence: [
+              createEvidence({
+                type: 'code',
+                source: this.id,
+                description: `Built-in/preferred alternative available: ${builtinAlternative.alternative}`,
+                entity_ids: [dep.id],
+                confidence: 0.8,
+                data: {
+                  package: dep.name,
+                  alternative: builtinAlternative.alternative,
+                },
+              }),
+            ],
+            locations: loc ? [loc] : [],
+            suggested_fix:
+              `If convenient, replace '${dep.name}' with ${builtinAlternative.alternative}.`,
+            confidence: 0.75,
+            tags: ['builtin-alternative', 'maintenance', 'dependencies'],
           }),
         );
       }

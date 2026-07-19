@@ -3,9 +3,9 @@
  *
  * AI runtime analyzer that inspects the knowledge graph for runtime
  * characteristics of AI/LLM integrations: excessive token usage,
- * missing rate limiting, missing guardrails, single model dependency,
- * missing streaming, context window overflow, missing cost tracking,
- * and stale embeddings.
+ * missing rate limiting, single model dependency, missing streaming,
+ * context window overflow, missing cost tracking (systemic), and
+ * stale embeddings.
  *
  * @packageDocumentation
  */
@@ -48,31 +48,12 @@ const RATE_LIMIT_INDICATORS = [
   'limiter', 'semaphore',
 ];
 
-/** Patterns that indicate guardrail/validation logic. */
-const GUARDRAIL_INDICATORS = [
-  'zod', 'z.object', 'z.string', 'z.parse', '.safeParse',
-  'json_schema', 'jsonSchema', 'JSON.parse',
-  'schema', 'validate', 'validator',
-  'guardrail', 'content_filter', 'contentFilter',
-  'structured-output', 'tool_choice',
-];
-
 /** Patterns that indicate streaming usage. */
 const STREAMING_INDICATORS = [
   'stream', 'streaming', 'createStream',
   'streamText', 'streamChat', 'stream: true',
   'SSE', 'ServerSentEvent', 'ReadableStream',
   'AsyncIterab', 'for await',
-];
-
-/** Patterns that indicate cost/usage tracking. */
-const COST_TRACKING_INDICATORS = [
-  'cost', 'usage', 'billing',
-  'token_count', 'tokenCount', 'tokens_used',
-  'prompt_tokens', 'completion_tokens',
-  'metering', 'meter', 'track',
-  'telemetry', 'observability',
-  'langfuse', 'helicone', 'lunary',
 ];
 
 /**
@@ -82,12 +63,20 @@ const COST_TRACKING_INDICATORS = [
  * ### Rules
  * 1. Excessive token usage — prompt templates exceeding 10k tokens
  * 2. Missing rate limiting — LLM calls without throttle/retry logic
- * 3. Missing guardrails — AI output used without validation
- * 4. Single model dependency — all LLM calls use the same model
- * 5. Missing streaming — large response handling without streaming
- * 6. Context window overflow — prompts that could exceed model limits
- * 7. Missing cost tracking — LLM calls without usage/cost logging
- * 8. Stale embeddings — embeddings without refresh/staleness checks
+ * 3. Single model dependency — all LLM calls use the same model
+ * 4. Missing streaming — large response handling without streaming
+ * 5. Context window overflow — prompts that could exceed model limits
+ * 6. Missing cost tracking — systemic check that any LLM usage has
+ *    detectable cost/usage tracking (single honest finding, never
+ *    per-function assertions from unobservable data)
+ * 7. Stale embeddings — embeddings without refresh/staleness checks
+ *
+ * ### Removed rules (producer/consumer contract mismatch)
+ * - Missing guardrails — the rule's escape valves were `content`/`body`
+ *   checks that function entities never carry, so every function with a
+ *   `uses_model` edge was flagged CRITICAL unconditionally, and the finding
+ *   duplicated the ai.quality "Missing LLM output validation" rule (which
+ *   now gates on the parser-computed `has_validation_call` body feature).
  */
 export class AIRuntimeAnalyzer implements Analyzer {
   readonly id = 'ai.runtime';
@@ -107,7 +96,6 @@ export class AIRuntimeAnalyzer implements Analyzer {
     const [
       excessiveTokens,
       missingRateLimiting,
-      missingGuardrails,
       singleModel,
       missingStreaming,
       contextOverflow,
@@ -116,7 +104,6 @@ export class AIRuntimeAnalyzer implements Analyzer {
     ] = await Promise.all([
       this.checkExcessiveTokenUsage(ctx),
       this.checkMissingRateLimiting(ctx),
-      this.checkMissingGuardrails(ctx),
       this.checkSingleModelDependency(ctx),
       this.checkMissingStreaming(ctx),
       this.checkContextWindowOverflow(ctx),
@@ -127,7 +114,6 @@ export class AIRuntimeAnalyzer implements Analyzer {
     findings.push(
       ...excessiveTokens,
       ...missingRateLimiting,
-      ...missingGuardrails,
       ...singleModel,
       ...missingStreaming,
       ...contextOverflow,
@@ -167,6 +153,8 @@ export class AIRuntimeAnalyzer implements Analyzer {
         (entity.properties['content'] as string | undefined) ??
         (entity.properties['template'] as string | undefined) ??
         (entity.properties['body'] as string | undefined) ??
+        // The Langfuse collector stores prompt text under `prompt`.
+        (entity.properties['prompt'] as string | undefined) ??
         '';
 
       const estimatedTokens = Math.ceil(content.length / CHARS_PER_TOKEN);
@@ -276,72 +264,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 3: Missing Guardrails ─────────────────────────────────────
-
-  /**
-   * Detect AI outputs used directly without validation or guardrails
-   * (no Zod/JSON schema parse after LLM call).
-   *
-   * @param ctx - Analysis context.
-   * @returns Findings for missing guardrails.
-   */
-  private async checkMissingGuardrails(ctx: AnalysisContext): Promise<Finding[]> {
-    const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
-
-    for (const fn of functions) {
-      const outRels = await ctx.graph.getRelationships(fn.id, 'out');
-      const usesModel = outRels.some((r) => r.type === 'uses_model');
-      if (!usesModel) continue;
-
-      const content =
-        (fn.properties['content'] as string | undefined) ??
-        (fn.properties['body'] as string | undefined) ??
-        '';
-
-      const hasGuardrails =
-        fn.properties['validates_output'] === true ||
-        fn.properties['has_guardrails'] === true ||
-        fn.tags.includes('output-validated') ||
-        fn.tags.includes('schema-validated') ||
-        fn.tags.includes('guardrailed') ||
-        fn.tags.includes('zod') ||
-        fn.tags.includes('structured-output') ||
-        GUARDRAIL_INDICATORS.some((indicator) => content.includes(indicator));
-
-      if (!hasGuardrails) {
-        const loc = locationFromEntity(fn);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing guardrails: ${fn.name}`,
-            description: `Function '${fn.name}' consumes LLM output without guardrails or validation. AI outputs are non-deterministic and may contain hallucinations, injection attacks, or malformed data that can cause downstream failures.`,
-            severity: 'critical',
-            category: 'ai_quality',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'LLM output consumed without validation or guardrails',
-                entity_ids: [fn.id],
-                confidence: 0.85,
-                data: { has_guardrails: false },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Validate LLM outputs with Zod schemas or JSON Schema. Use structured output modes (e.g., function calling, tool_choice). Add content filtering and toxicity checks for user-facing outputs.',
-            confidence: 0.85,
-            tags: ['missing-guardrails', 'ai', 'safety', 'runtime'],
-          }),
-        );
-      }
-    }
-
-    return findings;
-  }
-
-  // ── Rule 4: Single Model Dependency ────────────────────────────────
+  // ── Rule 3: Single Model Dependency ────────────────────────────────
 
   /**
    * Detect when all LLM calls use the same model, lacking diversity
@@ -400,7 +323,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 5: Missing Streaming ──────────────────────────────────────
+  // ── Rule 4: Missing Streaming ──────────────────────────────────────
 
   /**
    * Detect large response handling without streaming, which causes
@@ -472,7 +395,7 @@ export class AIRuntimeAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 6: Context Window Overflow ────────────────────────────────
+  // ── Rule 5: Context Window Overflow ────────────────────────────────
 
   /**
    * Detect prompts that could exceed model context window limits based
@@ -489,6 +412,8 @@ export class AIRuntimeAnalyzer implements Analyzer {
       const content =
         (prompt.properties['template'] as string | undefined) ??
         (prompt.properties['content'] as string | undefined) ??
+        // The Langfuse collector stores prompt text under `prompt`.
+        (prompt.properties['prompt'] as string | undefined) ??
         '';
 
       const estimatedTokens = Math.ceil(content.length / CHARS_PER_TOKEN);
@@ -543,73 +468,90 @@ export class AIRuntimeAnalyzer implements Analyzer {
     return findings;
   }
 
-  // ── Rule 7: Missing Cost Tracking ──────────────────────────────────
+  // ── Rule 6: Missing Cost Tracking (systemic) ───────────────────────
 
   /**
-   * Detect LLM calls without any form of cost, usage tracking, or
-   * logging.
+   * Systemic check: LLM usage exists but no cost/usage tracking is
+   * detectable anywhere in the graph.
+   *
+   * Whether a specific function meters its calls is NOT observable to this
+   * pipeline (function entities carry no body text), so the old per-function
+   * "Missing cost tracking" assertions fired on 100% of LLM call sites.
+   * Instead this emits AT MOST ONE low-severity finding, honestly worded as
+   * "not detectable", and stays silent when any tracking signal exists
+   * (cost metrics, observability collectors like Langfuse, or explicit
+   * tracking markers on functions).
    *
    * @param ctx - Analysis context.
-   * @returns Findings for missing cost tracking.
+   * @returns At most one systemic finding for missing cost tracking.
    */
   private async checkMissingCostTracking(ctx: AnalysisContext): Promise<Finding[]> {
     const findings: Finding[] = [];
-    const functions = await ctx.graph.getEntities('function');
+    const [functions, costMetrics, prompts] = await Promise.all([
+      ctx.graph.getEntities('function'),
+      ctx.graph.getEntities('cost_metric'),
+      ctx.graph.getEntities('prompt'),
+    ]);
 
+    // Collect the LLM call sites.
+    const llmFunctions: typeof functions = [];
     for (const fn of functions) {
       const outRels = await ctx.graph.getRelationships(fn.id, 'out');
       const usesModel = outRels.some(
         (r) => r.type === 'uses_model' || r.type === 'invokes_agent',
       );
-      if (!usesModel) continue;
+      if (usesModel) llmFunctions.push(fn);
+    }
+    if (llmFunctions.length === 0) return findings;
 
-      const content =
-        (fn.properties['content'] as string | undefined) ??
-        (fn.properties['body'] as string | undefined) ??
-        '';
+    // Any real tracking signal anywhere suppresses the finding: produced
+    // cost metrics, observability-platform entities (e.g. the Langfuse
+    // collector tags prompts with 'prompt-template' and sets platform
+    // properties), or explicit per-function markers.
+    const hasTrackingSignal =
+      costMetrics.length > 0 ||
+      prompts.some((p) => p.properties['platform'] === 'langfuse' || (p.properties['environment'] != null && p.properties['prompt'] != null)) ||
+      llmFunctions.some(
+        (fn) =>
+          fn.properties['tracks_cost'] === true ||
+          fn.properties['tracks_usage'] === true ||
+          fn.tags.includes('cost-tracked') ||
+          fn.tags.includes('usage-tracked') ||
+          fn.tags.includes('metered') ||
+          fn.tags.includes('observed'),
+      );
 
-      const hasCostTracking =
-        fn.properties['tracks_cost'] === true ||
-        fn.properties['tracks_usage'] === true ||
-        fn.tags.includes('cost-tracked') ||
-        fn.tags.includes('usage-tracked') ||
-        fn.tags.includes('metered') ||
-        fn.tags.includes('observed') ||
-        COST_TRACKING_INDICATORS.some((indicator) => content.includes(indicator));
-
-      if (!hasCostTracking) {
-        const loc = locationFromEntity(fn);
-        findings.push(
-          createFinding({
-            analyzer_id: this.id,
-            title: `Missing cost tracking: ${fn.name}`,
-            description: `Function '${fn.name}' makes LLM calls without cost or usage tracking. Without metering, unexpected usage spikes or runaway costs go undetected until the invoice arrives.`,
-            severity: 'medium',
-            category: 'ai_quality',
-            evidence: [
-              createEvidence({
-                type: 'code',
-                source: this.id,
-                description: 'LLM call without cost or usage tracking',
-                entity_ids: [fn.id],
-                confidence: 0.75,
-                data: { has_cost_tracking: false },
-              }),
-            ],
-            locations: loc ? [loc] : [],
-            suggested_fix:
-              'Log token usage (prompt_tokens, completion_tokens) for every LLM call. Use observability tools like Langfuse, Helicone, or custom telemetry. Set up cost alerts and budgets.',
-            confidence: 0.7,
-            tags: ['missing-cost-tracking', 'ai', 'cost', 'observability'],
-          }),
-        );
-      }
+    if (!hasTrackingSignal) {
+      findings.push(
+        createFinding({
+          analyzer_id: this.id,
+          title: 'Cost tracking not detectable for LLM usage',
+          description: `${llmFunctions.length} function(s) make LLM calls but no cost or usage tracking is detectable in the project (no cost metrics, no observability platform data, no tracking markers). Tracking may exist in infrastructure this analysis cannot observe — verify token usage and spend are being metered, since unmetered usage spikes go undetected until the invoice arrives.`,
+          severity: 'low',
+          category: 'ai_quality',
+          evidence: [
+            createEvidence({
+              type: 'metric',
+              source: this.id,
+              description: `${llmFunctions.length} LLM call sites, 0 detectable tracking signals`,
+              entity_ids: llmFunctions.slice(0, 10).map((fn) => fn.id),
+              confidence: 0.6,
+              data: { llm_call_sites: llmFunctions.length, has_cost_tracking: false },
+            }),
+          ],
+          locations: [],
+          suggested_fix:
+            'Log token usage (prompt_tokens, completion_tokens) for every LLM call. Use observability tools like Langfuse, Helicone, or custom telemetry. Set up cost alerts and budgets.',
+          confidence: 0.6,
+          tags: ['missing-cost-tracking', 'ai', 'cost', 'observability', 'systemic'],
+        }),
+      );
     }
 
     return findings;
   }
 
-  // ── Rule 8: Stale Embeddings ───────────────────────────────────────
+  // ── Rule 7: Stale Embeddings ───────────────────────────────────────
 
   /**
    * Detect embedding generation without refresh or staleness checks,

@@ -172,6 +172,40 @@ const messages = [
       const configs = patterns.filter((p) => p.type === 'model_config');
       expect(configs.some((p) => p.name === 'Max Tokens Setting')).toBe(true);
     });
+
+    it('emits a hardcoded `model` entity carrying the real model name', () => {
+      // The hardcoded-model analyzer rule consumes these — the source text
+      // only exists here in the parsing pipeline.
+      const source = `const res = client.create({ model: 'gpt-4o', temperature: 0.7 });`;
+      const patterns = detector.detect(source, 'src/llm.ts', 'typescript');
+      const entities = patterns
+        .filter((p) => p.type === 'model_config')
+        .flatMap((p) => p.entities);
+
+      const model = entities.find((e) => e.type === 'model');
+      expect(model).toBeDefined();
+      expect(model!.properties['model_name']).toBe('gpt-4o');
+      expect(model!.properties['hardcoded']).toBe(true);
+      expect(model!.properties['provider']).toBe('openai');
+
+      const temp = entities.find((e) => e.type === 'config');
+      expect(temp).toBeDefined();
+      expect(temp!.properties['setting']).toBe('temperature');
+      expect(temp!.properties['value']).toBe('0.7');
+    });
+
+    it('dedupes repeated hardcoded model/setting entities per file', () => {
+      const source = `
+const a = client.create({ model: 'gpt-4o', temperature: 0.7 });
+const b = client.create({ model: 'gpt-4o', temperature: 0.2 });
+`;
+      const patterns = detector.detect(source, 'src/llm.ts', 'typescript');
+      const entities = patterns
+        .filter((p) => p.type === 'model_config')
+        .flatMap((p) => p.entities);
+      expect(entities.filter((e) => e.type === 'model')).toHaveLength(1);
+      expect(entities.filter((e) => e.properties['setting'] === 'temperature')).toHaveLength(1);
+    });
   });
 
   // ── Agent Definitions ─────────────────────────────────────────────────
@@ -223,6 +257,44 @@ researcher = Agent(
       const agent = patterns.find((p) => p.type === 'agent_definition');
       expect(agent).toBeDefined();
       expect(agent!.entities[0]!.type).toBe('agent');
+    });
+
+    it('emits at most ONE agent entity per file+framework', () => {
+      // Regression: every `.add_node`/`.add_edge` hit produced its own agent
+      // entity, so one LangGraph file yielded a graph full of duplicate
+      // agents — and downstream analyzer rules flagged each one separately.
+      const source = `
+graph = StateGraph(State)
+graph.add_node("a", a)
+graph.add_node("b", b)
+graph.add_node("c", c)
+graph.add_edge("a", "b")
+graph.add_edge("b", "c")
+graph.add_conditional_edges("c", router)
+`;
+      const patterns = detector.detect(source, 'agents/graph.py', 'python');
+      const agentPatterns = patterns.filter((p) => p.type === 'agent_definition');
+      // All hits are still reported as patterns...
+      expect(agentPatterns.length).toBeGreaterThanOrEqual(7);
+      // ...but only one graph entity is emitted for the framework.
+      const agentEntities = agentPatterns.flatMap((p) => p.entities).filter((e) => e.type === 'agent');
+      expect(agentEntities).toHaveLength(1);
+      expect(agentEntities[0]!.properties['framework']).toBe('langgraph');
+      expect(agentEntities[0]!.properties['pattern_match_count']).toBe(7);
+    });
+
+    it('emits separate agent entities for different frameworks in one file', () => {
+      const source = `
+const graph = new StateGraph({});
+const assistant = new AssistantAgent("a", {});
+`;
+      const patterns = detector.detect(source, 'multi.ts', 'typescript');
+      const agentEntities = patterns
+        .filter((p) => p.type === 'agent_definition')
+        .flatMap((p) => p.entities)
+        .filter((e) => e.type === 'agent');
+      const frameworks = agentEntities.map((e) => e.properties['framework']).sort();
+      expect(frameworks).toEqual(['autogen', 'langgraph']);
     });
   });
 

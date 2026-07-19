@@ -289,8 +289,12 @@ describe('ArchitectureAnalyzer', () => {
   // ── Rule 3: Dead Code ──────────────────────────────────────────────
 
   describe('dead code', () => {
-    it('detects functions with no callers and no exports', async () => {
-      const fn = makeEntity({ type: 'function', name: 'unusedHelper' });
+    it('detects functions with no callers and no exports (call-graph language)', async () => {
+      const fn = makeEntity({
+        type: 'function',
+        name: 'unusedHelper',
+        source_location: { file: 'src/utils.ts', start_line: 1, end_line: 3 },
+      });
 
       const relsFn: GetRelsFn = () => [];
 
@@ -302,8 +306,36 @@ describe('ArchitectureAnalyzer', () => {
       expect(deadFindings[0]!.severity).toBe('low');
     });
 
+    it('suppresses dead-code for languages whose extractor emits no call graph', async () => {
+      // The Python extractor emits NO `calls` relationships, so "zero
+      // callers" is a pipeline artifact there — flagging would fabricate.
+      const pyFn = makeEntity({
+        type: 'function',
+        name: 'py_helper',
+        source_location: { file: 'app/helpers.py', start_line: 1, end_line: 3 },
+      });
+      const ctx = makeContext({ function: [pyFn] }, () => []);
+      const findings = await analyzer.analyze(ctx);
+
+      const deadFindings = findings.filter((f) => f.title.includes('dead code'));
+      expect(deadFindings).toHaveLength(0);
+    });
+
+    it('suppresses dead-code for functions without a source file (collector-produced)', async () => {
+      const fn = makeEntity({ type: 'function', name: 'apmObservedFn' });
+      const ctx = makeContext({ function: [fn] }, () => []);
+      const findings = await analyzer.analyze(ctx);
+
+      const deadFindings = findings.filter((f) => f.title.includes('dead code'));
+      expect(deadFindings).toHaveLength(0);
+    });
+
     it('skips functions that have callers', async () => {
-      const fn = makeEntity({ type: 'function', name: 'usedHelper' });
+      const fn = makeEntity({
+        type: 'function',
+        name: 'usedHelper',
+        source_location: { file: 'src/utils.ts', start_line: 5, end_line: 8 },
+      });
       const callRel = makeRel({
         type: 'calls',
         source_id: nextId(),
@@ -327,6 +359,7 @@ describe('ArchitectureAnalyzer', () => {
         type: 'function',
         name: 'publicApi',
         tags: ['exported'],
+        source_location: { file: 'src/api.ts', start_line: 1, end_line: 4 },
       });
 
       const relsFn: GetRelsFn = () => [];

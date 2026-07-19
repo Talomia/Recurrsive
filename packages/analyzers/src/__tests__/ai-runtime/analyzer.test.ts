@@ -1,9 +1,12 @@
 /**
  * Tests for AIRuntimeAnalyzer.
  *
- * Covers all 8 rules: excessive token usage, missing rate limiting,
- * missing guardrails, single model dependency, missing streaming,
- * context window overflow, missing cost tracking, and stale embeddings.
+ * Covers the rules: excessive token usage, missing rate limiting,
+ * single model dependency, missing streaming, context window overflow,
+ * missing cost tracking (systemic), and stale embeddings. Also asserts the
+ * removed per-function "missing guardrails" rule no longer fabricates
+ * criticals (it keyed off content/body no producer sets and duplicated
+ * ai.quality's output-validation rule).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -244,8 +247,13 @@ describe('AIRuntimeAnalyzer', () => {
 
   // ── Rule 3: Missing Guardrails ─────────────────────────────────────────
 
-  describe('missing guardrails', () => {
-    it('detects LLM output used without validation', async () => {
+  describe('missing guardrails (removed rule)', () => {
+    // The per-function "Missing guardrails" CRITICAL was removed: its escape
+    // valves were `content`/`body` checks function entities never carry, so
+    // it fired unconditionally on every function with a `uses_model` edge and
+    // duplicated ai.quality's "Missing LLM output validation" (which now
+    // gates on the parser-computed `has_validation_call` body feature).
+    it('no longer fabricates a per-function critical for LLM call sites', async () => {
       const fn = makeEntity({
         type: 'function',
         name: 'generateResponse',
@@ -263,53 +271,8 @@ describe('AIRuntimeAnalyzer', () => {
 
       const findings = await analyzer.analyze(ctx);
 
-      const grFindings = findings.filter((f) => f.title.includes('Missing guardrails'));
-      expect(grFindings).toHaveLength(1);
-      expect(grFindings[0]!.severity).toBe('critical');
-    });
-
-    it('does not flag functions with zod validation tag', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'parsedResponse',
-        tags: ['zod', 'schema-validated'],
-      });
-      const rel = makeRel({
-        type: 'uses_model',
-        source_id: fn.id,
-        target_id: 'model-1',
-      });
-      const ctx = makeContext(
-        { function: [fn] },
-        (id) => (id === fn.id ? [rel] : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const grFindings = findings.filter((f) => f.title.includes('Missing guardrails'));
-      expect(grFindings).toHaveLength(0);
-    });
-
-    it('does not flag functions with validate in content', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'safeGenerate',
-        properties: { content: 'const parsed = schema.safeParse(result)' },
-      });
-      const rel = makeRel({
-        type: 'uses_model',
-        source_id: fn.id,
-        target_id: 'model-1',
-      });
-      const ctx = makeContext(
-        { function: [fn] },
-        (id) => (id === fn.id ? [rel] : []),
-      );
-
-      const findings = await analyzer.analyze(ctx);
-
-      const grFindings = findings.filter((f) => f.title.includes('Missing guardrails'));
-      expect(grFindings).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Missing guardrails'))).toHaveLength(0);
+      expect(findings.filter((f) => f.severity === 'critical')).toHaveLength(0);
     });
   });
 
@@ -495,31 +458,33 @@ describe('AIRuntimeAnalyzer', () => {
 
   // ── Rule 7: Missing Cost Tracking ──────────────────────────────────────
 
-  describe('missing cost tracking', () => {
-    it('detects LLM calls without cost tracking', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'generateText',
-        properties: {},
-      });
-      const rel = makeRel({
-        type: 'uses_model',
-        source_id: fn.id,
-        target_id: 'model-1',
-      });
+  describe('missing cost tracking (systemic)', () => {
+    // Per-function metering is unobservable to this pipeline (function
+    // entities carry no body text), so the rule now emits AT MOST ONE
+    // low-severity systemic finding, honestly worded as "not detectable".
+    it('emits one systemic low finding when LLM usage has no detectable tracking', async () => {
+      const fn1 = makeEntity({ type: 'function', name: 'generateText' });
+      const fn2 = makeEntity({ type: 'function', name: 'summarize' });
+      const rels = new Map([
+        [fn1.id, [makeRel({ type: 'uses_model', source_id: fn1.id, target_id: 'model-1' })]],
+        [fn2.id, [makeRel({ type: 'uses_model', source_id: fn2.id, target_id: 'model-1' })]],
+      ]);
       const ctx = makeContext(
-        { function: [fn] },
-        (id) => (id === fn.id ? [rel] : []),
+        { function: [fn1, fn2] },
+        (id) => rels.get(id) ?? [],
       );
 
       const findings = await analyzer.analyze(ctx);
 
-      const costFindings = findings.filter((f) => f.title.includes('Missing cost tracking'));
+      const costFindings = findings.filter((f) => f.title.includes('Cost tracking not detectable'));
       expect(costFindings).toHaveLength(1);
-      expect(costFindings[0]!.severity).toBe('medium');
+      expect(costFindings[0]!.severity).toBe('low');
+      expect(costFindings[0]!.description).toContain('2 function(s)');
+      // No per-function "Missing cost tracking: fn" assertions remain.
+      expect(findings.filter((f) => f.title.startsWith('Missing cost tracking:'))).toHaveLength(0);
     });
 
-    it('does not flag functions tagged with cost tracking', async () => {
+    it('stays silent when a function carries a cost-tracking marker', async () => {
       const fn = makeEntity({
         type: 'function',
         name: 'trackedGenerate',
@@ -537,30 +502,34 @@ describe('AIRuntimeAnalyzer', () => {
 
       const findings = await analyzer.analyze(ctx);
 
-      const costFindings = findings.filter((f) => f.title.includes('Missing cost tracking'));
-      expect(costFindings).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Cost tracking'))).toHaveLength(0);
     });
 
-    it('does not flag functions with telemetry in content', async () => {
-      const fn = makeEntity({
-        type: 'function',
-        name: 'observedGenerate',
-        properties: { content: 'langfuse.trace(completion)' },
-      });
+    it('stays silent when cost metrics exist in the graph', async () => {
+      const fn = makeEntity({ type: 'function', name: 'generateText' });
+      const metric = makeEntity({ type: 'cost_metric', name: 'openai-spend' });
       const rel = makeRel({
         type: 'uses_model',
         source_id: fn.id,
         target_id: 'model-1',
       });
       const ctx = makeContext(
-        { function: [fn] },
+        { function: [fn], cost_metric: [metric] },
         (id) => (id === fn.id ? [rel] : []),
       );
 
       const findings = await analyzer.analyze(ctx);
 
-      const costFindings = findings.filter((f) => f.title.includes('Missing cost tracking'));
-      expect(costFindings).toHaveLength(0);
+      expect(findings.filter((f) => f.title.includes('Cost tracking'))).toHaveLength(0);
+    });
+
+    it('stays silent when no LLM usage exists', async () => {
+      const fn = makeEntity({ type: 'function', name: 'plainHelper' });
+      const ctx = makeContext({ function: [fn] }, () => []);
+
+      const findings = await analyzer.analyze(ctx);
+
+      expect(findings.filter((f) => f.title.includes('Cost tracking'))).toHaveLength(0);
     });
   });
 

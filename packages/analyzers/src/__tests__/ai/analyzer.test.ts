@@ -107,28 +107,34 @@ describe('AIAnalyzer', () => {
   // ── Rule 1: Hardcoded Models ───────────────────────────────────────
 
   describe('hardcoded models', () => {
-    it('detects hardcoded "gpt-4" in source files', async () => {
-      const file = makeEntity({
-        type: 'file',
-        name: 'chat.ts',
-        properties: { content: 'const model = "gpt-4-turbo";' },
+    // The rule reads the `model` entities the AI-pattern detector emits for
+    // hardcoded model-name matches (`hardcoded: true` + `model_name`), NOT a
+    // file `content` property — no producer sets file content.
+    it('detects hardcoded "gpt-4" from parser-emitted model entities', async () => {
+      const model = makeEntity({
+        type: 'model',
+        name: 'gpt-4-turbo',
+        properties: { model_name: 'gpt-4-turbo', provider: 'openai', hardcoded: true },
+        source_location: { file: 'src/chat.ts', start_line: 3, end_line: 3 },
       });
-      const ctx = makeContext({ file: [file], config: [] });
+      const ctx = makeContext({ model: [model] });
 
       const findings = await analyzer.analyze(ctx);
 
       const modelFindings = findings.filter((f) => f.title.includes('Hardcoded model'));
       expect(modelFindings).toHaveLength(1);
       expect(modelFindings[0]!.severity).toBe('medium');
+      expect(modelFindings[0]!.description).toContain('gpt-4-turbo');
     });
 
     it('detects hardcoded "claude" model names', async () => {
-      const file = makeEntity({
-        type: 'file',
-        name: 'agent.ts',
-        properties: { content: "const m = 'claude-3-opus';" },
+      const model = makeEntity({
+        type: 'model',
+        name: 'claude-3-opus',
+        properties: { model_name: 'claude-3-opus', provider: 'anthropic', hardcoded: true },
+        source_location: { file: 'src/agent.ts', start_line: 1, end_line: 1 },
       });
-      const ctx = makeContext({ file: [file], config: [] });
+      const ctx = makeContext({ model: [model] });
 
       const findings = await analyzer.analyze(ctx);
 
@@ -136,13 +142,37 @@ describe('AIAnalyzer', () => {
       expect(modelFindings).toHaveLength(1);
     });
 
-    it('skips config files', async () => {
-      const configFile = makeEntity({
-        type: 'file',
-        name: 'model.config.ts',
-        properties: { content: 'const model = "gpt-4";' },
+    it('groups multiple hardcoded models in the same file into one finding', async () => {
+      const m1 = makeEntity({
+        type: 'model',
+        name: 'gpt-4o',
+        properties: { model_name: 'gpt-4o', hardcoded: true },
+        source_location: { file: 'src/llm.ts', start_line: 1, end_line: 1 },
       });
-      const ctx = makeContext({ file: [configFile], config: [] });
+      const m2 = makeEntity({
+        type: 'model',
+        name: 'gpt-4o-mini',
+        properties: { model_name: 'gpt-4o-mini', hardcoded: true },
+        source_location: { file: 'src/llm.ts', start_line: 9, end_line: 9 },
+      });
+      const ctx = makeContext({ model: [m1, m2] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      const modelFindings = findings.filter((f) => f.title.includes('Hardcoded model'));
+      expect(modelFindings).toHaveLength(1);
+      expect(modelFindings[0]!.description).toContain('gpt-4o');
+      expect(modelFindings[0]!.description).toContain('gpt-4o-mini');
+    });
+
+    it('skips config files', async () => {
+      const model = makeEntity({
+        type: 'model',
+        name: 'gpt-4',
+        properties: { model_name: 'gpt-4', hardcoded: true },
+        source_location: { file: 'src/model.config.ts', start_line: 1, end_line: 1 },
+      });
+      const ctx = makeContext({ model: [model] });
 
       const findings = await analyzer.analyze(ctx);
 
@@ -151,12 +181,13 @@ describe('AIAnalyzer', () => {
     });
 
     it('skips .env files', async () => {
-      const envFile = makeEntity({
-        type: 'file',
-        name: '.env.local',
-        properties: { content: 'MODEL="gpt-4"' },
+      const model = makeEntity({
+        type: 'model',
+        name: 'gpt-4',
+        properties: { model_name: 'gpt-4', hardcoded: true },
+        source_location: { file: '.env.local', start_line: 1, end_line: 1 },
       });
-      const ctx = makeContext({ file: [envFile], config: [] });
+      const ctx = makeContext({ model: [model] });
 
       const findings = await analyzer.analyze(ctx);
 
@@ -164,13 +195,28 @@ describe('AIAnalyzer', () => {
       expect(modelFindings).toHaveLength(0);
     });
 
-    it('produces no finding for clean files', async () => {
+    it('does not flag model entities without the hardcoded marker (LLM-call detections)', async () => {
+      const model = makeEntity({
+        type: 'model',
+        name: 'OpenAI Chat Completion',
+        properties: { provider: 'openai' },
+        source_location: { file: 'src/service.ts', start_line: 5, end_line: 5 },
+      });
+      const ctx = makeContext({ model: [model] });
+
+      const findings = await analyzer.analyze(ctx);
+
+      const modelFindings = findings.filter((f) => f.title.includes('Hardcoded model'));
+      expect(modelFindings).toHaveLength(0);
+    });
+
+    it('never fires off file content — no producer sets file content', async () => {
       const file = makeEntity({
         type: 'file',
-        name: 'service.ts',
-        properties: { content: 'const model = config.get("model");' },
+        name: 'chat.ts',
+        properties: { content: 'const model = "gpt-4-turbo";' },
       });
-      const ctx = makeContext({ file: [file], config: [] });
+      const ctx = makeContext({ file: [file] });
 
       const findings = await analyzer.analyze(ctx);
 
@@ -464,7 +510,7 @@ describe('AIAnalyzer', () => {
   // ── Rule 6: Agent Loop Risk ────────────────────────────────────────
 
   describe('agent loop risk', () => {
-    it('detects agents without max iterations or termination condition', async () => {
+    it('flags agents without detectable termination config at MEDIUM, not critical', async () => {
       const agent = makeEntity({ type: 'agent', name: 'researcher' });
 
       const ctx = makeContext({ agent: [agent] });
@@ -472,7 +518,12 @@ describe('AIAnalyzer', () => {
 
       const loopFindings = findings.filter((f) => f.title.includes('Agent loop risk'));
       expect(loopFindings).toHaveLength(1);
-      expect(loopFindings[0]!.severity).toBe('critical');
+      // Termination config is unobservable to this pipeline (no producer
+      // extracts max_iterations/termination_condition), so the rule fires on
+      // every detected agent. A critical here would dominate the
+      // severity-weighted health score with an unverifiable claim.
+      expect(loopFindings[0]!.severity).toBe('medium');
+      expect(loopFindings[0]!.description).toContain('detectable');
     });
 
     it('skips agents with max_iterations', async () => {
@@ -638,14 +689,18 @@ describe('AIAnalyzer', () => {
   // ── Rule 9: Hardcoded Temperature ──────────────────────────────────
 
   describe('hardcoded temperature', () => {
-    it('detects temperature= in source files', async () => {
-      const file = makeEntity({
-        type: 'file',
-        name: 'llm.ts',
-        properties: { content: 'const opts = { temperature: 0.7 };' },
+    // The rule reads `config` entities the AI-pattern detector emits for
+    // `temperature: 0.7`-style matches, NOT a file `content` property that
+    // no producer sets.
+    it('detects parser-emitted hardcoded temperature configs', async () => {
+      const config = makeEntity({
+        type: 'config',
+        name: 'Temperature Setting',
+        properties: { setting: 'temperature', value: '0.7', hardcoded: true, pattern: 'temperature: 0.7' },
+        source_location: { file: 'src/llm.ts', start_line: 4, end_line: 4 },
       });
 
-      const ctx = makeContext({ file: [file] });
+      const ctx = makeContext({ config: [config] });
       const findings = await analyzer.analyze(ctx);
 
       const tempFindings = findings.filter((f) => f.title.includes('Hardcoded temperature'));
@@ -654,27 +709,34 @@ describe('AIAnalyzer', () => {
     });
 
     it('skips config files for temperature check', async () => {
-      const configFile = makeEntity({
-        type: 'file',
-        name: 'ai.config.ts',
-        properties: { content: 'temperature = 0.5' },
+      const config = makeEntity({
+        type: 'config',
+        name: 'Temperature Setting',
+        properties: { setting: 'temperature', value: '0.5', hardcoded: true },
+        source_location: { file: 'src/ai.config.ts', start_line: 1, end_line: 1 },
       });
 
-      const ctx = makeContext({ file: [configFile] });
+      const ctx = makeContext({ config: [config] });
       const findings = await analyzer.analyze(ctx);
 
       const tempFindings = findings.filter((f) => f.title.includes('Hardcoded temperature'));
       expect(tempFindings).toHaveLength(0);
     });
 
-    it('produces no finding when no temperature pattern found', async () => {
+    it('produces no finding for non-temperature config entities or file content', async () => {
+      const otherConfig = makeEntity({
+        type: 'config',
+        name: 'Max Tokens Setting',
+        properties: { setting: 'max_tokens', value: '100', hardcoded: true },
+        source_location: { file: 'src/llm.ts', start_line: 2, end_line: 2 },
+      });
       const file = makeEntity({
         type: 'file',
-        name: 'utils.ts',
-        properties: { content: 'function helper() { return 42; }' },
+        name: 'llm.ts',
+        properties: { content: 'const opts = { temperature: 0.7 };' },
       });
 
-      const ctx = makeContext({ file: [file] });
+      const ctx = makeContext({ config: [otherConfig], file: [file] });
       const findings = await analyzer.analyze(ctx);
 
       const tempFindings = findings.filter((f) => f.title.includes('Hardcoded temperature'));

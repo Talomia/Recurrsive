@@ -214,6 +214,43 @@ export function main() { return helper(); }
       expect(result.relationships).toEqual([]);
     });
 
+    it('resolves `this.method()` calls to the method entity (same file)', async () => {
+      // Regression: `this.helper` never resolved to `helper`, so every
+      // method looked caller-less and dead-code analysis flagged the
+      // entire codebase.
+      const result = await pipeline.parseProject([
+        {
+          path: 'src/service.ts',
+          content: `
+class Service {
+  run(): void {
+    this.helper();
+  }
+
+  helper(): void {
+    log('helping');
+  }
+}
+          `.trim(),
+          language: 'typescript',
+        },
+      ]);
+
+      const helper = result.entities.find(
+        (e) => e.type === 'function' && e.name === 'helper',
+      );
+      const run = result.entities.find(
+        (e) => e.type === 'function' && e.name === 'run',
+      );
+      expect(helper).toBeDefined();
+      expect(run).toBeDefined();
+
+      const callEdge = result.relationships.find(
+        (r) => r.type === 'calls' && r.source_id === run!.id && r.target_id === helper!.id,
+      );
+      expect(callEdge).toBeDefined();
+    });
+
     it('harvests AI-pattern relationships onto the enclosing function', async () => {
       const result = await pipeline.parseProject([
         {
