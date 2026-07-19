@@ -418,10 +418,6 @@ export default function AnalyticsPage() {
                         <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
                       </linearGradient>
-                      <linearGradient id="resolvedGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
-                      </linearGradient>
                       <linearGradient id="healthGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.2} />
                         <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
@@ -471,15 +467,10 @@ export default function AnalyticsPage() {
                       dot={false}
                       activeDot={{ r: 4, fill: "#a78bfa" }}
                     />
-                    <Area
-                      type="monotone"
-                      dataKey="resolved"
-                      stroke="#34d399"
-                      fill="url(#resolvedGrad)"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4, fill: "#34d399" }}
-                    />
+                    {/* No "resolved" series: analysis history does not record
+                        per-run resolution counts (the server sends null by
+                        design), so charting it would advertise data that can
+                        never exist. */}
                     <Area
                       type="monotone"
                       dataKey="health"

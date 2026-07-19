@@ -2,6 +2,9 @@
  * @module Reports API
  *
  * Timeline, snapshots, search, export, scheduling, and reports.
+ *
+ * Read functions PROPAGATE failure (throw) so pages can render a real error
+ * state — an unreachable server must never masquerade as an empty timeline.
  */
 
 import { apiFetch, BASE_URL } from './client';
@@ -80,7 +83,11 @@ export interface ProjectSnapshot {
   id: string;
   date: string;
   health_score: number;
-  findings_count: number;
+  /**
+   * Count of risk-type opportunities in the snapshot (`risk_count` server
+   * field). This is NOT a findings count — the snapshot does not record one.
+   */
+  risks_count: number;
   opportunities_count: number;
   summary: string;
   dimensions: Record<string, number>;
@@ -98,28 +105,47 @@ export interface SearchResult {
 
 // ─── Scheduling Types ────────────────────────────────────────────────────────
 
+/** Report output formats supported by the server's report generator. */
+export type ScheduleReportFormat = 'html' | 'markdown' | 'json' | 'sarif' | 'pdf';
+
+/**
+ * A scheduled report as stored by the server (`ScheduledReport`).
+ */
 export interface ReportSchedule {
   id: string;
   name: string;
-  reportType: 'executive' | 'technical' | 'compliance' | 'custom';
-  cron: string;
-  cronHuman: string;
-  status: 'active' | 'paused';
-  nextRun: string;
+  description: string;
+  /** Cron expression, e.g. `0 9 * * 1`. */
+  schedule: string;
+  timezone: string;
+  formats: ScheduleReportFormat[];
+  analyzers: string[];
   recipients: string[];
-  format: 'pdf' | 'html' | 'csv';
-  createdBy: string;
+  sections: string[];
+  includeExecutiveSummary: boolean;
+  projectId?: string;
+  status: 'active' | 'paused' | 'error';
+  lastRunAt: string | null;
+  nextRunAt: string;
+  totalRuns: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
+/**
+ * A schedule run as stored by the server (`ReportRun`).
+ */
 export interface ScheduleRunHistory {
   id: string;
   scheduleId: string;
-  scheduleName: string;
-  status: 'success' | 'failed' | 'running';
+  status: 'queued' | 'generating' | 'completed' | 'failed';
+  format: ScheduleReportFormat;
   startedAt: string;
   completedAt: string | null;
-  fileSize: string;
-  downloadUrl: string;
+  durationMs: number;
+  sizeBytes: number;
+  downloadUrl: string | null;
+  error: string | null;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -129,107 +155,87 @@ export interface ScheduleRunHistory {
  *
  * Server returns trend series grouped by dimension. We transform this
  * into flat TimelinePoint objects for the dashboard charts.
+ * Throws on failure.
  */
 export async function getTimeline(): Promise<TimelinePoint[]> {
-  try {
-    // Server shape: { dimension, data_points: [{ timestamp, value }] }[]
-    const trends = await apiFetch<
-      { dimension: string; data_points: { timestamp: string; value: number }[] }[]
-    >("/api/v1/timeline/trends");
+  // Server shape: { dimension, data_points: [{ timestamp, value }] }[]
+  const trends = await apiFetch<
+    { dimension: string; data_points: { timestamp: string; value: number }[] }[]
+  >("/api/v1/timeline/trends");
 
-    if (!Array.isArray(trends) || trends.length === 0) return [];
+  if (!Array.isArray(trends) || trends.length === 0) return [];
 
-    // Build a lookup: dimension → { timestamp → value }
-    const dimMap = new Map<string, Map<string, number>>();
-    const allTimestamps = new Set<string>();
+  // Build a lookup: dimension → { timestamp → value }
+  const dimMap = new Map<string, Map<string, number>>();
+  const allTimestamps = new Set<string>();
 
-    for (const trend of trends) {
-      const map = new Map<string, number>();
-      for (const pt of trend.data_points ?? []) {
-        map.set(pt.timestamp, pt.value);
-        allTimestamps.add(pt.timestamp);
-      }
-      dimMap.set(trend.dimension, map);
+  for (const trend of trends) {
+    const map = new Map<string, number>();
+    for (const pt of trend.data_points ?? []) {
+      map.set(pt.timestamp, pt.value);
+      allTimestamps.add(pt.timestamp);
     }
-
-    // Convert to flat TimelinePoint array sorted by date
-    const sorted = [...allTimestamps].sort();
-    return sorted.map((ts) => ({
-      date: ts,
-      healthScore: dimMap.get('overall_health')?.get(ts) ?? 0,
-      quality: dimMap.get('documentation')?.get(ts) ?? dimMap.get('code_quality')?.get(ts) ?? 0,
-      reliability: dimMap.get('reliability')?.get(ts) ?? 0,
-      performance: dimMap.get('architecture')?.get(ts) ?? 0,
-    }));
-  } catch {
-    return [];
+    dimMap.set(trend.dimension, map);
   }
+
+  // Convert to flat TimelinePoint array sorted by date
+  const sorted = [...allTimestamps].sort();
+  return sorted.map((ts) => ({
+    date: ts,
+    healthScore: dimMap.get('overall_health')?.get(ts) ?? 0,
+    quality: dimMap.get('documentation')?.get(ts) ?? dimMap.get('code_quality')?.get(ts) ?? 0,
+    reliability: dimMap.get('reliability')?.get(ts) ?? 0,
+    performance: dimMap.get('architecture')?.get(ts) ?? 0,
+  }));
 }
 
 /**
- * Get analysis history from `GET /api/v1/analysis/history`.
+ * Get analysis history from `GET /api/v1/analysis/history`. Throws on failure.
  */
 export async function getTimelineHistory(): Promise<AnalysisHistoryEntry[]> {
-  try {
-    const result = await apiFetch<AnalysisHistoryEntry[]>("/api/v1/analysis/history");
-    return Array.isArray(result) ? result : [];
-  } catch {
-    return [];
-  }
+  const result = await apiFetch<AnalysisHistoryEntry[]>("/api/v1/analysis/history");
+  return Array.isArray(result) ? result : [];
 }
 
 /**
- * Get evolution snapshots from `GET /api/v1/timeline/snapshots`.
+ * Get evolution snapshots from `GET /api/v1/timeline/snapshots`. Throws on failure.
  */
 export async function getTimelineSnapshots(): Promise<EvolutionSnapshot[]> {
-  try {
-    const result = await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
-    return Array.isArray(result) ? result : [];
-  } catch {
-    return [];
-  }
+  const result = await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
+  return Array.isArray(result) ? result : [];
 }
 
 /**
- * Get trend data from `GET /api/v1/timeline/trends`.
+ * Get trend data from `GET /api/v1/timeline/trends`. Throws on failure.
  */
 export async function getTimelineTrends(): Promise<TrendData> {
-  try {
-    // apiFetch unwraps { data: [...] } → returns the raw TrendSeries[]
-    const raw = await apiFetch<TrendSeries[] | TrendData>("/api/v1/timeline/trends");
-    if (Array.isArray(raw)) {
-      return { series: raw, total: raw.length };
-    }
-    // If the API ever returns { series, total } directly
-    return raw && 'series' in raw ? raw : { series: [], total: 0 };
-  } catch {
-    return { series: [], total: 0 };
+  // apiFetch unwraps { data: [...] } → returns the raw TrendSeries[]
+  const raw = await apiFetch<TrendSeries[] | TrendData>("/api/v1/timeline/trends");
+  if (Array.isArray(raw)) {
+    return { series: raw, total: raw.length };
   }
+  // If the API ever returns { series, total } directly
+  return raw && 'series' in raw ? raw : { series: [], total: 0 };
 }
 
 /**
- * Get project snapshots for the timeline page.
+ * Get project snapshots for the timeline page. Throws on failure.
  */
 export async function getSnapshots(): Promise<ProjectSnapshot[]> {
-  try {
-    // Server returns EvolutionSnapshot[], transform to ProjectSnapshot[]
-    const raw = await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
-    if (!Array.isArray(raw)) return [];
-    return raw.map(snap => ({
-      id: snap.id,
-      date: snap.timestamp,
-      health_score: snap.overall_health ?? 0,
-      findings_count: snap.risk_count ?? 0,
-      opportunities_count: snap.opportunity_count ?? 0,
-      trigger: 'scheduled' as const,
-      summary: snap.top_opportunities?.[0] ?? '',
-      dimensions: Object.fromEntries(
-        (snap.maturity_scores ?? []).map(s => [s.dimension, s.score])
-      ),
-    }));
-  } catch {
-    return [];
-  }
+  // Server returns EvolutionSnapshot[], transform to ProjectSnapshot[]
+  const raw = await apiFetch<EvolutionSnapshot[]>("/api/v1/timeline/snapshots");
+  if (!Array.isArray(raw)) return [];
+  return raw.map(snap => ({
+    id: snap.id,
+    date: snap.timestamp,
+    health_score: snap.overall_health ?? 0,
+    risks_count: snap.risk_count ?? 0,
+    opportunities_count: snap.opportunity_count ?? 0,
+    summary: snap.top_opportunities?.[0] ?? '',
+    dimensions: Object.fromEntries(
+      (snap.maturity_scores ?? []).map(s => [s.dimension, s.score])
+    ),
+  }));
 }
 
 /**
@@ -242,38 +248,29 @@ export function getReportUrl(format: string): string {
 
 /**
  * Full-text search across all resource types via `GET /api/v1/search`.
+ * Throws on failure.
  */
 export async function searchAll(
   query: string,
   scope?: string,
 ): Promise<SearchResult[]> {
-  try {
-    const params = new URLSearchParams();
-    params.set("q", query);
-    if (scope) params.set("scope", scope);
+  const params = new URLSearchParams();
+  params.set("q", query);
+  if (scope) params.set("scope", scope);
 
-    return await apiFetch<SearchResult[]>(
-      `/api/v1/search?${params.toString()}`,
-    );
-  } catch {
-    return [];
-  }
+  return await apiFetch<SearchResult[]>(
+    `/api/v1/search?${params.toString()}`,
+  );
 }
 
+/** Get all report schedules. Throws on failure. */
 export async function getSchedules(): Promise<ReportSchedule[]> {
-  try {
-    return await apiFetch<ReportSchedule[]>('/api/v1/schedules');
-  } catch {
-    return [];
-  }
+  return await apiFetch<ReportSchedule[]>('/api/v1/schedules');
 }
 
+/** Get the global schedule run history. Throws on failure. */
 export async function getScheduleHistory(): Promise<ScheduleRunHistory[]> {
-  try {
-    return await apiFetch<ScheduleRunHistory[]>('/api/v1/schedules/history');
-  } catch {
-    return [];
-  }
+  return await apiFetch<ScheduleRunHistory[]>('/api/v1/schedules/history');
 }
 
 // ─── Schedule Mutations ──────────────────────────────────────────────────────
@@ -283,9 +280,10 @@ export interface CreateSchedulePayload {
   description?: string;
   schedule: string;
   timezone?: string;
-  format?: string;
+  /** Output formats — the server field is `formats` (an array). */
+  formats?: string[];
   recipients?: string[];
-  scope?: string;
+  projectId?: string;
 }
 
 /**
@@ -339,11 +337,8 @@ export interface ReportsAnalysisHistoryEntry {
 
 /**
  * Get analysis history for the reports page from `GET /api/v1/analysis/history`.
+ * Throws on failure.
  */
 export async function getReportsAnalysisHistory(): Promise<ReportsAnalysisHistoryEntry[]> {
-  try {
-    return await apiFetch<ReportsAnalysisHistoryEntry[]>('/api/v1/analysis/history');
-  } catch {
-    return [];
-  }
+  return await apiFetch<ReportsAnalysisHistoryEntry[]>('/api/v1/analysis/history');
 }

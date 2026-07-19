@@ -406,6 +406,7 @@ function CommandPalette({ onClose, activeProjectId }: { onClose: () => void; act
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const filtered = query.trim()
     ? COMMAND_ITEMS.filter(item =>
@@ -415,13 +416,43 @@ function CommandPalette({ onClose, activeProjectId }: { onClose: () => void; act
 
   const groups = ['Pages', 'Actions'] as const;
 
+  // Focus the search input on open; restore focus to the opener on close.
   useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
     inputRef.current?.focus();
+    return () => {
+      previousFocus?.focus?.();
+    };
   }, []);
 
   useEffect(() => {
     setSelectedIdx(0);
   }, [query]);
+
+  // Trap Tab focus inside the modal dialog while it is open.
+  useEffect(() => {
+    function trapFocus(e: globalThis.KeyboardEvent) {
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      const active = document.activeElement;
+      if (e.shiftKey) {
+        if (active === first || !dialogRef.current.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !dialogRef.current.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener('keydown', trapFocus);
+    return () => document.removeEventListener('keydown', trapFocus);
+  }, []);
 
   const handleSelect = useCallback((item: CommandItem) => {
     onClose();
@@ -453,8 +484,10 @@ function CommandPalette({ onClose, activeProjectId }: { onClose: () => void; act
     <>
       <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
+        ref={dialogRef}
         className="fixed left-1/2 top-[15%] z-[80] w-full max-w-xl -translate-x-1/2 glass-card overflow-hidden"
         role="dialog"
+        aria-modal="true"
         aria-label="Command palette"
         onKeyDown={handleKeyDown}
       >

@@ -367,6 +367,7 @@ export default function FindingDetailPage() {
                 value={assignInput}
                 onChange={(e) => setAssignInput(e.target.value)}
                 placeholder="Username…"
+                aria-label="Assignee username"
                 className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-accent-blue/40 transition-colors"
               />
               <button

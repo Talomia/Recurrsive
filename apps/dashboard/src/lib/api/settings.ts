@@ -106,26 +106,17 @@ export async function getSettingsSections(): Promise<SettingsSection[]> {
   }
 }
 
+/** Get data-masking policies. Throws on failure. */
 export async function getMaskingPolicies(): Promise<DashboardMaskingPolicy[]> {
-  try {
-    return await apiFetch<DashboardMaskingPolicy[]>('/api/v1/data-masking/policies');
-  } catch {
-    return [];
-  }
+  return await apiFetch<DashboardMaskingPolicy[]>('/api/v1/data-masking/policies');
 }
 
+/** Get the PII distribution. Throws on failure. */
 export async function getPiiDistribution(): Promise<DashboardPiiDistribution[]> {
-  try {
-    return await apiFetch<DashboardPiiDistribution[]>('/api/v1/data-masking/pii-distribution');
-  } catch {
-    return [];
-  }
+  return await apiFetch<DashboardPiiDistribution[]>('/api/v1/data-masking/pii-distribution');
 }
 
+/** Get the masking strategies catalog. Throws on failure. */
 export async function getMaskingStrategies(): Promise<DashboardMaskingStrategy[]> {
-  try {
-    return await apiFetch<DashboardMaskingStrategy[]>('/api/v1/data-masking/strategies');
-  } catch {
-    return [];
-  }
+  return await apiFetch<DashboardMaskingStrategy[]>('/api/v1/data-masking/strategies');
 }

@@ -4,7 +4,7 @@
  * Project management and batch operations.
  */
 
-import { apiFetch } from './client';
+import { apiFetch, ApiError } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -63,34 +63,38 @@ export async function getProjects(): Promise<Project[]> {
 
 /**
  * Get a single project by ID from `GET /api/v1/projects/:id`.
+ *
+ * Returns null only for a genuine 404; other failures throw so a broken
+ * server does not masquerade as "Project Not Found".
  */
 export async function getProject(id: string): Promise<Project | null> {
   try {
     return await apiFetch<Project>(`/api/v1/projects/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 
 /**
  * Get batch analysis history from `GET /api/v1/batch/history`.
+ * Throws on failure.
  */
 export async function getBatchHistory(): Promise<BatchRun[]> {
-  try {
-    return await apiFetch<BatchRun[]>("/api/v1/batch/history");
-  } catch {
-    return [];
-  }
+  return await apiFetch<BatchRun[]>("/api/v1/batch/history");
 }
 
 /**
  * Get status of a specific batch run from `GET /api/v1/batch/status/:id`.
+ *
+ * Returns null only for a genuine 404; other failures throw.
  */
 export async function getBatchStatus(id: string): Promise<BatchRun | null> {
   try {
     return await apiFetch<BatchRun>(`/api/v1/batch/status/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 
@@ -98,13 +102,15 @@ export async function getBatchStatus(id: string): Promise<BatchRun | null> {
  * Get a single batch run detail by ID from `GET /api/v1/batch/:id`.
  *
  * Returns the canonical {@link BatchRun} shape (the same model the server
- * persists and returns from `/batch/status/:id`). Returns null on 404/error.
+ * persists and returns from `/batch/status/:id`). Returns null only for a
+ * genuine 404; other failures throw.
  */
 export async function getBatchJob(id: string): Promise<BatchRun | null> {
   try {
     return await apiFetch<BatchRun>(`/api/v1/batch/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 

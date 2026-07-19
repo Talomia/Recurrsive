@@ -4,7 +4,7 @@
  * Experiments and analysis run comparisons.
  */
 
-import { apiFetch } from './client';
+import { apiFetch, ApiError } from './client';
 
 // ─── Experiment Types ────────────────────────────────────────────────────────
 
@@ -57,27 +57,27 @@ export interface ComparisonData {
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 /**
- * Get all experiments from `GET /api/v1/experiments`.
+ * Get all experiments from `GET /api/v1/experiments`. Throws on failure.
  */
 export async function getExperiments(status?: string): Promise<DashboardExperiment[]> {
-  try {
-    const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    return await apiFetch<DashboardExperiment[]>(`/api/v1/experiments${query}`);
-  } catch {
-    return [];
-  }
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return await apiFetch<DashboardExperiment[]>(`/api/v1/experiments${query}`);
 }
 
 /**
  * Get a single experiment by ID from `GET /api/v1/experiments/:id`.
+ *
+ * Returns null only for a genuine 404 (so the page can render "Not Found");
+ * other failures throw so a broken server surfaces as an error instead.
  */
 export async function getExperiment(id: string): Promise<DashboardExperiment | null> {
   try {
     return await apiFetch<DashboardExperiment>(
       `/api/v1/experiments/${encodeURIComponent(id)}`,
     );
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 
@@ -106,29 +106,25 @@ interface ServerAnalysisHistoryEntry {
  * fabricated approximation.
  */
 export async function getAnalysisRuns(): Promise<AnalysisRun[]> {
-  try {
-    const res = await apiFetch<{ data: ServerAnalysisHistoryEntry[]; total: number }>(
-      "/api/v1/analysis/history",
-      { unwrap: false },
-    );
-    const entries = res.data ?? [];
-    return entries
-      .filter((entry) => entry.status === 'success')
-      .map((entry) => {
-        const date = new Date(entry.startedAt);
-        const label = `Run ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-        return {
-          id: entry.id,
-          label,
-          date: entry.startedAt,
-          health_score: entry.healthScore,
-          findings: entry.findingCount,
-          opportunities: entry.opportunityCount,
-        };
-      });
-  } catch {
-    return [];
-  }
+  const res = await apiFetch<{ data: ServerAnalysisHistoryEntry[]; total: number }>(
+    "/api/v1/analysis/history",
+    { unwrap: false },
+  );
+  const entries = res.data ?? [];
+  return entries
+    .filter((entry) => entry.status === 'success')
+    .map((entry) => {
+      const date = new Date(entry.startedAt);
+      const label = `Run ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      return {
+        id: entry.id,
+        label,
+        date: entry.startedAt,
+        health_score: entry.healthScore,
+        findings: entry.findingCount,
+        opportunities: entry.opportunityCount,
+      };
+    });
 }
 
 /**

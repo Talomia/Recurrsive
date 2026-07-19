@@ -26,9 +26,10 @@ const ICON_MAP = { Heart, DollarSign, Container, Brain } as const;
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface MarketplaceMeta {
-  stars: number;
+  /** Average user rating (0–5) as recorded by the marketplace. */
+  rating: number;
+  ratingCount: number;
   downloads: number;
-  verified: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ export default function IntelligencePacksPage() {
         // Build a lookup of marketplace metadata keyed by pack name
         const meta: Record<string, MarketplaceMeta> = {};
         for (const ext of mktRes.data) {
-          meta[ext.name] = { stars: ext.stars ?? 0, downloads: ext.downloads ?? 0, verified: ext.verified ?? false };
+          meta[ext.name] = { rating: ext.rating ?? 0, ratingCount: ext.ratingCount ?? 0, downloads: ext.downloads ?? 0 };
         }
         setMarketplaceMeta(meta);
         setPacks(packData);
@@ -200,14 +201,16 @@ export default function IntelligencePacksPage() {
                     <h3 className="text-text-primary font-semibold">{pack.name}</h3>
                     <span className="text-xs text-text-tertiary">v{pack.version}</span>
                     <StatusBadge status={pack.status as string} />
-                    {marketplaceMeta[`${pack.name} Intelligence Pack`]?.verified && (
-                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400">✓ Verified</span>
-                    )}
                   </div>
                   <p className="text-xs text-text-secondary mt-0.5">{pack.description}</p>
                   {marketplaceMeta[`${pack.name} Intelligence Pack`] && (
                     <div className="flex items-center gap-3 mt-1 text-xs text-text-tertiary">
-                      <span className="flex items-center gap-1"><Star className="w-3 h-3" /> {marketplaceMeta[`${pack.name} Intelligence Pack`].stars}</span>
+                      <span className="flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        {marketplaceMeta[`${pack.name} Intelligence Pack`].ratingCount > 0
+                          ? marketplaceMeta[`${pack.name} Intelligence Pack`].rating.toFixed(1)
+                          : 'Not rated'}
+                      </span>
                       <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {marketplaceMeta[`${pack.name} Intelligence Pack`].downloads.toLocaleString()}</span>
                     </div>
                   )}

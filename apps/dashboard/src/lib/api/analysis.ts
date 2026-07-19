@@ -4,7 +4,7 @@
  * Analysis runs, findings, and findings summary.
  */
 
-import { apiFetch } from './client';
+import { apiFetch, ApiError } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -96,7 +96,11 @@ export interface AnalyticsCategory {
 export interface AnalyticsTrendPoint {
   date: string;
   findings: number;
-  resolved: number;
+  /**
+   * Always null — the server does not record per-run resolution counts, and
+   * refuses to fabricate them. Do not chart this field.
+   */
+  resolved: number | null;
   health: number;
 }
 
@@ -105,7 +109,8 @@ export interface AnalyticsSummary {
   total_findings: number;
   findings_resolved: number;
   resolution_rate: number;
-  avg_health_score: number;
+  /** Mean health score over scored runs, or null when nothing was analyzed. */
+  avg_health_score: number | null;
   trends: AnalyticsTrendPoint[];
 }
 
@@ -113,6 +118,8 @@ export interface AnalyticsSummary {
 
 /**
  * Get analysis status from `GET /api/v1/analysis/status`.
+ *
+ * Throws on failure — an unreachable server is not the same as "idle".
  */
 export async function getAnalysisStatus(): Promise<{
   phase: string;
@@ -122,35 +129,30 @@ export async function getAnalysisStatus(): Promise<{
   completedAt: string | null;
   error: string | null;
 }> {
-  try {
-    return await apiFetch<{
-      phase: string;
-      progress: number;
-      message: string;
-      startedAt: string | null;
-      completedAt: string | null;
-      error: string | null;
-    }>("/api/v1/analysis/status");
-  } catch {
-    return {
-      phase: "idle",
-      progress: 0,
-      message: "No analysis running",
-      startedAt: null,
-      completedAt: null,
-      error: null,
-    };
-  }
+  return await apiFetch<{
+    phase: string;
+    progress: number;
+    message: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    error: string | null;
+  }>("/api/v1/analysis/status");
 }
 
 /**
  * Get findings summary from `GET /api/v1/findings/summary`.
+ *
+ * A 404 means no analysis has run yet — a genuine empty summary. Other
+ * failures throw so callers can render an error state.
  */
 export async function getFindingsSummary(): Promise<FindingsSummary> {
   try {
     return await apiFetch<FindingsSummary>("/api/v1/findings/summary");
-  } catch {
-    return { total: 0, by_severity: {}, by_category: {}, by_analyzer: {} };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      return { total: 0, by_severity: {}, by_category: {}, by_analyzer: {} };
+    }
+    throw err;
   }
 }
 
@@ -175,21 +177,28 @@ export async function getFindings(params?: {
   try {
     const res = await apiFetch<{ data: Finding[]; total: number }>(path, { unwrap: false });
     return { findings: res.data ?? [], total: res.total ?? 0 };
-  } catch {
-    return { findings: [], total: 0 };
+  } catch (err) {
+    // 404 = no analysis results exist yet — a genuinely empty list.
+    if (err instanceof ApiError && err.status === 404) {
+      return { findings: [], total: 0 };
+    }
+    throw err;
   }
 }
 
 /**
  * Get a single finding by ID from `GET /api/v1/findings/:id`.
+ *
+ * Returns null only for a genuine 404; other failures throw.
  */
 export async function getFinding(id: string): Promise<Finding | null> {
   try {
     return await apiFetch<Finding>(
       `/api/v1/findings/${encodeURIComponent(id)}`,
     );
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 
@@ -205,31 +214,21 @@ export async function getFindingsPage(): Promise<FindingsPageData> {
 
 /**
  * Get analytics summary from `GET /api/v1/analytics/summary`.
+ *
+ * Throws on failure so the analytics page can show its error banner instead
+ * of rendering fabricated zeros. The server itself answers honestly when
+ * nothing has been analyzed (zero counts, null health).
  */
 export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
-  try {
-    return await apiFetch<AnalyticsSummary>("/api/v1/analytics/summary");
-  } catch {
-    return {
-      analysis_runs: 0,
-      total_findings: 0,
-      findings_resolved: 0,
-      resolution_rate: 0,
-      avg_health_score: 0,
-      trends: [],
-    };
-  }
+  return await apiFetch<AnalyticsSummary>("/api/v1/analytics/summary");
 }
 
 /**
  * Get analytics categories from `GET /api/v1/analytics/top-categories`.
+ * Throws on failure.
  */
 export async function getAnalyticsCategories(): Promise<AnalyticsCategory[]> {
-  try {
-    return await apiFetch<AnalyticsCategory[]>("/api/v1/analytics/top-categories");
-  } catch {
-    return [];
-  }
+  return await apiFetch<AnalyticsCategory[]>("/api/v1/analytics/top-categories");
 }
 
 // ─── Analysis Triggers ──────────────────────────────────────────────────────

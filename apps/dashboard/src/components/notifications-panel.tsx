@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Check,
@@ -98,6 +99,7 @@ export default function NotificationsPanel({
   open: controlledOpen,
   onClose,
 }: NotificationsPanelProps) {
+  const router = useRouter();
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = controlledOpen ?? internalOpen;
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -305,11 +307,12 @@ export default function NotificationsPanel({
                   <button
                     key={notif.id}
                     onClick={() => {
-                      setNotifications((prev) =>
-                        prev.map((n) =>
-                          n.id === notif.id ? { ...n, read: true } : n
-                        )
-                      );
+                      // Navigate to the notification detail page. There is no
+                      // per-notification read endpoint on the server, so a
+                      // local read:true would just revert on the next open —
+                      // opening the detail page is the real action.
+                      close();
+                      router.push(`/notifications/${encodeURIComponent(notif.id)}`);
                     }}
                     className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 ${
                       !notif.read ? "bg-white/[0.02]" : ""

@@ -56,18 +56,45 @@ export default function AiChatPanel({ open, onClose, projectId }: AiChatPanelPro
     }
   }, [messages, isTyping]);
 
-  // Focus input when panel opens
+  // Focus input when panel opens; restore focus to the opener when it closes.
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 200);
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
+      const timer = setTimeout(() => inputRef.current?.focus(), 200);
+      return () => clearTimeout(timer);
     }
+    // Closed: return focus to whatever opened the drawer.
+    previousFocusRef.current?.focus?.();
+    previousFocusRef.current = null;
+    return undefined;
   }, [open]);
 
-  // Close on Escape
+  // Close on Escape + trap Tab focus inside the open drawer.
   useEffect(() => {
     if (!open) return;
     function handleKey(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !panelRef.current) return;
+      const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      const active = document.activeElement;
+      if (e.shiftKey) {
+        if (active === first || !panelRef.current.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !panelRef.current.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -175,6 +202,10 @@ export default function AiChatPanel({ open, onClose, projectId }: AiChatPanelPro
         role="dialog"
         aria-modal="true"
         aria-label="AI Assistant"
+        // When closed the drawer stays mounted (for the slide transition) but
+        // must not keep focusable controls in the page tab order.
+        inert={!open}
+        aria-hidden={!open}
         className={`fixed right-0 top-0 z-[95] flex h-full w-full max-w-[400px] flex-col transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}

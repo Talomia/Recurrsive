@@ -26,7 +26,8 @@ export interface MarketplacePlugin {
   version: string;
   author: string;
   description: string;
-  stars: number;
+  /** Average user rating (0–5) as recorded by the server. */
+  rating: number;
   downloads: number;
   type: 'analyzer' | 'collector' | 'reporter' | 'integration';
   verified: boolean;
@@ -34,38 +35,51 @@ export interface MarketplacePlugin {
 
 // ─── Cloud Types ─────────────────────────────────────────────────────────────
 
-export interface CloudBenchmark {
-  dimension: string;
-  yourScore: number;
-  p50: number;
-  p75: number;
-  p90: number;
-  percentile: number;
+/**
+ * Aggregated benchmark report as returned by `GET /cloud/benchmarks/report`.
+ * `percentiles` is null when the sample is too small for meaningful stats.
+ */
+export interface CloudBenchmarkReport {
+  industry: string;
+  sampleSize: number;
+  percentiles: { p25: number; p50: number; p75: number; p90: number } | null;
+  percentilesNote?: string;
+  dimensionAverages: Record<string, number>;
+  topImprovementAreas: string[];
 }
 
+/** Learned pattern as stored by the server (`LearnedPattern`). */
 export interface CloudLearnedPattern {
   id: string;
   name: string;
   category: string;
   occurrences: number;
   successRate: number;
-  lastSeen: string;
+  /** Average health score improvement when addressed. */
+  avgImpact: number;
+  recommendation: string;
+  confidence: number;
 }
 
+/** Cloud partner integration entry as stored by the server (`CloudPartner`). */
 export interface CloudPartner {
   id: string;
   name: string;
-  tier: 'platinum' | 'gold' | 'silver';
-  specialty: string;
-  projects: number;
-  logo: string;
+  type: string;
+  status: string;
+  integration_level: string;
+  supported_services: string[];
 }
 
+/** Managed service tier as returned by the server (`ManagedService`). */
 export interface CloudServiceTier {
+  id: string;
   name: string;
-  price: string;
+  description: string;
+  tier: string;
   features: string[];
-  highlighted: boolean;
+  priceRange: string;
+  sla: string;
 }
 
 // ─── Secrets Types ───────────────────────────────────────────────────────────
@@ -157,20 +171,14 @@ export interface DashboardIntelligencePack {
 
 // ─── Plugin API ──────────────────────────────────────────────────────────────
 
+/** Get installed plugins. Throws on failure. */
 export async function getInstalledPlugins(): Promise<InstalledPlugin[]> {
-  try {
-    return await apiFetch<InstalledPlugin[]>('/api/v1/plugins/installed');
-  } catch {
-    return [];
-  }
+  return await apiFetch<InstalledPlugin[]>('/api/v1/plugins/installed');
 }
 
+/** Get marketplace plugins. Throws on failure. */
 export async function getMarketplacePlugins(): Promise<MarketplacePlugin[]> {
-  try {
-    return await apiFetch<MarketplacePlugin[]>('/api/v1/plugins/marketplace');
-  } catch {
-    return [];
-  }
+  return await apiFetch<MarketplacePlugin[]>('/api/v1/plugins/marketplace');
 }
 
 export async function installPlugin(id: string): Promise<InstalledPlugin> {
@@ -196,86 +204,70 @@ export async function togglePlugin(id: string): Promise<InstalledPlugin> {
 
 // ─── Cloud API ───────────────────────────────────────────────────────────────
 
-export async function getCloudBenchmarks(): Promise<CloudBenchmark[]> {
-  try {
-    const result = await apiFetch<CloudBenchmark[] | Record<string, unknown>>('/api/v1/cloud/benchmarks/report');
-    return Array.isArray(result) ? result : [];
-  } catch {
-    return [];
+/**
+ * Get the aggregated benchmark report from `GET /cloud/benchmarks/report`.
+ *
+ * The server returns a single report OBJECT (not an array). When no benchmark
+ * data has been submitted it answers `{ message, sampleSize: 0 }` — that case
+ * is returned as null (a genuine empty state). Throws on failure.
+ */
+export async function getCloudBenchmarkReport(): Promise<CloudBenchmarkReport | null> {
+  const result = await apiFetch<CloudBenchmarkReport | { message?: string; sampleSize: number }>(
+    '/api/v1/cloud/benchmarks/report',
+  );
+  if (!result || result.sampleSize === 0 || !('dimensionAverages' in result)) {
+    return null;
   }
+  return result;
 }
 
+/** Get cross-org learned patterns. Throws on failure. */
 export async function getCloudPatterns(): Promise<CloudLearnedPattern[]> {
-  try {
-    const result = await apiFetch<CloudLearnedPattern[] | Record<string, unknown>>('/api/v1/cloud/patterns');
-    return Array.isArray(result) ? result : [];
-  } catch {
-    return [];
-  }
+  const result = await apiFetch<CloudLearnedPattern[]>('/api/v1/cloud/patterns');
+  return Array.isArray(result) ? result : [];
 }
 
+/** Get cloud partner integrations. Throws on failure. */
 export async function getCloudPartners(): Promise<CloudPartner[]> {
-  try {
-    const result = await apiFetch<CloudPartner[] | Record<string, unknown>>('/api/v1/cloud/partners');
-    return Array.isArray(result) ? result : [];
-  } catch {
-    return [];
-  }
+  const result = await apiFetch<CloudPartner[]>('/api/v1/cloud/partners');
+  return Array.isArray(result) ? result : [];
 }
 
+/** Get the managed services catalog. Throws on failure. */
 export async function getCloudServices(): Promise<CloudServiceTier[]> {
-  try {
-    const result = await apiFetch<CloudServiceTier[] | Record<string, unknown>>('/api/v1/cloud/services');
-    return Array.isArray(result) ? result : [];
-  } catch {
-    return [];
-  }
+  const result = await apiFetch<CloudServiceTier[]>('/api/v1/cloud/services');
+  return Array.isArray(result) ? result : [];
 }
 
 // ─── Secrets API ─────────────────────────────────────────────────────────────
 
+/** Get stored secrets metadata. Throws on failure. */
 export async function getSecrets(): Promise<DashboardSecret[]> {
-  try {
-    return await apiFetch<DashboardSecret[]>('/api/v1/secrets');
-  } catch {
-    return [];
-  }
+  return await apiFetch<DashboardSecret[]>('/api/v1/secrets');
 }
 
+/** Get the secrets audit log. Throws on failure. */
 export async function getSecretAuditLog(): Promise<DashboardAuditEntry[]> {
-  try {
-    return await apiFetch<DashboardAuditEntry[]>('/api/v1/secrets/audit/log');
-  } catch {
-    return [];
-  }
+  return await apiFetch<DashboardAuditEntry[]>('/api/v1/secrets/audit/log');
 }
 
 // ─── SSO API ─────────────────────────────────────────────────────────────────
 
+/** Get SSO providers. Throws on failure. */
 export async function getSSOProviders(): Promise<SSOProvider[]> {
-  try {
-    return await apiFetch<SSOProvider[]>('/api/v1/sso/providers');
-  } catch {
-    return [];
-  }
+  return await apiFetch<SSOProvider[]>('/api/v1/sso/providers');
 }
 
+/** Get active SSO sessions. Throws on failure. */
 export async function getSSOSessions(): Promise<SSOSession[]> {
-  try {
-    return await apiFetch<SSOSession[]>('/api/v1/sso/sessions');
-  } catch {
-    return [];
-  }
+  return await apiFetch<SSOSession[]>('/api/v1/sso/sessions');
 }
 
 // ─── Tenants API ─────────────────────────────────────────────────────────────
 
+/** Get tenants. Throws on failure. */
 export async function getTenants(): Promise<DashboardTenant[]> {
-  try {
-    return await apiFetch<DashboardTenant[]>('/api/v1/tenants');
-  } catch {
-    return [];
-  }
+  return await apiFetch<DashboardTenant[]>('/api/v1/tenants');
 }
 
 export async function createTenant(data: { name: string; slug: string; tier: string }): Promise<DashboardTenant> {
@@ -367,14 +359,14 @@ const DOMAIN_ICON_MAP: Record<string, string> = {
   analytics: 'bar-chart',
 };
 
+/** Get intelligence packs. Throws on failure. */
 export async function getIntelligencePacks(): Promise<DashboardIntelligencePack[]> {
-  try {
-    const res = await apiFetch<{ data: ServerIntelligencePack[]; total: number }>(
-      '/api/v1/intelligence-packs',
-      { unwrap: false },
-    );
-    const packs = res.data ?? [];
-    return packs.map((pack) => {
+  const res = await apiFetch<{ data: ServerIntelligencePack[]; total: number }>(
+    '/api/v1/intelligence-packs',
+    { unwrap: false },
+  );
+  const packs = res.data ?? [];
+  return packs.map((pack) => {
       // Distribute ruleCount evenly across analyzers
       const analyzerCount = pack.analyzers.length || 1;
       const perAnalyzer = Math.round(pack.ruleCount / analyzerCount);
@@ -398,9 +390,6 @@ export async function getIntelligencePacks(): Promise<DashboardIntelligencePack[
         lastUpdated: new Date().toISOString(),
       };
     });
-  } catch {
-    return [];
-  }
 }
 
 // ─── Marketplace API ─────────────────────────────────────────────────────────
@@ -412,30 +401,18 @@ export async function getMarketplaceExtensions(params?: { category?: string; sea
   if (params?.search) searchParams.set('search', params.search);
   if (params?.sort) searchParams.set('sort', params.sort);
   const query = searchParams.toString();
-  try {
-    return await apiFetch<{ data: any[]; total: number; categories: Record<string, number> }>(
-      `/api/v1/marketplace/extensions${query ? `?${query}` : ''}`,
-      { unwrap: false },
-    );
-  } catch {
-    return { data: [], total: 0, categories: {} };
-  }
+  return await apiFetch<{ data: any[]; total: number; categories: Record<string, number> }>(
+    `/api/v1/marketplace/extensions${query ? `?${query}` : ''}`,
+    { unwrap: false },
+  );
 }
 
 export async function getMarketplaceStats() {
-  try {
-    return await apiFetch<{ data: any }>('/api/v1/marketplace/stats', { unwrap: false });
-  } catch {
-    return { data: {} };
-  }
+  return await apiFetch<{ data: any }>('/api/v1/marketplace/stats', { unwrap: false });
 }
 
 export async function getMarketplaceCategories() {
-  try {
-    return await apiFetch<{ data: any[] }>('/api/v1/marketplace/categories', { unwrap: false });
-  } catch {
-    return { data: [] };
-  }
+  return await apiFetch<{ data: any[] }>('/api/v1/marketplace/categories', { unwrap: false });
 }
 
 // ─── Partners API ────────────────────────────────────────────────────────────
@@ -445,58 +422,47 @@ export async function getPartners(params?: { tier?: string; type?: string }) {
   if (params?.tier) searchParams.set('tier', params.tier);
   if (params?.type) searchParams.set('type', params.type);
   const query = searchParams.toString();
-  try {
-    const res = await apiFetch<{ data: any[]; total: number; tierCounts: Record<string, number> }>(
-      `/api/v1/partners${query ? `?${query}` : ''}`,
-      { unwrap: false },
-    );
-    const mappedData = (res.data ?? []).map((partner: any) => {
-      // Map server type to emoji logo
-      const typeToLogo: Record<string, string> = {
-        'system-integrator': '🏢',
-        'consulting': '🤝',
-        'technology': '🔌',
-        'cloud-provider': '☁️',
-      };
-      return {
-        id: partner.id,
-        name: partner.name,
-        tier: partner.tier,
-        specialty: partner.specializations?.join(', ') || partner.type || 'General Integration',
-        logo: typeToLogo[partner.type] || '💼',
-        projects: partner.customerCount ?? partner.certifiedEngineers ?? 0,
-        description: partner.description || '',
-      };
-    });
-    return { data: mappedData, total: res.total ?? mappedData.length, tierCounts: res.tierCounts ?? {} };
-  } catch {
-    return { data: [], total: 0, tierCounts: {} };
-  }
+  const res = await apiFetch<{ data: any[]; total: number; tierCounts: Record<string, number> }>(
+    `/api/v1/partners${query ? `?${query}` : ''}`,
+    { unwrap: false },
+  );
+  const mappedData = (res.data ?? []).map((partner: any) => {
+    // Map server type to emoji logo
+    const typeToLogo: Record<string, string> = {
+      'system-integrator': '🏢',
+      'consulting': '🤝',
+      'technology': '🔌',
+      'cloud-provider': '☁️',
+    };
+    return {
+      id: partner.id,
+      name: partner.name,
+      tier: partner.tier,
+      specialty: partner.specializations?.join(', ') || partner.type || 'General Integration',
+      logo: typeToLogo[partner.type] || '💼',
+      projects: partner.customerCount ?? partner.certifiedEngineers ?? 0,
+      description: partner.description || '',
+    };
+  });
+  return { data: mappedData, total: res.total ?? mappedData.length, tierCounts: res.tierCounts ?? {} };
 }
 
 export async function getPartnerCertifications() {
-  try {
-    const res = await apiFetch<{ data: any[] }>('/api/v1/partners/certifications', { unwrap: false });
-    const mappedData = (res.data ?? []).map((cert: any) => {
-      return {
-        id: cert.id,
-        name: cert.name,
-        level: cert.level,
-        duration: cert.examDuration || cert.validityPeriod || '2 hours',
-        modules: cert.requirements?.length || 4,
-        enrolled: cert.enrolledCount ?? 0,
-      };
-    });
-    return { data: mappedData };
-  } catch {
-    return { data: [] };
-  }
+  const res = await apiFetch<{ data: any[] }>('/api/v1/partners/certifications', { unwrap: false });
+  const mappedData = (res.data ?? []).map((cert: any) => {
+    return {
+      id: cert.id,
+      name: cert.name,
+      level: cert.level,
+      // Honest fallbacks — never an invented "2 hours" / "4 modules".
+      duration: cert.examDuration || cert.validityPeriod || '—',
+      modules: cert.requirements?.length ?? 0,
+      enrolled: cert.enrolledCount ?? 0,
+    };
+  });
+  return { data: mappedData };
 }
 
 export async function getPartnerStats() {
-  try {
-    return await apiFetch<{ data: any }>('/api/v1/partners/stats', { unwrap: false });
-  } catch {
-    return { data: {} };
-  }
+  return await apiFetch<{ data: any }>('/api/v1/partners/stats', { unwrap: false });
 }

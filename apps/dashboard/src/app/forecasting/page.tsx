@@ -73,10 +73,12 @@ function WhatIfPanel() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<WhatIfResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
 
   const simulate = useCallback(async () => {
     if (selected.size === 0) return;
     setLoading(true);
+    setSimError(null);
     try {
       const actions = Array.from(selected).map(type => ({
         type,
@@ -84,7 +86,9 @@ function WhatIfPanel() {
       }));
       const data = await getWhatIfAnalysis({ actions });
       setResult(data);
-    } catch { /* ignore */ }
+    } catch (e) {
+      setSimError(e instanceof Error ? e.message : 'What-if simulation failed.');
+    }
     setLoading(false);
   }, [selected]);
 
@@ -135,6 +139,12 @@ function WhatIfPanel() {
       >
         {loading ? 'Simulating...' : `Simulate ${selected.size} Action${selected.size !== 1 ? 's' : ''}`}
       </button>
+
+      {simError && (
+        <p className="mt-3 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+          {simError}
+        </p>
+      )}
 
       {result && (
         <div className="mt-4 space-y-3">
@@ -213,6 +223,7 @@ export default function ForecastingPage() {
   const [confData, setConfData] = useState<ConfidenceData | null>(null);
   const [confLoading, setConfLoading] = useState(false);
   const [confLoaded, setConfLoaded] = useState(false);
+  const [confError, setConfError] = useState<string | null>(null);
   const [confView, setConfView] = useState<'overview' | 'predictions'>('overview');
 
   // Load forecasting data
@@ -229,14 +240,13 @@ export default function ForecastingPage() {
   useEffect(() => {
     if (activeTab !== 'Confidence' || confLoaded) return;
     setConfLoading(true);
+    setConfError(null);
     getConfidenceData()
       .then((data) => { setConfData(data); setConfLoaded(true); })
       .catch(() => {
-        setConfData({
-          brierScore: 0, brierTrend: 0, calibration: [],
-          analyzerAccuracy: [], recentPredictions: [],
-          totalPredictions: 0, accuracy: 0,
-        });
+        // A real fetch failure — surface it; zeroed metrics here would render
+        // a fabricated "perfect Brier score of 0".
+        setConfError('Failed to load confidence data. The analysis server may be unreachable.');
         setConfLoaded(true);
       })
       .finally(() => setConfLoading(false));
@@ -458,7 +468,11 @@ export default function ForecastingPage() {
             </div>
           )}
 
-          {confLoaded && !confLoading && (
+          {confError && !confLoading && (
+            <ErrorBanner message={confError} onDismiss={() => setConfError(null)} />
+          )}
+
+          {confLoaded && !confLoading && !confError && confData && (
             <>
               {totalPredictions === 0 && calibration.length === 0 && analyzers.length === 0 ? (
                 <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>

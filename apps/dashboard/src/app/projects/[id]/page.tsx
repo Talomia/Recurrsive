@@ -36,7 +36,8 @@ interface Project {
   description?: string;
   language: string;
   framework: string;
-  healthScore: number;
+  /** Health score from the last analysis, or null when never analyzed. */
+  healthScore: number | null;
   lastAnalysis?: string;
   updatedAt?: string;
   settings: {
@@ -126,10 +127,20 @@ export default function ProjectDetailPage() {
 
   const fetchFindings = useCallback(async () => {
     try {
-      const data = await apiFetch<Finding[]>(`/api/v1/projects/${id}/findings`);
-      setFindings(data);
-    } catch {
-      // empty state fallback
+      // The findings/page route merges the persisted triage overlay so
+      // status/assignee reflect real user actions — the raw per-project
+      // findings route returns analyzer output without lifecycle state.
+      const data = await apiFetch<{ findings: Finding[] }>(
+        `/api/v1/findings/page?projectId=${encodeURIComponent(id)}`,
+      );
+      setFindings(data.findings ?? []);
+    } catch (err) {
+      // 503 = no analysis for this project yet — a genuinely empty list.
+      if (err instanceof ApiError && (err.status === 503 || err.status === 404)) {
+        setFindings([]);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load findings');
+      }
     }
   }, [id]);
 
@@ -442,8 +453,8 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <Link href={scopedHref('/health', project.id)} className="glass-card p-4 text-center hover:border-white/15 transition-all">
                 <BarChart3 className="h-5 w-5 mx-auto text-blue-400 mb-2" />
-                <p className="text-2xl font-bold text-text-primary tabular-nums">{project.healthScore}</p>
-                <p className="text-[10px] text-text-muted">Health Score</p>
+                <p className="text-2xl font-bold text-text-primary tabular-nums">{project.healthScore ?? '—'}</p>
+                <p className="text-[10px] text-text-muted">{project.healthScore != null ? 'Health Score' : 'Not analyzed'}</p>
               </Link>
               <Link href={scopedHref('/findings', project.id)} className="glass-card p-4 text-center hover:border-white/15 transition-all">
                 <ShieldAlert className="h-5 w-5 mx-auto text-amber-400 mb-2" />
@@ -582,8 +593,9 @@ export default function ProjectDetailPage() {
             <h3 className="text-sm font-semibold text-text-primary">Project Configuration</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Repository URL</label>
+                <label htmlFor="project-settings-repository" className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Repository URL</label>
                 <input
+                  id="project-settings-repository"
                   type="text"
                   value={project.repository}
                   readOnly
@@ -591,17 +603,19 @@ export default function ProjectDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Branch</label>
+                <label htmlFor="project-settings-branch" className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Branch</label>
                 <input
+                  id="project-settings-branch"
                   type="text"
-                  value={project.settings.branch ?? 'main'}
+                  value={project.settings.branch ?? '—'}
                   readOnly
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-text-primary"
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Schedule</label>
+                <label htmlFor="project-settings-schedule" className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Schedule</label>
                 <input
+                  id="project-settings-schedule"
                   type="text"
                   value={project.settings.schedule ?? 'Manual'}
                   readOnly
@@ -609,8 +623,9 @@ export default function ProjectDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Language</label>
+                <label htmlFor="project-settings-language" className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Language</label>
                 <input
+                  id="project-settings-language"
                   type="text"
                   value={project.language}
                   readOnly
@@ -619,7 +634,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             <div>
-              <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Active Analyzers</label>
+              <p className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Active Analyzers</p>
               <div className="flex flex-wrap gap-2">
                 {project.settings.analyzers.map((a) => (
                   <span key={a} className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 text-xs text-blue-400 font-medium">{a}</span>
@@ -627,7 +642,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             <div>
-              <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Active Collectors</label>
+              <p className="block text-[10px] text-text-muted uppercase tracking-wider mb-2">Active Collectors</p>
               <div className="flex flex-wrap gap-2">
                 {project.settings.collectors.map((c) => (
                   <span key={c} className="rounded-lg bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 text-xs text-purple-400 font-medium">{c}</span>

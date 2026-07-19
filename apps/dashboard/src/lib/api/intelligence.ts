@@ -4,7 +4,7 @@
  * Forecasting, simulation, confidence, and what-if analysis.
  */
 
-import { apiFetch } from './client';
+import { apiFetch, ApiError } from './client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -137,51 +137,33 @@ interface ServerPrediction {
 
 /**
  * Get health forecast data from `GET /api/v1/forecasting/health`.
+ *
+ * Throws on failure — a zeroed forecast (score 0, flat trend) would render
+ * fabricated statistics.
  */
 export async function getForecast(): Promise<ForecastData> {
-  try {
-    return await apiFetch<ForecastData>("/api/v1/forecasting/health");
-  } catch {
-    return {
-      currentScore: 0, trend: 'stable', trendStrength: 0, confidence: 0,
-      history: [], forecast: [], targets: [],
-      regression: { slope: 0, intercept: 0, r2: 0 },
-    };
-  }
+  return await apiFetch<ForecastData>("/api/v1/forecasting/health");
 }
 
 /**
  * Get evolution graph data from `GET /api/v1/forecasting/evolution`.
+ * Throws on failure.
  */
 export async function getEvolution(): Promise<EvolutionData> {
-  try {
-    return await apiFetch<EvolutionData>("/api/v1/forecasting/evolution");
-  } catch {
-    return {
-      events: [], trajectory: [], currentScore: 0,
-      totalDecisions: 0, totalMilestones: 0, totalIncidents: 0, totalExperiments: 0,
-      netHealthImpact: 0, allLearnings: [],
-    };
-  }
+  return await apiFetch<EvolutionData>("/api/v1/forecasting/evolution");
 }
 
 /**
  * Simulate what-if impact via `POST /api/v1/forecasting/what-if`.
+ * Throws on failure so callers can surface an error instead of a zeroed result.
  */
 export async function getWhatIfAnalysis(params: {
   actions: Array<{ type: string; description: string }>;
 }): Promise<WhatIfResult> {
-  try {
-    return await apiFetch<WhatIfResult>("/api/v1/forecasting/what-if", {
-      method: "POST",
-      body: JSON.stringify(params),
-    });
-  } catch {
-    return {
-      currentScore: 0, projectedScore: 0, totalImpact: 0, actions: [],
-      summary: { highestImpact: null, totalActions: 0, avgConfidence: 0, recommendation: '' },
-    };
-  }
+  return await apiFetch<WhatIfResult>("/api/v1/forecasting/what-if", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
 }
 
 /** Server-side simulation shape (differs from dashboard's SimulationScenario). */
@@ -220,14 +202,14 @@ const SIM_TYPE_MAP: Record<string, SimulationScenario['type']> = {
   'architecture-change': 'what-if',
 };
 
+/** Get simulation scenarios. Throws on failure. */
 export async function getSimulations(): Promise<SimulationScenario[]> {
-  try {
-    const res = await apiFetch<{ data: ServerSimulation[]; total: number }>(
-      '/api/v1/simulations',
-      { unwrap: false },
-    );
-    const sims = res.data ?? [];
-    return sims.map((s) => {
+  const res = await apiFetch<{ data: ServerSimulation[]; total: number }>(
+    '/api/v1/simulations',
+    { unwrap: false },
+  );
+  const sims = res.data ?? [];
+  return sims.map((s) => {
       const results = s.results;
       // Only surface honest, severity-derived signals, labeled as estimates.
       // Absolute-unit predictions (latency/cost/availability) are intentionally
@@ -265,16 +247,18 @@ export async function getSimulations(): Promise<SimulationScenario[]> {
         timeline,
       };
     });
-  } catch {
-    return [];
-  }
 }
 
+/**
+ * Get a single simulation. Returns null only for a genuine 404; other
+ * failures throw.
+ */
 export async function getSimulation(id: string): Promise<SimulationScenario | null> {
   try {
     return await apiFetch<SimulationScenario>(`/api/v1/simulations/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 
@@ -297,14 +281,14 @@ export async function createSimulation(params: {
  *   - `GET /api/v1/confidence/predictions`  → recent prediction list
  */
 export async function getConfidenceData(): Promise<ConfidenceData> {
-  try {
-    // Fetch overview and recent predictions in parallel
-    const [overview, predictionsRaw] = await Promise.all([
-      apiFetch<ServerOverviewResponse>('/api/v1/confidence/overview'),
-      apiFetch<ServerPrediction[]>('/api/v1/confidence/predictions').catch(() => []),
-    ]);
+  // Fetch overview and recent predictions in parallel. Failure PROPAGATES —
+  // an unreachable server must surface as an error, not as "no predictions".
+  const [overview, predictionsRaw] = await Promise.all([
+    apiFetch<ServerOverviewResponse>('/api/v1/confidence/overview'),
+    apiFetch<ServerPrediction[]>('/api/v1/confidence/predictions'),
+  ]);
 
-    return {
+  return {
       brierScore: overview.overallBrierScore,
       // The server does not track a Brier trend. null means "not tracked" —
       // a 0 here would falsely claim a measured flat trend.
@@ -338,13 +322,5 @@ export async function getConfidenceData(): Promise<ConfidenceData> {
         date: p.predictedAt,
         source: p.analyzerId,
       })),
-    };
-  } catch {
-    // Fetch failed — we know nothing, so report nothing. Zeros here would
-    // masquerade as measured statistics (a perfect Brier score of 0!).
-    return {
-      brierScore: null, brierTrend: null, totalPredictions: null, accuracy: null,
-      calibration: [], analyzerAccuracy: [], recentPredictions: [],
-    };
-  }
+  };
 }

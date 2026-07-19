@@ -50,4 +50,19 @@ describe('ScoreGauge', () => {
     // Should display clamped value of 100
     expect(screen.getByText('100')).toBeInTheDocument();
   });
+
+  it('renders an honest "Not analyzed" placeholder for a null value', () => {
+    render(<ScoreGauge value={null} label="Health" />);
+    // No fabricated red 0 — a dash plus "Not analyzed" text instead.
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('Not analyzed')).toBeInTheDocument();
+    expect(screen.getByRole('img')).toHaveAttribute('aria-label', 'Health: not analyzed');
+  });
+
+  it('does not draw a progress arc for a null value', () => {
+    const { container } = render(<ScoreGauge value={null} />);
+    // Only the background track circle remains.
+    expect(container.querySelectorAll('circle')).toHaveLength(1);
+  });
 });

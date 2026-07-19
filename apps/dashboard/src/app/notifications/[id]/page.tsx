@@ -169,14 +169,10 @@ export default async function NotificationDetailPage({ params }: NotificationDet
           <div className="space-y-2">
             {notification.related_items.map((item) => {
               const ItemIcon = RELATED_ITEM_ICONS[item.type] ?? Lightbulb;
-              const route = RELATED_ITEM_ROUTES[item.type] ?? "/";
+              const route = RELATED_ITEM_ROUTES[item.type];
 
-              return (
-                <Link
-                  key={`${item.type}-${item.id}`}
-                  href={`${route}/${encodeURIComponent(item.id)}`}
-                  className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.04] hover:border-white/10 transition-colors group"
-                >
+              const content = (
+                <>
                   <ItemIcon className="h-4 w-4 text-text-muted group-hover:text-accent-blue shrink-0 transition-colors" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-text-primary truncate group-hover:text-accent-blue transition-colors">
@@ -187,6 +183,29 @@ export default async function NotificationDetailPage({ params }: NotificationDet
                       <span className="text-[10px] text-text-muted font-mono">{item.id}</span>
                     </div>
                   </div>
+                </>
+              );
+
+              // Unknown item types have no detail route — render a plain row
+              // instead of a broken protocol-relative "//<id>" link.
+              if (!route) {
+                return (
+                  <div
+                    key={`${item.type}-${item.id}`}
+                    className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3"
+                  >
+                    {content}
+                  </div>
+                );
+              }
+
+              return (
+                <Link
+                  key={`${item.type}-${item.id}`}
+                  href={`${route}/${encodeURIComponent(item.id)}`}
+                  className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/5 p-3 hover:bg-white/[0.04] hover:border-white/10 transition-colors group"
+                >
+                  {content}
                 </Link>
               );
             })}

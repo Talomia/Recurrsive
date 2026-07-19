@@ -3,7 +3,12 @@
 import { useMemo, useId } from "react";
 
 interface ScoreGaugeProps {
-  value: number;
+  /**
+   * Score 0–100, or null when the subject has not been analyzed yet.
+   * Null renders an honest "not analyzed" placeholder instead of a
+   * fabricated red 0.
+   */
+  value: number | null;
   size?: number;
   strokeWidth?: number;
   label?: string;
@@ -33,7 +38,8 @@ export default function ScoreGauge({
   showLabel = true,
 }: ScoreGaugeProps) {
   const instanceId = useId();
-  const clamped = Math.max(0, Math.min(100, value));
+  const hasValue = typeof value === "number" && !Number.isNaN(value);
+  const clamped = hasValue ? Math.max(0, Math.min(100, value)) : 0;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress = useMemo(
@@ -48,7 +54,11 @@ export default function ScoreGauge({
     <div
       className="relative inline-flex items-center justify-center"
       role="img"
-      aria-label={`${label ?? "Score"}: ${clamped} out of 100`}
+      aria-label={
+        hasValue
+          ? `${label ?? "Score"}: ${clamped} out of 100`
+          : `${label ?? "Score"}: not analyzed`
+      }
     >
       <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
         <defs>
@@ -85,34 +95,53 @@ export default function ScoreGauge({
           stroke="rgba(255,255,255,0.06)"
           strokeWidth={strokeWidth}
         />
-        {/* Progress arc */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={`url(#${gId(gradientSuffix)})`}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={progress}
-          filter={`url(#${gId("glow")})`}
-          style={{
-            transition: "stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)",
-          }}
-        />
+        {/* Progress arc — only drawn when there is a real score */}
+        {hasValue && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={`url(#${gId(gradientSuffix)})`}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={progress}
+            filter={`url(#${gId("glow")})`}
+            style={{
+              transition: "stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          />
+        )}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span
-          className="font-bold tabular-nums"
-          style={{
-            fontSize: size * 0.28,
-            color,
-          }}
-        >
-          {clamped}
-        </span>
-        {showLabel && label && (
+        {hasValue ? (
+          <span
+            className="font-bold tabular-nums"
+            style={{
+              fontSize: size * 0.28,
+              color,
+            }}
+          >
+            {clamped}
+          </span>
+        ) : (
+          <>
+            <span
+              className="font-bold text-text-muted"
+              style={{ fontSize: size * 0.28 }}
+            >
+              —
+            </span>
+            <span
+              className="text-text-muted"
+              style={{ fontSize: Math.max(size * 0.09, 9) }}
+            >
+              Not analyzed
+            </span>
+          </>
+        )}
+        {hasValue && showLabel && label && (
           <span
             className="text-text-muted mt-0.5"
             style={{ fontSize: Math.max(size * 0.1, 10) }}

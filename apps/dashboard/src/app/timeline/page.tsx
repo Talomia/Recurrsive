@@ -155,9 +155,14 @@ export default async function TimelinePage() {
     (s) => s.dimension === "overall_health"
   );
   const healthValues = healthSeries?.data_points.map((p) => p.value) ?? [];
-  const latestHealth = healthValues[healthValues.length - 1] ?? 0;
-  const previousHealth = healthValues[healthValues.length - 2] ?? latestHealth;
-  const healthDelta = latestHealth - previousHealth;
+  // A history of failed-only runs has no health data — render "Not analyzed"
+  // rather than a fabricated 0/100 with a green +0 delta.
+  const latestHealth: number | null =
+    healthValues.length > 0 ? healthValues[healthValues.length - 1]! : null;
+  const previousHealth: number | null =
+    healthValues.length > 1 ? healthValues[healthValues.length - 2]! : null;
+  const healthDelta: number | null =
+    latestHealth != null && previousHealth != null ? latestHealth - previousHealth : null;
 
   const totalFindings = history.reduce((sum, h) => sum + h.findingCount, 0);
   const totalOpportunities = history.reduce(
@@ -213,19 +218,27 @@ export default async function TimelinePage() {
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-500/10">
                     <Activity className="h-[18px] w-[18px] text-green-400" />
                   </div>
-                  <span
-                    className={`text-xs font-bold tabular-nums ${healthDelta >= 0 ? "text-green-400" : "text-red-400"}`}
-                  >
-                    {healthDelta >= 0 ? "+" : ""}
-                    {healthDelta}
-                  </span>
+                  {healthDelta != null && (
+                    <span
+                      className={`text-xs font-bold tabular-nums ${healthDelta >= 0 ? "text-green-400" : "text-red-400"}`}
+                    >
+                      {healthDelta >= 0 ? "+" : ""}
+                      {healthDelta}
+                    </span>
+                  )}
                 </div>
-                <p className="text-2xl font-bold tabular-nums text-text-primary">
-                  {latestHealth}
-                  <span className="text-sm text-text-muted font-normal">
-                    /100
-                  </span>
-                </p>
+                {latestHealth != null ? (
+                  <p className="text-2xl font-bold tabular-nums text-text-primary">
+                    {latestHealth}
+                    <span className="text-sm text-text-muted font-normal">
+                      /100
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-2xl font-bold text-text-muted">
+                    Not analyzed
+                  </p>
+                )}
                 <p className="text-xs text-text-secondary mt-1">
                   Current Health
                 </p>

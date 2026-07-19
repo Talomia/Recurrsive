@@ -138,27 +138,18 @@ export async function getHealthMetrics(): Promise<HealthMetrics> {
 
 /**
  * Get performance metrics from `GET /api/v1/metrics/performance`.
+ * Throws on failure.
  */
 export async function getPerformanceMetrics(): Promise<PerformanceMetric[]> {
-  try {
-    return await apiFetch<PerformanceMetric[]>("/api/v1/metrics/performance");
-  } catch {
-    return [];
-  }
+  return await apiFetch<PerformanceMetric[]>("/api/v1/metrics/performance");
 }
 
 /**
  * Get system health dashboard data.
+ *
+ * Throws on failure — returning zeroed memory/uptime would render fabricated
+ * telemetry (0 MB, 0s uptime) as if it were measured.
  */
 export async function getHealthDashboard(): Promise<HealthDashboardData> {
-  try {
-    return await apiFetch<HealthDashboardData>("/api/v1/health/dashboard");
-  } catch {
-    return {
-      overall_score: null,
-      memory: { rss_bytes: 0, heap_total_bytes: 0, heap_used_bytes: 0, usage_percent: 0 },
-      uptime_seconds: 0,
-      services: [],
-    };
-  }
+  return await apiFetch<HealthDashboardData>("/api/v1/health/dashboard");
 }

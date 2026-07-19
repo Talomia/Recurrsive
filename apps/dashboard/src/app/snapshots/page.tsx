@@ -80,9 +80,9 @@ export default async function SnapshotsPage() {
         <div className="glass-card flex flex-col items-center justify-center p-5 gap-2">
           <ShieldAlert className="h-5 w-5 text-amber-400" />
           <span className="text-2xl font-bold text-amber-400 tabular-nums">
-            {snapshots[0]?.findings_count ?? "—"}
+            {snapshots[0]?.risks_count ?? "—"}
           </span>
-          <span className="text-[11px] text-text-muted font-medium">Latest Findings</span>
+          <span className="text-[11px] text-text-muted font-medium">Latest Risks</span>
         </div>
       </div>
 
@@ -155,9 +155,9 @@ export default async function SnapshotsPage() {
                       )}
                     </div>
 
-                    {/* Findings count */}
+                    {/* Risk count */}
                     <span className="text-xs text-text-secondary hidden sm:block">
-                      {snapshot.findings_count} findings
+                      {snapshot.risks_count} risk{snapshot.risks_count !== 1 ? "s" : ""}
                     </span>
 
                     {/* Opportunities */}
@@ -198,7 +198,7 @@ export default async function SnapshotsPage() {
                     <div className="flex items-center gap-4 text-xs text-text-muted pt-2 border-t border-white/5">
                       <span className="inline-flex items-center gap-1">
                         <ShieldAlert className="h-3 w-3" />
-                        {snapshot.findings_count} findings
+                        {snapshot.risks_count} risk{snapshot.risks_count !== 1 ? "s" : ""}
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <Lightbulb className="h-3 w-3" />

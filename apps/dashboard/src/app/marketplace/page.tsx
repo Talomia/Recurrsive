@@ -22,6 +22,7 @@ import { useToast } from '@/components/ui/toast';
 // Types
 // ---------------------------------------------------------------------------
 
+/** Marketplace extension as stored by the server (`MarketplaceExtension`). */
 interface Extension {
   id: string;
   name: string;
@@ -29,10 +30,12 @@ interface Extension {
   author: string;
   version: string;
   category: string;
+  source: 'built-in' | 'community' | 'partner';
   downloads: number;
-  stars: number;
-  verified: boolean;
-  price: string;
+  /** Average user rating (0–5). */
+  rating: number;
+  /** How many ratings the average is computed from. */
+  ratingCount: number;
 }
 
 interface Category {
@@ -42,17 +45,19 @@ interface Category {
   icon: string;
 }
 
+/** Marketplace stats as returned by `GET /marketplace/stats`. */
 interface MarketplaceStats {
   totalExtensions: number;
   totalDownloads: number;
-  totalAuthors: number;
-  averageRating: number;
+  /** Null when no extension has been rated yet. */
+  averageRating: number | null;
+  ratingCount: number;
 }
 
 interface MarketplaceMeta {
-  stars: number;
+  rating: number;
+  ratingCount: number;
   downloads: number;
-  verified: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +140,7 @@ export default function MarketplacePage() {
         ]);
         const meta: Record<string, MarketplaceMeta> = {};
         for (const ext of mktRes.data) {
-          meta[ext.name] = { stars: ext.stars ?? 0, downloads: ext.downloads ?? 0, verified: ext.verified ?? false };
+          meta[ext.name] = { rating: ext.rating ?? 0, ratingCount: ext.ratingCount ?? 0, downloads: ext.downloads ?? 0 };
         }
         setMarketplaceMeta(meta);
         setPacks(packData);
@@ -247,7 +252,7 @@ export default function MarketplacePage() {
               {[
                 { label: 'Extensions', value: stats.totalExtensions },
                 { label: 'Downloads', value: stats.totalDownloads.toLocaleString() },
-                { label: 'Authors', value: stats.totalAuthors },
+                { label: 'Ratings', value: stats.ratingCount },
                 { label: 'Avg Rating', value: stats.averageRating != null ? `${stats.averageRating.toFixed(1)} ★` : 'Not rated' },
               ].map((s) => (
                 <div
@@ -338,16 +343,15 @@ export default function MarketplacePage() {
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm font-semibold text-text-primary">{ext.name}</span>
-                    {ext.verified && (
-                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400">
-                        ✓ Verified
-                      </span>
-                    )}
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-400 capitalize">
+                      {ext.source}
+                    </span>
                   </div>
                   <p className="text-xs text-text-secondary flex-1 mb-3">{ext.description}</p>
                   <div className="flex items-center gap-3 text-xs text-text-tertiary mb-3">
                     <span className="flex items-center gap-1">
-                      <Star className="w-3 h-3" /> {ext.stars}
+                      <Star className="w-3 h-3" />
+                      {ext.ratingCount > 0 ? `${ext.rating.toFixed(1)} (${ext.ratingCount})` : 'Not rated'}
                     </span>
                     <span className="flex items-center gap-1">
                       <Download className="w-3 h-3" /> {ext.downloads.toLocaleString()}
@@ -356,7 +360,6 @@ export default function MarketplacePage() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-text-tertiary">by {ext.author}</span>
-                    <span className="text-xs font-semibold text-text-primary">{ext.price}</span>
                   </div>
                 </div>
               ))}
@@ -425,14 +428,16 @@ export default function MarketplacePage() {
                             <h3 className="text-text-primary font-semibold">{pack.name}</h3>
                             <span className="text-xs text-text-tertiary">v{pack.version}</span>
                             <StatusBadge status={pack.status as string} />
-                            {marketplaceMeta[`${pack.name} Intelligence Pack`]?.verified && (
-                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400">✓ Verified</span>
-                            )}
                           </div>
                           <p className="text-xs text-text-secondary mt-0.5">{pack.description}</p>
                           {marketplaceMeta[`${pack.name} Intelligence Pack`] && (
                             <div className="flex items-center gap-3 mt-1 text-xs text-text-tertiary">
-                              <span className="flex items-center gap-1"><Star className="w-3 h-3" /> {marketplaceMeta[`${pack.name} Intelligence Pack`].stars}</span>
+                              <span className="flex items-center gap-1">
+                                <Star className="w-3 h-3" />
+                                {marketplaceMeta[`${pack.name} Intelligence Pack`].ratingCount > 0
+                                  ? marketplaceMeta[`${pack.name} Intelligence Pack`].rating.toFixed(1)
+                                  : 'Not rated'}
+                              </span>
                               <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {marketplaceMeta[`${pack.name} Intelligence Pack`].downloads.toLocaleString()}</span>
                             </div>
                           )}

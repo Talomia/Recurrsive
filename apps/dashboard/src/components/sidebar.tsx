@@ -633,6 +633,10 @@ function CollapsibleSection({
       ref={contentRef}
       className="overflow-hidden transition-[max-height] duration-200 ease-in-out"
       style={{ maxHeight }}
+      // `inert` removes the collapsed section's links from BOTH the tab order
+      // and the accessibility tree — aria-hidden alone left focusable links
+      // inside a hidden container (an ARIA violation).
+      inert={!isOpen}
       aria-hidden={!isOpen}
     >
       {children}

@@ -79,14 +79,17 @@ export default function PluginsPage() {
           version: ext.version ?? '1.0.0',
           author: ext.author ?? 'Unknown',
           description: ext.description ?? '',
-          stars: ext.stars ?? 0,
+          // Server field is `rating` (0–5 average) — there is no `stars`.
+          rating: ext.rating ?? 0,
           downloads: ext.downloads ?? 0,
           type: (ext.category as MarketplacePlugin['type']) ?? 'analyzer',
           verified: ext.verified ?? false,
         }));
       setMarketplace([...mkt, ...extraPlugins]);
     }
-    load().finally(() => setLoading(false));
+    load()
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load plugins'))
+      .finally(() => setLoading(false));
   }, []);
 
   const markBusy = (id: string, busy: boolean) =>
@@ -273,7 +276,7 @@ export default function PluginsPage() {
                 </div>
                 <p className="text-xs text-text-secondary mt-0.5">{plugin.description}</p>
                 <div className="flex items-center gap-3 mt-1 text-xs text-text-tertiary">
-                  <span className="flex items-center gap-1"><Star className="w-3 h-3" /> {plugin.stars}</span>
+                  <span className="flex items-center gap-1"><Star className="w-3 h-3" /> {plugin.rating > 0 ? plugin.rating.toFixed(1) : 'Not rated'}</span>
                   <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {plugin.downloads.toLocaleString()}</span>
                   <span>by {plugin.author}</span>
                 </div>

@@ -27,6 +27,21 @@ export function formatDateTime(value: string | number | Date | null | undefined)
   });
 }
 
+/** Format a byte count as a human-readable size, e.g. "1.4 MB". */
+export function formatBytes(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value) || value < 0) return "—";
+  if (value < 1024) return `${value} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = value;
+  let unit = "B";
+  for (const u of units) {
+    if (v < 1024) break;
+    v = v / 1024;
+    unit = u;
+  }
+  return `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${unit}`;
+}
+
 /** Format a relative time from now, e.g. "3 hours ago", falling back to a date. */
 export function formatRelative(value: string | number | Date | null | undefined): string {
   if (value == null || value === "") return "—";

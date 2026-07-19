@@ -4,7 +4,7 @@
  * Policies, webhooks, notifications, and audit trail.
  */
 
-import { apiFetch } from './client';
+import { apiFetch, ApiError } from './client';
 
 // ─── Policy Types ────────────────────────────────────────────────────────────
 
@@ -144,46 +144,39 @@ export interface AuditEvent {
 
 // ─── Policies API ────────────────────────────────────────────────────────────
 
+/** Get all policy sets. Throws on failure. */
 export async function getPolicies(): Promise<PolicySet[]> {
-  try {
-    return await apiFetch<PolicySet[]>("/api/v1/policies");
-  } catch {
-    return [];
-  }
+  return await apiFetch<PolicySet[]>("/api/v1/policies");
 }
 
+/** Get the compliance report. Throws on failure — zeros here would be fabricated. */
 export async function getComplianceReport(): Promise<ComplianceReport> {
-  try {
-    return await apiFetch<ComplianceReport>("/api/v1/policies/compliance");
-  } catch {
-    return { total_opportunities: 0, compliant: 0, blocked: 0, compliance_rate: 0, policy_sets_active: 0 };
-  }
+  return await apiFetch<ComplianceReport>("/api/v1/policies/compliance");
 }
 
+/**
+ * Get a single policy. Returns null only for a genuine 404; other failures
+ * throw so a broken server does not masquerade as "Policy Not Found".
+ */
 export async function getPolicy(id: string): Promise<PolicyDetail | null> {
   try {
     return await apiFetch<PolicyDetail>(`/api/v1/policies/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 
 // ─── Webhooks API ────────────────────────────────────────────────────────────
 
+/** Get registered webhooks. Throws on failure. */
 export async function getWebhooks(): Promise<WebhookRegistration[]> {
-  try {
-    return await apiFetch<WebhookRegistration[]>("/api/v1/webhooks");
-  } catch {
-    return [];
-  }
+  return await apiFetch<WebhookRegistration[]>("/api/v1/webhooks");
 }
 
+/** Get the available webhook event types. Throws on failure. */
 export async function getWebhookEvents(): Promise<WebhookEvent[]> {
-  try {
-    return await apiFetch<WebhookEvent[]>("/api/v1/webhooks/events");
-  } catch {
-    return [];
-  }
+  return await apiFetch<WebhookEvent[]>("/api/v1/webhooks/events");
 }
 
 export async function createWebhook(data: { url: string; events: string[]; secret?: string }): Promise<WebhookRegistration> {
@@ -208,27 +201,26 @@ export async function testWebhook(id: string): Promise<{ delivered: boolean; web
 
 // ─── Notifications API ───────────────────────────────────────────────────────
 
+/** Get notification channels. Throws on failure. */
 export async function getNotificationChannels(): Promise<NotificationChannel[]> {
-  try {
-    return await apiFetch<NotificationChannel[]>("/api/v1/notifications/channels");
-  } catch {
-    return [];
-  }
+  return await apiFetch<NotificationChannel[]>("/api/v1/notifications/channels");
 }
 
+/** Get notification history. Throws on failure. */
 export async function getNotificationHistory(): Promise<NotificationEntry[]> {
-  try {
-    return await apiFetch<NotificationEntry[]>("/api/v1/notifications/history");
-  } catch {
-    return [];
-  }
+  return await apiFetch<NotificationEntry[]>("/api/v1/notifications/history");
 }
 
+/**
+ * Get a single notification. Returns null only for a genuine 404; other
+ * failures throw so a broken server does not masquerade as "Not Found".
+ */
 export async function getNotification(id: string): Promise<NotificationDetail | null> {
   try {
     return await apiFetch<NotificationDetail>(`/api/v1/notifications/${encodeURIComponent(id)}`);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 
@@ -278,43 +270,40 @@ const ACTION_TO_DASHBOARD: Record<string, AuditAction> = {
   admin: 'configured',
 };
 
+/** Get the audit log. Throws on failure. */
 export async function getAuditLog(type?: AuditEventType): Promise<AuditEvent[]> {
-  try {
-    const query = new URLSearchParams();
-    query.set("limit", "50");
-    // Server uses 'action' filter, not 'type'.
-    // Map dashboard AuditEventType → server action values.
-    if (type) {
-      const typeToAction: Record<string, string> = {
-        analysis: 'read',
-        config: 'write',
-        webhook: 'write',
-        notification: 'auth',
-        batch: 'admin',
-        policy: 'admin',
-      };
-      const action = typeToAction[type];
-      if (action) query.set("action", action);
-    }
-
-    const res = await apiFetch<{ data: ServerAuditEvent[]; total: number }>(
-      `/api/v1/audit?${query.toString()}`,
-      { unwrap: false },
-    );
-    const events = res.data ?? [];
-    return events.map((e) => ({
-      id: e.id,
-      type: (ACTION_TO_TYPE[e.action] ?? 'config') as AuditEventType,
-      action: (ACTION_TO_DASHBOARD[e.action] ?? 'executed') as AuditAction,
-      actor: e.username ?? e.userId ?? 'system',
-      target: e.resourceType
-        ? `${e.resourceType}${e.resourceId ? `/${e.resourceId}` : ''}`
-        : e.url,
-      details: `${e.method} ${e.url} → ${e.statusCode} (${e.duration_ms}ms)`,
-      timestamp: e.timestamp,
-      ip: e.ip,
-    }));
-  } catch {
-    return [];
+  const query = new URLSearchParams();
+  query.set("limit", "50");
+  // Server uses 'action' filter, not 'type'.
+  // Map dashboard AuditEventType → server action values.
+  if (type) {
+    const typeToAction: Record<string, string> = {
+      analysis: 'read',
+      config: 'write',
+      webhook: 'write',
+      notification: 'auth',
+      batch: 'admin',
+      policy: 'admin',
+    };
+    const action = typeToAction[type];
+    if (action) query.set("action", action);
   }
+
+  const res = await apiFetch<{ data: ServerAuditEvent[]; total: number }>(
+    `/api/v1/audit?${query.toString()}`,
+    { unwrap: false },
+  );
+  const events = res.data ?? [];
+  return events.map((e) => ({
+    id: e.id,
+    type: (ACTION_TO_TYPE[e.action] ?? 'config') as AuditEventType,
+    action: (ACTION_TO_DASHBOARD[e.action] ?? 'executed') as AuditAction,
+    actor: e.username ?? e.userId ?? 'system',
+    target: e.resourceType
+      ? `${e.resourceType}${e.resourceId ? `/${e.resourceId}` : ''}`
+      : e.url,
+    details: `${e.method} ${e.url} → ${e.statusCode} (${e.duration_ms}ms)`,
+    timestamp: e.timestamp,
+    ip: e.ip,
+  }));
 }
