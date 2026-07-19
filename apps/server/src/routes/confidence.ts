@@ -46,12 +46,12 @@ interface CalibrationBucket {
   range: string;
   /** Number of predictions in this bucket. */
   count: number;
-  /** Average predicted probability. */
-  avgPredicted: number;
-  /** Actual outcome rate. */
-  actualRate: number;
-  /** Calibration error (|predicted - actual|). */
-  calibrationError: number;
+  /** Average predicted probability (null when the bucket is empty). */
+  avgPredicted: number | null;
+  /** Actual outcome rate (null when the bucket is empty). */
+  actualRate: number | null;
+  /** Calibration error |predicted - actual| (null when the bucket is empty). */
+  calibrationError: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,15 +61,33 @@ interface CalibrationBucket {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Compute Brier score (lower = better calibration, 0 = perfect). */
-function brierScore(preds: Prediction[]): number {
+/**
+ * Compute Brier score (lower = better calibration, 0 = perfect).
+ *
+ * Returns null when no predictions have resolved outcomes — a Brier score of
+ * 0 would falsely claim perfect calibration where nothing has been measured.
+ */
+function brierScore(preds: Prediction[]): number | null {
   const resolved = preds.filter(p => p.actualOutcome !== null);
-  if (resolved.length === 0) return 0;
+  if (resolved.length === 0) return null;
   const sum = resolved.reduce((s, p) => {
     const outcome = p.actualOutcome ? 1 : 0;
     return s + (p.predictedProbability - outcome) ** 2;
   }, 0);
   return Math.round((sum / resolved.length) * 1000) / 1000;
+}
+
+/**
+ * Directional accuracy (percent) over resolved predictions, or null when
+ * nothing has resolved — 0% would be indistinguishable from a measured 0%.
+ */
+function directionalAccuracy(resolved: Prediction[]): number | null {
+  if (resolved.length === 0) return null;
+  const accurate = resolved.filter(p =>
+    (p.predictedProbability >= 0.5 && p.actualOutcome) ||
+    (p.predictedProbability < 0.5 && !p.actualOutcome),
+  );
+  return Math.round((accurate.length / resolved.length) * 1000) / 10;
 }
 
 /** Build calibration curve buckets. */
@@ -87,7 +105,8 @@ function calibrationCurve(preds: Prediction[]): CalibrationBucket[] {
   for (const range of ranges) {
     const bucket = resolved.filter(p => p.predictedProbability >= range.min && p.predictedProbability < range.max);
     if (bucket.length === 0) {
-      buckets.push({ range: range.label, count: 0, avgPredicted: 0, actualRate: 0, calibrationError: 0 });
+      // Empty bucket: no measurements → nulls, never a fabricated "0 error".
+      buckets.push({ range: range.label, count: 0, avgPredicted: null, actualRate: null, calibrationError: null });
       continue;
     }
     const avgPredicted = bucket.reduce((s, p) => s + p.predictedProbability, 0) / bucket.length;
@@ -114,41 +133,44 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
     const all = await store.all<Prediction>('predictions');
     const resolved = all.filter(p => p.actualOutcome !== null);
 
-    // Per-analyzer Brier scores — derive analyzer IDs from actual predictions
+    // Per-analyzer Brier scores — derive analyzer IDs from actual predictions.
+    // Analyzers with zero resolved predictions report null (unmeasured), never
+    // a fabricated "perfect 0" Brier or "0%" accuracy.
     const analyzerIds = [...new Set(all.map(p => p.analyzerId))];
     const analyzerScores = analyzerIds.map(aid => {
       const preds = all.filter(p => p.analyzerId === aid);
+      const analyzerResolved = preds.filter(p => p.actualOutcome !== null);
       return {
         analyzerId: aid,
         totalPredictions: preds.length,
-        resolved: preds.filter(p => p.actualOutcome !== null).length,
-        pending: preds.filter(p => p.actualOutcome === null).length,
+        resolved: analyzerResolved.length,
+        pending: preds.length - analyzerResolved.length,
         brierScore: brierScore(preds),
-        accuracy: Math.round(
-          (preds.filter(p => p.actualOutcome !== null && (
-            (p.predictedProbability >= 0.5 && p.actualOutcome) ||
-            (p.predictedProbability < 0.5 && !p.actualOutcome)
-          )).length / Math.max(1, preds.filter(p => p.actualOutcome !== null).length)) * 1000,
-        ) / 10,
+        accuracy: directionalAccuracy(analyzerResolved),
       };
     });
 
+    // Rank on a COPY (sort() mutates in place) and only among analyzers that
+    // actually have a measured Brier score.
+    const measured = analyzerScores.filter(
+      (a): a is typeof a & { brierScore: number } => a.brierScore !== null,
+    );
+    const ranked = [...measured].sort((a, b) => a.brierScore - b.brierScore);
+    // Serialize measured analyzers best-first, unmeasured ones after.
+    const serializedScores = [...ranked, ...analyzerScores.filter(a => a.brierScore === null)];
+
     return reply.send({
       data: {
+        status: resolved.length === 0 ? 'insufficient_data' : 'measured',
         totalPredictions: all.length,
         resolved: resolved.length,
         pending: all.length - resolved.length,
         overallBrierScore: brierScore(all),
-        overallAccuracy: Math.round(
-          (resolved.filter(p =>
-            (p.predictedProbability >= 0.5 && p.actualOutcome) ||
-            (p.predictedProbability < 0.5 && !p.actualOutcome),
-          ).length / Math.max(1, resolved.length)) * 1000,
-        ) / 10,
+        overallAccuracy: directionalAccuracy(resolved),
         calibrationCurve: calibrationCurve(all),
-        analyzerScores: analyzerScores.sort((a, b) => a.brierScore - b.brierScore),
-        bestCalibrated: analyzerScores.sort((a, b) => a.brierScore - b.brierScore)[0]?.analyzerId ?? null,
-        worstCalibrated: analyzerScores.sort((a, b) => b.brierScore - a.brierScore)[0]?.analyzerId ?? null,
+        analyzerScores: serializedScores,
+        bestCalibrated: ranked[0]?.analyzerId ?? null,
+        worstCalibrated: ranked.length > 0 ? ranked[ranked.length - 1]!.analyzerId : null,
       },
       generatedAt: nowISO(),
     });
@@ -219,10 +241,14 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
         return reply.status(404).send({ error: 'Not Found', message: `No predictions for analyzer: ${request.params.analyzerId}` });
       }
 
+      const resolvedCount = preds.filter(p => p.actualOutcome !== null).length;
       return reply.send({
         data: {
           analyzerId: request.params.analyzerId,
           totalPredictions: preds.length,
+          resolved: resolvedCount,
+          status: resolvedCount === 0 ? 'insufficient_data' : 'measured',
+          // null until at least one prediction has a recorded outcome.
           brierScore: brierScore(preds),
           calibrationCurve: calibrationCurve(preds),
         },
@@ -285,8 +311,21 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
     const cache = await state.loadCacheForProject(request.query.projectId);
     const findings = cache?.findings ?? [];
 
+    // Dedup on findingId: a finding that already has an OPEN prediction must
+    // not get a second one, otherwise repeated calls double-count everything
+    // in Brier / calibration / accuracy metrics.
+    const existing = await store.all<Prediction>('predictions');
+    const openFindingIds = new Set(
+      existing.filter(p => p.actualOutcome === null).map(p => p.findingId),
+    );
+
     let count = 0;
+    let skipped = 0;
     for (const finding of findings) {
+      if (openFindingIds.has(finding.id)) {
+        skipped++;
+        continue;
+      }
       const id = generateId();
       const prediction: Prediction = {
         id,
@@ -300,12 +339,13 @@ export async function registerConfidenceRoutes(app: FastifyInstance): Promise<vo
         resolvedAt: null,
       };
       await store.set<Prediction>('predictions', id, prediction);
+      openFindingIds.add(finding.id);
       count++;
     }
 
     return reply.status(200).send({
-      data: { predictionsCreated: count },
-      message: `Generated ${count} predictions from analysis findings`,
+      data: { predictionsCreated: count, skippedExistingOpen: skipped },
+      message: `Generated ${count} predictions from analysis findings (${skipped} skipped: open prediction already exists)`,
     });
   });
 

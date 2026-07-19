@@ -413,8 +413,11 @@ describe ('Forecasting endpoints', () => {
     expect(body).toHaveProperty('data');
     expect(body.data).toHaveProperty('events');
     expect(body.data).toHaveProperty('trajectory');
-    expect(body.data).toHaveProperty('totalDecisions');
-    expect(body.data).toHaveProperty('totalMilestones');
+    // Evolution reports only real analysis runs — no fabricated
+    // decision/milestone/incident taxonomy.
+    expect(body.data).toHaveProperty('totalRuns');
+    expect(body.data).toHaveProperty('runsImproved');
+    expect(body.data).toHaveProperty('runsDeclined');
     expect(body.data).toHaveProperty('allLearnings');
   });
 
@@ -1123,9 +1126,15 @@ describe ('Confidence calibration endpoints', () => {
   it ('Overview has Brier score', async () => {
     const res = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/confidence/overview' });
     const body = res.json();
-    expect(typeof body.data.overallBrierScore).toBe('number');
-    expect(body.data.overallBrierScore).toBeGreaterThanOrEqual(0);
-    expect(body.data.overallBrierScore).toBeLessThanOrEqual(1);
+    // Brier is null (not a fabricated 0) when no predictions have resolved;
+    // a real number in [0,1] once outcomes exist.
+    if (body.data.overallBrierScore === null) {
+      expect(body.data.status).toBe('insufficient_data');
+    } else {
+      expect(typeof body.data.overallBrierScore).toBe('number');
+      expect(body.data.overallBrierScore).toBeGreaterThanOrEqual(0);
+      expect(body.data.overallBrierScore).toBeLessThanOrEqual(1);
+    }
   });
 
   it ('GET /api/v1/confidence/predictions returns predictions list', async () => {
