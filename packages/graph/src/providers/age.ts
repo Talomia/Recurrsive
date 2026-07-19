@@ -195,6 +195,45 @@ function parseAgtype(raw: unknown): unknown {
  * @param vertex - Parsed vertex from AGE.
  * @returns Entity object.
  */
+/**
+ * Parse a value that AGE may return either as an already-decoded object or as
+ * a JSON string (entityToAgeProps stores nested maps as JSON strings). Returns
+ * an empty object on anything unparseable.
+ */
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // fall through to empty
+    }
+  }
+  return {};
+}
+
+/**
+ * Parse a value that AGE may return as an array or as a JSON-string array into
+ * a string[]. Returns an empty array on anything unparseable.
+ */
+function parseJsonStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch {
+      // fall through to empty
+    }
+  }
+  return [];
+}
+
 function vertexToEntity(vertex: Record<string, unknown>): Entity {
   const props = (vertex['properties'] ?? vertex) as Record<string, unknown>;
   return {
@@ -202,19 +241,20 @@ function vertexToEntity(vertex: Record<string, unknown>): Entity {
     type: String(props['type'] ?? 'function') as EntityType,
     name: String(props['name'] ?? ''),
     qualified_name: String(props['qualified_name'] ?? ''),
-    description: props['description'] !== null ? String(props['description']) : undefined,
+    // `!= null` (not `!== null`) — a missing key is `undefined`, and `!== null`
+    // would let it through String() as the literal string "undefined".
+    description: props['description'] != null ? String(props['description']) : undefined,
     source: String(props['source'] ?? ''),
-    source_location: props['source_location'] !== null
+    source_location: props['source_location'] != null
       ? (typeof props['source_location'] === 'string'
         ? JSON.parse(props['source_location'])
         : props['source_location']) as Entity['source_location']
       : undefined,
-    properties: (typeof props['properties'] === 'object' && props['properties'] !== null
-      ? props['properties'] as Record<string, unknown>
-      : {}),
-    tags: Array.isArray(props['tags'])
-      ? (props['tags'] as unknown[]).map(String)
-      : [],
+    // properties/tags are stored as JSON strings (entityToAgeProps), so they
+    // must be JSON-parsed back — the old object-only check silently dropped
+    // every property and tag on the AGE backend, blinding the analyzers.
+    properties: parseJsonObject(props['properties']),
+    tags: parseJsonStringArray(props['tags']),
     created_at: String(props['created_at'] ?? new Date().toISOString()),
     updated_at: String(props['updated_at'] ?? new Date().toISOString()),
     last_seen_at: String(props['last_seen_at'] ?? new Date().toISOString()),
@@ -234,9 +274,7 @@ function edgeToRelationship(edge: Record<string, unknown>): Relationship {
     type: String(props['type'] ?? 'references') as Relationship['type'],
     source_id: String(props['source_id'] ?? edge['start_id'] ?? ''),
     target_id: String(props['target_id'] ?? edge['end_id'] ?? ''),
-    properties: (typeof props['properties'] === 'object' && props['properties'] !== null
-      ? props['properties'] as Record<string, unknown>
-      : {}),
+    properties: parseJsonObject(props['properties']),
     confidence: typeof props['confidence'] === 'number' ? props['confidence'] : 1,
     source: String(props['source'] ?? ''),
     created_at: String(props['created_at'] ?? new Date().toISOString()),
