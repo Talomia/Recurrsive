@@ -57,6 +57,8 @@ interface NavItem {
   readonly icon: any;
   /** Show a small purple enterprise badge next to this item */
   readonly enterprise?: boolean;
+  /** Resolve href to the active project's home (/projects/<id>) at render. */
+  readonly projectHome?: boolean;
 }
 
 interface NavSection {
@@ -67,46 +69,20 @@ interface NavSection {
 
 // ─── Section definitions ─────────────────────────────────────────────────────
 
-// Navigation is organized around the user's actual journey rather than the
-// backend's feature list: WORKSPACE (do the work on a project) → INSIGHTS
-// (understand it) → AUTOMATION (scale it) → GOVERNANCE (control access & rules)
-// → PLATFORM (configure & extend). Only the first two groups are open by
-// default, so the everyday surface is ~11 items instead of 34; the long tail
-// is one click away here and always reachable via ⌘K / header search.
-const NAV_SECTIONS: NavSection[] = [
+// Two-tier navigation. The sidebar shows ONE of these based on the current
+// scope so the user is never confused about whether they are operating across
+// the whole workspace or inside a single project.
+//
+// WORKSPACE scope (no project entered): cross-project and account-level work.
+const WORKSPACE_SECTIONS: NavSection[] = [
   {
-    key: "workspace",
-    label: "Workspace",
+    key: "portfolio",
+    label: "Portfolio",
     items: [
       { href: "/", label: "Overview", icon: LayoutDashboard },
       { href: "/projects", label: "Projects", icon: FolderGit2 },
-      { href: "/findings", label: "Findings", icon: ShieldAlert },
-      { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
-      { href: "/system-map", label: "System Map", icon: Network },
-    ],
-  },
-  {
-    key: "insights",
-    label: "Insights",
-    items: [
-      { href: "/health", label: "Health", icon: HeartPulse },
-      { href: "/timeline", label: "Timeline", icon: Clock },
-      { href: "/forecasting", label: "Forecasting", icon: Brain },
-      { href: "/confidence", label: "Confidence", icon: Target },
-      { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/comparisons", label: "Comparisons", icon: GitCompare },
-    ],
-  },
-  {
-    key: "automation",
-    label: "Automation",
-    items: [
       { href: "/batch", label: "Batch Analysis", icon: Layers },
-      { href: "/scheduling", label: "Scheduling", icon: Calendar },
-      { href: "/reports", label: "Reports", icon: FileText },
-      { href: "/snapshots", label: "Snapshots", icon: Camera },
-      { href: "/simulation", label: "Simulation", icon: Bot },
-      { href: "/experiments", label: "Experiments", icon: FlaskConical },
       { href: "/intelligence-packs", label: "Intelligence Packs", icon: Boxes },
     ],
   },
@@ -139,6 +115,44 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+// PROJECT scope (a project is entered): everything scoped to that one repo.
+// All hrefs are project-scoped (?projectId appended at render); Overview
+// resolves to the project home /projects/<id>.
+const PROJECT_SECTIONS: NavSection[] = [
+  {
+    key: "project",
+    label: "Project",
+    items: [
+      { href: "/", label: "Overview", icon: LayoutDashboard, projectHome: true },
+      { href: "/findings", label: "Findings", icon: ShieldAlert },
+      { href: "/opportunities", label: "Opportunities", icon: Lightbulb },
+      { href: "/system-map", label: "System Map", icon: Network },
+    ],
+  },
+  {
+    key: "insights",
+    label: "Insights",
+    items: [
+      { href: "/health", label: "Health", icon: HeartPulse },
+      { href: "/timeline", label: "Timeline", icon: Clock },
+      { href: "/forecasting", label: "Forecasting", icon: Brain },
+      { href: "/confidence", label: "Confidence", icon: Target },
+      { href: "/analytics", label: "Analytics", icon: BarChart3 },
+    ],
+  },
+  {
+    key: "delivery",
+    label: "Delivery",
+    items: [
+      { href: "/reports", label: "Reports", icon: FileText },
+      { href: "/snapshots", label: "Snapshots", icon: Camera },
+      { href: "/scheduling", label: "Scheduling", icon: Calendar },
+      { href: "/simulation", label: "Simulation", icon: Bot },
+      { href: "/experiments", label: "Experiments", icon: FlaskConical },
+    ],
+  },
+];
+
 // ─── localStorage helpers ────────────────────────────────────────────────────
 
 // v2: navigation regrouped around the user journey (workspace/insights/
@@ -147,11 +161,14 @@ const NAV_SECTIONS: NavSection[] = [
 const STORAGE_KEY = "recurrsive-sidebar-sections-v2";
 
 const DEFAULT_EXPANDED: Record<string, boolean> = {
-  workspace: true,
-  insights: true,
-  automation: false,
+  // Workspace tier
+  portfolio: true,
   governance: false,
   platform: false,
+  // Project tier
+  project: true,
+  insights: true,
+  delivery: false,
 };
 
 function loadExpanded(): Record<string, boolean> {
@@ -182,7 +199,8 @@ export default function Sidebar() {
   const [opportunityCount, setOpportunityCount] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(DEFAULT_EXPANDED);
 
-  const { projects, activeProject, switchProject } = useActiveProject();
+  const { projects, activeProject, scope, switchProject, enterWorkspace } = useActiveProject();
+  const sections = scope === "project" ? PROJECT_SECTIONS : WORKSPACE_SECTIONS;
   const { availability: aiAvailability } = useAssistant();
   const [showProjDropdown, setShowProjDropdown] = useState(false);
   const [projSearchQuery, setProjSearchQuery] = useState("");
@@ -294,14 +312,14 @@ export default function Sidebar() {
               <button
                 onClick={() => setCollapsed(false)}
                 className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-accent-purple"
-                title={`Active: ${activeProject?.name ?? "None"}`}
+                title={scope === "project" ? `Project: ${activeProject?.name}` : "Workspace — all projects"}
               >
-                <FolderGit2 className="h-4 w-4" />
+                {scope === "project" ? <FolderGit2 className="h-4 w-4" /> : <Boxes className="h-4 w-4" />}
               </button>
             ) : (
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted block mb-1 px-1">
-                  Active Scope
+                  {scope === "project" ? "Project" : "Scope"}
                 </span>
                 <button
                   onClick={() => setShowProjDropdown(!showProjDropdown)}
@@ -310,8 +328,14 @@ export default function Sidebar() {
                   aria-haspopup="true"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <FolderGit2 className="h-3.5 w-3.5 text-accent-purple shrink-0" />
-                    <span className="truncate pr-1 leading-none">{activeProject?.name ?? "Select Project..."}</span>
+                    {scope === "project" ? (
+                      <FolderGit2 className="h-3.5 w-3.5 text-accent-purple shrink-0" />
+                    ) : (
+                      <Boxes className="h-3.5 w-3.5 text-accent-cyan shrink-0" />
+                    )}
+                    <span className="truncate pr-1 leading-none">
+                      {scope === "project" ? activeProject?.name : "All projects"}
+                    </span>
                   </div>
                   <ChevronDown className="h-3.5 w-3.5 text-text-secondary group-hover:text-text-primary transition-transform duration-200" />
                 </button>
@@ -343,6 +367,21 @@ export default function Sidebar() {
 
                 {/* Project list */}
                 <div className="max-h-[220px] overflow-y-auto py-1">
+                  {/* Exit to workspace (cross-project) scope */}
+                  <button
+                    onClick={() => {
+                      enterWorkspace();
+                      setShowProjDropdown(false);
+                      setProjSearchQuery("");
+                    }}
+                    className={clsx(
+                      "w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-white/5 border-b border-white/5 mb-1",
+                      scope === "workspace" ? "text-accent-cyan font-bold" : "text-text-secondary",
+                    )}
+                  >
+                    <Boxes className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">All projects · Workspace</span>
+                  </button>
                   {projects
                     .filter((p) => p.name.toLowerCase().includes(projSearchQuery.toLowerCase()))
                     .map((proj) => {
@@ -380,7 +419,7 @@ export default function Sidebar() {
 
         {/* ── Nav links ──────────────────────────────────── */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Main navigation">
-          {NAV_SECTIONS.map((section) => {
+          {sections.map((section) => {
             const isExpanded = expanded[section.key] ?? true;
             const hasActiveItem = section.items.some(({ href }) =>
               href === "/" ? pathname === "/" : pathname.startsWith(href)
@@ -423,13 +462,23 @@ export default function Sidebar() {
                   id={`nav-section-${section.key}`}
                   isOpen={collapsed || isExpanded}
                 >
-                  {section.items.map(({ href, label, icon: Icon, enterprise }) => {
-                    const active =
-                      href === "/" ? pathname === "/" : pathname.startsWith(href);
+                  {section.items.map(({ href, label, icon: Icon, enterprise, projectHome }) => {
                     const activeProjectId = activeProject?.id;
-                    const finalHref = activeProjectId && href !== "/projects"
-                      ? `${href}?projectId=${encodeURIComponent(activeProjectId)}`
+                    // Resolve the project-home item to /projects/<id>.
+                    const resolvedHref = projectHome && activeProjectId
+                      ? `/projects/${encodeURIComponent(activeProjectId)}`
                       : href;
+                    const active = projectHome
+                      ? pathname === `/projects/${activeProjectId}`
+                      : resolvedHref === "/"
+                        ? pathname === "/"
+                        : pathname.startsWith(href);
+                    // In project scope, every project view carries the projectId
+                    // so a reload or shared link stays scoped to the same repo.
+                    const finalHref =
+                      scope === "project" && activeProjectId && !projectHome && href !== "/projects"
+                        ? `${href}?projectId=${encodeURIComponent(activeProjectId)}`
+                        : resolvedHref;
                     return (
                       <Link
                         key={href}
