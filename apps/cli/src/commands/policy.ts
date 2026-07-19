@@ -9,15 +9,10 @@
  * @packageDocumentation
  */
 
-import { resolve } from 'node:path';
 import type { Command } from 'commander';
-import {
-  createGraphClient,
-  type ExtendedGraphClient,
-} from '@recurrsive/graph';
-import { OpportunityManager } from '@recurrsive/opportunities';
 import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
 import { loadConfig } from '../config/loader.js';
+import { loadOpportunities, buildPolicyEngine } from './opportunities.js';
 import {
   banner,
   header,
@@ -35,33 +30,6 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Create a graph client from current config.
- *
- * @returns Graph client and project root.
- */
-async function getGraphClient(): Promise<{
-  client: ExtendedGraphClient;
-  projectRoot: string;
-}> {
-  const { config, projectRoot } = await loadConfig();
-  const dbPath =
-    config.graph.connection_string ??
-    resolve(projectRoot, '.recurrsive', 'graph.db');
-
-  const client = await createGraphClient({
-    provider: config.graph.provider,
-    sqlitePath: config.graph.provider === 'sqlite' ? dbPath : undefined,
-    connectionString:
-      config.graph.provider === 'postgresql_age'
-        ? config.graph.connection_string
-        : undefined,
-    autoMigrate: false,
-  });
-
-  return { client, projectRoot };
-}
 
 /**
  * Color a compliance rate based on value.
@@ -111,21 +79,25 @@ export function registerPolicyCommand(program: Command): void {
     .option('--json', 'Output results as JSON')
     .action(async (options: { json?: boolean }) => {
       banner();
-      let client: ExtendedGraphClient | null = null;
 
       try {
-        const { client: graphClient } = await getGraphClient();
-        client = graphClient;
+        const { config, projectRoot } = await loadConfig();
 
-        // Load opportunities from graph
-        const manager = new OpportunityManager();
-        const opportunities = manager.list();
+        // Load the REAL persisted opportunity set (same file the
+        // `opportunities` command manages). A missing/empty file means
+        // there is genuinely nothing to evaluate — which is reported as
+        // "not evaluated", never as 100% compliance.
+        const manager = await loadOpportunities(projectRoot, config.output.directory);
+        const opportunities = manager?.list() ?? [];
 
-        // Create policy engine with built-in policies
-        const engine = new PolicyEngine(BUILTIN_POLICIES);
+        // Builtin + custom-loaded policies — same engine construction as
+        // the accept workflow.
+        const engine = await buildPolicyEngine(projectRoot, config.output.directory);
         const policies = engine.getPolicies();
 
-        // Evaluate each opportunity
+        // Evaluate each opportunity with the engine's three-state verdict.
+        // `passed` is true ONLY for fully compliant items — an item that
+        // needs approval is NOT compliant.
         const results = opportunities.map((opp) => {
           const result = engine.passes(opp);
           return {
@@ -133,21 +105,31 @@ export function registerPolicyCommand(program: Command): void {
             title: opp.title,
             severity: opp.severity,
             passed: result.passed,
+            compliance: result.compliance,
             action: result.effectiveAction,
             violations: result.violations.length,
             warnings: result.warnings.length,
           };
         });
 
+        const total = results.length;
+        const compliant = results.filter((r) => r.compliance === 'compliant').length;
+        const needsApproval = results.filter((r) => r.compliance === 'needs_approval').length;
+        const blocked = results.filter((r) => r.compliance === 'blocked').length;
+        // With zero opportunities there is nothing to be compliant WITH —
+        // the rate is null/not_evaluated, never a fabricated 100.
+        const complianceRate = total > 0 ? Math.round((compliant / total) * 100) : null;
+
         if (options.json) {
-          const passed = results.filter((r) => r.passed).length;
           console.log(JSON.stringify({
             summary: {
-              total: results.length,
-              passed,
-              compliance_rate: results.length > 0
-                ? Math.round((passed / results.length) * 100)
-                : 100,
+              total,
+              passed: compliant,
+              compliant,
+              needs_approval: needsApproval,
+              blocked,
+              compliance_rate: complianceRate,
+              status: total > 0 ? 'evaluated' : 'not_evaluated',
               policy_sets: policies.length,
             },
             results,
@@ -166,15 +148,20 @@ export function registerPolicyCommand(program: Command): void {
 
         if (opportunities.length === 0) {
           info('No opportunities to evaluate. Run `recurrsive analyze` first.');
+          info(`${bold('Compliance Rate')}: ${dim('not evaluated (no opportunities)')}`);
           return;
         }
 
         // Show results table
-        const headers = ['Title', 'Severity', 'Status', 'Action', 'Violations', 'Warnings'];
+        const headers = ['Title', 'Severity', 'Compliance', 'Action', 'Violations', 'Warnings'];
         const rows = results.map((r) => [
           r.title.length > 40 ? r.title.slice(0, 40) + '…' : r.title,
           r.severity,
-          r.passed ? green('✓ Pass') : red('✗ Fail'),
+          r.compliance === 'compliant'
+            ? green('✓ Compliant')
+            : r.compliance === 'needs_approval'
+              ? yellow('⚠ Needs approval')
+              : red('✗ Blocked'),
           actionColor(r.action),
           r.violations > 0 ? red(String(r.violations)) : dim('0'),
           r.warnings > 0 ? yellow(String(r.warnings)) : dim('0'),
@@ -184,24 +171,15 @@ export function registerPolicyCommand(program: Command): void {
 
         // Summary
         console.log();
-        const passed = results.filter((r) => r.passed).length;
-        const blocked = results.filter((r) => r.action === 'block').length;
-        const rate = results.length > 0
-          ? Math.round((passed / results.length) * 100)
-          : 100;
-
-        info(`${bold('Compliance Rate')}: ${complianceColor(rate)}`);
-        info(`${bold('Total')}: ${results.length}  ` +
-          `${bold('Passed')}: ${green(String(passed))}  ` +
+        info(`${bold('Compliance Rate')}: ${complianceColor(complianceRate!)}`);
+        info(`${bold('Total')}: ${total}  ` +
+          `${bold('Compliant')}: ${green(String(compliant))}  ` +
+          `${bold('Needs approval')}: ${needsApproval > 0 ? yellow(String(needsApproval)) : dim('0')}  ` +
           `${bold('Blocked')}: ${blocked > 0 ? red(String(blocked)) : dim('0')}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         error(`Policy check failed: ${msg}`);
         process.exitCode = 1;
-      } finally {
-        if (client && 'dispose' in client) {
-          await (client as unknown as { dispose(): Promise<void> }).dispose();
-        }
       }
     });
 

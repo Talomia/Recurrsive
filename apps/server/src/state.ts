@@ -13,6 +13,7 @@
 import * as path from 'node:path';
 import { createGraphClient, DEFAULT_AGE_GRAPH, type ExtendedGraphClient } from '@recurrsive/graph';
 import { OpportunityManager } from '@recurrsive/opportunities';
+import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
 import { AnalyzerRegistry, AnalyzerRunner, createDefaultAnalyzers } from '@recurrsive/analyzers';
 import { ReasoningEngine } from '@recurrsive/reasoning';
 import { GitCollector, DocumentationCollector, EnvironmentCollector, CICDCollector, DatabaseCollector, GitHubCollector, GitLabCollector } from '@recurrsive/collectors';
@@ -227,6 +228,15 @@ export class ServerState {
    * recently activated project's client for convenience within runAnalysis.
    */
   private graphClients = new Map<string, ExtendedGraphClient>();
+  /**
+   * Per-project DEGRADED fallback clients (empty in-memory SQLite served only
+   * because the configured PostgreSQL graph is unreachable). Kept separate
+   * from `graphClients` on purpose: a degraded fallback is NEVER promoted to
+   * the real cache, so every subsequent request retries PostgreSQL first.
+   */
+  private degradedFallbacks = new Map<string, ExtendedGraphClient>();
+  /** Reason the last graph connection attempt failed, keyed by project id. */
+  private degradedGraphReasons = new Map<string, string>();
   private opportunityManager: OpportunityManager = new OpportunityManager();
   private projectPath: string | null = null;
   private projectInfo: ProjectInfo | null = null;
@@ -338,13 +348,22 @@ export class ServerState {
   /**
    * Create a graph client bound to the given physical graph name, honoring the
    * configured provider (PostgreSQL/AGE in production, SQLite otherwise) with
-   * connection retries and an in-memory SQLite fallback.
+   * connection retries.
+   *
+   * When PostgreSQL is configured but unreachable this reports the failure
+   * (`degraded: true`) instead of silently substituting an empty in-memory
+   * database — the caller decides how to surface the degraded state, and it
+   * must never cache the substitute as if it were the real graph.
    *
    * @param graphName - Physical AGE graph name (ignored by SQLite, which
    *   isolates per project by database instance).
-   * @returns A connected, migrated graph client.
+   * @returns The client plus a degraded flag/reason.
    */
-  private async createGraphClientForName(graphName: string): Promise<ExtendedGraphClient> {
+  private async createGraphClientForName(graphName: string): Promise<{
+    client: ExtendedGraphClient;
+    degraded: boolean;
+    reason?: string;
+  }> {
     const provider = (process.env['GRAPH_PROVIDER'] ?? 'sqlite') as 'sqlite' | 'postgresql_age';
     const connectionString = process.env['DATABASE_URL'];
 
@@ -363,7 +382,7 @@ export class ServerState {
             autoMigrate: true,
           });
           logger.info(`Connected to PostgreSQL/AGE graph "${graphName}" (attempt ${attempt}/${MAX_RETRIES})`);
-          return client;
+          return { client, degraded: false };
         } catch (err) {
           lastError = err;
           const message = err instanceof Error ? err.message : String(err);
@@ -380,26 +399,45 @@ export class ServerState {
       const message = lastError instanceof Error ? lastError.message : String(lastError);
       logger.error(
         `All ${MAX_RETRIES} database connection attempts failed for graph "${graphName}": ${message}. ` +
-        `Falling back to in-memory SQLite.`,
+        `Serving a DEGRADED empty in-memory graph for this request only; ` +
+        `PostgreSQL will be retried on the next request.`,
       );
-      return createGraphClient({ provider: 'sqlite', sqlitePath: ':memory:', autoMigrate: true });
+      const fallback = await createGraphClient({ provider: 'sqlite', sqlitePath: ':memory:', autoMigrate: true });
+      return { client: fallback, degraded: true, reason: `PostgreSQL unreachable: ${message}` };
     }
 
     if (provider === 'postgresql_age' && !connectionString) {
       logger.warn(
         'GRAPH_PROVIDER is set to "postgresql_age" but DATABASE_URL is not configured. ' +
-        'Falling back to in-memory SQLite.',
+        'Serving a DEGRADED empty in-memory graph.',
       );
+      const fallback = await createGraphClient({ provider: 'sqlite', sqlitePath: ':memory:', autoMigrate: true });
+      return {
+        client: fallback,
+        degraded: true,
+        reason: 'GRAPH_PROVIDER is "postgresql_age" but DATABASE_URL is not configured',
+      };
     }
-    // SQLite isolates per project by using a distinct client instance (each
-    // ':memory:' database is independent).
-    return createGraphClient({ provider: 'sqlite', sqlitePath: ':memory:', autoMigrate: true });
+
+    // Default path (GRAPH_PROVIDER unset or 'sqlite'): SQLite IS the
+    // configured provider here, not a fallback — never degraded. It isolates
+    // per project by using a distinct client instance (each ':memory:'
+    // database is independent).
+    const client = await createGraphClient({ provider: 'sqlite', sqlitePath: ':memory:', autoMigrate: true });
+    return { client, degraded: false };
   }
 
   /**
    * Return the graph client for a project, creating and caching it on first
    * use. Each project's client is bound to its own physical graph, so their
    * knowledge graphs are fully isolated.
+   *
+   * When the configured PostgreSQL graph is unreachable the returned client is
+   * a DEGRADED empty in-memory substitute. It is deliberately NOT cached in
+   * `graphClients`, so the next call retries PostgreSQL; the degraded state is
+   * queryable via {@link isGraphDegraded} / {@link getGraphDegradedReason} so
+   * responses can report `degraded: true` instead of presenting 0 entities as
+   * real data.
    *
    * @param projectId - Project id (defaults to the implicit project).
    * @returns The project's graph client.
@@ -408,9 +446,56 @@ export class ServerState {
     const id = projectId ?? DEFAULT_PROJECT_ID;
     const existing = this.graphClients.get(id);
     if (existing) return existing;
-    const client = await this.createGraphClientForName(this.graphNameForProject(id));
+
+    const { client, degraded, reason } = await this.createGraphClientForName(
+      this.graphNameForProject(id),
+    );
+
+    if (degraded) {
+      // Do NOT cache — the next request retries the real database. Reuse a
+      // single fallback instance per project so repeated degraded requests
+      // don't leak clients.
+      this.degradedGraphReasons.set(id, reason ?? 'graph database unavailable');
+      const priorFallback = this.degradedFallbacks.get(id);
+      if (priorFallback) {
+        try { await client.dispose(); } catch { /* best effort */ }
+        return priorFallback;
+      }
+      this.degradedFallbacks.set(id, client);
+      return client;
+    }
+
+    // Real connection succeeded — clear any degraded state and drop the
+    // stale fallback so its (empty) contents can never be served again.
+    this.degradedGraphReasons.delete(id);
+    const staleFallback = this.degradedFallbacks.get(id);
+    if (staleFallback) {
+      this.degradedFallbacks.delete(id);
+      try { await staleFallback.dispose(); } catch { /* best effort */ }
+    }
     this.graphClients.set(id, client);
     return client;
+  }
+
+  /**
+   * Whether the project's graph is currently degraded (the configured
+   * PostgreSQL database was unreachable on the most recent attempt and an
+   * empty in-memory substitute is being served).
+   *
+   * @param projectId - Project id (defaults to the implicit project).
+   */
+  isGraphDegraded(projectId?: string): boolean {
+    return this.degradedGraphReasons.has(projectId ?? DEFAULT_PROJECT_ID);
+  }
+
+  /**
+   * Human-readable reason the project's graph is degraded, or null when the
+   * graph is healthy.
+   *
+   * @param projectId - Project id (defaults to the implicit project).
+   */
+  getGraphDegradedReason(projectId?: string): string | null {
+    return this.degradedGraphReasons.get(projectId ?? DEFAULT_PROJECT_ID) ?? null;
   }
 
   /**
@@ -571,6 +656,18 @@ export class ServerState {
     // Point the working graph client at this project's isolated graph so the
     // clear + all entity/relationship writes below land in the right project.
     this.graphClient = await this.getGraphForProject(activeProjectId);
+
+    // Fail closed: analyzing into a degraded (transient in-memory) graph
+    // would silently discard every entity the moment this run finishes,
+    // while later reads reported 0 entities as if that were real data.
+    if (this.isGraphDegraded(activeProjectId)) {
+      this._analysisLock = false;
+      throw new Error(
+        `Knowledge graph unavailable (degraded): ${this.getGraphDegradedReason(activeProjectId)}. ` +
+        `Analysis refused rather than writing to a transient in-memory fallback; ` +
+        `the database will be retried on the next request.`,
+      );
+    }
 
     const runId = generateId();
     const start = Date.now();
@@ -907,6 +1004,19 @@ export class ServerState {
       }
       const runner = new AnalyzerRunner(registry);
 
+      // Snapshot the PREVIOUS run's opportunities before this run reseeds
+      // the manager, so analyzers can learn from real past accept/reject
+      // decisions instead of always seeing an empty history.
+      const priorOpportunities = (
+        await this.loadOpportunitiesForProject(activeProjectId)
+      ).list();
+      const acceptedHistoryStatuses = new Set<Opportunity['status']>([
+        'accepted',
+        'in_progress',
+        'implemented',
+        'validated',
+      ]);
+
       const analysisContext: AnalysisContext = {
         graph: this.graphClient!,
         config: {
@@ -916,8 +1026,22 @@ export class ServerState {
         },
         history: {
           getPreviousFindings: async () => [],
-          getAcceptedOpportunities: async () => [],
-          getRejectedOpportunities: async () => [],
+          getAcceptedOpportunities: async (category) =>
+            priorOpportunities
+              .filter(
+                (o) =>
+                  acceptedHistoryStatuses.has(o.status) &&
+                  (category === undefined || o.category === category),
+              )
+              .map((o) => o.id),
+          getRejectedOpportunities: async (category) =>
+            priorOpportunities
+              .filter(
+                (o) =>
+                  o.status === 'rejected' &&
+                  (category === undefined || o.category === category),
+              )
+              .map((o) => o.id),
         },
         project: this.projectInfo!,
         emit: (finding: Finding) => {
@@ -1413,10 +1537,18 @@ export class ServerState {
    * and it never survived a restart. Now the correct project's opportunities are
    * loaded, updated, and written back to the store.
    *
+   * Transitions to `accepted` / `in_progress` consult the policy engine
+   * (built-in policy sets — the same set every other policy consumer uses):
+   * an effective `block` verdict rejects the transition outright, and a
+   * `require_approval` verdict rejects it unless `options.override` is set,
+   * in which case the override is recorded in the decision reason.
+   *
    * @param projectId - Project the opportunity belongs to (defaults to the implicit project).
    * @param id - Opportunity id.
    * @param status - New lifecycle status.
    * @param reason - Optional reason recorded with the transition.
+   * @param options - `override: true` explicitly approves a policy
+   *   `require_approval` verdict (never bypasses `block`).
    * @returns The updated opportunity.
    */
   async setOpportunityStatus(
@@ -1424,9 +1556,37 @@ export class ServerState {
     id: string,
     status: Opportunity['status'],
     reason?: string,
+    options?: { override?: boolean },
   ): Promise<Opportunity> {
     const pid = projectId ?? DEFAULT_PROJECT_ID;
     const manager = await this.loadOpportunitiesForProject(pid);
+
+    // Policy gate for transitions that put the opportunity into effect.
+    // (A missing opportunity falls through to updateStatus's not-found error.)
+    if (status === 'accepted' || status === 'in_progress') {
+      const opp = manager.get(id);
+      if (opp) {
+        const engine = new PolicyEngine(BUILTIN_POLICIES);
+        const verdict = engine.passes(opp);
+        if (verdict.effectiveAction === 'block') {
+          const detail = verdict.violations[0]?.message ?? 'a policy rule blocks this transition';
+          throw new Error(
+            `Invalid status transition: "${opp.status}" → "${status}" is blocked by policy: ${detail}`,
+          );
+        }
+        if (verdict.effectiveAction === 'require_approval') {
+          if (!options?.override) {
+            const detail = verdict.violations[0]?.message ?? 'policy requires manual approval';
+            throw new Error(
+              `Invalid status transition: "${opp.status}" → "${status}" requires explicit approval ` +
+              `(${detail}). Repeat the request with override=true to approve; the override is recorded.`,
+            );
+          }
+          reason = `${reason ?? 'Approved with override'} [policy override: require_approval approved]`;
+        }
+      }
+    }
+
     const updated = manager.updateStatus(id, status, reason);
 
     // Persist the mutated set back to the project's cache so the change sticks.
@@ -1515,6 +1675,11 @@ export class ServerState {
       try { await client.dispose(); } catch { /* already cleaned up */ }
     }
     this.graphClients.clear();
+    for (const client of this.degradedFallbacks.values()) {
+      try { await client.dispose(); } catch { /* already cleaned up */ }
+    }
+    this.degradedFallbacks.clear();
+    this.degradedGraphReasons.clear();
     this.graphClient = null;
     this.opportunityManager = new OpportunityManager();
     this.projectPath = null;

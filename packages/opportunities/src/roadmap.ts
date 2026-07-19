@@ -31,13 +31,24 @@ export interface RoadmapEntry {
 export interface RoadmapPhase {
   /** Human-friendly phase name. */
   name: PhaseName;
-  /** Phase description. */
+  /** Phase description (states the selection criterion, not an outcome claim). */
   description: string;
   /** Ranked entries in this phase. */
   entries: RoadmapEntry[];
-  /** Total estimated hours across all entries (where available). */
+  /**
+   * Sum of `estimated_hours` over ONLY the entries that carry an estimate
+   * (see {@link RoadmapPhase.itemsWithEstimates}). Entries without an
+   * estimate contribute nothing, so this is a partial figure — never a
+   * total for the whole phase.
+   */
   totalEstimatedHours: number;
-  /** Aggregate estimated impact score for this phase. */
+  /** Number of entries in this phase that carry an hours estimate. */
+  itemsWithEstimates: number;
+  /**
+   * Relative priority index for this phase: the sum of severity-weight ×
+   * confidence over its entries. Unitless — meaningful only for comparing
+   * phases against each other, not as a measured impact figure.
+   */
   totalEstimatedImpact: number;
   /** Count of opportunities in this phase. */
   count: number;
@@ -53,7 +64,11 @@ export interface Roadmap {
   totalOpportunities: number;
   /** Summary statistics. */
   summary: {
+    /** Sum of estimated hours over items that carry an estimate only. */
     totalEstimatedHours: number;
+    /** Number of items (across all phases) that carry an hours estimate. */
+    itemsWithEstimates: number;
+    /** Relative priority index (unitless; see RoadmapPhase.totalEstimatedImpact). */
     totalEstimatedImpact: number;
     severityBreakdown: Record<Severity, number>;
     categoryBreakdown: Record<string, number>;
@@ -116,13 +131,19 @@ function estimateImpact(opp: Opportunity): number {
 // Phase metadata
 // ---------------------------------------------------------------------------
 
+/**
+ * Phase descriptions state the SELECTION CRITERION for the bucket only.
+ * They deliberately make no claims about outcomes ("immediate impact",
+ * "transformative results") — those would be fabricated: nothing here
+ * measures what implementing an item actually delivers.
+ */
 const PHASE_DESCRIPTIONS: Record<PhaseName, string> = {
   'Quick Wins':
-    'Low-effort, high-confidence opportunities that can be implemented quickly for immediate impact.',
+    'Opportunities with XS or S estimated effort and confidence of at least 0.5.',
   'Strategic Improvements':
-    'Medium-effort improvements requiring planning and coordination. Deliver significant value over weeks.',
+    'Opportunities with M estimated effort, plus XS/S items with confidence below 0.5.',
   'Long-term Investments':
-    'Large-effort initiatives that deliver transformative results. Require dedicated resources and multi-sprint planning.',
+    'Opportunities with L or XL estimated effort.',
 };
 
 const PHASE_ORDER: PhaseName[] = ['Quick Wins', 'Strategic Improvements', 'Long-term Investments'];
@@ -166,7 +187,8 @@ export function generateRoadmap(opportunities: readonly Opportunity[]): Roadmap 
   // Build phases
   const phases: RoadmapPhase[] = PHASE_ORDER.map((name) => {
     const entries = buckets.get(name)!;
-    const totalEstimatedHours = entries.reduce(
+    const withEstimates = entries.filter((e) => e.estimatedHours !== undefined);
+    const totalEstimatedHours = withEstimates.reduce(
       (sum, e) => sum + (e.estimatedHours ?? 0),
       0,
     );
@@ -180,6 +202,7 @@ export function generateRoadmap(opportunities: readonly Opportunity[]): Roadmap 
       description: PHASE_DESCRIPTIONS[name],
       entries,
       totalEstimatedHours: Math.round(totalEstimatedHours * 10) / 10,
+      itemsWithEstimates: withEstimates.length,
       totalEstimatedImpact: Math.round(totalEstimatedImpact * 100) / 100,
       count: entries.length,
     };
@@ -206,6 +229,7 @@ export function generateRoadmap(opportunities: readonly Opportunity[]): Roadmap 
     totalOpportunities: opportunities.length,
     summary: {
       totalEstimatedHours: phases.reduce((s, p) => s + p.totalEstimatedHours, 0),
+      itemsWithEstimates: phases.reduce((s, p) => s + p.itemsWithEstimates, 0),
       totalEstimatedImpact: phases.reduce((s, p) => s + p.totalEstimatedImpact, 0),
       severityBreakdown,
       categoryBreakdown,
@@ -222,13 +246,27 @@ export function generateRoadmap(opportunities: readonly Opportunity[]): Roadmap 
 export function renderRoadmapMarkdown(roadmap: Roadmap): string {
   const lines: string[] = [];
 
+  /**
+   * Report hours honestly: "X h across N of M items with estimates" so a
+   * partial sum is never presented as a total, and "no estimates available"
+   * instead of a fabricated 0.
+   */
+  const formatHours = (hours: number, withEstimates: number, total: number): string =>
+    withEstimates > 0
+      ? `${hours} h across ${withEstimates} of ${total} items with estimates`
+      : 'no estimates available';
+
   lines.push('# Implementation Roadmap');
   lines.push('');
   lines.push(`_Generated: ${roadmap.generatedAt}_`);
   lines.push('');
   lines.push(`**Total Opportunities:** ${roadmap.totalOpportunities}`);
-  lines.push(`**Total Estimated Hours:** ${roadmap.summary.totalEstimatedHours}`);
-  lines.push(`**Total Estimated Impact:** ${roadmap.summary.totalEstimatedImpact.toFixed(2)}`);
+  lines.push(
+    `**Estimated Hours:** ${formatHours(roadmap.summary.totalEstimatedHours, roadmap.summary.itemsWithEstimates, roadmap.totalOpportunities)}`,
+  );
+  lines.push(
+    `**Relative Priority Index:** ${Math.round(roadmap.summary.totalEstimatedImpact)} _(unitless severity×confidence sum — for ranking only, not a measured impact)_`,
+  );
   lines.push('');
 
   for (const phase of roadmap.phases) {
@@ -236,8 +274,12 @@ export function renderRoadmapMarkdown(roadmap: Roadmap): string {
     lines.push('');
     lines.push(`_${phase.description}_`);
     lines.push('');
-    lines.push(`- **Estimated Hours:** ${phase.totalEstimatedHours}`);
-    lines.push(`- **Estimated Impact:** ${phase.totalEstimatedImpact.toFixed(2)}`);
+    lines.push(
+      `- **Estimated Hours:** ${formatHours(phase.totalEstimatedHours, phase.itemsWithEstimates, phase.count)}`,
+    );
+    lines.push(
+      `- **Relative Priority Index:** ${Math.round(phase.totalEstimatedImpact)} _(unitless — for ranking only)_`,
+    );
     lines.push('');
 
     if (phase.entries.length === 0) {

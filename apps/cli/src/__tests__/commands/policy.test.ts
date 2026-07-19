@@ -216,6 +216,11 @@ describe('recurrsive policy', () => {
     expect(parsed.summary).toHaveProperty('passed');
     expect(parsed.summary).toHaveProperty('compliance_rate');
     expect(parsed.summary).toHaveProperty('policy_sets');
+    // With zero opportunities loaded there is nothing to be compliant with:
+    // the rate must be null / not_evaluated — never a fabricated 100.
+    expect(parsed.summary.total).toBe(0);
+    expect(parsed.summary.compliance_rate).toBeNull();
+    expect(parsed.summary.status).toBe('not_evaluated');
   });
 
   it('policy check handles errors gracefully', async () => {

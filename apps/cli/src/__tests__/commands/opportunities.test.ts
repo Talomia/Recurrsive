@@ -67,6 +67,7 @@ vi.mock('../../output/terminal.js', () => ({
   header: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
+  warning: vi.fn(),
   info: vi.fn(),
   bold: vi.fn((t: string) => t),
   cyan: vi.fn((t: string) => t),
@@ -446,6 +447,71 @@ describe('registerOpportunitiesCommand', () => {
 
       expect(termError).toHaveBeenCalledWith(
         expect.stringContaining('Opportunity not found'),
+      );
+    });
+  });
+
+  // ── Policy Enforcement on Accept ───────────────────────────────────────
+  // Uses the REAL policy engine + built-in policy sets (not mocked), so
+  // these verify the actual builtin verdicts gate the transition.
+
+  describe('policy enforcement on accept', () => {
+    const savedExitCode = process.exitCode;
+
+    afterEach(() => {
+      process.exitCode = savedExitCode;
+    });
+
+    it('refuses acceptance when policy verdict is block (even with --force)', async () => {
+      // builtin sec-001: category security + severity critical → block
+      setOpportunities(
+        makeOpportunity({ category: 'security', severity: 'critical' }),
+      );
+
+      const { runAction } = createFakeProgram();
+      await runAction({ accept: 'opp-001', force: true });
+
+      expect(termError).toHaveBeenCalledWith(
+        expect.stringContaining('blocked by policy'),
+      );
+      expect(mockManagerInstance.updateStatus).not.toHaveBeenCalled();
+      expect(mockManagerInstance.save).not.toHaveBeenCalled();
+    });
+
+    it('refuses acceptance without --force when policy requires approval', async () => {
+      // builtin chg-001: risk.level critical → require_approval
+      setOpportunities(
+        makeOpportunity({
+          risk: { level: 'critical', description: 'Risky', mitigations: [] },
+        }),
+      );
+
+      const { runAction } = createFakeProgram();
+      await runAction({ accept: 'opp-001' });
+
+      expect(termError).toHaveBeenCalledWith(
+        expect.stringContaining('--force'),
+      );
+      expect(mockManagerInstance.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('accepts with --force and records the policy override in the reason', async () => {
+      setOpportunities(
+        makeOpportunity({
+          risk: { level: 'critical', description: 'Risky', mitigations: [] },
+        }),
+      );
+
+      const { runAction } = createFakeProgram();
+      await runAction({ accept: 'opp-001', force: true });
+
+      expect(mockManagerInstance.updateStatus).toHaveBeenCalledWith(
+        'opp-001',
+        'accepted',
+        expect.stringContaining('policy override'),
+      );
+      expect(success).toHaveBeenCalledWith(
+        expect.stringContaining('Accepted'),
       );
     });
   });

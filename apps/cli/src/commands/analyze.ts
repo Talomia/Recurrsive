@@ -22,7 +22,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import type { Command } from 'commander';
-import type { Finding, Opportunity, Entity, Relationship } from '@recurrsive/core';
+import type { Finding, Opportunity, OpportunityCategory, Entity, Relationship } from '@recurrsive/core';
 import { formatDuration } from '@recurrsive/core';
 import { createGraphClient, type ExtendedGraphClient } from '@recurrsive/graph';
 import { GitCollector, DocumentationCollector, EnvironmentCollector, CICDCollector, DatabaseCollector } from '@recurrsive/collectors';
@@ -57,6 +57,55 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
+ * Opportunity statuses that constitute an "accepted" decision for
+ * history purposes: an explicit accept and every later lifecycle stage
+ * that can only be reached after acceptance.
+ */
+const ACCEPTED_HISTORY_STATUSES: ReadonlySet<Opportunity['status']> = new Set([
+  'accepted',
+  'in_progress',
+  'implemented',
+  'validated',
+]);
+
+/**
+ * Compute a stable content signature for an opportunity, so decisions can
+ * be carried across analysis runs even though each run mints fresh UUIDs.
+ * Based on title + category + the set of affected files.
+ *
+ * @param opp - The opportunity to fingerprint.
+ * @returns A deterministic signature string.
+ */
+function opportunitySignature(opp: Opportunity): string {
+  const files = (opp.locations ?? [])
+    .map((loc) => loc.file)
+    .sort()
+    .join('|');
+  return `${opp.title}::${opp.category}::${files}`;
+}
+
+/**
+ * Load the previous run's opportunities from disk, if any.
+ *
+ * Returns an empty array (never throws) when the file is missing,
+ * unreadable, or not a JSON array — an unreadable history simply means no
+ * prior decisions can be honored, and analysis proceeds fresh.
+ *
+ * @param oppsPath - Absolute path to opportunities.json.
+ * @returns The prior opportunities, or [].
+ */
+async function loadPriorOpportunities(oppsPath: string): Promise<Opportunity[]> {
+  if (!existsSync(oppsPath)) return [];
+  try {
+    const raw = await readFile(oppsPath, 'utf-8');
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as Opportunity[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Build a minimal AnalysisContext for the analyzer runner.
  *
  * @param graph - The graph client.
@@ -65,6 +114,8 @@ import {
  * @param languages - Detected languages.
  * @param frameworks - Detected frameworks.
  * @param aiProviders - Detected AI providers.
+ * @param priorOpportunities - Opportunities persisted by the previous run,
+ *   used to answer accepted/rejected history queries with REAL decisions.
  * @returns An AnalysisContext suitable for passing to analyzers.
  */
 function buildAnalysisContext(
@@ -74,6 +125,7 @@ function buildAnalysisContext(
   languages: string[],
   frameworks: string[],
   aiProviders: string[],
+  priorOpportunities: Opportunity[],
 ) {
   const findings: Finding[] = [];
 
@@ -88,11 +140,23 @@ function buildAnalysisContext(
       async getPreviousFindings(_analyzerId: string) {
         return [];
       },
-      async getAcceptedOpportunities() {
-        return [];
+      async getAcceptedOpportunities(category?: OpportunityCategory) {
+        return priorOpportunities
+          .filter(
+            (o) =>
+              ACCEPTED_HISTORY_STATUSES.has(o.status) &&
+              (category === undefined || o.category === category),
+          )
+          .map((o) => o.id);
       },
-      async getRejectedOpportunities() {
-        return [];
+      async getRejectedOpportunities(category?: OpportunityCategory) {
+        return priorOpportunities
+          .filter(
+            (o) =>
+              o.status === 'rejected' &&
+              (category === undefined || o.category === category),
+          )
+          .map((o) => o.id);
       },
     },
     project: {
@@ -440,6 +504,16 @@ export function registerAnalyzeCommand(program: Command): void {
             }
           }
 
+          // Load the previous run's opportunities BEFORE analysis so
+          // (a) analyzers can consult real accepted/rejected history, and
+          // (b) accept/reject decisions can be carried forward across the
+          // fresh UUIDs this run will generate.
+          const priorOppsPath = join(
+            resolve(projectRoot, config.output.directory),
+            'opportunities.json',
+          );
+          const priorOpportunities = await loadPriorOpportunities(priorOppsPath);
+
           const runner = new AnalyzerRunner(registry);
           const ctx = buildAnalysisContext(
             graphClient,
@@ -448,6 +522,7 @@ export function registerAnalyzeCommand(program: Command): void {
             [...detectedLanguages],
             frameworks,
             aiProviders,
+            priorOpportunities,
           );
 
           const analysisResult: AnalysisResult = await runner.run(
@@ -562,6 +637,57 @@ export function registerAnalyzeCommand(program: Command): void {
               );
             } else {
               info('Reasoning ran but promoted no findings to opportunities.');
+            }
+          }
+
+          // When reasoning did not run this run produced NO opportunity
+          // set at all — overwriting the previous file with [] would
+          // silently destroy prior opportunities and their accept/reject
+          // decisions. Preserve the prior set instead.
+          let preservedPrior = false;
+          if (
+            opportunities.length === 0 &&
+            reasoningStatus !== 'ran' &&
+            priorOpportunities.length > 0
+          ) {
+            info(
+              `Preserving ${priorOpportunities.length} previously generated opportunit${priorOpportunities.length === 1 ? 'y' : 'ies'} ` +
+                `(and their accept/reject decisions) since reasoning did not run.`,
+            );
+            opportunities = priorOpportunities;
+            preservedPrior = true;
+          }
+
+          // ── Carry forward prior accept/reject decisions ─────────────
+          // Each run mints fresh UUIDs, so without this step every
+          // previously-rejected opportunity would resurface as "proposed"
+          // and every acceptance would be forgotten. Match on a stable
+          // content signature (title + category + affected files) and
+          // carry the decision state onto the matching new opportunity.
+          // (Skipped when the prior set was preserved verbatim above.)
+          if (!preservedPrior && priorOpportunities.length > 0 && opportunities.length > 0) {
+            const priorBySignature = new Map<string, Opportunity>();
+            for (const prior of priorOpportunities) {
+              priorBySignature.set(opportunitySignature(prior), prior);
+            }
+            let carried = 0;
+            opportunities = opportunities.map((opp) => {
+              const prior = priorBySignature.get(opportunitySignature(opp));
+              if (!prior || prior.status === 'proposed') return opp;
+              carried++;
+              return {
+                ...opp,
+                status: prior.status,
+                decision_reason: prior.decision_reason ?? opp.decision_reason,
+                implemented_at: prior.implemented_at ?? opp.implemented_at,
+                validated_at: prior.validated_at ?? opp.validated_at,
+              };
+            });
+            if (carried > 0) {
+              info(
+                `Carried forward ${carried} prior accept/reject decision${carried === 1 ? '' : 's'} ` +
+                  `(matched by content signature).`,
+              );
             }
           }
 

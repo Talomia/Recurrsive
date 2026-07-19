@@ -221,6 +221,16 @@ describe('generateRoadmap', () => {
       expect(quickWins.totalEstimatedHours).toBe(0);
     });
 
+    it('itemsWithEstimates counts only entries that carry an estimate', () => {
+      const opp1 = makeOpp({ t_shirt: 'xs', confidence: 0.9, estimated_hours: 4 });
+      const opp2 = makeOpp({ t_shirt: 's', confidence: 0.8 }); // no estimate
+      const roadmap = generateRoadmap([opp1, opp2]);
+
+      const quickWins = roadmap.phases.find((p) => p.name === 'Quick Wins')!;
+      expect(quickWins.itemsWithEstimates).toBe(1);
+      expect(roadmap.summary.itemsWithEstimates).toBe(1);
+    });
+
     it('totalEstimatedImpact is computed', () => {
       const opp = makeOpp({ t_shirt: 'xs', confidence: 0.9, severity: 'critical' });
       const roadmap = generateRoadmap([opp]);
@@ -328,5 +338,38 @@ describe('renderRoadmapMarkdown', () => {
     const md = renderRoadmapMarkdown(roadmap);
 
     expect(md).toContain('No opportunities in this phase');
+  });
+
+  it('reports hours as a partial figure across items with estimates', () => {
+    const roadmap = generateRoadmap([
+      makeOpp({ t_shirt: 'xs', confidence: 0.9, estimated_hours: 4 }),
+      makeOpp({ t_shirt: 's', confidence: 0.9 }), // no estimate
+    ]);
+    const md = renderRoadmapMarkdown(roadmap);
+
+    expect(md).toContain('4 h across 1 of 2 items with estimates');
+  });
+
+  it('reports "no estimates available" instead of a fabricated 0', () => {
+    const roadmap = generateRoadmap([makeOpp({ t_shirt: 'xs', confidence: 0.9 })]);
+    const md = renderRoadmapMarkdown(roadmap);
+
+    expect(md).toContain('no estimates available');
+  });
+
+  it('labels the impact figure as a relative priority index, not measured impact', () => {
+    const roadmap = generateRoadmap([makeOpp({ severity: 'critical', confidence: 0.9 })]);
+    const md = renderRoadmapMarkdown(roadmap);
+
+    expect(md).toContain('Relative Priority Index');
+    expect(md).not.toContain('**Total Estimated Impact:**');
+  });
+
+  it('phase descriptions state selection criteria without stamped outcome claims', () => {
+    const roadmap = generateRoadmap([]);
+    const md = renderRoadmapMarkdown(roadmap);
+
+    expect(md).not.toContain('immediate impact');
+    expect(md).not.toContain('transformative results');
   });
 });

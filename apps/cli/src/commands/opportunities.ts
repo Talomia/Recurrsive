@@ -15,11 +15,13 @@ import { join } from 'node:path';
 import type { Command } from 'commander';
 import type { OpportunityCategory, OpportunityStatus, Opportunity } from '@recurrsive/core';
 import { OpportunityManager, type ExportFormat } from '@recurrsive/opportunities';
+import { PolicyEngine, BUILTIN_POLICIES } from '@recurrsive/policy';
 import { loadConfig } from '../config/loader.js';
 import {
   header,
   success,
   error,
+  warning,
   info,
   bold,
   cyan,
@@ -40,11 +42,15 @@ import {
 /**
  * Load the OpportunityManager from the saved opportunities file.
  *
+ * Exported so other commands (e.g. `recurrsive policy check`) evaluate the
+ * SAME persisted opportunity set instead of a freshly-constructed empty
+ * manager.
+ *
  * @param projectRoot - The project root directory.
  * @param outputDir - The .recurrsive output directory name.
  * @returns Loaded OpportunityManager or null if no data.
  */
-async function loadOpportunities(
+export async function loadOpportunities(
   projectRoot: string,
   outputDir: string,
 ): Promise<OpportunityManager | null> {
@@ -80,6 +86,41 @@ async function saveOpportunities(
 }
 
 /**
+ * Build the policy engine used by every CLI policy consumer: the built-in
+ * policy sets plus any custom policy JSON files in
+ * `<projectRoot>/<outputDir>/policies/`.
+ *
+ * Custom-policy load failures are surfaced as warnings and never widen the
+ * effective policy surface: the built-ins always remain active (fail closed —
+ * a broken custom file is skipped and reported, not silently loaded).
+ *
+ * @param projectRoot - The project root directory.
+ * @param outputDir - The .recurrsive output directory name.
+ * @returns A policy engine seeded with builtin + loaded policy sets.
+ */
+export async function buildPolicyEngine(
+  projectRoot: string,
+  outputDir: string,
+): Promise<PolicyEngine> {
+  const engine = new PolicyEngine(BUILTIN_POLICIES);
+  const policyDir = join(projectRoot, outputDir, 'policies');
+  if (existsSync(policyDir)) {
+    try {
+      const result = await engine.loadFromDirectory(policyDir);
+      for (const err of result.errors) {
+        warning(`Custom policy skipped: ${err}`);
+      }
+    } catch (err) {
+      warning(
+        `Failed to load custom policies from ${policyDir}: ` +
+          `${err instanceof Error ? err.message : String(err)} (built-in policies remain active)`,
+      );
+    }
+  }
+  return engine;
+}
+
+/**
  * Format an opportunity for detailed display.
  *
  * @param opp - The opportunity to format.
@@ -109,12 +150,42 @@ function printDetail(opp: Opportunity): void {
   header('Expected Impact');
   console.log(`  ${opp.expected_impact.summary}`);
   if (opp.expected_impact.metrics.length > 0) {
-    console.log('');
-    for (const metric of opp.expected_impact.metrics) {
-      const change = metric.change_percent
-        ? ` (${metric.direction === 'decrease' ? '' : '+'}${metric.change_percent}%)`
-        : '';
-      console.log(`  • ${metric.name}: ${metric.current_value ?? '?'} → ${metric.expected_value ?? '?'}${change}`);
+    // Same measured-vs-estimate partition as the markdown exporter: a metric
+    // is a genuine measured before/after ONLY when it carries a measured
+    // current_value and is not flagged as an estimate. Everything else is a
+    // projection and must be labelled as such — never rendered as a false
+    // before/after.
+    const isMeasured = (m: (typeof opp.expected_impact.metrics)[number]): boolean =>
+      m.current_value !== undefined && m.current_value !== '' && m.is_estimate !== true;
+    const measured = opp.expected_impact.metrics.filter(isMeasured);
+    const estimates = opp.expected_impact.metrics.filter((m) => !isMeasured(m));
+
+    if (measured.length > 0) {
+      console.log('');
+      console.log(`  ${bold('Measured metrics:')}`);
+      for (const metric of measured) {
+        // A change_percent of 0 is a legitimate value; only skip when absent.
+        // Negative values keep their own sign — only positives get a '+'.
+        const change = metric.change_percent !== undefined
+          ? ` (${metric.change_percent > 0 ? '+' : ''}${metric.change_percent}%)`
+          : '';
+        console.log(`  • ${metric.name}: ${metric.current_value} → ${metric.expected_value ?? '?'}${change}`);
+      }
+    }
+
+    if (estimates.length > 0) {
+      console.log('');
+      console.log(`  ${bold('Projected metrics')} ${dim('(estimates — not measured)')}:`);
+      for (const metric of estimates) {
+        const target = metric.expected_value !== undefined ? ` → ${metric.expected_value}` : '';
+        const direction = metric.direction ? ` (${metric.direction})` : '';
+        console.log(`  • ${metric.name} ${dim('(estimate)')}${target}${direction}`);
+        if (metric.assumptions && metric.assumptions.length > 0) {
+          for (const assumption of metric.assumptions) {
+            console.log(`      ${dim(`assumes: ${assumption}`)}`);
+          }
+        }
+      }
     }
   }
   if (opp.expected_impact.affected_services.length > 0) {
@@ -215,6 +286,10 @@ export function registerOpportunitiesCommand(program: Command): void {
     .option('--accept <id>', 'Accept an opportunity')
     .option('--reject <id>', 'Reject an opportunity')
     .option('--reason <reason>', 'Reason for accept/reject')
+    .option(
+      '--force',
+      'Explicitly approve an accept that policy marks require_approval (recorded; does NOT bypass block)',
+    )
     .option('--export <format>', 'Export to json/markdown/sarif')
     .option('--json', 'Output as JSON to stdout (for scripting)')
     .action(
@@ -226,6 +301,7 @@ export function registerOpportunitiesCommand(program: Command): void {
         accept?: string;
         reject?: string;
         reason?: string;
+        force?: boolean;
         export?: string;
         json?: boolean;
       }) => {
@@ -252,11 +328,38 @@ export function registerOpportunitiesCommand(program: Command): void {
         // ── Accept/Reject ──────────────────────────────────────────
         if (opts.accept) {
           try {
-            const opp = manager.updateStatus(
-              opts.accept,
-              'accepted',
-              opts.reason ?? 'Accepted via CLI',
-            );
+            // Policy gate: the accept transition must consult the policy
+            // engine. A `block` verdict is final (even with --force);
+            // `require_approval` demands an explicit --force, which is
+            // recorded in the decision reason.
+            let reason = opts.reason ?? 'Accepted via CLI';
+            const target = manager.get(opts.accept);
+            if (target) {
+              const engine = await buildPolicyEngine(projectRoot, config.output.directory);
+              const verdict = engine.passes(target);
+              if (verdict.effectiveAction === 'block') {
+                const detail = verdict.violations[0]?.message ?? 'a policy rule blocks this transition';
+                error(
+                  `Cannot accept "${target.title}": blocked by policy — ${detail}`,
+                );
+                process.exitCode = 1;
+                return;
+              }
+              if (verdict.effectiveAction === 'require_approval') {
+                if (!opts.force) {
+                  const detail = verdict.violations[0]?.message ?? 'policy requires manual approval';
+                  error(
+                    `Cannot accept "${target.title}" without explicit approval — ${detail} ` +
+                      `Re-run with --force to approve (the override is recorded).`,
+                  );
+                  process.exitCode = 1;
+                  return;
+                }
+                reason = `${reason} [policy override: require_approval approved via --force]`;
+              }
+            }
+
+            const opp = manager.updateStatus(opts.accept, 'accepted', reason);
             await saveOpportunities(manager, projectRoot, config.output.directory);
             success(`Accepted: ${bold(opp.title)}`);
           } catch (err: unknown) {
