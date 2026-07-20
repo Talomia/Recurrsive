@@ -112,8 +112,8 @@ export default function FindingDetailPage() {
       });
       setFinding((prev) => prev ? { ...prev, status: 'resolved' } : prev);
       toast('Finding marked as resolved.', 'success');
-    } catch {
-      setError('Failed to resolve finding.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to resolve finding.');
       toast('Failed to resolve finding.', 'error');
     } finally {
       setActionLoading(null);
@@ -129,8 +129,8 @@ export default function FindingDetailPage() {
       });
       setFinding((prev) => prev ? { ...prev, status: 'suppressed' } : prev);
       toast('Finding suppressed.', 'info');
-    } catch {
-      setError('Failed to suppress finding.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to suppress finding.');
       toast('Failed to suppress finding.', 'error');
     } finally {
       setActionLoading(null);
@@ -150,8 +150,8 @@ export default function FindingDetailPage() {
       setShowAssign(false);
       setAssignInput('');
       toast(`Finding assigned to ${assignee}.`, 'success');
-    } catch {
-      setError('Failed to assign finding.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to assign finding.');
       toast('Failed to assign finding.', 'error');
     } finally {
       setActionLoading(null);

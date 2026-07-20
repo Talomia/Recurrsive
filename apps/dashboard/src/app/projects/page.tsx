@@ -308,8 +308,8 @@ export default function ProjectsPage() {
     try {
       await triggerAnalysis(project.repository, project.id);
       toast(`Analysis started for "${project.name}". Open the project to watch live progress.`, 'success');
-    } catch {
-      toast(`Failed to start analysis for "${project.name}".`, 'error');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : `Failed to start analysis for "${project.name}".`, 'error');
     } finally {
       setAnalyzingIds(prev => {
         const next = new Set(prev);
@@ -333,8 +333,8 @@ export default function ProjectsPage() {
     try {
       await createBatchRun({ projects: targets });
       toast(`Batch analysis started for ${targets.length} project${targets.length !== 1 ? 's' : ''}. Check the Batch page for progress.`, 'success');
-    } catch {
-      toast('Failed to start batch analysis.', 'error');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Failed to start batch analysis.', 'error');
     }
   }, [projects, toast]);
 

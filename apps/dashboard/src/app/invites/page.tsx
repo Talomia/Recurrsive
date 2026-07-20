@@ -173,8 +173,8 @@ export default function InvitesPage() {
       await fetchInvites();
       toast(`Invite for ${cancelTarget.email} cancelled.`, 'info');
       setCancelTarget(null);
-    } catch {
-      setError('Failed to cancel invite.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to cancel invite.');
       toast('Failed to cancel invite.', 'error');
     } finally {
       setCancelling(false);

@@ -88,8 +88,8 @@ export default function IntelligencePacksPage() {
       });
       setPacks(prev => prev.map(p => p.id === pack.id ? { ...p, status: 'installed' } : p));
       toast(`${pack.name} installed.`, 'success');
-    } catch {
-      toast(`Failed to install ${pack.name}.`, 'error');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : `Failed to install ${pack.name}.`, 'error');
     }
   };
 

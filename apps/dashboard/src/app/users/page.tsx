@@ -287,8 +287,8 @@ export default function UsersPage() {
       setEditUser(null);
       await fetchUsers();
       toast(`Role updated for "${name}".`, 'success');
-    } catch {
-      setError('Failed to save user.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update role.');
       toast('Failed to update role.', 'error');
     } finally {
       setEditLoading(false);
@@ -319,8 +319,8 @@ export default function UsersPage() {
       setDeleteTarget(null);
       await fetchUsers();
       toast(`User "${name}" deleted.`, 'info');
-    } catch {
-      setError('Failed to delete user.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete user.');
       toast('Failed to delete user.', 'error');
     } finally {
       setDeleteLoading(false);
@@ -360,8 +360,8 @@ export default function UsersPage() {
       await fetchInvites();
       toast(`Invite for ${email} cancelled.`, 'info');
       setCancelInviteTarget(null);
-    } catch {
-      setInvitesError('Failed to cancel invite.');
+    } catch (e) {
+      setInvitesError(e instanceof Error ? e.message : 'Failed to cancel invite.');
       toast('Failed to cancel invite.', 'error');
     } finally {
       setCancelInviteLoading(false);
