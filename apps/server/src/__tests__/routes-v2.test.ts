@@ -1578,7 +1578,7 @@ describe ('Scheduling endpoints', () => {
     expect(body.data.scheduleId).toBe(firstSchedule.id);
   });
 
-  it ('scheduled run download URL points to a real, downloadable route', async () => {
+  it ('scheduled run advertises a real download route (or none when no artifact)', async () => {
     const listRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/schedules' });
     const firstSchedule = listRes.json().data[0];
     const runRes = await app.inject({
@@ -1589,16 +1589,37 @@ describe ('Scheduling endpoints', () => {
     expect(runRes.statusCode).toBe(200);
     const run = runRes.json().data;
     // Regression: runs used to advertise `/api/v1/reports/export/:id`, which
-    // had no route and always 404'd. A completed run must now expose a working
-    // download; a run with no analysis data honestly has no artifact.
+    // had no route and always 404'd. The URL, when present, must be the real
+    // route; a run with no analysis data honestly has no downloadUrl.
     if (run.downloadUrl) {
       expect(run.downloadUrl).toMatch(/^\/api\/v1\/schedules\/runs\/.+\/download$/);
-      const dl = await app.inject({ headers: authHeaders, method: 'GET', url: run.downloadUrl });
-      expect(dl.statusCode).toBe(200);
-      expect(dl.body.length).toBeGreaterThan(0);
     } else {
       expect(run.status).not.toBe('completed');
     }
+  });
+
+  it ('GET /api/v1/schedules/runs/:runId/download serves the persisted artifact', async () => {
+    // Deterministically exercise the happy path (the suite runs with state
+    // uninitialized, so a triggered run never completes): seed a completed run
+    // and its artifact directly, then confirm the download returns the content.
+    const { store } = await import('../store.js');
+    const runId = 'dl-test-run-1';
+    await store.set('schedule_runs', runId, {
+      id: runId, scheduleId: 's1', status: 'completed', format: 'markdown',
+      startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:01.000Z',
+      durationMs: 1000, sizeBytes: 15, downloadUrl: `/api/v1/schedules/runs/${runId}/download`, error: null,
+    });
+    await store.set('schedule_run_content', runId, { content: '# Scheduled Report\n', format: 'markdown' });
+
+    const dl = await app.inject({ headers: authHeaders, method: 'GET', url: `/api/v1/schedules/runs/${runId}/download` });
+    expect(dl.statusCode).toBe(200);
+    expect(dl.headers['content-type']).toContain('text/markdown');
+    expect(dl.headers['content-disposition']).toContain('attachment');
+    expect(dl.body).toContain('# Scheduled Report');
+
+    // Unknown run id → honest 404.
+    const missing = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/schedules/runs/does-not-exist/download' });
+    expect(missing.statusCode).toBe(404);
   });
 
 
