@@ -1578,6 +1578,29 @@ describe ('Scheduling endpoints', () => {
     expect(body.data.scheduleId).toBe(firstSchedule.id);
   });
 
+  it ('scheduled run download URL points to a real, downloadable route', async () => {
+    const listRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/schedules' });
+    const firstSchedule = listRes.json().data[0];
+    const runRes = await app.inject({
+      headers: authHeaders,
+      method: 'POST',
+      url: `/api/v1/schedules/${firstSchedule.id}/run`,
+    });
+    expect(runRes.statusCode).toBe(200);
+    const run = runRes.json().data;
+    // Regression: runs used to advertise `/api/v1/reports/export/:id`, which
+    // had no route and always 404'd. A completed run must now expose a working
+    // download; a run with no analysis data honestly has no artifact.
+    if (run.downloadUrl) {
+      expect(run.downloadUrl).toMatch(/^\/api\/v1\/schedules\/runs\/.+\/download$/);
+      const dl = await app.inject({ headers: authHeaders, method: 'GET', url: run.downloadUrl });
+      expect(dl.statusCode).toBe(200);
+      expect(dl.body.length).toBeGreaterThan(0);
+    } else {
+      expect(run.status).not.toBe('completed');
+    }
+  });
+
 
   it ('GET /api/v1/schedules/:id returns schedule details', async () => {
     const listRes = await app.inject({ headers: authHeaders, method: 'GET', url: '/api/v1/schedules' });

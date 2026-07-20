@@ -221,8 +221,11 @@ async function executeScheduledRun(schedule: ScheduledReport): Promise<ReportRun
     run.completedAt = completedAt;
     run.durationMs = durationMs;
     run.sizeBytes = Buffer.byteLength(reportContent, 'utf-8');
-    run.downloadUrl = `/api/v1/reports/export/${runId}`;
+    run.downloadUrl = `/api/v1/schedules/runs/${runId}/download`;
     await store.set('schedule_runs', runId, run);
+    // Persist the generated artifact separately (keyed by runId) so the
+    // download route can serve it, without bloating the listed run records.
+    await store.set('schedule_run_content', runId, { content: reportContent, format });
 
     // Update schedule metadata
     schedule.lastRunAt = completedAt;
@@ -461,4 +464,51 @@ export async function registerSchedulingRoutes(app: FastifyInstance): Promise<vo
     );
     return reply.send({ data: sorted, total: sorted.length });
   });
+
+  // Download the artifact produced by a completed scheduled report run.
+  // (Previously runs advertised `/api/v1/reports/export/:id`, which had no
+  // route and always 404'd; the generated content is now persisted per run.)
+  app.get<{ Params: { runId: string } }>(
+    '/api/v1/schedules/runs/:runId/download',
+    { preHandler: [authMiddleware] },
+    async (request, reply) => {
+      const { runId } = request.params;
+      const run = await store.get<ReportRun>('schedule_runs', runId);
+      if (!run) {
+        return reply.status(404).send({
+          error: 'Not Found',
+          message: `No scheduled report run "${runId}".`,
+          statusCode: 404,
+        });
+      }
+      const artifact = await store.get<{ content: string; format: ReportFormat }>(
+        'schedule_run_content',
+        runId,
+      );
+      if (!artifact) {
+        return reply.status(404).send({
+          error: 'Not Found',
+          message:
+            run.status === 'completed'
+              ? `The report artifact for run "${runId}" is no longer available.`
+              : `Run "${runId}" produced no downloadable report (status: ${run.status}).`,
+          statusCode: 404,
+        });
+      }
+      const meta: Record<string, { type: string; ext: string }> = {
+        html: { type: 'text/html; charset=utf-8', ext: 'html' },
+        markdown: { type: 'text/markdown; charset=utf-8', ext: 'md' },
+        json: { type: 'application/json; charset=utf-8', ext: 'json' },
+        sarif: { type: 'application/json; charset=utf-8', ext: 'sarif.json' },
+      };
+      const m = meta[artifact.format] ?? { type: 'text/plain; charset=utf-8', ext: 'txt' };
+      return reply
+        .header('Content-Type', m.type)
+        .header(
+          'Content-Disposition',
+          `attachment; filename="recurrsive-scheduled-report-${runId}.${m.ext}"`,
+        )
+        .send(artifact.content);
+    },
+  );
 }
