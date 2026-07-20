@@ -279,8 +279,8 @@ export default function ProjectsPage() {
       toast(`Project "${data.name}" created. Click "Analyze" to run your first analysis.`, 'success');
       // Keep the global project switcher (sidebar/header) in sync.
       void refreshActiveProjects();
-    } catch {
-      toast('Failed to create project.', 'error');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Failed to create project.', 'error');
     } finally {
       setCreating(false);
     }
@@ -296,8 +296,8 @@ export default function ProjectsPage() {
       setDeleteTarget(null);
       // Keep the global project switcher (sidebar/header) in sync.
       void refreshActiveProjects();
-    } catch {
-      toast('Failed to delete project.', 'error');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Failed to delete project.', 'error');
     } finally {
       setDeleting(false);
     }

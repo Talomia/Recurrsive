@@ -35,9 +35,11 @@ export default function OpportunityActions({ opportunityId }: { opportunityId: s
       );
       // Re-run the server component so the persisted status is reflected.
       startTransition(() => router.refresh());
-    } catch {
+    } catch (e) {
       toast(
-        `Failed to ${decision === 'accepted' ? 'accept' : 'dismiss'} opportunity.`,
+        e instanceof Error
+          ? e.message
+          : `Failed to ${decision === 'accepted' ? 'accept' : 'dismiss'} opportunity.`,
         'error',
       );
     } finally {

@@ -27,8 +27,12 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly statusText: string,
     public readonly path: string,
+    /** Server-provided error message (from the response body), when present. */
+    public readonly detail?: string,
   ) {
-    super(`API ${status} ${statusText} — ${path}`);
+    // Prefer the server's specific message (e.g. "Repository URL is not
+    // allowed") for display; fall back to the HTTP status line otherwise.
+    super(detail?.trim() ? detail.trim() : `API ${status} ${statusText} — ${path}`);
     this.name = 'ApiError';
   }
 }
@@ -124,7 +128,18 @@ export async function apiFetch<T>(
         }
       }
     }
-    throw new ApiError(res.status, res.statusText, path);
+    // Surface the server's specific error message (envelope `message`/`error`)
+    // so callers can show *why* a request failed, not just the status code.
+    let detail: string | undefined;
+    try {
+      const errBody = await res.json();
+      if (errBody && typeof errBody === 'object') {
+        detail = (errBody.message as string) || (errBody.error as string) || undefined;
+      }
+    } catch {
+      // Non-JSON error body (HTML/empty) — fall back to the status line.
+    }
+    throw new ApiError(res.status, res.statusText, path, detail);
   }
 
   if (res.status === 204) {
