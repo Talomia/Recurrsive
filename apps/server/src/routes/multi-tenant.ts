@@ -1,21 +1,32 @@
 /**
  * @module @recurrsive/server/routes/multi-tenant
  *
- * Multi-tenant deployment model routes.
+ * Tenant management routes (enterprise).
  *
- * Provides tenant isolation, resource quotas, tenant-scoped data access,
- * and tenant management. Each tenant gets isolated namespaces for
- * projects, findings, and configurations.
+ * Provides CRUD for tenant records — name, tier, status, resource quotas,
+ * and owner — plus per-tenant quota/usage reporting. This is tenant
+ * *administration*; it does NOT enforce cross-tenant data isolation.
+ *
+ * Scope of "multi-tenant" today: users are not bound to a tenant (the JWT
+ * carries no tenantId) and domain records (projects, findings, configs) are
+ * not tagged with a tenant. Recurrsive's core model is a single shared team
+ * workspace governed by role-based access control (admin > analyst > viewer):
+ * every authenticated user sees the same shared projects and findings, gated
+ * by role — not partitioned by tenant. The tenant records managed here are
+ * organizational metadata (tiers/quotas/owner), not an isolation boundary.
+ *
+ * True principal-level tenant isolation (bind each record to a tenant and
+ * verify the caller's tenant membership on every read/mutation) first
+ * requires modelling user⇄tenant membership, and is intentionally out of
+ * scope here — tracked as a dedicated multi-tenancy initiative. Until then,
+ * do NOT rely on these routes for data isolation.
  *
  * @packageDocumentation
  */
 
-// SECURITY TODO(multi-tenant): Tenant-scoped records are not actually isolated
-// by principal — records lack an enforced owner/tenant membership check, so any
-// authenticated user can read (and act on) data across all tenants despite the
-// "tenant isolation" described above. Object-level authorization (bind every
-// record to a tenant + verify the caller's tenant membership on every read and
-// mutation) is deferred to a dedicated multi-tenancy batch.
+// SECURITY NOTE(multi-tenant): see the module doc above — tenant records are
+// administrative metadata only; they are not an enforced isolation boundary,
+// because users have no tenant membership and domain records carry no tenantId.
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';

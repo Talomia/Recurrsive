@@ -10,11 +10,17 @@
  * @packageDocumentation
  */
 
-// SECURITY TODO(multi-tenant): Project records have no ownerId/tenantId field
-// and reads/writes are not filtered by principal — any authenticated user can
-// read (and analysts mutate) every project across all tenants. Object-level
-// authorization (add owner/tenant to each record + filter every read/mutation)
-// is deferred to a dedicated multi-tenancy batch.
+// ACCESS MODEL(projects): projects are a SHARED team resource. Every
+// authenticated user sees the same projects; write access is gated by role
+// (admin/analyst mutate, viewer read-only) via requireRole below — not by
+// per-record ownership. This shared-workspace + RBAC model is intentional for
+// a team tool, NOT a missing check.
+//
+// Object-level (per-tenant) isolation is deliberately NOT implemented here:
+// records carry no tenantId and users have no tenant membership (the JWT has
+// no tenantId), so there is nothing to filter against. Adding real tenant
+// isolation is a dedicated multi-tenancy initiative (model user⇄tenant
+// membership first) — see routes/multi-tenant.ts.
 
 import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
