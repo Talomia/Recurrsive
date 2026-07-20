@@ -156,7 +156,7 @@ export default function SecretsPage() {
       {/* Create Secret Form */}
       {showCreate && (
         <div className="glass-card rounded-2xl p-5">
-          <h2 className="text-base font-semibold text-text-primary mb-3">Create New Secret</h2>
+          <h2 className="text-base font-semibold text-text-primary mb-3">New Secret</h2>
           <div className="grid grid-cols-2 gap-3">
             <input placeholder="Secret Key (e.g. API_KEY)" aria-label="Secret Key" value={newKey} onChange={e => setNewKey(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
             <input placeholder="Secret Value" aria-label="Secret Value" type="password" value={newValue} onChange={e => setNewValue(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />

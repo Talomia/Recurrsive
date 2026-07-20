@@ -192,7 +192,7 @@ export default function SchedulingPage() {
       {/* Create Form */}
       {showCreate && (
         <div className="glass-card rounded-2xl p-5">
-          <h2 className="text-base font-semibold text-text-primary mb-3">Create New Schedule</h2>
+          <h2 className="text-base font-semibold text-text-primary mb-3">New Schedule</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input placeholder="Schedule Name" aria-label="Schedule Name" value={newName} onChange={e => setNewName(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />
             <input placeholder="Cron Expression (e.g. 0 9 * * 1)" aria-label="Cron Expression" value={newCron} onChange={e => setNewCron(e.target.value)} className="px-3 py-2 rounded-lg text-sm font-mono" style={{ background: 'var(--color-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }} />

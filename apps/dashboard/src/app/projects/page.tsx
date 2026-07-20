@@ -397,7 +397,7 @@ export default function ProjectsPage() {
           className="glass-card rounded-2xl p-5"
           onSubmit={(e) => { e.preventDefault(); void createProject(); }}
         >
-          <h2 className="text-base font-semibold text-text-primary mb-3">Create New Project</h2>
+          <h2 className="text-base font-semibold text-text-primary mb-3">New Project</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               placeholder="Project Name (e.g. My Backend API)"

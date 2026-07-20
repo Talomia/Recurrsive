@@ -128,7 +128,7 @@ export default function ConfidencePage() {
           icon={Target}
           title="No confidence data yet"
           description="Run an analysis to start tracking prediction accuracy and calibration metrics. Once predictions have known outcomes, this page shows how well-calibrated they are."
-          action={{ label: 'Run an Analysis', href: '/projects', icon: Play }}
+          action={{ label: 'Run Analysis', href: '/projects', icon: Play }}
         />
       </div>
     );

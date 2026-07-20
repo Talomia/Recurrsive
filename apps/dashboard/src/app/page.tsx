@@ -397,7 +397,7 @@ function WorkspaceOverview() {
       <Header
         title="Overview"
         subtitle={`Workspace portfolio — ${projects.length} project${projects.length !== 1 ? 's' : ''}, ${analyzed.length} analyzed`}
-        primaryAction={{ label: 'Analyze a Repository', href: '/projects', icon: Play }}
+        primaryAction={{ label: 'Run Analysis', href: '/projects', icon: Play }}
       />
 
       <div className="flex-1 p-6 space-y-6 stagger-children">
@@ -449,7 +449,7 @@ function WorkspaceOverview() {
               <ErrorBanner message={stats.error} onRetry={() => void load()} compact />
             ) : !stats.data || analyzed.length === 0 ? (
               <div className="flex-1 flex flex-col items-start justify-center gap-2">
-                <p className="text-sm font-medium text-text-secondary">Nothing scanned yet</p>
+                <p className="text-sm font-medium text-text-secondary">Nothing analyzed yet</p>
                 <p className="text-xs text-text-muted">Findings appear here after your first analysis.</p>
               </div>
             ) : stats.data.openFindings === 0 ? (
@@ -734,7 +734,7 @@ function SeverityBreakdownCard({
 
 function QuickActionsCard({ projectId }: { projectId: string }) {
   const actions = [
-    { label: 'Run analysis', description: 'Re-analyze this project', href: `/projects/${encodeURIComponent(projectId)}`, icon: Play, color: 'text-blue-400' },
+    { label: 'Run Analysis', description: 'Re-analyze this project', href: `/projects/${encodeURIComponent(projectId)}`, icon: Play, color: 'text-blue-400' },
     { label: 'Review findings', description: 'Security and quality issues', href: scopedHref('/findings', projectId), icon: ShieldAlert, color: 'text-amber-400' },
     { label: 'Review opportunities', description: 'Prioritized improvements', href: scopedHref('/opportunities', projectId), icon: Lightbulb, color: 'text-purple-400' },
     { label: 'Explore system map', description: 'Architecture and dependencies', href: scopedHref('/system-map', projectId), icon: Network, color: 'text-cyan-400' },
