@@ -125,7 +125,7 @@ function WelcomeState({ projectCount }: { projectCount: number }) {
     <div className="flex flex-col min-h-screen">
       <Header
         title="Overview"
-        subtitle="Evidence-backed system health, recommendations, and engineering intelligence"
+        subtitle="Evidence-backed system health, opportunities, and engineering intelligence"
       />
 
       <div className="flex-1 p-6 flex items-center justify-center">
@@ -187,7 +187,7 @@ function WelcomeState({ projectCount }: { projectCount: number }) {
                 <Play className={`w-4 h-4 ${hasProjects ? 'text-blue-400' : 'text-text-muted'}`} />
               </div>
               <h3 className="text-sm font-semibold text-text-primary mb-1">Run analysis</h3>
-              <p className="text-xs text-text-secondary">Scan for findings, health metrics, and opportunities</p>
+              <p className="text-xs text-text-secondary">Surface findings, health metrics, and opportunities</p>
             </div>
 
             <div className="rounded-2xl p-5 text-left border border-white/10 bg-white/[0.02] opacity-50">
@@ -1169,7 +1169,7 @@ function ProjectOverview({ projectId }: { projectId: string }) {
               />
             </div>
 
-            {/* Risk Assessment + Strategic Recommendations */}
+            {/* Risk Assessment + Top Opportunities */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Risk Panel */}
               <div className="glass-card rounded-2xl p-6">
@@ -1204,10 +1204,10 @@ function ProjectOverview({ projectId }: { projectId: string }) {
                 )}
               </div>
 
-              {/* Strategic Recommendations */}
+              {/* Top Opportunities */}
               <div className="lg:col-span-2 glass-card rounded-2xl p-6">
                 <h3 className="text-sm font-semibold text-text-primary mb-4">
-                  Strategic Recommendations
+                  Top Opportunities
                 </h3>
                 {opportunities.error ? (
                   <ErrorBanner message={opportunities.error} onRetry={() => void load()} compact />
@@ -1219,7 +1219,7 @@ function ProjectOverview({ projectId }: { projectId: string }) {
                       ))
                     ) : (
                       <div className="col-span-2 text-center py-8">
-                        <p className="text-sm text-text-secondary">No strategic recommendations available yet.</p>
+                        <p className="text-sm text-text-secondary">No opportunities available yet.</p>
                         <p className="text-xs text-text-tertiary mt-1">Run an analysis to generate intelligence.</p>
                       </div>
                     )}
@@ -1230,7 +1230,7 @@ function ProjectOverview({ projectId }: { projectId: string }) {
 
             {/* Findings Breakdown */}
             <div className="glass-card rounded-2xl p-6">
-              <h3 className="text-sm font-semibold text-text-primary mb-4">Findings Severity Distribution</h3>
+              <h3 className="text-sm font-semibold text-text-primary mb-4">Findings by Severity</h3>
               {findingsPage.error ? (
                 <ErrorBanner message={findingsPage.error} onRetry={() => void load()} compact />
               ) : (

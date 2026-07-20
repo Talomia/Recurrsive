@@ -319,7 +319,7 @@ export default function Sidebar() {
             ) : (
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted block mb-1 px-1">
-                  {scope === "project" ? "Project" : "Scope"}
+                  {scope === "project" ? "Project" : "Workspace"}
                 </span>
                 <button
                   onClick={() => setShowProjDropdown(!showProjDropdown)}
@@ -357,11 +357,11 @@ export default function Sidebar() {
                   <Search className="h-3.5 w-3.5 text-text-muted shrink-0" />
                   <input
                     type="text"
-                    placeholder="Filter repositories..."
+                    placeholder="Filter projects..."
                     value={projSearchQuery}
                     onChange={(e) => setProjSearchQuery(e.target.value)}
                     className="w-full bg-transparent border-none text-xs text-text-primary placeholder:text-text-muted outline-none"
-                    aria-label="Filter repositories"
+                    aria-label="Filter projects"
                   />
                 </div>
 

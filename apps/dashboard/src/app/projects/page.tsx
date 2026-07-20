@@ -166,7 +166,7 @@ function ProjectsEmptyState({ onCreateClick }: { onCreateClick: () => void }) {
       <EmptyState
         icon={FolderGit2}
         title="No projects yet"
-        description="Create your first project to start analyzing your codebase. Recurrsive will scan your repository for architecture insights, security findings, and improvement opportunities."
+        description="Create your first project to start analyzing your codebase. Recurrsive analyzes your repository for architecture insights, security findings, and improvement opportunities."
         action={{ label: 'Create Your First Project', onClick: onCreateClick, icon: Plus }}
       >
         <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-white/5 max-w-xl w-full">
@@ -357,7 +357,7 @@ export default function ProjectsPage() {
       <div className="space-y-6 p-6">
         <Header
           title="Projects"
-          subtitle="Manage your registered repositories and trigger analyses"
+          subtitle="Manage your projects and trigger analyses"
           primaryAction={headerAction}
         />
         <LoadingSkeleton variant="list" count={4} />
@@ -370,7 +370,7 @@ export default function ProjectsPage() {
       {/* Header — the primary journey action lives in the shared shell */}
       <Header
         title="Projects"
-        subtitle="Manage your registered repositories and trigger analyses"
+        subtitle="Manage your projects and trigger analyses"
         primaryAction={headerAction}
       />
       {projects.length > 0 && (
