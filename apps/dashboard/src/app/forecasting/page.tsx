@@ -477,7 +477,7 @@ export default function ForecastingPage() {
               {totalPredictions === 0 && calibration.length === 0 && analyzers.length === 0 ? (
                 <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                   <Target className="w-12 h-12 mx-auto text-text-tertiary mb-4" />
-                  <h3 className="text-lg font-medium text-text-primary mb-2">No Confidence Data Yet</h3>
+                  <h3 className="text-lg font-medium text-text-primary mb-2">No confidence data yet</h3>
                   <p className="text-text-secondary text-sm">Run an analysis to start tracking prediction accuracy and calibration metrics.</p>
                 </div>
               ) : (

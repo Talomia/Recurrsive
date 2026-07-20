@@ -68,7 +68,7 @@ export default function SimulationPage() {
       toast(`${newType} simulation launched.`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create simulation');
-      toast('Failed to launch simulation. Please try again.', 'error');
+      toast('Failed to launch simulation.', 'error');
     } finally {
       setCreating(false);
     }

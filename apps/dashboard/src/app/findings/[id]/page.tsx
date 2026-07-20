@@ -114,7 +114,7 @@ export default function FindingDetailPage() {
       toast('Finding marked as resolved.', 'success');
     } catch {
       setError('Failed to resolve finding.');
-      toast('Failed to resolve finding. Please try again.', 'error');
+      toast('Failed to resolve finding.', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -131,7 +131,7 @@ export default function FindingDetailPage() {
       toast('Finding suppressed.', 'info');
     } catch {
       setError('Failed to suppress finding.');
-      toast('Failed to suppress finding. Please try again.', 'error');
+      toast('Failed to suppress finding.', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -152,7 +152,7 @@ export default function FindingDetailPage() {
       toast(`Finding assigned to ${assignee}.`, 'success');
     } catch {
       setError('Failed to assign finding.');
-      toast('Failed to assign finding. Please try again.', 'error');
+      toast('Failed to assign finding.', 'error');
     } finally {
       setActionLoading(null);
     }

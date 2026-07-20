@@ -37,7 +37,7 @@ export default function OpportunityActions({ opportunityId }: { opportunityId: s
       startTransition(() => router.refresh());
     } catch {
       toast(
-        `Failed to ${decision === 'accepted' ? 'accept' : 'dismiss'} opportunity. Please try again.`,
+        `Failed to ${decision === 'accepted' ? 'accept' : 'dismiss'} opportunity.`,
         'error',
       );
     } finally {

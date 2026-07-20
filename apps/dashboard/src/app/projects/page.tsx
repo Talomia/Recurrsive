@@ -280,7 +280,7 @@ export default function ProjectsPage() {
       // Keep the global project switcher (sidebar/header) in sync.
       void refreshActiveProjects();
     } catch {
-      toast('Failed to create project. Please try again.', 'error');
+      toast('Failed to create project.', 'error');
     } finally {
       setCreating(false);
     }
@@ -297,7 +297,7 @@ export default function ProjectsPage() {
       // Keep the global project switcher (sidebar/header) in sync.
       void refreshActiveProjects();
     } catch {
-      toast('Failed to delete project. Please try again.', 'error');
+      toast('Failed to delete project.', 'error');
     } finally {
       setDeleting(false);
     }

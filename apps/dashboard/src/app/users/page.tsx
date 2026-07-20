@@ -288,7 +288,7 @@ export default function UsersPage() {
       await fetchUsers();
       toast(`Role updated for "${name}".`, 'success');
     } catch {
-      setError('Failed to save user. Please try again.');
+      setError('Failed to save user.');
       toast('Failed to update role.', 'error');
     } finally {
       setEditLoading(false);
@@ -305,7 +305,7 @@ export default function UsersPage() {
       await fetchUsers();
       toast(`User "${u.username}" ${disabling ? 'disabled' : 'enabled'}.`, 'success');
     } catch {
-      setError('Failed to toggle user status. Please try again.');
+      setError('Failed to toggle user status.');
       toast(`Failed to ${disabling ? 'disable' : 'enable'} user.`, 'error');
     }
   }
@@ -320,7 +320,7 @@ export default function UsersPage() {
       await fetchUsers();
       toast(`User "${name}" deleted.`, 'info');
     } catch {
-      setError('Failed to delete user. Please try again.');
+      setError('Failed to delete user.');
       toast('Failed to delete user.', 'error');
     } finally {
       setDeleteLoading(false);
@@ -474,7 +474,7 @@ export default function UsersPage() {
                 <div className="rounded-2xl bg-blue-500/10 p-4 mb-4">
                   <UsersIcon className="h-8 w-8 text-blue-400" />
                 </div>
-                <h3 className="text-sm font-medium text-text-primary mb-1">No Users Found</h3>
+                <h3 className="text-sm font-medium text-text-primary mb-1">No users found</h3>
                 <p className="text-xs text-text-tertiary max-w-xs">
                   Add your first user to get started with the platform.
                 </p>

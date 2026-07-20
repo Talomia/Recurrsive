@@ -351,7 +351,7 @@ export default function ExperimentsPage() {
       toast(`Experiment "${name}" created.`, 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create experiment');
-      toast('Failed to create experiment. Please try again.', 'error');
+      toast('Failed to create experiment.', 'error');
     } finally {
       setCreating(false);
     }
