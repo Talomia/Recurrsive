@@ -121,7 +121,7 @@ function parseCronField(field: string, min: number, max: number): number[] {
  * Compute the next run time from a standard 5-field cron expression.
  * Fields: minute hour day-of-month month day-of-week
  */
-function nextCronRun(cron: string): string {
+export function nextCronRun(cron: string): string {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) {
     // Invalid cron — fall back to 1 hour from now
@@ -147,7 +147,22 @@ function nextCronRun(cron: string): string {
     const dow = d.getDay();
 
     if (!months.includes(month)) continue;
-    if (!daysOfMonth.includes(dom) && !daysOfWeek.includes(dow)) continue;
+    // Standard cron day matching: when BOTH day-of-month and day-of-week are
+    // restricted (neither is "*"), the day matches if EITHER matches (OR);
+    // when only one is restricted, only that field applies; when both are "*",
+    // every day matches. `parseCronField('*')` expands to the full set, so we
+    // must consult the raw fields to know which were actually restricted —
+    // otherwise a "*" field always "matches" and every schedule fires daily.
+    const domRestricted = parts[2] !== '*';
+    const dowRestricted = parts[4] !== '*';
+    const domMatch = daysOfMonth.includes(dom);
+    const dowMatch = daysOfWeek.includes(dow);
+    const dayMatches =
+      domRestricted && dowRestricted ? domMatch || dowMatch
+        : domRestricted ? domMatch
+          : dowRestricted ? dowMatch
+            : true;
+    if (!dayMatches) continue;
 
     for (const hour of hours) {
       for (const minute of minutes) {

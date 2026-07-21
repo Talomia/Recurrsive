@@ -16,7 +16,7 @@ import type { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import { registerClient, createBroadcast } from './events.js';
 import { state } from '../state.js';
-import { verifyToken } from '../middleware/auth.js';
+import { verifyToken, isTokenRevoked } from '../middleware/auth.js';
 import { createLogger } from '@recurrsive/core';
 
 const logger = createLogger({ context: { component: 'server:ws' } });
@@ -49,7 +49,7 @@ export async function registerWebSocket(app: FastifyInstance): Promise<void> {
   state.setWSBroadcast(createBroadcast());
 
   // Register the WebSocket route with auth verification
-  app.get('/ws', { websocket: true }, (socket, request) => {
+  app.get('/ws', { websocket: true }, async (socket, request) => {
     // Extract token from query parameter
     const url = new URL(request.url, `http://${request.hostname}`);
     const token = url.searchParams.get('token');
@@ -64,6 +64,14 @@ export async function registerWebSocket(app: FastifyInstance): Promise<void> {
     if (!payload) {
       logger.warn('WebSocket connection rejected: invalid token');
       socket.close(4001, 'Authentication failed — invalid or expired token');
+      return;
+    }
+
+    // Honor logout/revocation: a revoked-but-not-yet-expired token must not
+    // open a live event stream (REST checks this; WS previously did not).
+    if (await isTokenRevoked(payload.jti)) {
+      logger.warn('WebSocket connection rejected: revoked token');
+      socket.close(4001, 'Authentication failed — token revoked');
       return;
     }
 

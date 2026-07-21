@@ -112,7 +112,12 @@ export async function registerAnalysisRoutes(app: FastifyInstance): Promise<void
     const resolvedPath = path.resolve(effectivePath);
     const envPrefixes = process.env['RECURRSIVE_ALLOWED_PATHS']?.split(',').map(p => p.trim()).filter(Boolean);
     const ALLOWED_PREFIXES = envPrefixes ?? ['/app', '/tmp/recurrsive-repos/'];
-    const isSafePath = ALLOWED_PREFIXES.some((prefix) => resolvedPath.startsWith(prefix));
+    // Match on a path-segment boundary so an allowed prefix like `/app` does
+    // NOT also admit sibling dirs such as `/app-private` or `/apphacks`.
+    const isSafePath = ALLOWED_PREFIXES.some((prefix) => {
+      const base = prefix.endsWith(path.sep) ? prefix.slice(0, -1) : prefix;
+      return resolvedPath === base || resolvedPath.startsWith(base + path.sep);
+    });
     if (!isSafePath) {
       state.markAnalysisError('Path not allowed');
       if (clonedDir) await state.cleanupClone(clonedDir);

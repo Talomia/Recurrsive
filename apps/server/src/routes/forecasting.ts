@@ -479,14 +479,19 @@ export async function registerForecastingRoutes(app: FastifyInstance): Promise<v
           });
         }
 
-        const points = timeline.map((p, i) => ({ x: i, y: p.score }));
+        // Fit on real time (x = days since the first snapshot), so the slope
+        // is per-DAY — otherwise "30 days ahead" was extrapolated as "30
+        // snapshots ahead", grossly distorting the forecast.
+        const points = toRegressionPoints(timeline);
         const regression = linearRegression(points);
         const trend = regression.slope > 0.1 ? 'improving' :
                       regression.slope < -0.1 ? 'declining' : 'stable';
 
+        const t0 = timeline[0]!.t;
+        const daysNow = (Date.now() - t0) / MS_PER_DAY;
         const intervals = [7, 14, 30, 60, 90].filter((d) => d <= horizonDays);
         const predictions = intervals.map((days) => {
-          const x = timeline.length + days;
+          const x = daysNow + days;
           const predicted = Math.min(100, Math.max(0, regression.slope * x + regression.intercept));
           const uncertainty = Math.min(20, days * 0.3);
           return {

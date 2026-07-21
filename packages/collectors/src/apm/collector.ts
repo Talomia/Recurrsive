@@ -415,7 +415,14 @@ export class APMCollector implements Collector {
         entities.push(
           this.makeEntity('infrastructure_resource', String(a['name'] ?? 'unknown-app'), {
             resource_type: 'service',
-            status: a['health_status'] === 'green' ? 'healthy' : (a['health_status'] === 'orange' ? 'degraded' : 'critical'),
+            // Map New Relic health: green→healthy, orange→degraded, red→critical.
+            // 'gray' (not reporting) and any missing/unknown value map to
+            // 'unknown' — NOT 'critical' — so absent data isn't asserted as a
+            // critical incident (mirrors the Datadog path's missing→unknown).
+            status: a['health_status'] === 'green' ? 'healthy'
+              : a['health_status'] === 'orange' ? 'degraded'
+                : a['health_status'] === 'red' ? 'critical'
+                  : 'unknown',
             language: a['language'] ?? 'unknown',
             platform: this.platform,
           }, ['service']),
@@ -614,27 +621,13 @@ export class APMCollector implements Collector {
       }
     }
 
-    // Service → Service (depends_on) — service dependencies
-    const apiGateway = serviceResources.find((s) => s.name === 'api-gateway');
-    const authService = serviceResources.find((s) => s.name === 'auth-service');
-    const paymentService = serviceResources.find((s) => s.name === 'payment-service');
-    const orderService = serviceResources.find((s) => s.name === 'order-service');
-
-    if (apiGateway && authService) {
-      relationships.push(this.makeRel('depends_on', apiGateway.id, authService.id, {
-        dependency_type: 'authentication',
-      }));
-    }
-    if (apiGateway && orderService) {
-      relationships.push(this.makeRel('depends_on', apiGateway.id, orderService.id, {
-        dependency_type: 'routing',
-      }));
-    }
-    if (orderService && paymentService) {
-      relationships.push(this.makeRel('depends_on', orderService.id, paymentService.id, {
-        dependency_type: 'payment_processing',
-      }));
-    }
+    // NOTE: Service→Service `depends_on` edges are intentionally NOT emitted.
+    // APM provider responses (Datadog/New Relic/Grafana) used here do not carry
+    // service-dependency topology, so any such edge would be fabricated. A prior
+    // version invented these by string-matching hardcoded names (api-gateway →
+    // auth-service, etc.) with made-up `dependency_type`s — removed for honesty.
+    // Real dependency edges must come from an observed source (e.g. a service
+    // map / trace-derived topology endpoint), not asserted from names.
 
     // User → Alert (owns) — alert owners
     for (const alert of alerts) {

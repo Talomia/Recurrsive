@@ -79,7 +79,11 @@ const envPrefixes = process.env['RECURRSIVE_ALLOWED_PATHS']?.split(',').map(p =>
 const ALLOWED_PREFIXES = envPrefixes ?? ['/app', '/tmp/recurrsive-repos/'];
 function isSafePath(projectPath: string): boolean {
   const resolved = path.resolve(projectPath);
-  return ALLOWED_PREFIXES.some((prefix) => resolved.startsWith(prefix));
+  // Match on a path-segment boundary so `/app` does not admit `/app-private`.
+  return ALLOWED_PREFIXES.some((prefix) => {
+    const base = prefix.endsWith(path.sep) ? prefix.slice(0, -1) : prefix;
+    return resolved === base || resolved.startsWith(base + path.sep);
+  });
 }
 
 /**

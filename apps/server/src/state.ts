@@ -516,8 +516,8 @@ export class ServerState {
     // clone target is user-supplied (POST /analyze gitUrl) and would otherwise
     // let a caller drive git-over-HTTP requests at internal services
     // (e.g. 169.254.169.254 metadata). Reuses the shared outbound-URL guard.
-    const { validateOutboundUrl } = await import('./util/ssrf.js');
-    const ssrf = validateOutboundUrl(gitUrl);
+    const { assertOutboundUrlAllowed } = await import('./util/ssrf.js');
+    const ssrf = await assertOutboundUrlAllowed(gitUrl);
     if (!ssrf.ok) {
       throw new Error(`Git URL rejected: ${ssrf.reason}`);
     }
@@ -658,6 +658,15 @@ export class ServerState {
     // project's history so appends and read endpoints stay consistent.
     const activeProjectId = projectId ?? DEFAULT_PROJECT_ID;
     if (activeProjectId !== this._currentProjectId) {
+      // Switching projects: drop the previous project's in-memory caches BEFORE
+      // adopting the new id. Otherwise an early throw later in this run (degraded
+      // graph, non-git dir, clone/parse failure) would leave project A's cache
+      // addressable under project B — every `... && id === this._currentProjectId`
+      // read (analysisCache, opportunities, evolution timeline) would return A's
+      // data for B. Cleared, those reads correctly fall back to B's own store.
+      this.analysisCache = null;
+      this.opportunityManager = new OpportunityManager();
+      this._evolutionTimeline = null;
       this._analysisHistory = await loadHistory(activeProjectId);
     }
     this._currentProjectId = activeProjectId;

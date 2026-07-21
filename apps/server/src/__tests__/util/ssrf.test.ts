@@ -28,4 +28,24 @@ describe('SSRF guard', () => {
     expect(isBlockedHost('169.254.169.254')).toBe(true);
     expect(isBlockedHost('example.com')).toBe(false);
   });
+
+  it('blocks IPv4-mapped IPv6 literals that Node routes to the underlying IPv4', () => {
+    // Regression: these slipped past the IPv4 patterns and reached
+    // loopback/metadata (Node/undici routes ::ffff:x.x.x.x to the IPv4).
+    for (const u of [
+      'http://[::ffff:169.254.169.254]/latest/meta-data', // dotted form
+      'http://[::ffff:127.0.0.1]/x',
+      'http://[::ffff:a9fe:a9fe]/x',                       // hex form of 169.254.169.254
+      'http://[::ffff:7f00:1]/x',                          // hex form of 127.0.0.1
+    ]) {
+      expect(validateOutboundUrl(u).ok, `${u} should be blocked`).toBe(false);
+    }
+    // A public IPv4-mapped address is still allowed.
+    expect(isBlockedHost('::ffff:93.184.216.34')).toBe(false);
+  });
+
+  it('blocks the fd00::/8 unique-local range (not just fc00)', () => {
+    expect(isBlockedHost('fd12:3456::1')).toBe(true);
+    expect(isBlockedHost('fc00::1')).toBe(true);
+  });
 });

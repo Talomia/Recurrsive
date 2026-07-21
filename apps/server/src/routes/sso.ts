@@ -74,6 +74,9 @@ export interface SAMLAssertion {
 
 /** Stored SSO session record. */
 interface SSOSession {
+  /** The store key for this session — echoed in list responses so that
+   *  DELETE /sso/sessions/:id can target the correct record. */
+  sessionId: string;
   assertion: SAMLAssertion;
   token: string;
   createdAt: string;
@@ -393,6 +396,7 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
     // Store session
     const sessionId = generateId();
     await store.set<SSOSession>('sso_sessions', sessionId, {
+      sessionId,
       assertion,
       token,
       createdAt: nowISO(),
@@ -421,28 +425,12 @@ export async function registerSSORoutes(app: FastifyInstance): Promise<void> {
   // and session revocation below is already admin-gated — reads keep parity.
   app.get('/api/v1/sso/sessions', { preHandler: [authMiddleware, requireRole('admin')] }, async (_request, reply) => {
     const allSessions = await store.all<SSOSession>('sso_sessions');
-    // The original returned sessionId as the map key. Since we store
-    // sessions with their ID as the key and it's also embedded in the
-    // data implicitly via the assertion.id, we need a way to recover
-    // the session ID. We'll use store.list to get data, but we need keys.
-    // Best approach: include the sessionId in the stored object.
-    // For backward compat, we reconstruct from assertion data.
-
-    // Actually, looking at the original code more carefully, the session
-    // objects don't contain their own ID — the Map key was the sessionId.
-    // Since store doesn't expose keys, we need to adjust: when storing a
-    // session, we should include the sessionId in the value. Let's check
-    // the callback handler above — we now store with sessionId as key.
-    // We need the key back in the list. Let's augment the stored session
-    // with its own ID.
-
-    // We'll list sessions and note that the session ID was used as the
-    // store key. Since we can't retrieve keys from await store.all(), we
-    // refactor to embed sessionId in the session record.
-
-    // For now, use the assertion.id as a proxy, which is unique per session.
+    // Return the real store key (`session.sessionId`) so that
+    // DELETE /sso/sessions/:id targets the same record. (Sessions created
+    // before this field existed fall back to assertion.id, which won't match
+    // for revocation — but those are transient and expire on their own.)
     const sessions = allSessions.map((session) => ({
-      sessionId: session.assertion.id,
+      sessionId: session.sessionId ?? session.assertion.id,
       userId: session.assertion.userId,
       email: session.assertion.email,
       provider: session.assertion.issuer,

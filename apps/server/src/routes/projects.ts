@@ -26,6 +26,7 @@ import type { FastifyInstance } from 'fastify';
 import { generateId, nowISO } from '@recurrsive/core';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
+import { state } from '../state.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -141,10 +142,11 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
       }
 
-      let cache = await store.get<any>('analysis_cache', project.id);
-      if (!cache) {
-        cache = await store.get<any>('analysis_cache', project.repository);
-      }
+      // Canonical per-project loader (in-memory when current, else this
+      // project's persisted cache). Avoids the old `project.repository`
+      // fallback, which could return a DIFFERENT project's cache when two
+      // project records share a repository URL.
+      const cache = await state.loadCacheForProject(project.id);
 
       return reply.status(200).send({
         data: cache?.findings ?? [],
@@ -163,10 +165,7 @@ export async function registerProjectRoutes(app: FastifyInstance): Promise<void>
         return reply.status(404).send({ error: 'Not Found', message: 'Project not found' });
       }
 
-      let cache = await store.get<any>('analysis_cache', project.id);
-      if (!cache) {
-        cache = await store.get<any>('analysis_cache', project.repository);
-      }
+      const cache = await state.loadCacheForProject(project.id);
 
       return reply.status(200).send({
         data: cache?.opportunities ?? [],

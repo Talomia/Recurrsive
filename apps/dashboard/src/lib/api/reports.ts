@@ -7,7 +7,7 @@
  * state — an unreachable server must never masquerade as an empty timeline.
  */
 
-import { apiFetch, BASE_URL } from './client';
+import { apiFetch } from './client';
 
 // ─── Timeline Types ──────────────────────────────────────────────────────────
 
@@ -240,10 +240,16 @@ export async function getSnapshots(): Promise<ProjectSnapshot[]> {
 
 /**
  * Trigger a report download from `GET /api/v1/reports/:format`.
- * Returns the download URL. Formats: markdown, html, sarif, json.
+ * Returns a RELATIVE, same-origin URL so a browser `<a href download>`
+ * navigation goes through the dashboard proxy (which promotes the
+ * `recurrsive_token` cookie to an Authorization header). An absolute
+ * `${BASE_URL}` here would target the upstream API directly, where the
+ * dashboard-scoped cookie isn't sent and a plain navigation can't attach a
+ * Bearer header — so every report download 401'd. Formats: markdown, html,
+ * sarif, json.
  */
 export function getReportUrl(format: string): string {
-  return `${BASE_URL}/api/v1/reports/${encodeURIComponent(format)}`;
+  return `/api/v1/reports/${encodeURIComponent(format)}`;
 }
 
 /**

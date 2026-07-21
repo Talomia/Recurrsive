@@ -282,7 +282,9 @@ export default function AnalyticsPage() {
 
   // Fetch insights data lazily
   useEffect(() => {
-    if (activeTab !== 'AI Insights' || insightsData) return;
+    // Don't run while showing an error (avoids an immediate re-fire loop);
+    // clearing the error via the banner's dismiss/retry re-triggers this fetch.
+    if (activeTab !== 'AI Insights' || insightsData || insightsError) return;
     setInsightsLoading(true);
     Promise.all([getFindingsSummary(), getFindings({ limit: 10 })])
       .then(([fSummary, fData]) => {
@@ -290,11 +292,12 @@ export default function AnalyticsPage() {
         setInsightsData({ insights, summary: fSummary, findings: fData.findings });
       })
       .catch(() => {
+        // Leave insightsData null so dismissing the error re-runs this effect
+        // (a truthy empty object here would wedge the tab permanently).
         setInsightsError('Failed to load insights data.');
-        setInsightsData({ insights: [], summary: null, findings: [] });
       })
       .finally(() => setInsightsLoading(false));
-  }, [activeTab, insightsData]);
+  }, [activeTab, insightsData, insightsError]);
 
   if (loading) {
     return (

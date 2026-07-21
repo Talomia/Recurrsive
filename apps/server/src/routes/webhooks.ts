@@ -291,44 +291,13 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       });
     }
 
-    // Validate URL format and prevent SSRF
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      return reply.status(400).send({
-        error: 'Invalid request',
-        message: 'url must be a valid URL.',
-      });
-    }
-
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return reply.status(400).send({
-        error: 'Invalid request',
-        message: 'url must use http or https protocol.',
-      });
-    }
-
-    // Block requests to private/internal networks (SSRF prevention)
-    const hostname = parsed.hostname.toLowerCase();
-    const blockedPatterns = [
-      /^127\./,              // Loopback
-      /^10\./,               // Private class A
-      /^172\.(1[6-9]|2\d|3[01])\./, // Private class B
-      /^192\.168\./,         // Private class C
-      /^169\.254\./,         // Link-local / cloud metadata
-      /^0\./,                // Current network
-      /^fc00:/i,             // IPv6 unique local
-      /^fe80:/i,             // IPv6 link-local
-      /^::1$/,               // IPv6 loopback
-    ];
-    const blockedHosts = ['localhost', 'metadata.google.internal', 'metadata.internal'];
-
-    if (blockedHosts.includes(hostname) || blockedPatterns.some((p) => p.test(hostname))) {
-      return reply.status(400).send({
-        error: 'Invalid request',
-        message: 'url must not point to a private or internal network address.',
-      });
+    // Validate URL format and prevent SSRF via the shared guard (http(s) only;
+    // blocks loopback, RFC1918, link-local, cloud metadata — as literal IPs,
+    // IPv4-mapped IPv6 literals, and hostnames that resolve to such targets).
+    const { assertOutboundUrlAllowed } = await import('../util/ssrf.js');
+    const urlCheck = await assertOutboundUrlAllowed(url);
+    if (!urlCheck.ok) {
+      return reply.status(400).send({ error: 'Invalid request', message: urlCheck.reason });
     }
 
     if (!events || !Array.isArray(events) || events.length === 0) {
@@ -445,8 +414,8 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     if (url !== undefined) {
       // Re-validate on update — a hook created against a public URL must not be
       // repointed at a private/internal/metadata host (SSRF).
-      const { validateOutboundUrl } = await import('../util/ssrf.js');
-      const check = validateOutboundUrl(url);
+      const { assertOutboundUrlAllowed } = await import('../util/ssrf.js');
+      const check = await assertOutboundUrlAllowed(url);
       if (!check.ok) {
         return reply.status(400).send({ error: 'Invalid URL', message: check.reason });
       }

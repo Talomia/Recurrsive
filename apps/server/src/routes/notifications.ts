@@ -9,7 +9,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth.js';
-import { validateOutboundUrl } from '../util/ssrf.js';
+import { assertOutboundUrlAllowed } from '../util/ssrf.js';
 import { store } from '../store.js';
 
 // ---------------------------------------------------------------------------
@@ -103,8 +103,9 @@ async function deliverNotification(
   }
 
   // SSRF guard: never let a user-supplied notification URL reach a private or
-  // internal target (loopback, RFC1918, link-local, cloud metadata).
-  const urlCheck = validateOutboundUrl(url);
+  // internal target (loopback, RFC1918, link-local, cloud metadata) — including
+  // hostnames that RESOLVE to such addresses.
+  const urlCheck = await assertOutboundUrlAllowed(url);
   if (!urlCheck.ok) {
     return { success: false, error: urlCheck.reason };
   }
@@ -123,6 +124,9 @@ async function deliverNotification(
       headers: { 'Content-Type': 'application/json' },
       body,
       signal: controller.signal,
+      // Do not follow 3xx: a public URL could redirect to an internal target,
+      // re-opening the SSRF hole the guard above closes for the initial URL.
+      redirect: 'manual',
     });
 
     return {
